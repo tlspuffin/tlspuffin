@@ -1,10 +1,10 @@
 use comparable::Comparable;
 use extractable_macro::Extractable;
+use puffin::atom_extract_knowledge;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
-use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 
@@ -1702,7 +1702,25 @@ atom_extract_knowledge!(SshProtocolTypes, KexAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, [u8; 16]);
 atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
-dummy_extract_knowledge!(SshProtocolTypes, bool);
+// `bool` (want_reply, and the boolean flag in channel_request / global_request)
+// is a scalar leaf with no attacker-reusable knowledge, so its knowledge
+// extraction is intentionally a NO-OP. This is the same behaviour as
+// `dummy_extract_knowledge!` but SILENT: that macro logs at `warn` level, and
+// bool sub-terms (fn_true / fn_false) hit the extraction walk on nearly every
+// trace, flooding campaign logs with "Trying to extract a dummy type: bool".
+// Behaviour is identical (nothing pushed into the knowledge store — deliberately
+// NOT `atom_extract_knowledge!`, which would change fuzzing by making bool a
+// reusable DY atom); only the spurious warning is removed.
+impl Extractable<SshProtocolTypes> for bool {
+    fn extract_knowledge<'a>(
+        &'a self,
+        _knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        _matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
+        _source: &'a Source,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
 
 // ── try_read_bytes: read a bitstring back into a typed EvaluatedTerm ──────────
 //
