@@ -91,4 +91,37 @@ static inline bool ssh_creds_password_authorized(const char *user, const uint8_t
     return false;
 }
 
+/* ── Shared TCP/IP forwarding authorization (RFC 4254 §7; issue #1047 items 2-4)
+ *
+ * Both harnesses gate forwarding requests (tcpip-forward / direct-tcpip) on the
+ * SAME (host, port) allow-list, so accepting/rejecting a forward is an identical
+ * policy across stacks — a cross-vendor asymmetry (one accepts a forward the other
+ * refuses) then becomes a real differential, not a harness-config artifact. Only
+ * loopback forwarding to the port the seeds use is authorized; any other target
+ * (or a mutated host/port) is refused by BOTH. */
+typedef struct
+{
+    const char *host;
+    uint32_t port;
+} SshAuthorizedForward;
+
+static const SshAuthorizedForward SSH_AUTHORIZED_FORWARDS[] = {
+    {"127.0.0.1", 22}, /* matches fn_addr_localhost + fn_port_ssh in the seed */
+};
+
+/* True iff (host, port) is an authorized forwarding target. */
+static inline bool ssh_creds_forward_authorized(const char *host, uint32_t port)
+{
+    if (host == NULL)
+        return false;
+    for (size_t i = 0; i < sizeof(SSH_AUTHORIZED_FORWARDS) / sizeof(SSH_AUTHORIZED_FORWARDS[0]);
+         i++)
+    {
+        if (strcmp(host, SSH_AUTHORIZED_FORWARDS[i].host) == 0 &&
+            port == SSH_AUTHORIZED_FORWARDS[i].port)
+            return true;
+    }
+    return false;
+}
+
 #endif /* PUFFIN_SSH_AUTHORIZED_CREDS_H */

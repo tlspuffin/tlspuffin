@@ -2,8 +2,10 @@ use std::any::TypeId;
 
 use comparable::Comparable;
 use extractable_macro::Extractable;
-use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
+use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
+use puffin::algebra::atoms::Function;
 use puffin::algebra::signature::Signature;
+use puffin::algebra::{DYTerm, Term};
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
@@ -12,7 +14,7 @@ use puffin::protocol::{
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::put::PutDescriptor;
-use puffin::trace::Trace;
+use puffin::trace::{Action, Step, Trace};
 use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
@@ -362,6 +364,28 @@ impl ProtocolTypes for SshProtocolTypes {
             // accept-vs-reject divergence — is NEVER shadowed.
             return false;
         }
+        if SHADOW_KNOWN_BUGS && is_fwd_reqsuccess_port_echo_diff(diff) {
+            // wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (see
+            // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks
+            // ACCEPT an authorized tcpip-forward, but wolfSSH appends the bound
+            // port to SSH_MSG_REQUEST_SUCCESS even for a non-zero (non-dynamic)
+            // requested port; RFC 4254 §7.1 returns that uint32 only for a port-0
+            // request (OpenSSH and libssh both send a bare reply). Documented,
+            // root-caused, still-live-on-master conformance deviation (LOW / not a
+            // MUST — §7.1 is descriptive). The `forwarding` seed + its PoC keep the
+            // finding on record; this shadow only stops long campaigns
+            // re-reporting it.
+            //
+            // Gated behind SHADOW_KNOWN_BUGS (NOT SHADOW_KNOWN_BENIGN): this is a
+            // REAL, documented wolfSSH bug we suppress to avoid re-reporting a
+            // closed finding — categorically different from the benign non-findings
+            // above, and re-surfaceable INDEPENDENTLY of them for a bug-focused
+            // re-audit. GUARDED (see `is_fwd_reqsuccess_port_echo_diff`) to fire
+            // ONLY on a both-accepted, response_data-only, purely-additive port
+            // echo — an accept-vs-reject forward divergence (RequestFailure vs
+            // RequestSuccess) or any other message change is NEVER shadowed.
+            return false;
+        }
         true
     }
 
@@ -395,6 +419,26 @@ impl ProtocolTypes for SshProtocolTypes {
             .collect()
     }
 
+    /// Per-execution AES-GCM packet-counter renumbering (see the module-level
+    /// `renumber_aesgcm_counters`). A seed authors its c2s
+    /// `fn_encrypt_packet_aesgcm` calls with the `fn_u32_auto` sentinel counter;
+    /// this pass rewrites each to its true wire position so that step-deleting /
+    /// reordering mutations keep the GCM nonce sequence valid — the mechanism that
+    /// lets the mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state
+    /// from an honest seed (rather than only from a hand-crafted reproducer).
+    ///
+    /// FAST PATH: a read-only symbol scan returns `None` (no clone) unless some
+    /// recipe actually carries the sentinel, so every TLS trace and every SSH trace
+    /// using explicit `fn_u32_N` counters is untouched and allocation-free.
+    fn preprocess_trace(trace: &Trace<Self>) -> Option<Trace<Self>> {
+        if !trace.steps.iter().any(step_has_auto_counter) {
+            return None;
+        }
+        let mut trace = trace.clone();
+        renumber_aesgcm_counters(&mut trace);
+        Some(trace)
+    }
+
     // NOTE: alignment is NOT done via puffin's `differential_fuzzing_alignment_key`
     // hook anymore (that hook is reverted to upstream). All semantic alignment of
     // the decrypted messages lives inside sshpuffin's `AlignedTranscript`
@@ -407,10 +451,32 @@ impl ProtocolTypes for SshProtocolTypes {
     // hidden by the short-circuit.
 }
 
-/// Master switch for shadowing documented-benign divergence classes (see
-/// `differential_fuzzing_filter_diff`). Flip to `false` to re-surface every
-/// shadowed class as an objective.
+/// Master switch for shadowing documented-BENIGN divergence classes — divergences
+/// investigated to a benign (non-bug) conclusion, so suppressing them removes
+/// NOISE, not findings (see `differential_fuzzing_filter_diff`). Currently:
+///   * `is_banner_strictness_diff`         — Finding A, pre-auth banner strictness;
+///   * `is_userauth_failure_only_diff`     — Finding 3, USERAUTH_FAILURE-only delta;
+///   * `is_banner_induced_transcript_presence` — the banner reject's induced transcript-presence
+///     diff (context-aware co-drop, banner-gated).
+/// Flip to `false` to re-surface every benign class as an objective. This does
+/// NOT control `SHADOW_KNOWN_BUGS` below — the two categories are independent.
 const SHADOW_KNOWN_BENIGN: bool = true;
+
+/// Master switch for shadowing documented, root-caused REAL BUGS that we have
+/// already reported/recorded and do not want long campaigns to KEEP re-reporting.
+/// Distinct from `SHADOW_KNOWN_BENIGN` on purpose: these ARE genuine
+/// implementation defects (not benign noise), so they are gated separately and can
+/// be re-surfaced INDEPENDENTLY for a bug-focused re-audit (flip THIS to `false`
+/// while leaving the benign shadows on). Each such shadow must reference the
+/// finding's writeup and be surgically guarded so it can never mask a NEW or
+/// more-dangerous divergence. Currently:
+///   * `is_fwd_reqsuccess_port_echo_diff` — wolfSSH tcpip-forward REQUEST_SUCCESS bound-port echo
+///     for a non-zero requested port, RFC 4254 §7.1
+///     (findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Still live on wolfSSH master; LOW
+///     severity. The diverging `forwarding` seed + PoC remain the permanent record; this switch
+///     only silences campaign re-reporting.
+/// `true` by default (documented, LOW-severity, already recorded).
+const SHADOW_KNOWN_BUGS: bool = true;
 
 /// Finding A — pre-auth banner/version strictness (documented benign in
 /// BUG_HUNTING.md / REPORT_triaging.md). libssh caps the client identification
@@ -502,6 +568,235 @@ fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDifference) -
     type_name.contains("AlignedTranscript")
         && diff.contains("UserAuthFailure")
         && !diff.contains("UserAuthSuccess")
+}
+
+/// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (findings_phase3/
+/// WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks ACCEPT an authorized
+/// tcpip-forward (both emit SSH_MSG_REQUEST_SUCCESS), but wolfSSH appends the
+/// bound port even for a non-zero requested port, while libssh sends a bare reply;
+/// so the `comparable` transcript diff is a single `Changed` on the REQUEST_SUCCESS
+/// (msg 81) key whose ONLY delta is a purely-additive `response_data` byte run (the
+/// echoed port). RFC 4254 §7.1 returns the port only for a port-0 dynamic request
+/// (OpenSSH + libssh agree); a documented, root-caused, LOW-severity conformance
+/// deviation. Shadowed so long campaigns stop re-reporting it; the diverging
+/// `forwarding` seed + PoC remain the record.
+///
+/// VERY STRICT — matches ONLY that exact shape, so it can never mask a real
+/// forwarding divergence:
+///   * `BothRequestSuccess`  => both ACCEPTED (an accept-vs-reject forward, i.e. RequestSuccess vs
+///     RequestFailure, is NOT "BothRequestSuccess" -> KEPT);
+///   * the ONLY changed field is `response_data` (`RequestSuccessMessageChange`);
+///   * EXACTLY ONE changed alignment key, and it is msg 81 (no other message present/absent/changed
+///     -> a diff touching anything else is KEPT);
+///   * the response_data delta is PURELY ADDITIVE and short (a uint32-ish port echo): only `Added(`
+///     entries, no `Removed(`/`Changed(` -> a both-non-empty or otherwise-shaped response_data
+///     difference is KEPT.
+/// Not keyed to a specific port value, so a mutated forward port is still shadowed
+/// but nothing broader is.
+fn is_fwd_reqsuccess_port_echo_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    use puffin::differential::{KnowledgeDiff, TraceDifference};
+    let TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
+        type_name, diff, ..
+    }) = diff
+    else {
+        return false;
+    };
+    // count of `Added(` entries inside the response_data delta (the echoed bytes)
+    let added = diff.matches("Added(").count();
+    type_name.contains("AlignedTranscript")
+        // both accepted the forward (guards against masking accept-vs-reject)
+        && diff.contains("BothRequestSuccess")
+        // the only delta is the response_data field of the REQUEST_SUCCESS
+        && diff.contains("RequestSuccessMessageChange")
+        && diff.contains("response_data")
+        // EXACTLY ONE changed alignment key, and it is REQUEST_SUCCESS (msg 81);
+        // any additional present/absent/changed message keeps the objective
+        && diff.matches("Changed(AlignmentKey").count() == 1
+        && diff.contains("msg_number: 81")
+        && !diff.contains("Added(AlignmentKey")
+        && !diff.contains("Removed(AlignmentKey")
+        // purely-additive, short port echo: some Added bytes, no Removed, no
+        // nested Changed inside response_data (both-non-empty differences KEPT)
+        && added >= 1
+        && added <= 8
+        && !diff.contains("Removed(")
+}
+
+// ── AES-GCM packet-counter renumbering (RFC 4253 §7.1 auto-discovery) ────────
+//
+// Function symbols the renumbering pass keys on. Matched by NAME (symbol), never
+// by evaluated value, so `fn_u32_auto`'s sentinel value is never actually read.
+const AUTO_COUNTER_FN: &str = "fn_u32_auto";
+const AESGCM_ENCRYPT_FN: &str = "fn_encrypt_packet_aesgcm";
+const NEWKEYS_FN: &str = "fn_new_keys";
+const PACKET_FN: &str = "fn_packet";
+
+/// A `Function::name()` is the full Rust path (`std::any::type_name`), e.g.
+/// `sshpuffin::ssh::fn_impl::fn_constants::fn_u32_auto`. Compare the LAST `::`
+/// segment against the short symbol name.
+fn fn_name_is(full: &str, symbol: &str) -> bool {
+    full.rsplit("::").next().unwrap_or(full) == symbol
+}
+
+/// Whether a `Term`'s root application is the named function symbol.
+fn term_root_is(term: &Term<SshProtocolTypes>, symbol: &str) -> bool {
+    matches!(&term.term, DYTerm::Application(f, _) if fn_name_is(f.name(), symbol))
+}
+
+/// Whether any sub-term is the given symbol (read-only DAG walk; no allocation).
+fn term_contains_symbol(term: &Term<SshProtocolTypes>, symbol: &str) -> bool {
+    match &term.term {
+        DYTerm::Variable(_) => false,
+        DYTerm::Application(f, args) => {
+            fn_name_is(f.name(), symbol) || args.iter().any(|a| term_contains_symbol(a, symbol))
+        }
+    }
+}
+
+/// Fast-path predicate for [`SshProtocolTypes::preprocess_trace`]: does this step's
+/// input recipe carry the auto-counter sentinel anywhere?
+fn step_has_auto_counter(step: &Step<SshProtocolTypes>) -> bool {
+    match &step.action {
+        Action::Input(input) => term_contains_symbol(&input.recipe, AUTO_COUNTER_FN),
+        Action::Output(_) => false,
+    }
+}
+
+/// Arg-index path (from the recipe root) to the OUTERMOST aes-gcm encrypt node,
+/// i.e. the one that seals the wire packet this step emits. Pre-order search:
+/// the first match encountered is the closest to the root. `Some(vec![])` means
+/// the root itself is the encrypt (the shape every current seed uses).
+fn find_outermost_aesgcm_path(term: &Term<SshProtocolTypes>) -> Option<Vec<usize>> {
+    if term_root_is(term, AESGCM_ENCRYPT_FN) {
+        return Some(vec![]);
+    }
+    if let DYTerm::Application(_, args) = &term.term {
+        for (i, a) in args.iter().enumerate() {
+            if let Some(mut rest) = find_outermost_aesgcm_path(a) {
+                let mut path = Vec::with_capacity(rest.len() + 1);
+                path.push(i);
+                path.append(&mut rest);
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+/// Follow an arg-index path to a mutable sub-term.
+fn term_at_path_mut<'a>(
+    term: &'a mut Term<SshProtocolTypes>,
+    path: &[usize],
+) -> Option<&'a mut Term<SshProtocolTypes>> {
+    let mut cur = term;
+    for &i in path {
+        let DYTerm::Application(_, args) = &mut cur.term else {
+            return None;
+        };
+        cur = args.get_mut(i)?;
+    }
+    Some(cur)
+}
+
+/// A plaintext NEWKEYS step, `fn_packet(fn_new_keys)` — the first key-epoch
+/// boundary (before any encryption). Consumes no AES-GCM counter itself.
+fn recipe_is_plaintext_newkeys(term: &Term<SshProtocolTypes>) -> bool {
+    if !term_root_is(term, PACKET_FN) {
+        return false;
+    }
+    let DYTerm::Application(_, args) = &term.term else {
+        return false;
+    };
+    args.first().is_some_and(|a| term_root_is(a, NEWKEYS_FN))
+}
+
+/// Build the `fn_u32_<n>` constant leaf by name lookup in the signature. The
+/// rewritten trace is a throwaway executed immediately (never serialised), so this
+/// only needs to EVALUATE to `n`; reusing the registered constant guarantees an
+/// exact type/shape match. Returns `None` for `n` beyond the registered range
+/// (single-epoch traces stay small), leaving the sentinel in place so the packet
+/// simply fails to decrypt rather than silently carrying a wrong counter.
+fn u32_leaf(n: u32) -> Option<Term<SshProtocolTypes>> {
+    const NAMES: [&str; 16] = [
+        "fn_u32_0",
+        "fn_u32_1",
+        "fn_u32_2",
+        "fn_u32_3",
+        "fn_u32_4",
+        "fn_u32_5",
+        "fn_u32_6",
+        "fn_u32_7",
+        "fn_u32_8",
+        "fn_u32_9",
+        "fn_u32_10",
+        "fn_u32_11",
+        "fn_u32_12",
+        "fn_u32_13",
+        "fn_u32_14",
+        "fn_u32_15",
+    ];
+    let want = *NAMES.get(n as usize)?;
+    // `functions_by_name` is keyed by the full type-name path, so match on the
+    // short last-segment symbol instead.
+    let sig = SshProtocolTypes::signature();
+    let (shape, dyn_fn) = sig
+        .functions
+        .iter()
+        .find(|(shape, _)| fn_name_is(shape.name, want))?;
+    Some(Term {
+        term: DYTerm::Application(Function::new(shape.clone(), dyn_fn.clone()), vec![]),
+        payloads: None,
+    })
+}
+
+/// Rewrite every c2s `fn_encrypt_packet_aesgcm` counter argument that is the
+/// `fn_u32_auto` sentinel to the packet's true wire position.
+///
+/// One `InputAction` == one wire packet (`trace.rs`, "force output after each
+/// InputAction step"), so the c2s invocation counter is simply the ordered index
+/// of that packet since the last NEWKEYS. Packets feeding a server agent are
+/// client→server, so the counter is tracked per agent and reset to 0 at each
+/// NEWKEYS boundary (RFC 5647 re-initialises the AES-GCM invocation counter when
+/// keys rotate). An explicit `fn_u32_N` counter is NOT the sentinel and is left
+/// untouched — so adversarial / Terrapin counter manipulation stays a fuzzing
+/// target while sentinel-tagged packets auto-renumber.
+fn renumber_aesgcm_counters(trace: &mut Trace<SshProtocolTypes>) {
+    use std::collections::HashMap;
+
+    let mut counters: HashMap<AgentName, u32> = HashMap::new();
+    for step in trace.steps.iter_mut() {
+        let agent = step.agent;
+        let Action::Input(input) = &mut step.action else {
+            continue;
+        };
+        let counter = counters.entry(agent).or_insert(0);
+
+        if let Some(path) = find_outermost_aesgcm_path(&input.recipe) {
+            // encrypted packet: enc = fn_encrypt_packet_aesgcm(msg, key, iv, ctr)
+            let enc = term_at_path_mut(&mut input.recipe, &path)
+                .expect("path just found immutably must resolve");
+            let DYTerm::Application(_, args) = &mut enc.term else {
+                continue;
+            };
+            // an ENCRYPTED NEWKEYS (msg arg 0) closes the epoch AFTER its own
+            // counter (it is the last packet under the old keys).
+            let is_encrypted_newkeys = args.first().is_some_and(|m| term_root_is(m, NEWKEYS_FN));
+            if let Some(ctr) = args.get_mut(3) {
+                if term_root_is(ctr, AUTO_COUNTER_FN) {
+                    if let Some(leaf) = u32_leaf(*counter) {
+                        *ctr = leaf;
+                    }
+                }
+            }
+            *counter += 1;
+            if is_encrypted_newkeys {
+                *counter = 0;
+            }
+        } else if recipe_is_plaintext_newkeys(&input.recipe) {
+            // plaintext NEWKEYS: first epoch boundary; next packet starts at 0.
+            *counter = 0;
+        }
+    }
 }
 
 impl std::fmt::Display for SshProtocolTypes {
@@ -628,6 +923,39 @@ mod filter_diff_tests {
         // SUCCESS and FAILURE both in the delta — still kept (guard wins)
         assert!(keep(&transcript_inner_diff(
             "AlignedTranscriptChange([Added(..., UserAuthSuccess), Removed(..., UserAuthFailure(...))])"
+        )));
+    }
+
+    /// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo — the EXACT diff produced by
+    /// `seed_client_attacker_forwarding` (both accept the forward; wolfSSH appends
+    /// the bound port to REQUEST_SUCCESS, libssh sends a bare reply). Documented
+    /// benign (WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md) and SHADOWED.
+    #[test]
+    fn fwd_reqsuccess_port_echo_is_shadowed() {
+        assert!(!keep(&transcript_inner_diff(
+            "[ByKey([Changed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 }, \
+             BothRequestSuccess(RequestSuccessMessageChange { response_data: \
+             [Added(0, 0), Added(1, 0), Added(2, 0), Added(3, 22)] }))])]"
+        )));
+    }
+
+    /// SAFETY GUARD: an accept-vs-reject FORWARD divergence — one stack accepts the
+    /// tcpip-forward (REQUEST_SUCCESS), the other refuses it (REQUEST_FAILURE) — is
+    /// the genuinely interesting case and MUST survive. It is NOT a
+    /// `BothRequestSuccess` change, so the port-echo shadow never touches it.
+    #[test]
+    fn fwd_accept_vs_reject_is_always_kept() {
+        // one side REQUEST_SUCCESS, the other REQUEST_FAILURE (msg 81 vs 82)
+        assert!(keep(&transcript_inner_diff(
+            "[ByKey([Added(AlignmentKey { channel: 0, msg_number: 82, ordinal: 0 }, \
+             RequestFailure), Removed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 })])]"
+        )));
+        // both accept BUT another message also diverges (channel-open asymmetry):
+        // more than one changed key => KEPT (shadow requires exactly msg 81 alone)
+        assert!(keep(&transcript_inner_diff(
+            "[ByKey([Changed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 }, \
+             BothRequestSuccess(RequestSuccessMessageChange { response_data: [Added(0, 22)] })), \
+             Added(AlignmentKey { channel: 0, msg_number: 91, ordinal: 0 }, ChannelOpenConfirmation)])]"
         )));
     }
 
@@ -842,5 +1170,173 @@ impl ProtocolBehavior for SshProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         crate::ssh::message::try_read_bytes(bitstring, ty)
+    }
+}
+
+/// Unit tests for the AES-GCM packet-counter renumbering pass
+/// ([`SshProtocolTypes::preprocess_trace`] / `renumber_aesgcm_counters`).
+///
+/// The pass is the mechanism that makes the RFC 4253 §7.1 incomplete-rekey state
+/// fuzz-discoverable: a seed authors its c2s AES-GCM counters as the `fn_u32_auto`
+/// sentinel, and this pass resolves each to its true wire position so that
+/// step-deleting / reordering mutations keep the GCM nonce sequence valid. These
+/// tests lock in the four required properties: consecutive numbering, gapless
+/// renumbering after a deletion, explicit `fn_u32_N` left untouched, and reset at
+/// each NEWKEYS epoch boundary.
+#[cfg(test)]
+mod preprocess_trace_tests {
+    use puffin::agent::AgentName;
+    use puffin::algebra::{DYTerm, Term};
+    use puffin::protocol::ProtocolTypes;
+    use puffin::term;
+    use puffin::trace::{Action, InputAction, Trace};
+
+    use super::SshProtocolTypes;
+    use crate::ssh::fn_impl::*;
+
+    /// A c2s AES-GCM packet whose counter is the auto sentinel. Key/IV are typed
+    /// placeholders — the pass rewrites by SYMBOL and never evaluates the term.
+    fn auto_pkt(msg: Term<SshProtocolTypes>) -> Term<SshProtocolTypes> {
+        term! {
+            fn_encrypt_packet_aesgcm(
+                (@msg), (fn_placeholder_32bytes), (fn_placeholder_32bytes), (fn_u32_auto))
+        }
+    }
+
+    fn svc() -> Term<SshProtocolTypes> {
+        term! { fn_service_request((fn_ssh_userauth)) }
+    }
+
+    fn trace_of(steps: Vec<Term<SshProtocolTypes>>) -> Trace<SshProtocolTypes> {
+        let server = AgentName::first();
+        Trace {
+            prior_traces: vec![],
+            descriptors: vec![],
+            steps: steps
+                .into_iter()
+                .map(|t| InputAction::new_step(server, t))
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Root fn-name of a step's outermost aes-gcm counter argument (index 3), or
+    /// `None` if the step is not an aes-gcm packet.
+    fn last_seg(name: &str) -> &str {
+        name.rsplit("::").next().unwrap_or(name)
+    }
+
+    fn counter_name(trace: &Trace<SshProtocolTypes>, step: usize) -> Option<String> {
+        let Action::Input(input) = &trace.steps[step].action else {
+            return None;
+        };
+        let DYTerm::Application(f, args) = &input.recipe.term else {
+            return None;
+        };
+        if last_seg(f.name()) != "fn_encrypt_packet_aesgcm" {
+            return None;
+        }
+        match &args.get(3)?.term {
+            DYTerm::Application(cf, _) => Some(last_seg(cf.name()).to_string()),
+            DYTerm::Variable(_) => None,
+        }
+    }
+
+    #[test]
+    fn consecutive_auto_counters_renumber_from_zero() {
+        let trace = trace_of(vec![auto_pkt(svc()), auto_pkt(svc()), auto_pkt(svc())]);
+        let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
+        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+    }
+
+    #[test]
+    fn deleting_a_middle_step_renumbers_survivors_gaplessly() {
+        // Author 4 packets, then delete the 2nd (as SkipMutator would): survivors
+        // must renumber to a gapless 0,1,2 — the crux that keeps nonces valid.
+        let mut trace = trace_of(vec![
+            auto_pkt(svc()),
+            auto_pkt(svc()),
+            auto_pkt(svc()),
+            auto_pkt(svc()),
+        ]);
+        trace.steps.remove(1);
+        let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
+        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+    }
+
+    #[test]
+    fn explicit_counter_is_left_untouched() {
+        // A packet with an explicit fn_u32_N is NOT the sentinel: preserve it so
+        // adversarial / Terrapin counter manipulation stays a fuzzing target. The
+        // trace has NO sentinel at all -> the fast path returns None (no rewrite).
+        let explicit = term! {
+            fn_encrypt_packet_aesgcm(
+                (fn_service_request((fn_ssh_userauth))),
+                (fn_placeholder_32bytes), (fn_placeholder_32bytes), (fn_u32_5))
+        };
+        let trace = trace_of(vec![explicit]);
+        assert!(
+            SshProtocolTypes::preprocess_trace(&trace).is_none(),
+            "no sentinel anywhere -> None (hot path stays allocation-free)"
+        );
+    }
+
+    #[test]
+    fn explicit_counter_preserved_when_mixed_with_sentinel() {
+        // When a sentinel forces a rewrite, an explicit fn_u32_N in the SAME trace
+        // must still be left as-is (only sentinels renumber).
+        let explicit = term! {
+            fn_encrypt_packet_aesgcm(
+                (fn_service_request((fn_ssh_userauth))),
+                (fn_placeholder_32bytes), (fn_placeholder_32bytes), (fn_u32_max))
+        };
+        let trace = trace_of(vec![auto_pkt(svc()), explicit, auto_pkt(svc())]);
+        let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
+        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        // step 1 is explicit fn_u32_max -> untouched (its wire slot still consumes
+        // a counter, so the next sentinel is 2, not 1).
+        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_max"));
+        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+    }
+
+    #[test]
+    fn counter_resets_after_plaintext_newkeys() {
+        // svc(0), auth(1), plaintext NEWKEYS (no counter), then next epoch: 0,1.
+        let newkeys = term! { fn_packet((fn_new_keys)) };
+        let trace = trace_of(vec![
+            auto_pkt(svc()),
+            auto_pkt(svc()),
+            newkeys,
+            auto_pkt(svc()),
+            auto_pkt(svc()),
+        ]);
+        let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
+        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 2), None); // plaintext newkeys, not a gcm pkt
+        assert_eq!(counter_name(&out, 3).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 4).as_deref(), Some("fn_u32_1"));
+    }
+
+    #[test]
+    fn counter_resets_after_encrypted_newkeys() {
+        // An ENCRYPTED NEWKEYS (a rekey completion) carries its own epoch-final
+        // counter, then the epoch resets: svc(0), NEWKEYS(1), next-epoch svc(0).
+        let enc_newkeys = auto_pkt(term! { fn_new_keys });
+        let trace = trace_of(vec![auto_pkt(svc()), enc_newkeys, auto_pkt(svc())]);
+        let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
+        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_0"));
+    }
+
+    #[test]
+    fn no_sentinel_trace_is_untouched_fast_path() {
+        let trace = trace_of(vec![term! { fn_packet((fn_new_keys)) }]);
+        assert!(SshProtocolTypes::preprocess_trace(&trace).is_none());
     }
 }

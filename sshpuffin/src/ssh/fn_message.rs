@@ -9,10 +9,10 @@ use crate::ssh::message::{
     ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage, ChannelWindowAdjustMessage,
     CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms, ExtInfoExtension,
     ExtInfoMessage, GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage,
-    KexEcdhReplyMessage, KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage,
-    RequestSuccessMessage, ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshBytes,
-    SshMessage, SshPublicKey, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
-    UserAuthFailureMessage, UserAuthRequestMessage,
+    KexEcdhReplyMessage, KexInitMessage, MacAlgorithms, NameList, OnWireData, RawMessage,
+    RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage, ServiceRequestMessage,
+    SignatureSchemes, SshBytes, SshMessage, SshPublicKey, SshSignature, UnimplementedMessage,
+    UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -179,6 +179,29 @@ pub fn fn_unimplemented(packet_sequence_number: &u32) -> Result<SshMessage, FnEr
     }))
 }
 
+/// An ARBITRARY SSH message with an explicit type `number` (low byte of the u32,
+/// so the fuzzer can drive it with existing `fn_u32_*` atoms) and a verbatim
+/// `body`. The general "unknown/malformed message-type" primitive: pointing it at
+/// an unassigned number (RFC 4250 §4.1.2) makes the peer treat it as unrecognised,
+/// so each stack's RFC 4253 §11.4 handling (reply SSH_MSG_UNIMPLEMENTED vs
+/// bare-close) becomes a comparable, fuzzable objective.
+pub fn fn_raw_ssh_message(number: &u32, body: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Raw(RawMessage {
+        number: (*number & 0xff) as u8,
+        body: body.clone(),
+    }))
+}
+
+/// Convenience: a fixed unknown/high-numbered message (type 250 — "reserved for
+/// private use", RFC 4251 §7, so unimplemented by both stacks) with an empty body.
+/// A deterministic reproducer atom for the item-7 "unknown message" probe.
+pub fn fn_msg_unknown_highnumber() -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Raw(RawMessage {
+        number: 250,
+        body: SshBytes::new(Vec::new()),
+    }))
+}
+
 pub fn fn_debug(
     always_display: &bool,
     message: &SshBytes,
@@ -206,6 +229,17 @@ pub fn fn_service_accept(service_name: &SshBytes) -> Result<SshMessage, FnError>
 pub fn fn_kex_ecdh_init(ephemeral_public_key: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::KexEcdhInit(KexEcdhInitMessage {
         ephemeral_public_key: ephemeral_public_key.clone(),
+    }))
+}
+
+/// Classic modular-DH `SSH_MSG_KEXDH_INIT` (msg 30) carrying `mpint e`. The wire
+/// format is identical to KEX_ECDH_INIT (uint32 length + bytes), so it reuses the
+/// same message; the distinction is that the negotiated KEX is a
+/// `diffie-hellman-group*` method. Pair with an out-of-range `fn_dh_exponent_*`
+/// to probe RFC 4253 §8 range validation (issue #1047 item 1).
+pub fn fn_kex_dh_init(e: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::KexEcdhInit(KexEcdhInitMessage {
+        ephemeral_public_key: e.clone(),
     }))
 }
 

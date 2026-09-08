@@ -252,6 +252,134 @@ pub fn fn_none_auth_data() -> Result<Vec<u8>, FnError> {
     Ok(vec![])
 }
 
+// ── TCP/IP forwarding names + payloads (RFC 4254 §7; issue #1047 items 2-4) ──
+//
+// Global-request / channel-type NAME atoms and their type-specific payload
+// builders (string/uint32 fields per RFC 4254 §7.1/§7.2). Let a seed drive the
+// forwarding surface: `tcpip-forward` (request a remote forward) and the
+// `direct-tcpip` / `forwarded-tcpip` channel opens — the paths issue #1047 items
+// 2-4 concern (channels/requests accepted without a role guard or a matching
+// prior forward request).
+
+pub fn fn_request_tcpip_forward() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"tcpip-forward".to_vec()))
+}
+pub fn fn_request_cancel_tcpip_forward() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"cancel-tcpip-forward".to_vec()))
+}
+pub fn fn_channel_type_direct_tcpip() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"direct-tcpip".to_vec()))
+}
+pub fn fn_channel_type_forwarded_tcpip() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"forwarded-tcpip".to_vec()))
+}
+
+fn ssh_string(out: &mut Vec<u8>, s: &[u8]) {
+    out.extend_from_slice(&(s.len() as u32).to_be_bytes());
+    out.extend_from_slice(s);
+}
+
+/// RFC 4254 §7.1 `tcpip-forward` request data: string address-to-bind, uint32 port.
+pub fn fn_tcpip_forward_data(bind_addr: &SshBytes, port: &u32) -> Result<Vec<u8>, FnError> {
+    let mut d = Vec::new();
+    ssh_string(&mut d, &bind_addr.0);
+    d.extend_from_slice(&port.to_be_bytes());
+    Ok(d)
+}
+
+/// RFC 4254 §7.2 `direct-tcpip` channel data: string host-to-connect, uint32 port,
+/// string originator-IP, uint32 originator-port.
+pub fn fn_direct_tcpip_data(
+    host: &SshBytes,
+    port: &u32,
+    orig_ip: &SshBytes,
+    orig_port: &u32,
+) -> Result<Vec<u8>, FnError> {
+    let mut d = Vec::new();
+    ssh_string(&mut d, &host.0);
+    d.extend_from_slice(&port.to_be_bytes());
+    ssh_string(&mut d, &orig_ip.0);
+    d.extend_from_slice(&orig_port.to_be_bytes());
+    Ok(d)
+}
+
+/// RFC 4254 §7.2 `forwarded-tcpip` channel data: string connected-address, uint32
+/// port, string originator-IP, uint32 originator-port. (Sent by a server that
+/// accepted a `tcpip-forward`; issue #1047 item 2 concerns a client/peer that
+/// opens one WITHOUT a matching prior request.)
+pub fn fn_forwarded_tcpip_data(
+    conn_addr: &SshBytes,
+    port: &u32,
+    orig_ip: &SshBytes,
+    orig_port: &u32,
+) -> Result<Vec<u8>, FnError> {
+    let mut d = Vec::new();
+    ssh_string(&mut d, &conn_addr.0);
+    d.extend_from_slice(&port.to_be_bytes());
+    ssh_string(&mut d, &orig_ip.0);
+    d.extend_from_slice(&orig_port.to_be_bytes());
+    Ok(d)
+}
+
+/// A plausible bind/host address atom for forwarding payloads.
+pub fn fn_addr_localhost() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"127.0.0.1".to_vec()))
+}
+
+/// A VALID SSH port (22) for forwarding payloads. Distinct from `fn_u32_0x10000`
+/// (65536), which is OUT of the 0-65535 range and gets truncated inconsistently
+/// across stacks (libssh's reply API is uint16), manufacturing a spurious
+/// port-mismatch divergence. Use this for the authorized forward.
+pub fn fn_port_ssh() -> Result<u32, FnError> {
+    Ok(22)
+}
+
+// ── Modular-DH (KEXDH_INIT) exponent values (issue #1047 item 1) ─────────────
+//
+// RFC 4253 §8: for a diffie-hellman-group KEX, the client's exchange value `e`
+// MUST be in [1, p-1]; out-of-range values MUST NOT be accepted and the exchange
+// MUST fail. These produce the `e` field (the mpint CONTENT bytes; the message
+// codec adds the uint32 length prefix) so a seed can send a KEXDH_INIT with an
+// out-of-range `e` and compare how each stack validates it. wolfSSL enforces the
+// stricter [2, p-2] (so 0 and 1 are both rejected there).
+
+/// e = 0 (mpint zero = empty). Below RFC's [1, p-1] -> MUST be rejected.
+pub fn fn_dh_exponent_zero() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(Vec::new()))
+}
+/// e = 1. RFC-boundary (in [1, p-1]) but below wolfSSL's [2, p-2] -> a stack that
+/// checks range rejects it, a lax one computes a reply.
+pub fn fn_dh_exponent_one() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(vec![0x01]))
+}
+/// e ≈ 2^2048 - 1 (256×0xff, 0x00-prefixed to stay a positive mpint). Larger than
+/// the group-14 prime p (which is < 2^2048), so e ≥ p -> out of range, MUST fail.
+pub fn fn_dh_exponent_huge() -> Result<SshBytes, FnError> {
+    let mut v = vec![0x00];
+    v.extend(std::iter::repeat(0xffu8).take(256));
+    Ok(SshBytes::new(v))
+}
+
+/// RFC 4252 §8 password-CHANGE request: boolean TRUE + string old-password +
+/// string new-password. This is the `SSH_MSG_USERAUTH_REQUEST "password" TRUE ...`
+/// form a client sends to change an expired password. Probes issue #1047 item 6:
+/// a server that treats the change-request as an ordinary password auth (ignoring
+/// the extra new-password field / not routing to a password-change handler)
+/// diverges from one that handles or rejects it per the RFC. Pair with
+/// `fn_user_auth_request(.., fn_method_password, fn_password_change_auth_data(..))`.
+pub fn fn_password_change_auth_data(
+    old_password: &Vec<u8>,
+    new_password: &Vec<u8>,
+) -> Result<Vec<u8>, FnError> {
+    // boolean TRUE (change-password) + string old + string new
+    let mut data = vec![0x01];
+    for pw in [old_password, new_password] {
+        data.extend_from_slice(&(pw.len() as u32).to_be_bytes());
+        data.extend_from_slice(pw);
+    }
+    Ok(data)
+}
+
 // ── Extra scalar / edge-case atoms ───────────────────────────────────────────
 //
 // More alternatives per field so DY mutations have meaningful values to splice
@@ -302,6 +430,47 @@ pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
 }
 pub fn fn_u32_7() -> Result<u32, FnError> {
     Ok(7)
+}
+pub fn fn_u32_8() -> Result<u32, FnError> {
+    Ok(8)
+}
+pub fn fn_u32_9() -> Result<u32, FnError> {
+    Ok(9)
+}
+pub fn fn_u32_10() -> Result<u32, FnError> {
+    Ok(10)
+}
+pub fn fn_u32_11() -> Result<u32, FnError> {
+    Ok(11)
+}
+pub fn fn_u32_12() -> Result<u32, FnError> {
+    Ok(12)
+}
+pub fn fn_u32_13() -> Result<u32, FnError> {
+    Ok(13)
+}
+pub fn fn_u32_14() -> Result<u32, FnError> {
+    Ok(14)
+}
+pub fn fn_u32_15() -> Result<u32, FnError> {
+    Ok(15)
+}
+
+/// Sentinel AES-GCM packet counter, resolved per-execution by
+/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
+/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
+/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
+/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
+/// later packet's wire position — keep the GCM nonce sequence valid, letting the
+/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
+///
+/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
+/// never by the value returned here, so the concrete value is only a reserved
+/// marker that must never collide with a real counter; it is never actually read
+/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
+pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
+pub fn fn_u32_auto() -> Result<u32, FnError> {
+    Ok(U32_AUTO_SENTINEL)
 }
 pub fn fn_u32_max() -> Result<u32, FnError> {
     Ok(u32::MAX)

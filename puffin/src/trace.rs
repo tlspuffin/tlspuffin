@@ -1157,8 +1157,29 @@ impl<PT: ProtocolTypes> Trace<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_EXEC.increment();
-        let res =
-            self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
+
+        // Whole-trace preprocessing hook (see [`ProtocolTypes::preprocess_trace`]).
+        // This is THE single funnel every real execution passes through — the fuzz
+        // loop, the CLI `execute` / `differential-execute` / `display-execute`
+        // replays, and the unit tests — so hooking here (rather than at the
+        // per-runner / harness / CLI call sites) guarantees a trace reproduces the
+        // SAME way whether discovered by the fuzzer or replayed for inspection.
+        //
+        // Default is a no-op for every protocol (returns `None` => `effective`
+        // borrows `self`, no clone), keeping the hot path allocation-free. A
+        // protocol that returns `Some(rewritten)` gets that throwaway copy executed
+        // for this one call while its stored testcase stays pristine. The rewrite
+        // preserves the step count, so `stop_at_step` (an index into the same step
+        // list) stays valid.
+        let preprocessed = PT::preprocess_trace(self);
+        let effective = preprocessed.as_ref().unwrap_or(self);
+
+        let res = effective.execute_until_step_wrap(
+            ctx,
+            stop_at_step,
+            trace_number,
+            check_security_violation,
+        );
 
         if let Err(e) = res {
             match &e {

@@ -39,6 +39,11 @@ endif()
 # already includes <wolfssh/internal.h>, so the WOLFSSH struct is in scope.
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/ssh.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
 
+# --enable-fwd (below) builds examples/portfwd unconditionally (gated on BUILD_FWD,
+# not BUILD_EXAMPLES); that example can't link against the harness RNG shim and
+# would break `make install`. Suppress it so only the library is built.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/examples/portfwd/include.am -P "${CMAKE_CURRENT_LIST_DIR}/suppress_portfwd.cmake")
+
 set(WOLFSSL_PREFIX "${CMAKE_BINARY_DIR}/wolfssl_install")
 
 # ── step 1: build wolfSSL (--enable-ssh) before configuring wolfSSH ──────────
@@ -58,6 +63,11 @@ autotools_builder(
     --enable-static
     --disable-shared
     --disable-examples
+    # TCP/IP forwarding (-DWOLFSSH_FWD): compiles in server-side direct-tcpip /
+    # tcpip-forward handling + wolfSSH_CTX_SetFwdCb so the harness can wire a
+    # forwarding-authorization callback (issue #1047 items 2-4). The portfwd example
+    # it would otherwise pull in is suppressed by suppress_portfwd.cmake above.
+    --enable-fwd
     --with-wolfssl=${WOLFSSL_PREFIX}
   CFLAGS
     -g
