@@ -120,6 +120,7 @@ define_signature!(
     fn_direct_tcpip_data
     fn_forwarded_tcpip_data
     fn_addr_localhost
+    fn_port_ssh
     fn_exec_payload
     fn_channel_payload
     fn_ssh_bytes

@@ -326,6 +326,14 @@ pub fn fn_addr_localhost() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"127.0.0.1".to_vec()))
 }
 
+/// A VALID SSH port (22) for forwarding payloads. Distinct from `fn_u32_0x10000`
+/// (65536), which is OUT of the 0-65535 range and gets truncated inconsistently
+/// across stacks (libssh's reply API is uint16), manufacturing a spurious
+/// port-mismatch divergence. Use this for the authorized forward.
+pub fn fn_port_ssh() -> Result<u32, FnError> {
+    Ok(22)
+}
+
 // ── Modular-DH (KEXDH_INIT) exponent values (issue #1047 item 1) ─────────────
 //
 // RFC 4253 §8: for a diffie-hellman-group KEX, the client's exchange value `e`

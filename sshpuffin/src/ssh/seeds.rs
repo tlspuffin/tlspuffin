@@ -830,15 +830,18 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 /// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
 /// single deliberate change, as a permanent regression fixture.
 ///
-/// Items 2-4 probe (issue #1047): after auth, exercise the TCP/IP forwarding
-/// surface — send a `tcpip-forward` global request and open a `direct-tcpip`
-/// channel (RFC 4254 §7). With no forwarding callback configured, each stack
-/// takes its DEFAULT path (reject / administratively-prohibited); the differential
-/// compares those. With harness forwarding callbacks wired (see put.c), it reaches
-/// the ACCEPT path where items 2-4 (missing role guard / no match to a prior
-/// forward request) live. Publickey-A auth first so the connection is established.
+/// TCP/IP forwarding flow (RFC 4254 §7; issue #1047 items 2-4): publickey-A auth,
+/// then a `tcpip-forward` global request + a `direct-tcpip` channel open, BOTH
+/// accepted by both stacks (shared `ssh_creds_forward_authorized` boundary; wolfSSH
+/// `FwdCb` + libssh global-request/message callbacks reach the ACCEPT path).
 ///
-/// NOT registered in any corpus (probes a divergent surface; callable reproducer).
+/// REGISTERED in the differential corpus. It is post-filter 0-diff: the single
+/// genuine wolfSSH deviation it triggers — the REQUEST_SUCCESS bound-port echo for
+/// a non-zero requested port — is permanently shadowed
+/// (`is_fwd_reqsuccess_port_echo_diff`; WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). This
+/// gives the forwarding accept path real campaign coverage; any OTHER forwarding
+/// divergence (accept-vs-reject, another changed message, a non-port-echo
+/// response_data delta) is NOT shadowed and surfaces as an objective.
 pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -875,19 +878,23 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
             )),
             (@key), (@iv), (fn_u32_1))
     };
-    // tcpip-forward global request (counter 2).
+    // tcpip-forward global request (counter 2). Uses a VALID port (22) so both
+    // stacks parse the same value (0x10000 overflows uint16 inconsistently).
     let fwd_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_global_request((fn_request_tcpip_forward), (fn_true),
-                               (fn_tcpip_forward_data((fn_addr_localhost), (fn_u32_0x10000))))),
+                               (fn_tcpip_forward_data((fn_addr_localhost), (fn_port_ssh))))),
             (@key), (@iv), (fn_u32_2))
     };
-    // direct-tcpip channel open (counter 3).
+    // direct-tcpip channel open (counter 3). Both harnesses now accept an
+    // authorized direct-tcpip: wolfSSH via FwdCb LOCAL_SETUP, libssh via the
+    // message-callback fallback (cb_message). Gated on the same forwarding
+    // allow-list, so any divergence here is a real library difference.
     let direct = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_open((fn_channel_type_direct_tcpip), (fn_u32_0), (fn_u32_1), (fn_u32_2),
-                             (fn_direct_tcpip_data((fn_addr_localhost), (fn_u32_0x10000),
-                                                   (fn_addr_localhost), (fn_u32_0x10000))))),
+                             (fn_direct_tcpip_data((fn_addr_localhost), (fn_port_ssh),
+                                                   (fn_addr_localhost), (fn_port_ssh))))),
             (@key), (@iv), (fn_u32_3))
     };
 
@@ -913,6 +920,12 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
             InputAction::new_step(server, term! { @svc_req }),
             InputAction::new_step(server, term! { @auth_req }),
             InputAction::new_step(server, term! { @fwd_req }),
+            // Both stacks now accept an authorized direct-tcpip (wolfSSH FwdCb,
+            // libssh message-callback fallback). The residual divergence is a
+            // genuine wolfSSH behaviour: it echoes the bound port in
+            // REQUEST_SUCCESS even for a non-zero requested port, contrary to
+            // RFC 4254 §7.1 (port reply only for a port-0 dynamic request); libssh
+            // omits it.
             InputAction::new_step(server, term! { @direct }),
         ],
         ..Default::default()
@@ -2749,6 +2762,22 @@ pub fn create_corpus(
             seed_client_attacker_passwd_change(server),
             "seed_client_attacker_passwd_change",
         ),
+        // TCP/IP forwarding (RFC 4254 §7): an authorized tcpip-forward global
+        // request + direct-tcpip channel open, both ACCEPTED by both stacks (shared
+        // ssh_creds_forward_authorized boundary; wolfSSH FwdCb + libssh
+        // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
+        // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
+        // for a non-zero requested port — is now permanently shadowed
+        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BENIGN; see
+        // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Registering it here
+        // gives the forwarding accept path real differential-campaign coverage while
+        // the known, documented port-echo stays quiet. Any OTHER forwarding
+        // divergence (accept-vs-reject, a second changed message, a non-port-echo
+        // response_data delta) is NOT shadowed and surfaces as an objective.
+        (
+            seed_client_attacker_forwarding(server),
+            "seed_client_attacker_forwarding",
+        ),
         // Same handshake but with a synthesized KEXINIT whose algorithm lists are
         // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
         (
@@ -2914,9 +2943,6 @@ pub fn create_corpus(
             //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
             //     tolerates→Success, wolfSSH "message not allowed before user authentication";
             //     ITEM7_RESCAN.md).
-            //   * forwarding       — tcpip-forward + direct-tcpip (items 2-4: both reject by
-            //     default, differing only in the CHANNEL_OPEN_FAILURE reason code; the accept path
-            //     needs harness forwarding callbacks, so no legit 0-diff seed is possible yet).
             //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
             //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
             //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
