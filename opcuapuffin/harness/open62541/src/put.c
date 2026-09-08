@@ -307,9 +307,26 @@ void open62541_destroy(AGENT agent)
     if (agent->role == CLIENT)
     {
         UA_Client *client = (UA_Client *)agent->application;
-        UA_Client_disconnect(client);
+        /* Bounded disconnect. The synchronous UA_Client_disconnect() pumps the (custom Puffin)
+         * event loop until the SecureChannel reaches CLOSED; under fuzzing a wedged connection
+         * state can prevent that forever, so disconnectSecureChannel() spins in el->run()
+         * indefinitely (a 30s+ silent hang that shows up as a fuzzer Timeout). Instead start an
+         * async disconnect and pump run_iterate a bounded number of times, then delete regardless.
+         * Each run_iterate(timeout=0) is a single non-blocking pass, so the whole teardown is
+         * bounded even if the channel never reaches CLOSED. */
+        status = UA_Client_disconnectAsync(client);
         if (status)
-            _log(PUFFIN.error, "UA Client disconnect returned %s", UA_StatusCode_name(status));
+            _log(PUFFIN.error, "UA Client disconnectAsync returned %s", UA_StatusCode_name(status));
+        UA_SecureChannelState scState = UA_SECURECHANNELSTATE_OPEN;
+        for (int i = 0; i < 1000 && scState != UA_SECURECHANNELSTATE_CLOSED; i++)
+        {
+            UA_Client_run_iterate(client, 0);
+            UA_Client_getState(client, &scState, NULL, NULL);
+        }
+        if (scState != UA_SECURECHANNELSTATE_CLOSED)
+            _log(PUFFIN.error,
+                 "UA Client SecureChannel did not reach CLOSED before delete (state=%d)",
+                 (int)scState);
         UA_Client_delete(client);
     }
     if (agent->role == SERVER)

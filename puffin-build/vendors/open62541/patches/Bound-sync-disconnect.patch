@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: puffin <noreply@tlspuffin>
+Date: Thu, 4 Sep 2026 17:00:00 +0200
+Subject: [PATCH] client: bound the synchronous disconnect drain loop
+
+disconnectSecureChannel(sync=true) spins `while(channel.state != CLOSED)
+el->run(el,100)` with no bound. Under the in-process Puffin event loop a fuzzed
+trace can leave the SecureChannel wedged in a non-CLOSED (even corrupted) state,
+and el->run() always returns GOOD, so the loop never terminates -> a 30s+ silent
+hang at agent teardown (UA_Client_disconnect and, transitively, UA_Client_delete)
+that the fuzzer records as a Timeout objective. Cap the drain so teardown is
+always bounded; a channel that has not closed after the cap is left to
+notifyClientState as before.
+---
+ src/client/ua_client_connect.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
+index 0000000..1111111 100644
+--- a/src/client/ua_client_connect.c
++++ b/src/client/ua_client_connect.c
+@@ -2874,7 +2874,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
+     if(sync && el &&
+        el->state != UA_EVENTLOOPSTATE_FRESH &&
+        el->state != UA_EVENTLOOPSTATE_STOPPED) {
+-        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
++        /* Puffin: bound the drain so a wedged/corrupted channel state cannot spin forever. */
++        size_t puffin_maxIters = 10000;
++        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED && puffin_maxIters-- > 0) {
+             UA_StatusCode runStatus = el->run(el, 100);
+             if(runStatus != UA_STATUSCODE_GOOD) {
+                 UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,

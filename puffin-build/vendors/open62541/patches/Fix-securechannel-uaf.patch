@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: puffin <noreply@tlspuffin>
+Date: Sat, 6 Sep 2026 12:00:00 +0200
+Subject: [PATCH] server: null connectionContext after deleteServerSecureChannel
+ (fix use-after-free)
+
+In serverNetworkCallbackLocked, when a connection attached to a SecureChannel is
+CLOSING, deleteServerSecureChannel(bpm, channel) UA_free()s the channel object but
+leaves *connectionContext pointing at the freed channel. A subsequent callback on
+the same connection id then dereferences that dangling pointer -- either another
+CLOSING (-> deleteServerSecureChannel on freed memory) or a receive
+(-> UA_SecureChannel_loadBuffer on freed memory) -- a heap-use-after-free.
+
+Under fuzzing the in-process event loop can deliver such follow-up callbacks, so
+this UAF fires routinely and, because it happens during crash-handling/teardown,
+double-faults LibAFL's restart (killing the whole campaign). Null the context after
+the delete so any later callback takes the `*connectionContext == NULL` early-return
+(the "closing without being registered -> ignore" path) instead of touching freed
+memory. Mirrors the existing `*connectionContext = NULL` on the createSecureChannel
+failure path in the same function.
+---
+ src/server/ua_server_binary.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
+index 0000000..1111111 100644
+--- a/src/server/ua_server_binary.c
++++ b/src/server/ua_server_binary.c
+@@ -798,6 +798,9 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
+         } else {
+             /* A connection attached to a SecureChannel is closing. This is the
+              * only place where deleteSecureChannel must be used. */
+             deleteServerSecureChannel(bpm, channel);
++            /* The channel is now freed. Clear the dangling context so a later
++             * callback on this connection id does not use-after-free it. */
++            *connectionContext = NULL;
+         }
+
+         /* Set BinaryProtocolManager to STOPPED if it is STOPPING and the last
