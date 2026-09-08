@@ -168,7 +168,7 @@ fn generate_impl(
                 knowledges: &mut Vec<puffin::trace::Knowledge<'a, #protocol_type>>,
                 matcher: Option<<#protocol_type as puffin::protocol::ProtocolTypes>::Matcher>,
                 source: &'a puffin::trace::Source,
-            ) -> Result<(), puffin::error::Error> {
+            ) -> core::result::Result<(), puffin::error::Error> {
                 knowledges.push(puffin::trace::Knowledge {
                     source,
                     matcher: matcher.clone(),

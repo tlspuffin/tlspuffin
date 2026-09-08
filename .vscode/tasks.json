@@ -1,63 +1,76 @@
 {
   "version": "2.0.0",
   "tasks": [
+    // {
+    //   "type": "cargo",
+    //   "command": "build",
+    //   "args": [
+    //     "--bin",
+    //     "tlspuffin",
+    //     "--features",
+    //     "openssl111"
+    //   ],
+    //   "problemMatcher": [
+    //     "$rustc"
+    //   ],
+    //   "group": "build",
+    //   "label": "build openssl111"
+    // },
+    // {
+    //   "type": "cargo",
+    //   "command": "build",
+    //   "args": [
+    //     "--bin",
+    //     "tlspuffin",
+    //     "--features",
+    //     "libressl333"
+    //   ],
+    //   "problemMatcher": [
+    //     "$rustc"
+    //   ],
+    //   "group": "build",
+    //   "label": "build libressl333"
+    // },
+    // {
+    //   "type": "cargo",
+    //   "command": "build",
+    //   "args": [
+    //     "--bin",
+    //     "tlspuffin",
+    //     "--features",
+    //     "wolfssl520"
+    //   ],
+    //   "problemMatcher": [
+    //     "$rustc"
+    //   ],
+    //   "group": "build",
+    //   "label": "build wolfssl520"
+    // },
+    // {
+    //   "type": "cargo",
+    //   "command": "test",
+    //   "args": [
+    //     "--features",
+    //     "openssl111"
+    //   ],
+    //   "problemMatcher": [
+    //     "$rustc"
+    //   ],
+    //   "group": "test",
+    //   "label": "rust: cargo test"
+    // }
     {
       "type": "cargo",
       "command": "build",
       "args": [
         "--bin",
-        "tlspuffin",
-        "--features",
-        "openssl111"
+        "opcuapuffin",
       ],
       "problemMatcher": [
         "$rustc"
       ],
       "group": "build",
-      "label": "build openssl111"
-    },
-    {
-      "type": "cargo",
-      "command": "build",
-      "args": [
-        "--bin",
-        "tlspuffin",
-        "--features",
-        "libressl333"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      "group": "build",
-      "label": "build libressl333"
-    },
-    {
-      "type": "cargo",
-      "command": "build",
-      "args": [
-        "--bin",
-        "tlspuffin",
-        "--features",
-        "wolfssl520"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      "group": "build",
-      "label": "build wolfssl520"
-    },
-    {
-      "type": "cargo",
-      "command": "test",
-      "args": [
-        "--features",
-        "openssl111"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      "group": "test",
-      "label": "rust: cargo test"
+      "label": "build open62541"
     }
   ]
 }

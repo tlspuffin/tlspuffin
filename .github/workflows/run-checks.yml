@@ -16,6 +16,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: run rustfmt
@@ -29,6 +31,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: run clang-format
@@ -42,6 +46,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: check workspace
@@ -63,6 +69,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         id: setup
         uses: ./.github/actions/setup

@@ -148,6 +148,28 @@ impl GitArchive {
         let archive_file = path
             .as_ref()
             .join(format!("git.{}.{}", self.tree.head, self.format));
+
+        // Offline cache reuse: only an immutable commit head is content-addressed, so only then is
+        // a cached git.<head>.tar.gz safe to reuse indefinitely. For mutable refs (Branch /
+        // Default) the same key can point at different source over time, so reusing would silently
+        // build stale source on `--force` rebuilds -- skip the cache for those.
+        let head_is_immutable = matches!(self.tree.head, Head::Commit(_));
+        if head_is_immutable {
+            if archive_file.is_file() {
+                return Ok(archive_file);
+            }
+            // Honor a persistent cache dir via MK_VENDOR_SRC_CACHE (the vendor out-dir is wiped
+            // before each build, so a same-dir copy does not survive).
+            if let Ok(cache) = std::env::var("MK_VENDOR_SRC_CACHE") {
+                let cached = std::path::Path::new(&cache)
+                    .join(format!("git.{}.{}", self.tree.head, self.format));
+                if cached.is_file() {
+                    std::fs::copy(&cached, &archive_file)?;
+                    return Ok(archive_file);
+                }
+            }
+        }
+
         let download_dir = tempfile::tempdir()?;
 
         clone(self.tree.clone()).shallow().to_dir(&download_dir)?;

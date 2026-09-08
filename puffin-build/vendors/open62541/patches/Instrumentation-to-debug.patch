@@ -1,0 +1,191 @@
+From 391bf739d213eac472f9a393581f2235bd1e7e9b Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Fri, 24 Apr 2026 14:58:14 +0200
+Subject: [PATCH 3/4] Instrumentation for debug
+
+(cherry picked from commit 9f619b84cbc320dbe1fc0fff7531383aca9b8386)
+---
+ arch/posix/eventloop_posix_tcp.c       | 19 +++++++++++++------
+ src/client/ua_client_connect.c         |  4 +++-
+ src/server/ua_server.c                 | 25 ++++++++++++++++++++++++-
+ src/server/ua_services_securechannel.c | 16 ++++++++++++++++
+ 4 files changed, 56 insertions(+), 8 deletions(-)
+
+diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
+index ff5e7aa0a..662704933 100644
+--- a/arch/posix/eventloop_posix_tcp.c
++++ b/arch/posix/eventloop_posix_tcp.c
+@@ -263,13 +263,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
+         return;
+     }
+ 
+-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+-                 "TCP %u\t| Allocate receive buffer",
+-                 (unsigned)conn->rfd.fd);
+-
+     /* Use the already allocated receive-buffer */
+     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+     UA_ByteString response = pcm->rxBuffer;
++    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP %u\t| Use already allocated receive buffer (%lu bytes at %p)",
++        (unsigned)conn->rfd.fd, pcm->rxBuffer.length, pcm->rxBuffer.data);
+ 
+     /* Receive */
+     UA_RESET_ERRNO;
+@@ -625,8 +624,10 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                           "TCP %u\t| Error binding the socket to the address %s (%s)",
+                           (unsigned)listenSocket, hostname, errno_str));
+-        UA_close(listenSocket);
+-        return UA_STATUSCODE_BADINTERNALERROR;
++        if (errno != 48) {
++            UA_close(listenSocket);
++            return UA_STATUSCODE_BADINTERNALERROR;
++        };
+     }
+ 
+     /* Only validate, don't actually start listening */
+@@ -1162,6 +1163,8 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+         return UA_STATUSCODE_BADINTERNALERROR;
+ 
+     UA_LOCK(&el->elMutex);
++    UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP\t| EventSource starts");
+ 
+     /* Check the state */
+     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
+@@ -1188,6 +1191,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+     /* Set the EventSource to the started state */
+     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
+ 
++    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %zu).",
++        (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
++
+  finish:
+     UA_UNLOCK(&el->elMutex);
+     return res;
+diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
+index fe402adaa..aff15be3e 100644
+--- a/src/client/ua_client_connect.c
++++ b/src/client/ua_client_connect.c
+@@ -2301,7 +2301,9 @@ initConnect(UA_Client *client) {
+     res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+     if(res != UA_STATUSCODE_GOOD) {
+         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+-                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
++                       "Endpoint URL is invalid: %S (%s)",
++                       client->config.endpointUrl,
++                       UA_StatusCode_name(client->connectStatus) );
+         setConnectStatus(client, res);
+         return;
+     }
+diff --git a/src/server/ua_server.c b/src/server/ua_server.c
+index 1610c5c9a..cf55ce2eb 100644
+--- a/src/server/ua_server.c
++++ b/src/server/ua_server.c
+@@ -1393,6 +1393,8 @@ UA_StatusCode
+ UA_Server_run_shutdown(UA_Server *server) {
+     if(server == NULL)
+         return UA_STATUSCODE_BADINVALIDARGUMENT;
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++        "The server is shutting down...");
+ 
+     lockServer(server);
+ 
+@@ -1405,6 +1407,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+ 
+     /* Set to stopping and notify the application */
+     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++        "The server is set to STOPPING");
+ 
+ #if UA_MULTITHREADING >= 100
+     /* Stop regular callback for async operation processing */
+@@ -1416,6 +1420,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+         removeCallback(server, server->houseKeepingCallbackId);
+         server->houseKeepingCallbackId = 0;
+     }
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_NETWORK,
++        "The server housekeeping tasks: remove callbacks done");
+ 
+     /* Stop all ServerComponents */
+     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+@@ -1424,6 +1430,9 @@ UA_Server_run_shutdown(UA_Server *server) {
+     /* Are we already stopped? */
+     if(testStoppedCondition(server)) {
+         setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
++        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++            "The server is already STOPPED");
++
+     }
+ 
+     /* Only stop the EventLoop if it is coupled to the server lifecycle  */
+@@ -1435,18 +1444,32 @@ UA_Server_run_shutdown(UA_Server *server) {
+     /* Unlock and do one "normal" iteration. This allows threads waiting for the
+      * server lock to proceed before the server lock is destroyed. */
+     unlockServer(server);
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++        "Server: A last normal iteration");
+     UA_Server_run_iterate(server, true);
+     lockServer(server);
+ 
+     /* Iterate the EventLoop until the server is stopped */
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++        "Iterate the EventLoop until the server is stopped");
+     UA_StatusCode res = UA_STATUSCODE_GOOD;
+     UA_EventLoop *el = server->config.eventLoop;
++    int i = 0;
+     while(!testStoppedCondition(server) &&
+-          res == UA_STATUSCODE_GOOD) {
++          res == UA_STATUSCODE_GOOD && i < 10) {
+         res = el->run(el, 100);
++        i++;
++    }
++    if (i == 10) {
++        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
++            "Server components are not all stopped after 10 iterations");
++        // UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
++        //     "Server component: %S", *name);
+     }
+ 
+     /* Stop the EventLoop. Iterate until stopped. */
++    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
++        "Stopping the EventLoop: iterate until stopped.");
+     el->stop(el);
+     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+           el->state != UA_EVENTLOOPSTATE_FRESH &&
+diff --git a/src/server/ua_services_securechannel.c b/src/server/ua_services_securechannel.c
+index 7753c3e7c..42bf44835 100644
+--- a/src/server/ua_services_securechannel.c
++++ b/src/server/ua_services_securechannel.c
+@@ -188,6 +188,21 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+         UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+     UA_CHECK_STATUS(response->responseHeader.serviceResult, return);
+ 
++    /* Signal client thumbprint */
++    unsigned char * pin = channel->remoteCertificateThumbprint; // 20 bytes
++    const int length = 40;
++    UA_String thumbprint;
++    thumbprint.data = (unsigned char *) malloc(length);
++    thumbprint.length = length;
++    const char* hex = "0123456789abcdef";
++    for (int i = 0; i < length/2; i++, pin++) {
++        thumbprint.data[2*i +0] = hex[*pin >> 4 ];
++        thumbprint.data[2*i +1] = hex[*pin & 0xF];
++    }
++    UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
++                           "Remote public key thumbprint: %S", thumbprint);
++    UA_String_clear(&thumbprint);
++
+     /* Success */
+     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
+         UA_LOG_INFO_CHANNEL(sc->logging, channel,
+@@ -285,3 +300,4 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+     if(sc->globalNotificationCallback)
+         sc->globalNotificationCallback(server, type, notifySCMap);
+ }
++
+-- 
+2.53.0
+

@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: puffin <noreply@tlspuffin>
+Date: Sat, 6 Sep 2026 20:00:00 +0200
+Subject: [PATCH] server: guard SecureChannel delete/use against a channel freed
+ on the CLO path (fix double-free / use-after-free)
+
+Companion to Fix-securechannel-uaf.patch. This fixes the UAF that actually kills
+with-bit fuzzing campaigns, precisely as described by the KNOWN ISSUE comment in
+the Puffin harness (eventloop_puffin_tcp.c):
+
+On a CloseSecureChannel (CLO) message, open62541's Service_CloseSecureChannel
+frees the SecureChannel. The connection is then force-closed, and the delayed
+CLOSING callback (TCP_delayedClose -> serverNetworkCallbackLocked) runs
+deleteServerSecureChannel(context->channel) on the ALREADY-FREED channel ->
+heap-use-after-free at ua_server_binary.c:118 (`while(channel->sessions)`), a
+double-free. Symbolized campaign stack:
+    deleteServerSecureChannel        ua_server_binary.c:118
+    serverNetworkCallbackLocked      ua_server_binary.c:801  (CLOSING path)
+    serverNetworkCallback -> TCP_delayedClose -> UA_EventLoopPuffin_run
+Removing the harness force-close only moves the bug: the connection stays open and
+a later receive hits UA_SecureChannel_loadBuffer on the freed channel (another
+UAF). Because these fire during LibAFL's crash-handling window, the child exits
+without a clean abort ("Storing state in crashed fuzzer instance did not work,
+Child exited with: 0") and the whole campaign dies.
+
+Fix (the vendor-side fix the harness comment prescribes -- "clear the
+connection->channel association / guard loadBuffer"): before dereferencing or
+deleting `channel` in serverNetworkCallbackLocked, verify it is still a registered
+SecureChannel via puffinChannelStillRegistered(), which walks bpm->channels
+comparing POINTERS ONLY (never dereferencing the possibly-freed channel). Guards
+three sites: the CLOSING delete (skip if already gone -> no double-free), the
+receive-path loadBuffer (skip if gone -> no UAF), and the message loop after
+processSecureChannelMessage (which can free the channel mid-loop). The context is
+still nulled after the CLOSING branch. No behavioural change for a live channel.
+---
+--- a/src/server/ua_server_binary.c
++++ b/src/server/ua_server_binary.c
+@@ -732,6 +732,23 @@
+  *   assigned to the appropriate UA_ServerConnection slot.
+  * - The connection socket (active) initially points to the UA_ServerConnection
+  *   slot and then gets assigned to the new SecureChannel instance. */
++/* Puffin harness-resilience: is `channel` still a registered SecureChannel?
++ * Compares by pointer only and never dereferences the (possibly already-freed)
++ * channel, so it is safe to call on a dangling pointer. Used to prevent the
++ * double-free / use-after-free that occurs when a CLO has freed the channel via
++ * Service_CloseSecureChannel but the connection / delayed-close still holds a
++ * stale reference to it (see KNOWN ISSUE in eventloop_puffin_tcp.c). */
++static UA_Boolean
++puffinChannelStillRegistered(UA_BinaryProtocolManager *bpm,
++                             const UA_SecureChannel *channel) {
++    UA_SecureChannel *c;
++    TAILQ_FOREACH(c, &bpm->channels, componentEntry) {
++        if(c == channel)
++            return true;
++    }
++    return false;
++}
++
+ static void
+ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
+                             void *application, void **connectionContext,
+@@ -798,9 +815,13 @@
+         } else {
+             /* A connection attached to a SecureChannel is closing. This is the
+              * only place where deleteSecureChannel must be used. */
+-            deleteServerSecureChannel(bpm, channel);
+-            /* The channel is now freed. Clear the dangling context so a later
+-             * callback on this connection id does not use-after-free it. */
++            /* The channel may already have been freed on the CLO path
++             * (Service_CloseSecureChannel), leaving *connectionContext dangling.
++             * Only delete it if it is still registered, to avoid a double-free. */
++            if(puffinChannelStillRegistered(bpm, channel))
++                deleteServerSecureChannel(bpm, channel);
++            /* Clear the (possibly dangling) context so a later callback on this
++             * connection id does not use-after-free it. */
+             *connectionContext = NULL;
+         }
+ 
+@@ -850,6 +871,12 @@
+     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+ 
+     /* Process all complete messages */
++    /* The channel may have been freed on a prior CLO while the connection stayed
++     * open, leaving the local `channel` dangling. Skip unless still registered
++     * (pointer compare, no deref) to avoid use-after-free in loadBuffer. */
++    if(!puffinChannelStillRegistered(bpm, channel))
++        return;
++
+     retval = UA_SecureChannel_loadBuffer(channel, msg);
+     while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
+         UA_MessageType messageType;
+@@ -864,6 +891,11 @@
+                                              messageType, requestId, &payload);
+         if(copied)
+             UA_ByteString_clear(&payload);
++        /* processSecureChannelMessage may have freed this channel (e.g. a CLO ->
++         * Service_CloseSecureChannel). Stop touching the now-dangling local
++         * `channel` before persistBuffer / the error path below. */
++        if(!puffinChannelStillRegistered(bpm, channel))
++            return;
+     }
+     retval |= UA_SecureChannel_persistBuffer(channel);
+ 

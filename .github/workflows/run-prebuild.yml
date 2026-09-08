@@ -16,6 +16,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - id: create-matrix
         name: create configurations matrix
         run: printf 'matrix=%s\n' "$(jq -c '.' .github/tlspuffin.matrix.json)" >> "${GITHUB_OUTPUT}"
@@ -42,6 +44,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
 

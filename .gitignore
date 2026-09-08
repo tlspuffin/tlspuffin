@@ -45,3 +45,4 @@ tlspuffin.out
 !docs/**/*.html
 
 super-linter.log
+.idea/

@@ -1,0 +1,26 @@
+From 189b07ce0f0ae950c5710330e03fcfb1a86da27e Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Wed, 21 Jan 2026 17:05:57 +0100
+Subject: [PATCH 3/3] Memory leak in server binary
+
+---
+ src/server/ua_server_binary.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
+index 81363e7f1..294ec4c7c 100644
+--- a/src/server/ua_server_binary.c
++++ b/src/server/ua_server_binary.c
+@@ -217,6 +217,9 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
+                channel->state != UA_SECURECHANNELSTATE_RHE_SENT))
+         return UA_STATUSCODE_BADINTERNALERROR;
+ 
++    UA_String leak = UA_STRING_ALLOC("Adding a memory leak!");
++    UA_LOG_WARNING(server->config.logging,  UA_LOGCATEGORY_SERVER, "%S", leak);
++
+     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
+     UA_TcpHelloMessage helloMessage;
+     UA_StatusCode retval =
+-- 
+2.51.0
+

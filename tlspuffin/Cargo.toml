@@ -279,6 +279,7 @@ sancov = [
     "wolfssl-sys?/sancov",
     "boringssl-sys?/sancov",
 ]
+
 # Debug mode and panic when internal errors occur, instead of logging and skipping
 debug = ["puffin/debug"]
 # Enables ASAN
