@@ -66,9 +66,14 @@ pub struct ScopeWeights {
 impl Default for ScopeWeights {
     fn default() -> Self {
         Self {
+            // Weights INVERSE to the semantic breadth of the scope: a Global replace rewrites the
+            // matched sub-term EVERYWHERE in the trace (broadest, most destructive for structured
+            // inputs), Step within one step, Individual a single occurrence (most surgical). For
+            // grammar/DY fuzzing we want surgical edits to dominate, so global is the least likely.
+            // (AFL-style broad stacking suits flat byte inputs, not deep protocol structures.)
             global: 1,
-            step: 1,
-            individual: 1,
+            step: 2,
+            individual: 3,
         }
     }
 }
