@@ -13,6 +13,7 @@ use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
 use crate::differential::TraceDifference;
 use crate::error::Error;
+use crate::fuzzer::term_zoo;
 use crate::put::PutDescriptor;
 use crate::trace::{Knowledge, Source, Trace};
 
@@ -285,6 +286,13 @@ pub trait ProtocolBehavior: 'static {
     >;
     type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::ProtocolTypes, Self::OpaqueProtocolMessage>
         + From<Self::ProtocolMessageFlight>;
+
+    /// Budgets the term zoo generates with, see [`crate::fuzzer::term_zoo`]. The defaults are the
+    /// values tuned for tlspuffin; what they depend on is a property of the protocol, so every
+    /// protocol is expected to revisit them.
+    const ZOO_MAX_DEPTH: u16 = term_zoo::DEFAULT_MAX_DEPTH;
+    const ZOO_MAX_SIZE: usize = term_zoo::DEFAULT_MAX_SIZE;
+    const ZOO_MAX_TRIES: usize = term_zoo::DEFAULT_MAX_TRIES;
 
     /// Creates a sane initial seed corpus.
     fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;

@@ -42,6 +42,7 @@ pub mod bitstrings;
 pub mod dynamic_function;
 pub mod error;
 pub mod macros;
+pub mod readable_types;
 pub mod signature;
 pub mod term;
 
@@ -101,8 +102,9 @@ pub mod test_signature {
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
-    use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
+    use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
+    use crate::algebra::signature::Signature;
     use crate::algebra::{AnyMatcher, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
     use crate::codec::{CodecP, Reader};
@@ -116,7 +118,7 @@ pub mod test_signature {
     use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, StepNumber, Trace};
     use crate::{
-        codec, define_signature, dummy_codec, dummy_extract_knowledge,
+        codec, declare_signature, define_signature, dummy_codec, dummy_extract_knowledge,
         dummy_extract_knowledge_codec, term,
     };
 
@@ -275,6 +277,69 @@ pub mod test_signature {
         Ok(u16::from(a + 1))
     }
 
+    /// A container holding an inner `Vec<u8>`, used to exercise the [`DYTerm::Deconstructor`]
+    /// mechanism: its `extract_knowledge` exposes both itself and its inner `Vec<u8>` sub-value.
+    #[derive(Debug, Clone, Comparable)]
+    pub struct TestByteContainer(pub Vec<u8>);
+
+    impl Extractable<TestProtocolTypes> for TestByteContainer {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<AnyMatcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher: matcher.clone(),
+                data: self,
+            });
+            // Expose the inner bytes as an extractable sub-value, tagged with a matcher so the
+            // `D(term, [matcher] / Type)` deconstructor syntax can select them.
+            self.0
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)
+        }
+    }
+
+    dummy_codec!(TestProtocolTypes, TestByteContainer);
+
+    /// Builds a concretized [`TestByteContainer`]; used as the *source* term of a deconstructor.
+    pub fn fn_make_byte_container() -> Result<TestByteContainer, FnError> {
+        Ok(TestByteContainer(vec![4, 2]))
+    }
+
+    /// A container exposing two `Vec<u8>` sub-values, used to exercise the deconstructor counter
+    /// (the N-th matching sub-value).
+    #[derive(Debug, Clone, Comparable)]
+    pub struct TestBytePair(pub Vec<u8>, pub Vec<u8>);
+
+    impl Extractable<TestProtocolTypes> for TestBytePair {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<AnyMatcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher: matcher.clone(),
+                data: self,
+            });
+            // Exposed in order: counter 0 selects the first, counter 1 the second.
+            self.0
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)?;
+            self.1
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)
+        }
+    }
+
+    dummy_codec!(TestProtocolTypes, TestBytePair);
+
+    /// Builds a concretized [`TestBytePair`]; used as the *source* term of a deconstructor.
+    pub fn fn_make_byte_pair() -> Result<TestBytePair, FnError> {
+        Ok(TestBytePair(vec![1, 1], vec![2, 2]))
+    }
+
     fn create_client_hello() -> TestTerm {
         term! {
               fn_client_hello(
@@ -346,8 +411,11 @@ pub mod test_signature {
         }
     }
 
+    declare_signature!(TEST_SIGNATURE<TestProtocolTypes>);
+
     define_signature!(
-        TEST_SIGNATURE<TestProtocolTypes>,
+        TEST_SIGNATURE,
+        TestProtocolTypes;
         fn_hmac256_new_key
         fn_hmac256
         fn_client_hello
@@ -373,6 +441,8 @@ pub mod test_signature {
         fn_encrypt12
         fn_seq_0
         fn_seq_1
+        fn_make_byte_container
+        fn_make_byte_pair
     );
 
     pub type TestTrace = Trace<TestProtocolTypes>;
@@ -686,14 +756,14 @@ mod tests {
     use super::test_signature::*;
     use crate::agent::AgentName;
     use crate::algebra::atoms::Variable;
-    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::dynamic_function::{DescribableFunction, TypeShape};
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
     use crate::algebra::{AnyMatcher, DYTerm, Term};
     use crate::put::{PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Source, Spawner, TraceContext};
+    use crate::trace::{Query, Source, Spawner, TraceContext};
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -707,7 +777,7 @@ mod tests {
                     (fn_client_hello(fn_protocol_version12,
                         fn_new_random,
                         fn_new_random,
-                        ((client,0)/ProtocolVersion)
+                        K((client,0)/ProtocolVersion)
                     ))
                 )),
                 fn_new_random
@@ -719,16 +789,16 @@ mod tests {
         };
 
         let _test_simple_function2: TestTerm = term! {
-           fn_new_random(((client,0)))
+           fn_new_random(K((client,0)))
         };
         let _test_simple_function1: TestTerm = term! {
            fn_protocol_version12
         };
         let _test_simple_function: TestTerm = term! {
-           fn_new_random(((client,0)/ProtocolVersion))
+           fn_new_random(K((client,0)/ProtocolVersion))
         };
         let _test_variable: TestTerm = term! {
-            (client,0)/ProtocolVersion
+            K((client,0)/ProtocolVersion)
         };
         let _set_nested_function: TestTerm = term! {
            fn_client_extensions_append(
@@ -756,6 +826,7 @@ mod tests {
             Some(Source::Agent(AgentName::first())),
             None,
             0,
+            false,
         );
 
         let generated_term = Term::from(DYTerm::Application(
@@ -838,6 +909,7 @@ mod tests {
                                     Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
+                                    false,
                                 ))),
                             ],
                         )),
@@ -848,6 +920,7 @@ mod tests {
                             Some(Source::Agent(AgentName::first())),
                             None,
                             0,
+                            false,
                         ))),
                     ],
                 )),
@@ -864,6 +937,7 @@ mod tests {
                                     Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
+                                    false,
                                 ))),
                                 Term::from(DYTerm::Application(
                                     Signature::new_function(&example_op_c),
@@ -876,6 +950,7 @@ mod tests {
                                 Some(Source::Agent(AgentName::first())),
                                 None,
                                 0,
+                                false,
                             ),
                         )),
                     ],
@@ -886,5 +961,303 @@ mod tests {
         //println!("{}", constructed_term);
         let _graph = constructed_term.dot_subgraph(true, 0, "test");
         //println!("{}", graph);
+    }
+
+    /// The `term!` macro accepts nested applications both with wrapping parentheses (legacy) and
+    /// without, and both spellings produce structurally equal terms.
+    #[test_log::test]
+    fn term_macro_optional_parentheses() {
+        let with_parens: TestTerm = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    (fn_support_group_extension(fn_named_group_secp384r1))
+                )),
+                (fn_support_group_extension(fn_named_group_secp384r1))
+            )
+        };
+        let without_parens: TestTerm = term! {
+            fn_client_extensions_append(
+                fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                ),
+                fn_support_group_extension(fn_named_group_secp384r1)
+            )
+        };
+        // Legacy and new spelling can also be freely mixed.
+        let mixed: TestTerm = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                )),
+                fn_support_group_extension(fn_named_group_secp384r1)
+            )
+        };
+
+        assert_eq!(with_parens, without_parens);
+        assert_eq!(with_parens, mixed);
+        assert_eq!(with_parens.size(), without_parens.size());
+    }
+
+    /// Nested applications without wrapping parentheses still work next to variable and constant
+    /// arguments (variables keep their parentheses), and empty argument lists are accepted.
+    #[test_log::test]
+    fn term_macro_mixed_argument_kinds() {
+        let client = AgentName::first();
+        let term: TestTerm = term! {
+            fn_client_hello(
+                fn_protocol_version12(),
+                K((client, 0) / Random),
+                fn_new_session_id,
+                fn_append_cipher_suite(fn_new_cipher_suites(), fn_cipher_suite12),
+                fn_compressions,
+                fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                )
+            )
+        };
+
+        // fn_client_hello has 6 arguments, one of which is a variable.
+        assert_eq!(term.get(&[0]).unwrap().name(), fn_protocol_version12.name());
+        assert!(term.has_variable());
+    }
+
+    /// The query of the variable at the root of `term`, which must be one.
+    fn root_query(term: &TestTerm) -> &Query<AnyMatcher> {
+        match &term.term {
+            DYTerm::Variable(variable) => &variable.query,
+            other => panic!("expected a variable at the root, got {other}"),
+        }
+    }
+
+    /// `K(...)` searches the knowledge, `C(...)` searches the claims: both build a variable, the
+    /// only difference being the `is_claim` flag of their query.
+    #[test_log::test]
+    fn term_macro_knowledge_and_claim_queries() {
+        let client = AgentName::first();
+
+        let knowledge: TestTerm = term! { K((client, 3)[Some(AnyMatcher)] / Random) };
+        let claim: TestTerm = term! { C((client, 3)[Some(AnyMatcher)] / Random) };
+
+        for term in [&knowledge, &claim] {
+            let query = root_query(term);
+            assert_eq!(query.source, Some(Source::Agent(client)));
+            assert_eq!(query.matcher, Some(AnyMatcher));
+            assert_eq!(query.counter, 3);
+            assert_eq!(term.get_type_shape(), &TypeShape::of::<Random>());
+        }
+
+        assert!(!root_query(&knowledge).is_claim);
+        assert!(root_query(&claim).is_claim);
+    }
+
+    /// A knowledge query can also read a precomputation, selected by its label. Claims are only
+    /// produced by agents, so `C(...)` has no such form.
+    #[test_log::test]
+    fn term_macro_knowledge_query_on_precomputation() {
+        let term: TestTerm = term! { K((!"precomputed", 0) / Random) };
+        let query = root_query(&term);
+
+        assert_eq!(
+            query.source,
+            Some(Source::Label(Some("precomputed".to_owned())))
+        );
+        assert_eq!(query.matcher, None);
+        assert!(!query.is_claim);
+    }
+
+    /// Both query kinds may omit their type when used as a function argument: it is then inferred
+    /// from the type of the argument they are passed as.
+    #[test_log::test]
+    fn term_macro_queries_infer_their_type_from_the_argument() {
+        let client = AgentName::first();
+
+        let knowledge: TestTerm = term! { fn_renegotiation_info_extension(K((client, 0))) };
+        let claim: TestTerm =
+            term! { fn_renegotiation_info_extension(C((client, 0)[Some(AnyMatcher)])) };
+
+        for (term, is_claim) in [(&knowledge, false), (&claim, true)] {
+            let argument = term
+                .get(&[0])
+                .expect("fn_renegotiation_info_extension takes one argument");
+            assert_eq!(argument.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+            assert_eq!(root_query(argument).is_claim, is_claim);
+        }
+    }
+
+    // ---- `DYTerm::Deconstructor` mechanism ----
+
+    fn empty_context() -> TraceContext<TestProtocolBehavior> {
+        fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory)
+        }
+        let registry = PutRegistry::<TestProtocolBehavior>::new(
+            [("teststub", dummy_factory())],
+            PutDescriptor::new("teststub", PutOptions::empty()),
+        );
+        TraceContext::new(Spawner::new(registry))
+    }
+
+    /// Builds `deconstruct[query]<Vec<u8>>(fn_make_byte_container)`: it concretizes a
+    /// [`TestByteContainer`] and extracts the inner `Vec<u8>` selected by `query`.
+    fn byte_container_deconstructor(counter: u16) -> TestTerm {
+        Term::from(DYTerm::Deconstructor(
+            TypeShape::of::<Vec<u8>>(),
+            Box::new(Term::from(DYTerm::Application(
+                Signature::new_function(&fn_make_byte_container),
+                vec![],
+            ))),
+            Query {
+                source: None,
+                matcher: None,
+                counter,
+                is_claim: false,
+            },
+        ))
+    }
+
+    /// The deconstructor concretizes its source term and extracts the inner `Vec<u8>` sub-value.
+    #[test_log::test]
+    fn deconstructor_extracts_inner_value() {
+        let context = empty_context();
+        let deconstructor = byte_container_deconstructor(0);
+
+        let evaluated = deconstructor
+            .evaluate_dy(&context)
+            .expect("deconstructor evaluation should succeed");
+        let extracted = evaluated
+            .as_any()
+            .downcast_ref::<Vec<u8>>()
+            .expect("deconstructor should extract a Vec<u8>");
+
+        assert_eq!(extracted, &vec![4u8, 2u8]);
+    }
+
+    /// A deconstructor's result type is the stored `TypeShape`, and its single source term is
+    /// exposed as a regular subterm.
+    #[test_log::test]
+    fn deconstructor_structure_and_display() {
+        let deconstructor = byte_container_deconstructor(0);
+
+        // The result type is the stored TypeShape.
+        assert_eq!(deconstructor.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+        assert_eq!(
+            deconstructor.name(),
+            TypeShape::<TestProtocolTypes>::of::<Vec<u8>>().name
+        );
+
+        // The source term is a real subterm: size counts it and `get` reaches it.
+        assert_eq!(deconstructor.size(), 2);
+        assert_eq!(
+            deconstructor.get(&[0]).unwrap().name(),
+            fn_make_byte_container.name()
+        );
+        // Iteration visits the source term and the deconstructor node itself.
+        assert_eq!(deconstructor.into_iter().count(), 2);
+
+        // Display marks the node as a deconstructor.
+        assert!(deconstructor.to_string().contains("deconstruct"));
+    }
+
+    /// The `D(...)` `term!` operator builds a deconstructor, with or without an explicit matcher,
+    /// and accepts the same source-term spellings as a normal function argument.
+    #[test_log::test]
+    fn deconstructor_macro_syntax() {
+        let context = empty_context();
+
+        // `D(term, Type)` — no matcher — is equivalent to the manually built deconstructor.
+        let without_matcher: TestTerm = term! { D(fn_make_byte_container, Vec<u8>) };
+        assert_eq!(without_matcher, byte_container_deconstructor(0));
+
+        // The source term can also be written as an application (with or without parentheses).
+        let app_source: TestTerm = term! { D(fn_make_byte_container(), Vec<u8>) };
+        assert_eq!(app_source, byte_container_deconstructor(0));
+
+        // `D(term, [matcher] / Type)` — explicit matcher.
+        let with_matcher: TestTerm =
+            term! { D(fn_make_byte_container, [Some(AnyMatcher)] / Vec<u8>) };
+
+        // All spellings evaluate by extracting the inner Vec<u8>.
+        for deconstructor in [without_matcher, app_source, with_matcher] {
+            let evaluated = deconstructor.evaluate_dy(&context).unwrap();
+            assert_eq!(
+                evaluated.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+                &vec![4u8, 2u8]
+            );
+        }
+    }
+
+    /// `fn_myfn(D(term))` infers the deconstructor's target type from the enclosing function's
+    /// argument type.
+    #[test_log::test]
+    fn deconstructor_macro_infers_argument_type() {
+        // fn_renegotiation_info_extension expects a `Vec<u8>` argument.
+        let term: TestTerm = term! {
+            fn_renegotiation_info_extension(D(fn_make_byte_container))
+        };
+
+        let arg = term.get(&[0]).unwrap();
+        assert!(matches!(&arg.term, DYTerm::Deconstructor(..)));
+        // The target type was inferred to be `Vec<u8>` (the argument type), not spelled out.
+        assert_eq!(arg.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+
+        // It also evaluates: the inner Vec<u8> is extracted and fed to the function.
+        let context = empty_context();
+        assert!(term.evaluate_dy(&context).is_ok());
+    }
+
+    /// The optional trailing counter selects the N-th matching sub-value.
+    #[test_log::test]
+    fn deconstructor_macro_counter_selects_nth() {
+        let context = empty_context();
+
+        let first: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>, 0) };
+        let second: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>, 1) };
+
+        let eval_first = first.evaluate_dy(&context).unwrap();
+        assert_eq!(
+            eval_first.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+            &vec![1u8, 1u8]
+        );
+        let eval_second = second.evaluate_dy(&context).unwrap();
+        assert_eq!(
+            eval_second.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+            &vec![2u8, 2u8]
+        );
+
+        // Omitting the counter defaults to 0.
+        let default: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>) };
+        assert_eq!(default, first);
+
+        // The counter also works with the matcher form and the inferred-type argument form.
+        let with_matcher: TestTerm =
+            term! { D(fn_make_byte_pair, [Some(AnyMatcher)] / Vec<u8>, 1) };
+        assert_eq!(
+            with_matcher
+                .evaluate_dy(&context)
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Vec<u8>>()
+                .unwrap(),
+            &vec![2u8, 2u8]
+        );
+
+        let inferred: TestTerm = term! { fn_renegotiation_info_extension(D(fn_make_byte_pair, 1)) };
+        let arg = inferred.get(&[0]).unwrap();
+        assert_eq!(arg.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+        assert!(inferred.evaluate_dy(&context).is_ok());
+    }
+
+    /// Requesting a counter beyond the number of matching sub-values fails cleanly (no panic).
+    #[test_log::test]
+    fn deconstructor_missing_value_errors() {
+        let context = empty_context();
+        // There is a single `Vec<u8>` reachable from the container, so counter 1 has no match.
+        let deconstructor = byte_container_deconstructor(1);
+
+        assert!(deconstructor.evaluate_dy(&context).is_err());
     }
 }

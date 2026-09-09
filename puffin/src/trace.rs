@@ -35,6 +35,7 @@ use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::differential::TraceDifference;
 use crate::error::Error;
+use crate::fuzzer::observed_knowledge::with_observed_knowledge;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
     ERROR_FN, ERROR_IO, ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
@@ -50,6 +51,7 @@ use crate::trace::Action::Input;
 pub struct Query<M> {
     pub source: Option<Source>,
     pub matcher: Option<M>,
+    pub is_claim: bool,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
@@ -196,6 +198,35 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             associated_term: term,
             step,
         });
+    }
+
+    /// Feeds what this store holds into the pool of
+    /// [observed knowledge](crate::fuzzer::observed_knowledge), each value with the step it becomes
+    /// readable from. Prior traces and precomputations run first, hence readable from step 0.
+    pub fn record_observed_knowledge(&self) {
+        let current_trace = self
+            .raw_knowledge
+            .iter()
+            .filter_map(|raw| raw.step.as_ref().map(|step| step.trace))
+            .max()
+            .unwrap_or(0);
+
+        let observations = self.raw_knowledge.iter().flat_map(|raw| {
+            let available_from = match &raw.step {
+                Some(step) if step.trace == current_trace => step.step + 1,
+                Some(_) | None => 0,
+            };
+            raw.into_iter().map(move |knowledge| {
+                (
+                    knowledge.data.type_id(),
+                    knowledge.source.clone(),
+                    knowledge.matcher.clone(),
+                    available_from,
+                )
+            })
+        });
+
+        with_observed_knowledge::<PT, _>(|observed| observed.record(observations));
     }
 
     pub fn number_matching_message_with_source(
@@ -1116,6 +1147,10 @@ impl<PT: ProtocolTypes> Trace<PT> {
         let res =
             self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
 
+        // Recorded whatever the outcome: an execution that stopped early still produced the
+        // knowledge of the steps it went through, and it is the one a corpus entry is added on.
+        ctx.knowledge_store.record_observed_knowledge();
+
         if let Err(e) = res {
             match &e {
                 Error::Fn(_) => ERROR_FN.increment(),
@@ -1479,9 +1514,9 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 /// input_action! {
 ///     // Here we are precomputing a decryption of TLS extension and using it in the following term
 ///     "decrypted_extensions" = term!{fn_decrypt_handshake_flight(
-///         ((server, 0)/MessageFlight),
+///         K((server, 0)/MessageFlight),
 ///         (@server_hello_transcript),
-///         (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+///         (fn_get_server_key_share(K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
 ///         fn_no_psk,
 ///         fn_named_group_secp384r1,
 ///         fn_true,
@@ -1493,9 +1528,9 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 ///         (@server_hello_transcript),
 ///         (
 ///             // We can query our precomputation
-///             (!"decrypted_extensions", 0)[
+///             K((!"decrypted_extensions", 0)[
 ///                 Some(TlsQueryMatcher::Handshake(Some(HandshakeType::EncryptedExtensions)))
-///             ] / Message
+///             ] / Message)
 ///         )
 ///     )}
 /// };

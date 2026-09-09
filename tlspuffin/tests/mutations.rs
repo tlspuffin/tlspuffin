@@ -1,6 +1,6 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
-use puffin::algebra::{DYTerm, TermType};
+use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY, MakeMessage};
 use puffin::fuzzer::mutations::{
@@ -10,6 +10,7 @@ use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, Testcase};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
 use puffin::libafl::state::HasCorpus;
+use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::libafl_bolts::HasLen;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
@@ -19,12 +20,50 @@ use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
-use tlspuffin::tls::fn_impl::{
-    fn_client_hello, fn_client_sign_transcript, fn_encrypt12, fn_seq_1,
-    fn_signature_algorithm_extension, fn_support_group_extension_make,
+use tlspuffin::tls::fn_impl::{fn_client_sign_transcript, fn_encrypt12, fn_seq_1};
+use tlspuffin::tls::rustls::msgs::handshake::{
+    fn_clientextension_namedgroups, fn_clientextension_signaturealgorithms, fn_clienthellopayload,
+    fn_handshakepayload_clienthello,
 };
+use tlspuffin::tls::rustls::msgs::message::fn_message;
 use tlspuffin::tls::seeds::{_seed_client_attacker12, create_corpus, seed_client_attacker_full};
 use tlspuffin::tls::TLS_SIGNATURE;
+
+/// The `ClientHelloPayload` of `term`, if `term` is a `Message` whose handshake payload really is
+/// a ClientHello.
+fn client_hello_payload(term: &Term<TLSProtocolTypes>) -> Option<&Term<TLSProtocolTypes>> {
+    if term.name() != fn_message.name() {
+        return None;
+    }
+    let payload = term.get(&[1, 0, 1]).ok()?;
+    (payload.name() == fn_handshakepayload_clienthello.name()).then_some(payload)
+}
+
+/// [`test_mutators`] walks the mutations by index, relying on their layout: every DY mutation
+/// first, then `MakeMessage` and the other bit-level ones.
+#[test_log::test]
+fn test_mutations_layout() {
+    let registry = tls_registry();
+    let names = test_mutations(&registry, true, true).names();
+
+    let make_message = names
+        .iter()
+        .position(|name| name == "MakeMessage")
+        .expect("MakeMessage opens the bit-level mutations");
+    let dy_names = &names[..make_message];
+
+    assert_eq!(
+        dy_names.last().map(AsRef::as_ref),
+        Some("SwapMutator"),
+        "the DY mutations must all come before MakeMessage, found: {names:?}"
+    );
+    for expected in ["MakeDeconstructorMutator", "MakeKnowledgeQueryMutator"] {
+        assert!(
+            dy_names.iter().any(|name| name == expected),
+            "{expected} is missing from the DY mutations: {dy_names:?}"
+        );
+    }
+}
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
 #[test_log::test]
@@ -52,13 +91,19 @@ fn test_mutators() {
     let mut nb_failures = 0;
     let mut nb_success = 0;
 
+    // The mutations are laid out as: the DY ones, then `MakeMessage`, then the remaining bit-level
+    // ones. Deriving the boundaries from the mutation names rather than hard-coding indices keeps
+    // this test correct when a mutation is added to (or removed from) the list.
+    let names = mutations.names();
+    let make_message_idx = names.iter().position(|name| name == "MakeMessage");
+    let dy_end = make_message_idx.unwrap_or(names.len());
+
     if with_dy {
         log::debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
 
         for (id_i, input) in inputs.iter().enumerate() {
             log::debug!("Treating input nb{id_i}....");
-            let max_idx = if with_bit_level { 8 } else { 7 }; // all DY mutations, including MakeMessages
-            'outer: for idx in 0..max_idx {
+            'outer: for idx in 0..dy_end {
                 log::debug!("Treating mutation nb{idx}");
                 for c in 0..10000 {
                     // log::debug!(".");
@@ -77,7 +122,7 @@ fn test_mutators() {
                         MutationResult::Skipped => (),
                     };
                 }
-                if idx == 4 || idx == 1 {
+                if names[idx] == "RemoveAndLiftMutator" || names[idx] == "SkipMutator" {
                     // former requires a list that some traces don't have, latter requires a trace
                     // of length >2
                     log::error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
@@ -90,7 +135,7 @@ fn test_mutators() {
     if with_bit_level {
         log::debug!("Start [test_mutators:MakeMessage] with nb mutations={} and corpus: {:?}, MakeMessage only", mutations.len(), inputs);
         let mut acc = vec![];
-        let idx = 7; // mutation ID for MakeMessage
+        let idx = make_message_idx.expect("the bit-level mutations start with MakeMessage");
         log::debug!(
             "First generating many MakeMessages nb idx={} from the inputs...",
             idx
@@ -152,7 +197,7 @@ fn test_mutators() {
         let max_tries = 1000;
         for (id_i, input) in acc.iter().enumerate() {
             log::debug!("Treating MakeMessage input nb{id_i}....");
-            for idx in 8..mutations.len() {
+            for idx in (dy_end + 1)..mutations.len() {
                 log::debug!("Treating mutation nb{idx}");
                 let mut succeeded = false;
                 for c in 0..max_tries {
@@ -249,17 +294,19 @@ fn test_byte_remove_payloads(put: &str) {
                             continue;
                         }
 
-                        if args.len() > 5
-                            && input.recipe.is_symbolic()
-                            && !args[5].payloads_to_replace().is_empty()
+                        // The recipe is `fn_message(version, payload)`: the `MessagePayload`
+                        // argument is the strict sub-term carrying the message content.
+                        let payload_arg = args.last().expect("fn_message takes two arguments");
+                        if input.recipe.is_symbolic()
+                            && !payload_arg.payloads_to_replace().is_empty()
                         {
                             log::debug!(
-                                "Found term with payload in argument 5: {}",
+                                "Found term with payload in the message payload argument: {}",
                                 &input.recipe.term
                             );
                             log::debug!(
                                 "MakeMessage created at step {i} new payloads in a strict sub-term: {:?}",
-                                args[5].payloads_to_replace()
+                                payload_arg.payloads_to_replace()
                             );
                             break;
                         }
@@ -282,8 +329,9 @@ fn test_byte_remove_payloads(put: &str) {
             match &first.action {
                 Action::Input(input) => {
                     if let DYTerm::Application(_fd, args) = &input.recipe.term {
-                        if args.len() > 5 && !input.recipe.is_symbolic() {
-                            if args[5].payloads_to_replace().is_empty()
+                        let payload_arg = args.last().expect("fn_message takes two arguments");
+                        if !input.recipe.is_symbolic() {
+                            if payload_arg.payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
                             {
                                 log::debug!(
@@ -491,7 +539,7 @@ fn test_byte_interesting(put: &str) {
 }
 
 fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtocolTypes>> {
-    let loop_tries = 5000;
+    let loop_tries = 50_000;
     let mut attempts = 0;
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
     let mut success = false;
@@ -548,10 +596,10 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
-                            if first_subterm.name() == fn_client_hello.name() {
+                            if client_hello_payload(first_subterm).is_some() {
                                 trace = mutate;
                                 success = true;
                                 break;
@@ -585,7 +633,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms
                             .iter()
@@ -627,17 +675,21 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
             if let Some(last) = mutate.steps.iter().last() {
                 match &last.action {
                     Action::Input(input) => match &input.recipe.term {
-                        DYTerm::Variable(_) => {}
+                        DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                         DYTerm::Application(_, subterms) => {
                             if let Some(first_subterm) = subterms.iter().next() {
                                 log::warn!("mutational result: {:?}", first_subterm);
-                                let sig_alg_extensions = first_subterm.count_functions_by_name(
-                                    fn_signature_algorithm_extension.name(),
-                                );
-                                let support_groups_extensions = first_subterm
-                                    .count_functions_by_name(
-                                        fn_support_group_extension_make.name(),
-                                    );
+                                // Scope the counting to the ClientHello being sent: a
+                                // whole-subtree count also sees the transcript's ClientHello.
+                                let hello = client_hello_payload(first_subterm);
+                                let sig_alg_extensions = hello.map_or(1, |h| {
+                                    h.count_functions_by_name(
+                                        fn_clientextension_signaturealgorithms.name(),
+                                    )
+                                });
+                                let support_groups_extensions = hello.map_or(0, |h| {
+                                    h.count_functions_by_name(fn_clientextension_namedgroups.name())
+                                });
                                 if sig_alg_extensions == 0 && support_groups_extensions == 1 {
                                     trace = mutate;
                                     success = true;
@@ -674,11 +726,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             log::warn!("mutational resul first sub-term: {:?}", first_subterm);
-                            let is_client_hello = first_subterm.name() == fn_client_hello.name();
+                            let is_client_hello = client_hello_payload(first_subterm).is_some();
                             let signatures = first_subterm
                                 .count_functions_by_name(fn_client_sign_transcript.name());
                             if signatures == 1 && is_client_hello {

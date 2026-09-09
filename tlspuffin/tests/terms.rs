@@ -61,13 +61,13 @@ fn test_replace_bitstring_multiple() {
     let ctx = runner.execute(&trace, &mut 0).unwrap();
 
     let _step0_before = vec![
-        22, 3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
+        22, 3, 3, // path=0: fn_protocolversion_tlsv1_2 -> ProtocolVersion,
         0, 211, 1, 0, 0, 207, 3, 3, // Client Hello structure
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, // path=1: fn_new_random -> Random,
+        1, 1, // path=1: fn_random -> Random,
         32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-        3, 3, 3, // path=2: fn_new_session_id -> SessionID,
-        0, 2, 19, 1, // path=fn_append_cipher_suite(...)
+        3, 3, 3, // path=2: fn_sessionid -> SessionID,
+        0, 2, 19, 1, // path=fn_list_ciphersuite_append(...)
         1, 0, // path= 4 fn_compressions -> Vec<Compression>,
         // path = 5 until the end
         0, 132, // path = 5,0,0,0,0  (empty) -> 44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44
@@ -80,40 +80,51 @@ fn test_replace_bitstring_multiple() {
         4, 253, 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199,
         6, 91, 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4,
     ];
-    // fn_client_hello(
-    //     fn_protocol_version12 -> ProtocolVersion, // 0
-    //     fn_new_random -> Random,                  // 1
-    //     fn_new_session_id -> SessionID,           // 2
-    //     fn_append_cipher_suite(                   // 3
-    //         fn_new_cipher_suites -> Vec<CipherSuite>,
-    //         fn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite
-    //     ) -> Vec<CipherSuite>,
-    //     fn_compressions -> Vec<Compression>,      // 4
-    //     BS//fn_client_extensions_make( // 5: [0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, 13, 0, 6,
-    // 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229, 191, 64, 236, 45,
-    // 103, 152, 139, 119, 243, 23, 72, 155, 182, 223, 149, 41, 37, 199, 9, 252, 3, 129, 17, 26,
-    // 89, 86, 242, 215, 88, 17, 14, 89, 211, 215, 193, 114, 158, 44, 13, 112, 234, 247, 115,
-    // 230, 18, 1, 22, 66, 109, 226, 67, 106, 47, 95, 221, 127, 229, 79, 175, 149, 43, 4, 253,
-    // 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91,
-    // 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4])]
-    //     fn_client_extensions_append(
-    //         fn_client_extensions_append(
-    //             fn_client_extensions_append(
-    //                 fn_client_extensions_append(
-    //                     fn_client_extensions_new -> Vec<ClientExtension>,
-    //                     fn_support_group_extension(
-    //                         fn_named_group_secp384r1 -> NamedGroup
-    //                     ) -> ClientExtension
-    //                 ) -> Vec<ClientExtension>,
-    //                 fn_signature_algorithm_extension -> ClientExtension
-    //             ) -> Vec<ClientExtension>,
-    //             fn_key_share_deterministic_extension(
-    //                 fn_named_group_secp384r1 -> NamedGroup
-    //             ) -> ClientExtension
-    //         ) -> Vec<ClientExtension>,
-    //         fn_supported_versions13_extension -> ClientExtension
-    //     ) -> Vec<ClientExtension>
-    // ) -> ClientExtensions
+    // The recipe, as `seeds::_seed_client_attacker_full` now builds it. The indices are the
+    // argument positions inside `fn_clienthellopayload`, which is where the fields the byte
+    // annotations above refer to live; the message wrapper adds `fn_message` ->
+    // `fn_messagepayload_handshake` -> `fn_handshakemessagepayload` on top of it.
+    //
+    // fn_message(
+    //   fn_protocolversion_tlsv1_2 -> ProtocolVersion,
+    //   fn_messagepayload_handshake(fn_handshakemessagepayload(
+    //     fn_handshaketype_clienthello -> HandshakeType,
+    //     fn_handshakepayload_clienthello(fn_clienthellopayload(
+    //       fn_protocolversion_tlsv1_2 -> ProtocolVersion,   // 0
+    //       fn_random -> Random,                         // 1
+    //       fn_sessionid -> SessionID,                  // 2
+    //       fn_ciphersuites(                                 // 3
+    //           fn_list_ciphersuite_append(
+    //               fn_list_ciphersuite_empty -> Vec<CipherSuite>,
+    //               fn_ciphersuite_tls13_aes_128_gcm_sha256 -> CipherSuite
+    //           ) -> Vec<CipherSuite>
+    //       ) -> CipherSuites,
+    //       fn_compressions(                                 // 4
+    //           fn_list_compression_append(
+    //               fn_list_compression_empty -> Vec<Compression>,
+    //               fn_compression_null -> Compression
+    //           ) -> Vec<Compression>
+    //       ) -> Compressions,
+    //       fn_clientextensions(                             // 5, the bytes annotated above
+    //           fn_list_clientextension_append(
+    //               fn_list_clientextension_append(
+    //                   fn_list_clientextension_append(
+    //                       fn_list_clientextension_append(
+    //                           fn_list_clientextension_append(
+    //                               fn_list_clientextension_empty -> Vec<ClientExtension>,
+    //                               fn_clientextension_namedgroups(..) -> ClientExtension
+    //                           ) -> Vec<ClientExtension>,
+    //                           fn_clientextension_signaturealgorithms(..) -> ClientExtension
+    //                       ) -> Vec<ClientExtension>,
+    //                       ..
+    //                   ) -> Vec<ClientExtension>,
+    //                   ..
+    //               ) -> Vec<ClientExtension>,
+    //               fn_clientextension_supportedversions(..) -> ClientExtension
+    //           ) -> Vec<ClientExtension>
+    //       ) -> ClientExtensions
+    //     )) -> HandshakePayload
+    //   )) -> MessagePayload
     // ) -> Message
 
     // This one operates below encryption! (we are able to replace payload under encryption:

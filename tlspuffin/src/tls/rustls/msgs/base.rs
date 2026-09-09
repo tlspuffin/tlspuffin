@@ -1,16 +1,27 @@
 use std::fmt::Debug;
 
 use comparable::Comparable;
+use constructor_macro::Constructor;
 use extractable_macro::Extractable;
-use puffin::codec;
 use puffin::codec::{Codec, Reader};
+use puffin::{codec, define_readable_types};
 
 use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
+use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
+
+// `PayloadU24` has no `#[constructor_list]` — nothing constructs a list of them — so the derive
+// registers the type but not `Vec<PayloadU24>`, which is a message field all the same.
+define_readable_types!(
+    crate::tls::TLS_SIGNATURE,
+    TLSProtocolTypes;
+    Vec<PayloadU24>,
+);
 
 /// An externally length'd payload
-#[derive(Debug, Clone, PartialEq, Extractable, Comparable)]
+#[derive(Debug, Clone, PartialEq, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct Payload(
     #[extractable_no_recursion]
     #[comparable_ignore]
@@ -56,8 +67,9 @@ impl Codec for key::Certificate {
 }
 
 /// An arbitrary, unknown-content, u24-length-prefixed payload
-#[derive(Debug, Clone, PartialEq, Extractable, Comparable)]
+#[derive(Debug, Clone, PartialEq, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct PayloadU24(pub Vec<u8>);
 
 impl PayloadU24 {
@@ -81,8 +93,10 @@ impl Codec for PayloadU24 {
 }
 
 /// An arbitrary, unknown-content, u16-length-prefixed payload
-#[derive(Debug, Clone, PartialEq, Extractable, Comparable)]
+#[derive(Debug, Clone, PartialEq, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct PayloadU16(#[extractable_no_recursion] pub Vec<u8>);
 
 impl PayloadU16 {
@@ -114,8 +128,10 @@ impl Codec for PayloadU16 {
 }
 
 /// An arbitrary, unknown-content, u8-length-prefixed payload
-#[derive(Debug, Clone, PartialEq, Extractable, Comparable)]
+#[derive(Debug, Clone, PartialEq, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct PayloadU8(pub Vec<u8>);
 
 impl PayloadU8 {

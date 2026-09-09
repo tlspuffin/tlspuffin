@@ -56,6 +56,17 @@ where
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
             ,
+            Command::new("mapper")
+                .about("Debugging information about the mapper")
+                .arg(arg!(--path "Show the full Rust path of each symbol instead of just its name").global(true))
+                .subcommands(vec![
+                    Command::new("symbols")
+                        .about("Show all function symbols of ProtocolTypes signatures (sorted alphabetically)"),
+                    Command::new("signature")
+                        .about("Show all function symbols with their type signatures (parameter types and output type)"),
+                    Command::new("buildable")
+                        .about("Show, per function symbol, the cost of the cheapest closed term rooted at it, and whether one exists at all"),
+                ]),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
@@ -497,6 +508,8 @@ where
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
+    } else if let Some(sub_matches) = matches.subcommand_matches("mapper") {
+        return mapper_cmd::<PB::ProtocolTypes>(sub_matches);
     } else if let Some(matches) = matches.subcommand_matches("differential-execute") {
         // differential fuzzing here
         let first_put: &String = matches.get_one("first_target").unwrap();
@@ -822,4 +835,120 @@ fn check_if_puts_exist<'a, 'b, PB: ProtocolBehavior>(
     } else {
         Err((available_puts, non_available_puts))
     }
+}
+
+fn mapper_cmd<PT: ProtocolTypes>(sub_matches: &clap::ArgMatches) -> ExitCode {
+    let show_path = sub_matches.get_flag("path");
+    // Shorten a (possibly generic) type name by stripping module paths from
+    // every path segment while preserving the surrounding structure, e.g.
+    // `alloc::vec::Vec<alloc::vec::Vec<u8>>` -> `Vec<Vec<u8>>`.
+    let display = |full: &'static str| -> String {
+        if show_path {
+            return full.to_string();
+        }
+        let mut out = String::with_capacity(full.len());
+        // Accumulate maximal runs of identifier/path chars, then keep only the
+        // segment after the last `::`. Keep delimiters (`<`, `>`, `,`, `&`,
+        // whitespace, `(`, `)`, ...).
+        let mut segment = String::new();
+        let flush = |segment: &mut String, out: &mut String| {
+            if !segment.is_empty() {
+                out.push_str(segment.rsplit("::").next().unwrap_or(segment));
+                segment.clear();
+            }
+        };
+        for c in full.chars() {
+            if c.is_alphanumeric() || c == '_' || c == ':' {
+                segment.push(c);
+            } else {
+                flush(&mut segment, &mut out);
+                out.push(c);
+            }
+        }
+        flush(&mut segment, &mut out);
+        out
+    };
+
+    let sig = PT::signature();
+    let mut functions: Vec<_> = sig.functions.iter().collect();
+    // Always sort by short name for readability
+    functions.sort_by(|(a, _), (b, _)| {
+        display(a.name)
+            .cmp(&display(b.name))
+            .then_with(|| a.name.cmp(b.name))
+    });
+
+    if sub_matches.subcommand_matches("symbols").is_some() {
+        for (shape, _) in &functions {
+            println!("{}", display(shape.name));
+        }
+    } else if sub_matches.subcommand_matches("signature").is_some() {
+        for (shape, _) in &functions {
+            let args = shape
+                .argument_types
+                .iter()
+                .map(|t| display(t.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "{}({}) -> {}",
+                display(shape.name),
+                args,
+                display(shape.return_type.name)
+            );
+        }
+    } else if sub_matches.subcommand_matches("buildable").is_some() {
+        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols no closed term is
+        // rooted at, at any budget (see [`crate::algebra::signature::Signature::min_gen_depth`]):
+        // some argument type has no closed term either. The term zoo never generates for those.
+        let rows: Vec<_> = functions
+            .iter()
+            .map(|(shape, _)| {
+                (
+                    display(shape.name),
+                    shape.argument_types.len(),
+                    sig.min_gen_depth(shape.name),
+                    sig.min_gen_size(shape.name),
+                )
+            })
+            .collect();
+
+        let name_width = rows
+            .iter()
+            .map(|(name, ..)| name.len())
+            .chain(std::iter::once("SYMBOL".len()))
+            .max()
+            .unwrap_or_default();
+        // Missing costs print as `-` rather than as a number, so a column stays scannable.
+        let cell = |value: Option<String>| value.unwrap_or_else(|| "-".to_string());
+
+        println!(
+            "{:<name_width$}  {:>4}  {:>9}  {:>8}  BUILDABLE",
+            "SYMBOL", "ARGS", "MIN DEPTH", "MIN SIZE"
+        );
+        for (name, args, depth, size) in &rows {
+            println!(
+                "{:<name_width$}  {:>4}  {:>9}  {:>8}  {}",
+                name,
+                args,
+                cell(depth.map(|depth| depth.to_string())),
+                cell(size.map(|size| size.to_string())),
+                if depth.is_some() { "yes" } else { "no" }
+            );
+        }
+
+        // On stderr, so that stdout stays a pipeable table.
+        let unbuildable = rows
+            .iter()
+            .filter(|(_, _, depth, _)| depth.is_none())
+            .count();
+        eprintln!("\n{unbuildable} of {} symbols unbuildable", rows.len());
+    } else {
+        eprintln!(
+            "mapper: expected a subcommand. Use 'mapper symbols', 'mapper signature' or 'mapper \
+             buildable'"
+        );
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
 }

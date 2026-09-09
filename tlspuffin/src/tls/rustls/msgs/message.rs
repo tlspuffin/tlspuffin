@@ -1,19 +1,17 @@
 use std::any::TypeId;
 
 use comparable::Comparable;
+use constructor_macro::Constructor;
 use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
-use puffin::error::Error::{Term, TermBug};
 use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
 
-use crate::claims::*;
-use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::error::Error;
-use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::base::Payload;
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
@@ -22,17 +20,19 @@ use crate::tls::rustls::msgs::enums::{
     ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
-    CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
-    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, KeyShareEntries,
-    KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity,
-    Random, ServerExtension, ServerExtensions, ServerName, ServerNameRequest, SessionID,
-    SupportedSignatureSchemes, VecU16OfPayloadU16, VecU16OfPayloadU8,
+    CertReqExtension, CertificateEntry, CertificateExtension, HandshakeMessagePayload,
+    HelloRetryExtension, KeyShareEntry, NewSessionTicketExtension, PresharedKeyIdentity,
+    ServerExtension, ServerName,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
+use crate::tls::{TLS_SIGNATURE, TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
 
-#[derive(Debug, Clone, Extractable, Comparable)]
+/// Only `CodecP`, whose `read` always fails: which variant a payload holds is given by the
+/// enclosing message's content type, which the bitstring alone does not carry.
+#[derive(Debug, Clone, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_no_try_read]
 pub enum MessagePayload {
     Alert(AlertMessagePayload),
     Handshake(HandshakeMessagePayload),
@@ -166,8 +166,10 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Debug, Clone, Extractable, Comparable, PartialEq)]
+#[derive(Debug, Clone, Extractable, Comparable, PartialEq, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct OpaqueMessage {
     #[extractable_ignore]
     pub typ: ContentType,
@@ -320,7 +322,9 @@ impl PlainMessage {
 }
 
 /// A message with decoded payload
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Comparable, PartialEq, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
@@ -429,7 +433,7 @@ pub enum MessageError {
 // For all Countable types, we encode list of items of such type by prefixing with the length
 // encoded in 2 bytes For each type: whether it produces empty bitstring for empty list ([]), and u8
 // or u16 length prefix (8/16)
-impl VecCodecWoSize for ClientExtension {} // []/u16
+// impl VecCodecWoSize for ClientExtension {} // []/u16
 impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least one extension it seems)
 impl VecCodecWoSize for HelloRetryExtension {} // ?/u16
 impl VecCodecWoSize for CertReqExtension {} // u16 -s
@@ -442,157 +446,22 @@ impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 impl VecCodecWoSize for NamedGroup {} //u16
 impl VecCodecWoSize for KeyShareEntry {} //u16
-                                         // impl VecCodecWoSize for ECPointFormat {} //u8
-                                         // impl VecCodecWoSize for PSKKeyExchangeMode {} //u8
+                                         // `ECPointFormat`, `PSKKeyExchangeMode`, `ProtocolVersion` and `ClientCertificateType` get their
+                                         // `VecCodecWoSize` impl from `#[constructor_list]` (u8 length prefix, see the newtypes
+                                         // `ECPointFormatList`, `PSKKeyExchangeModes`, `ProtocolVersions`, `ClientCertificateTypes`).
 impl VecCodecWoSize for SignatureScheme {} //u16
 impl VecCodecWoSize for ServerName {} //u16
-
-#[macro_export]
-macro_rules! try_read {
-  ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
-      {
-      if $ti == TypeId::of::<$T>() {
-        log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-        <$T>::read_bytes($bitstring).ok_or(Term(format!(
-                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
-                core::any::type_name::<$T>(),
-                & $bitstring
-            ))).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-      } else {
-        try_read!($bitstring, $ti, $($Ts),+)
-      }
-      }
-  };
-
-  ($bitstring:expr, $ti:expr, $T:ty ) => {
-      {
-        if $ti == TypeId::of::<$T>() {
-            log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-            <$T>::read_bytes($bitstring).ok_or(Term(format!(
-                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
-                core::any::type_name::<$T>(),
-                &$bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-        } else {
-                log::warn!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
-                Err(TermBug(format!(
-                    "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
-                    $ti,
-                    &$bitstring
-                )))
-        }
-      }
-  };
-}
 
 /// To `read` an `EvaluatedTerm<PT>` out of a bitstring, we cannot simply use `Codec::read_bytes`
 /// since the type of the value to be initialized is not known, we only have the argument `ty` from
 /// which we can downcast and then call `read_bytes` on the appropriate type.
-/// `try_read_bytes` calls a macro `try_read` that does this.
+/// `try_read_bytes` looks `ty` up in the readable types of [`TLS_SIGNATURE`], which the
+/// `Constructor` derive and the `define_readable_types!` calls fill in.
 ///  (There is no workaround for the uninitialized value type since we need to make Codec traits
 /// into dyn objects, hence it cannot have `Sized` as a supertrait.)
 pub fn try_read_bytes(
     bitstring: &[u8],
     ty: TypeId,
 ) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>, puffin::error::Error> {
-    log::trace!("Trying read...");
-    try_read!(
-        bitstring,
-        ty,
-        // We list all the types that have the Codec trait and that can be the type of a rustls
-        // message
-        // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
-        // signature at least
-        Message,
-        OpaqueMessage,
-        MessageFlight,
-        OpaqueMessageFlight,
-        Vec<Certificate>,
-        Certificate,
-        CertificateEntries,
-        Vec<CertificateEntry>,
-        CertificateEntry,
-        ServerExtensions,
-        Vec<ServerExtension>,
-        ClientExtensions,
-        Vec<ClientExtension>,
-        ClientExtension,
-        ServerExtension,
-        HelloRetryExtensions,
-        Vec<HelloRetryExtension>,
-        HelloRetryExtension,
-        Vec<CertReqExtension>,
-        CertReqExtension,
-        Vec<CertificateExtension>,
-        CertificateExtension,
-        CertificateExtensions,
-        Vec<NewSessionTicketExtension>,
-        NewSessionTicketExtension,
-        NewSessionTicketExtensions,
-        Random,
-        Compressions,
-        Vec<Compression>,
-        Compression,
-        SessionID,
-        // HandshakeHash,
-        // PrivateKey,
-        CipherSuites,
-        Vec<CipherSuite>,
-        CipherSuite,
-        Vec<PresharedKeyIdentity>,
-        PresharedKeyIdentity,
-        AlertMessagePayload,
-        SignatureScheme,
-        ProtocolVersion,
-        HandshakeHash,
-        TranscriptServerFinished,
-        TlsTranscript,
-        TranscriptPartialClientHello,
-        TranscriptServerHello,
-        TranscriptCertificate,
-        TranscriptClientFinished,
-        u64,
-        u32,
-        u16,
-        u8,
-        // Vec<u64>,
-        PayloadU24,
-        PayloadU16,
-        PayloadU8,
-        Vec<PayloadU24>,
-        Vec<PayloadU16>,
-        Vec<PayloadU8>,
-        VecU16OfPayloadU16,
-        VecU16OfPayloadU8,
-        Vec<u8>,
-        Option<Vec<u8>>,
-        Vec<NamedGroup>,
-        // ECPointFormatList,
-        // Vec<ECPointFormat>,
-        // ECPointFormat,
-        // PSKKeyExchangeModes,
-        // Vec<PSKKeyExchangeMode>,
-        // PSKKeyExchangeMode,
-        SupportedSignatureSchemes,
-        Vec<SignatureScheme>,
-        ServerNameRequest,
-        Vec<ServerName>,
-        ServerName,
-        KeyShareEntries,
-        Vec<KeyShareEntry>,
-        KeyShareEntry,
-        Vec<Vec<u8>>,
-        bool,
-        NamedGroup /* Option<Vec<Vec<u8>>>,
-                    * Result<Option<Vec<u8>>, FnError>,
-                    * Result<Vec<u8>, FnError>,
-                    * Result<bool, FnError>,
-                    * Result<Vec<u8>, FnError>,
-                    * Result<Vec<Vec<u8>>, FnError>,
-                    *
-                    * Message,
-                    * Result<Message FnError>,
-                    * MessagePayload,
-                    * ExtensionType, */
-    )
+    TLS_SIGNATURE.try_read_bytes(bitstring, ty)
 }

@@ -25,6 +25,10 @@ use tlspuffin::test_utils::{
     add_payloads_randomly, ignore_add_payload, ignore_add_payload_mutate, test_pay, zoo_test,
 };
 use tlspuffin::tls::fn_impl::*;
+use tlspuffin::tls::rustls::msgs::base::*;
+use tlspuffin::tls::rustls::msgs::enums::*;
+use tlspuffin::tls::rustls::msgs::handshake::{fn_compressions, *};
+use tlspuffin::tls::rustls::msgs::message::*;
 use tlspuffin::tls::seeds::*;
 use tlspuffin::tls::TLS_SIGNATURE;
 
@@ -91,50 +95,78 @@ fn benchmark_trace(c: &mut Criterion) {
 
     group.bench_function("term clone", |b| {
         let client_hello: Term<TLSProtocolTypes> = term! {
-              fn_client_hello(
-                fn_protocol_version12,
-                fn_new_random,
-                fn_new_session_id,
-                (fn_append_cipher_suite(
-                    (fn_new_cipher_suites()),
-                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                    fn_cipher_suite12
-                )),
-                fn_compressions,
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    (fn_client_extensions_append(
-                                        fn_client_extensions_new,
-                                        (fn_support_group_extension_make(
-                                            (fn_support_group_extension_append(
-                                                fn_support_group_extension_new,
-                                                fn_named_group_secp384r1
-                                            ))
+            fn_message(
+                fn_protocolversion_tlsv1_2,
+                fn_messagepayload_handshake(
+                    fn_handshakemessagepayload(
+                        fn_handshaketype_clienthello,
+                        fn_handshakepayload_clienthello(
+                            fn_clienthellopayload(
+                                fn_protocolversion_tlsv1_2,
+                                fn_random,
+                                fn_sessionid,
+                                (fn_list_ciphersuite_append(
+                                    (fn_list_ciphersuite_empty()),
+                                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                                    fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
+                                )),
+                                fn_compressions(
+                                    fn_list_compression_append(
+                                        fn_list_compression_empty,
+                                        fn_compression_null
+                                    )
+                                ),
+                                (fn_list_clientextension_append(
+                                    (fn_list_clientextension_append(
+                                        (fn_list_clientextension_append(
+                                            (fn_list_clientextension_append(
+                                                (fn_list_clientextension_append(
+                                                    (fn_list_clientextension_append(
+                                                        fn_list_clientextension_empty,
+                                                        (fn_clientextension_namedgroups(
+                                                            fn_namedgroups(
+                                                                (fn_list_namedgroup_append(
+                                                                    fn_list_namedgroup_empty,
+                                                                    fn_namedgroup_secp384r1
+                                                                ))
+                                                            )
+                                                        ))
+                                                    )),
+                                                    (fn_clientextension_signaturealgorithms(
+                                                        fn_supportedsignatureschemes(
+                                                            (fn_list_signaturescheme_append(
+                                                                (fn_list_signaturescheme_append(
+                                                                    fn_list_signaturescheme_empty,
+                                                                    fn_signaturescheme_rsa_pkcs1_sha256
+                                                                )),
+                                                                fn_signaturescheme_rsa_pss_sha256
+                                                            ))
+                                                        )
+                                                    ))
+                                                )),
+                                                fn_clientextension_ecpointformats(
+                                                    fn_ecpointformatlist(
+                                                        fn_list_ecpointformat_append(
+                                                            fn_list_ecpointformat_empty,
+                                                            fn_ecpointformat_uncompressed
+                                                        )
+                                                    )
+                                                )
+                                            )),
+                                            fn_clientextension_signedcertificatetimestamprequest
+                                        )),
+                                        // Enable Renegotiation
+                                        (fn_clientextension_renegotiationinfo(
+                                            (fn_payloadu8(fn_empty_bytes_vec))
                                         ))
                                     )),
-                                    (fn_signature_algorithm_extension(
-                                        (fn_supported_signature_schemes_extension_append(
-                                            (fn_supported_signature_schemes_extension_append(
-                                                fn_supported_signature_schemes_extension_new,
-                                                fn_sig_scheme_rsa_pkcs1_sha256
-                                            )),
-                                            fn_sig_scheme_rsa_pss_sha256
-                                        ))
-                                    ))
-                                )),
-                                fn_ec_point_formats_extension
-                            )),
-                            fn_signed_certificate_timestamp_extension
-                        )),
-                         // Enable Renegotiation
-                        (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
-                    )),
-                    // Add signature cert extension
-                    fn_signature_algorithm_cert_extension
-                ))
+                                    // Add signature cert extension
+                                    fn_signature_algorithm_cert_extension
+                                ))
+                            )
+                        )
+                    )
+                )
             )
         };
 
@@ -200,6 +232,7 @@ fn compute_zoo_in_generate_mutator(c: &mut Criterion) {
                 &TLS_SIGNATURE,
                 &mut StdRand::with_seed(i),
                 TermConstraints::default().zoo_gen_how_many,
+                TermConstraints::default().zoo_max_depth,
             );
             i = i + 1;
         })
@@ -271,6 +304,10 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
 }
 
 fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
+    let _ = env_logger::builder()
+        .is_test(false)
+        .filter_level(log::LevelFilter::Error)
+        .try_init();
     let mut group = c.benchmark_group("mutations");
 
     let mut success_count = 0;
