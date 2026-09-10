@@ -1,9 +1,34 @@
+use std::cell::Cell;
+
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};
 use crate::fuzzer::term_zoo::DEFAULT_MAX_DEPTH;
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
+
+thread_local! {
+    /// Per-stage anchor step lock. When set to `Some(k)`, every anchor drawn by
+    /// [`reservoir_sample`] -- and therefore all `choose*` helpers built on it -- is restricted to
+    /// step `k`. Set by [`crate::fuzzer::stages::StepLockedStackMutator`] so that all mutations
+    /// stacked in one mutational stage edit the SAME step. Global/Step *fan-out* (via
+    /// `find_all_term_filtered` / `find_all_sub_term_filtered`) does NOT consult this lock, so a
+    /// Global mutation still spreads its effect across the whole trace -- only its anchor choice is
+    /// confined to the locked step. Safe as a thread-local: LibAFL runs a single mutation thread
+    /// per fuzzer process (one process per core), so there is no cross-trace interference.
+    static STEP_LOCK: Cell<Option<StepIndex>> = const { Cell::new(None) };
+}
+
+/// Set (or clear, with `None`) the process-local anchor step lock. Returns the previous value so
+/// the caller can restore it after the stage.
+pub fn set_step_lock(step: Option<StepIndex>) -> Option<StepIndex> {
+    STEP_LOCK.with(|c| c.replace(step))
+}
+
+/// Read the current anchor step lock (`None` when unlocked).
+pub fn step_lock() -> Option<StepIndex> {
+    STEP_LOCK.with(Cell::get)
+}
 
 /// Size budget for terms and traces during mutation.
 ///
@@ -267,7 +292,14 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
     let mut visited = 0;
     let mut path = TermPath::new();
 
+    let locked = step_lock();
     for (step_index, step) in trace.steps.iter().enumerate() {
+        // Anchor step lock: when a stage has locked a step, only draw anchors from that step.
+        if let Some(k) = locked {
+            if step_index != k {
+                continue;
+            }
+        }
         match &step.action {
             Action::Input(input) => {
                 let term = &input.recipe;
@@ -691,5 +723,43 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
+    }
+
+    #[test_log::test]
+    fn test_step_lock_confines_anchors_to_locked_step() {
+        let trace = setup_simple_trace();
+        let n_steps = trace.steps.len();
+        assert!(n_steps >= 2, "need a multi-step trace to test the lock");
+        let mut rand = StdRand::with_seed(45);
+
+        // With a lock set, every anchor drawn must come from exactly the locked step.
+        for k in 0..n_steps {
+            let prev = set_step_lock(Some(k));
+            for _ in 0..500 {
+                if let Some((_, (step_index, _))) =
+                    choose(&trace, &TermConstraints::default(), &mut rand)
+                {
+                    assert_eq!(step_index, k, "anchor escaped the locked step {}", k);
+                }
+            }
+            set_step_lock(prev);
+        }
+
+        // Without a lock, anchors must spread across more than one step (sanity: the lock is what
+        // confined them above, not some other property of the trace).
+        set_step_lock(None);
+        let mut seen = HashSet::new();
+        for _ in 0..2000 {
+            if let Some((_, (step_index, _))) =
+                choose(&trace, &TermConstraints::default(), &mut rand)
+            {
+                seen.insert(step_index);
+            }
+        }
+        assert!(
+            seen.len() > 1,
+            "unlocked anchors should span multiple steps, saw {:?}",
+            seen
+        );
     }
 }
