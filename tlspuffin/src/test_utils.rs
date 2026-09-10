@@ -394,6 +394,13 @@ where
     let spawner = Spawner::new(tls_registry.clone());
     let ctx = TraceContext::new(spawner);
 
+    // `test_map` draws from its own RNG, so that whatever it consumes cannot shift the stream
+    // `generate_many` draws from. Sharing one RNG makes the generated zoo depend on the closure's
+    // internals: a change to the sub-term sampling it uses (`reservoir_sample`, say) then silently
+    // regenerates the whole zoo, and coverage assertions over rare symbols flip on seeds unrelated
+    // to the change.
+    let mut test_map_rand = RomuDuoJrRand::with_seed(rand.next());
+
     let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
     let number_functions = all_functions_shape.len();
     let mut number_terms = 0;
@@ -420,6 +427,7 @@ where
                     &TLS_SIGNATURE,
                     &mut rand,
                     bucket_size_step,
+                    TermConstraints::default().zoo_max_depth,
                     Some(&f),
                     filter_executable,
                     filter_no_gen,
@@ -435,7 +443,7 @@ where
                 number_terms += terms_f.len();
 
                 for term in terms_f.iter() {
-                    match test_map(term, &ctx, &mut rand) {
+                    match test_map(term, &ctx, &mut test_map_rand) {
                         Ok(_) => {
                             successful_functions.push(term.name().to_string());
                             number_success += 1;

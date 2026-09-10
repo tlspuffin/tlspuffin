@@ -703,6 +703,7 @@ where
                         self.signature,
                         rand,
                         self.constraints.zoo_gen_how_many,
+                        self.constraints.zoo_max_depth,
                     ))
                 } else {
                     self.zoo.get_or_insert_with(|| {
@@ -713,6 +714,7 @@ where
                             self.signature,
                             rand,
                             self.constraints.zoo_gen_how_many,
+                            self.constraints.zoo_max_depth,
                         )
                     })
                 };
