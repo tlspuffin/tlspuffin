@@ -164,7 +164,8 @@ where
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
                     let term_b_size = term_b_mut.size();
 
-                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing
+                    // natural overshoot (pre-PR 472 behavior).
                     if step_b_size + term_a_size <= 500 + term_b_size
                         && step_a_size + term_b_size <= 500 + term_a_size
                     {
@@ -460,7 +461,8 @@ where
                 };
 
                 if let Some(to_replace) = find_term_mut(trace, &trace_path) {
-                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing
+                    // natural overshoot (pre-PR 472 behavior).
                     if step_size + replacement.size() <= 500 + to_replace.size() {
                         if self.with_bit {
                             let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
@@ -766,7 +768,8 @@ where
                 }
 
                 if let Some(term_mut) = find_term_mut(trace, &trace_path) {
-                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing
+                    // natural overshoot (pre-PR 472 behavior).
                     if current_step_size + new_term.size() <= 500 + to_mutate_size {
                         log::debug!(
                             "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
@@ -795,7 +798,8 @@ where
                 crate::trace::Action::Output(_) => 0,
             };
 
-            // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+            // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural
+            // overshoot (pre-PR 472 behavior).
             if step_size + new_term.size() <= 500 + to_mutate_size {
                 if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
                     log::debug!(
