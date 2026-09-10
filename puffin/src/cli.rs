@@ -47,7 +47,7 @@ where
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"with-trunc" "Enables failed trace steps truncation"))
-        .arg(arg!(--"no-step-lock" "Disable step-locked mutation stacking (enabled by default)"))
+        .arg(arg!(--"step-lock" "Enable step-locked mutation stacking (disabled by default)"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
@@ -152,7 +152,7 @@ where
     let with_bit_level = matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let with_truncation = matches.get_flag("with-trunc");
-    let no_step_lock = matches.get_flag("no-step-lock");
+    let step_lock = matches.get_flag("step-lock");
     let without_focus = matches.get_flag("wo-focus");
     let target_put: Option<&String> = matches.get_one("put");
     let verbosity: LevelFilter = *matches
@@ -225,8 +225,8 @@ where
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;
     }
-    if no_step_lock {
-        config.mutation_stage_config.step_locked_stacking = false;
+    if step_lock {
+        config.mutation_stage_config.step_locked_stacking = true;
     }
 
     // Set put_options as default for every PutDescriptor created by the put_registry

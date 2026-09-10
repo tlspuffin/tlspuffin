@@ -3,15 +3,17 @@
 ## 1. What this feature does
 
 A mutational **stage** may stack several mutations (see `GeometricStackMutator`). With step-locking
-**enabled (default)**, all mutations stacked within one stage confine their **anchor selection** to a
-**single step chosen at random once per stage**. Scope still governs how far the *effect* spreads:
+**enabled (opt-in via `--step-lock`)**, all mutations stacked within one stage confine their **anchor
+selection** to a **single step chosen at random once per stage**. Scope still governs how far the
+*effect* spreads:
 
 - **Individual** → the one locked-step occurrence,
 - **Step** → all occurrences within the locked step,
 - **Global** → all occurrences across the whole trace (its *effect* reaches other steps, but its
   *anchor* was chosen inside the locked step).
 
-Disable with the CLI flag **`--no-step-lock`**.
+**Disabled by default; enable with the CLI flag `--step-lock`.** The evaluation (below) found no
+measurable benefit over geometric stacking + scope weights alone, so it is opt-in.
 
 ### Rationale (data-backed)
 Replaying finished corpora showed **~51% of saved traces are broken on replay**, with breaks
@@ -27,8 +29,8 @@ break attributable to the **same** step.
   `find_all_*` deliberately ignores the lock, so Global stays trace-wide.
 - `puffin/src/fuzzer/stages.rs` — `StepLockedStackMutator<PT, M>` wraps the stacking mutator; picks
   one step per stage, sets the lock around the inner stacking loop, restores it after.
-- `puffin/src/fuzzer/config.rs` — `MutationStageConfig.step_locked_stacking` (default `true`).
-- `puffin/src/cli.rs` — `--no-step-lock`; `puffin/src/fuzzer/libafl_setup.rs` — wiring;
+- `puffin/src/fuzzer/config.rs` — `MutationStageConfig.step_locked_stacking` (default `false`).
+- `puffin/src/cli.rs` — `--step-lock`; `puffin/src/fuzzer/libafl_setup.rs` — wiring;
   `puffin/src/experiment.rs` — `_nolock` run-dir suffix when disabled.
 - Test: `utils::tests::test_step_lock_confines_anchors_to_locked_step`.
 
@@ -51,8 +53,8 @@ pick a step directly via `rand.choose(steps)` and are left unlocked in v1; they 
 ### 2.2 Arms (isolate the one variable — same binary, toggled only by the flag)
 | Arm | Config |
 |-----|--------|
-| **LOCK** | default (geometric stacking + scope weights + step-lock ON) |
-| **BASE** | `--no-step-lock` (geometric + scope weights, lock OFF) |
+| **LOCK** | `--step-lock` (geometric stacking + scope weights + step-lock ON) |
+| **BASE** | default (geometric + scope weights, lock OFF) |
 | **AFL-ref** *(optional)* | historical heavy AFL stacking, no scope, no lock — the broken-corpus reference |
 
 ### 2.3 Design & controls

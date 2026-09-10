@@ -52,7 +52,7 @@ pub fn format_title<PB: ProtocolBehavior>(
     let without_dy_mutations = if !*with_dy { "_wo-dy" } else { "" };
     let without_focus = if !*with_focus { "_wo-focus" } else { "" };
     let with_truncation = if *with_truncation { "_with-trunc" } else { "" };
-    let step_lock = if *step_locked_stacking { "" } else { "_nolock" };
+    let step_lock = if *step_locked_stacking { "_steplock" } else { "" };
     let minimizer = if *minimizer { "_with_minimizer" } else { "" };
     let option_string = format!(
         "_put-options-{}",
