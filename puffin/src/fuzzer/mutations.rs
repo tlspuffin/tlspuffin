@@ -149,19 +149,39 @@ where
                 &self.constraints,
                 rand,
             ) {
+                let step_a_size = match &trace.steps[trace_path_a.0].action {
+                    crate::trace::Action::Input(input) => input.recipe.size(),
+                    crate::trace::Action::Output(_) => 0,
+                };
+                let step_b_size = match &trace.steps[trace_path_b.0].action {
+                    crate::trace::Action::Input(input) => input.recipe.size(),
+                    crate::trace::Action::Output(_) => 0,
+                };
+
                 let term_a_cloned = term_a.clone();
+                let term_a_size = term_a.size();
+
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
-                    log::debug!(
-                        "[Mutation] Mutate SwapMutator on terms\n{} and\n {}",
-                        term_a_cloned,
-                        term_b_mut
-                    );
-                    let term_b_cloned = term_b_mut.clone();
-                    term_b_mut.mutate(term_a_cloned);
-                    if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
-                        trace_a_mut.mutate(term_b_cloned);
+                    let term_b_size = term_b_mut.size();
+
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    if step_b_size + term_a_size <= 500 + term_b_size
+                        && step_a_size + term_b_size <= 500 + term_a_size
+                    {
+                        log::debug!(
+                            "[Mutation] Mutate SwapMutator on terms\n{} and\n {}",
+                            term_a_cloned,
+                            term_b_mut
+                        );
+                        let term_b_cloned = term_b_mut.clone();
+                        term_b_mut.mutate(term_a_cloned);
+                        if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
+                            trace_a_mut.mutate(term_b_cloned);
+                        }
+                        return Ok(MutationResult::Mutated);
+                    } else {
+                        log::debug!("[SwapMutator] Skipped as it would exceed max_term_size.");
                     }
-                    return Ok(MutationResult::Mutated);
                 }
             }
         }
@@ -428,30 +448,44 @@ where
             (0, 0)
         };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(
+            if let Some(trace_path) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
                 &self.constraints,
                 rand,
             ) {
-                if self.with_bit {
-                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
-                        - to_replace.all_payloads().len();
-                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
-                        > self.constraints.threshold_max_payloads_per_term;
-                    if no_more_new_payloads {
-                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
-                        log::debug!("       Skipped {}", self.name());
-                        return Ok(MutationResult::Skipped);
+                let step_size = match &trace.steps[trace_path.0].action {
+                    crate::trace::Action::Input(input) => input.recipe.size(),
+                    crate::trace::Action::Output(_) => 0,
+                };
+
+                if let Some(to_replace) = find_term_mut(trace, &trace_path) {
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    if step_size + replacement.size() <= 500 + to_replace.size() {
+                        if self.with_bit {
+                            let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
+                                - to_replace.all_payloads().len();
+                            let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+                                > self.constraints.threshold_max_payloads_per_term;
+                            if no_more_new_payloads {
+                                log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
+                                log::debug!("       Skipped {}", self.name());
+                                return Ok(MutationResult::Skipped);
+                            }
+                        }
+                        log::debug!(
+                            "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
+                            to_replace,
+                            replacement
+                        );
+                        to_replace.mutate(replacement);
+                        return Ok(MutationResult::Mutated);
+                    } else {
+                        log::debug!(
+                            "[ReplaceReuseMutator] Skipped as it would exceed max_term_size."
+                        );
                     }
                 }
-                log::debug!(
-                    "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
-                    to_replace,
-                    replacement
-                );
-                to_replace.mutate(replacement);
-                return Ok(MutationResult::Mutated);
             }
         }
         log::debug!("       Skipped {}", self.name());
@@ -701,10 +735,15 @@ where
             }
         };
 
+        let to_mutate_size = to_mutate.size();
+
         // Apply mutation globally with probability 1/2
         if rand.between(0, 1) == 0 {
             // Apply globally
             let mut mutated = false;
+            let mut current_step_index = None; // to memoize step size
+            let mut current_step_size = 0; // to memoize step size
+
             for trace_path in find_all_term_filtered(
                 trace,
                 |term: &Term<PB::ProtocolTypes>| {
@@ -718,13 +757,28 @@ where
                     ..TermConstraints::no_constraint()
                 },
             ) {
+                if current_step_index != Some(trace_path.0) {
+                    current_step_index = Some(trace_path.0);
+                    current_step_size = match &trace.steps[trace_path.0].action {
+                        crate::trace::Action::Input(input) => input.recipe.size(),
+                        crate::trace::Action::Output(_) => 0,
+                    };
+                }
+
                 if let Some(term_mut) = find_term_mut(trace, &trace_path) {
-                    log::debug!(
-                        "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
-                        trace_path
-                    );
-                    term_mut.mutate(new_term.clone());
-                    mutated = true;
+                    // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+                    if current_step_size + new_term.size() <= 500 + to_mutate_size {
+                        log::debug!(
+                            "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
+                            trace_path
+                        );
+                        term_mut.mutate(new_term.clone());
+                        current_step_size =
+                            (current_step_size + new_term.size()).saturating_sub(to_mutate_size);
+                        mutated = true;
+                    } else {
+                        log::debug!("[GenerateMutator] [Global] skipped replacement because it exceeds max_term_size");
+                    }
                 } else {
                     log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
                 }
@@ -736,15 +790,26 @@ where
             }
         } else {
             // Apply locally, only once
-            if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
-                log::debug!(
-                    "[GenerateMutator] [Local] replacement at: {:?}",
-                    to_mutate_path
-                );
-                term_mut.mutate(new_term.clone());
-                Ok(MutationResult::Mutated)
+            let step_size = match &trace.steps[to_mutate_path.0].action {
+                crate::trace::Action::Input(input) => input.recipe.size(),
+                crate::trace::Action::Output(_) => 0,
+            };
+
+            // Post-mutation hard cap of 500 to prevent runaway growth while allowing natural overshoot (pre-PR 472 behavior).
+            if step_size + new_term.size() <= 500 + to_mutate_size {
+                if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
+                    log::debug!(
+                        "[GenerateMutator] [Local] replacement at: {:?}",
+                        to_mutate_path
+                    );
+                    term_mut.mutate(new_term.clone());
+                    Ok(MutationResult::Mutated)
+                } else {
+                    log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                    Ok(MutationResult::Skipped)
+                }
             } else {
-                log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                log::debug!("[GenerateMutator] [Local] skipped replacement because it exceeds max_term_size");
                 Ok(MutationResult::Skipped)
             }
         }
