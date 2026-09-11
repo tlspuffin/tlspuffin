@@ -2717,6 +2717,17 @@ fn auth_complete(mut trace: Trace<SshProtocolTypes>) -> Trace<SshProtocolTypes> 
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    // The corpus does not depend on the PUT; delegate to a factory-free builder so
+    // the corpus-composition invariant (which seeds are in the 0-diff differential
+    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
+    // built harness — see `mod tests::differential_corpus_composition_invariant`.
+    build_corpus()
+}
+
+/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
+/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
+/// appends the single-PUT divergent seeds.
+pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
     let client = AgentName::first();
     let server = client.next();
 
@@ -2974,6 +2985,69 @@ pub fn create_corpus(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays
+    /// 0-diff" property, WITHOUT needing to run PUTs).
+    ///
+    /// The differential corpus MUST contain only seeds that are 0-diff on the
+    /// libssh-vs-wolfSSH pair (raw, or 0-diff after a documented shadow). A future
+    /// edit that registers a by-design-DIVERGENT probe here would silently break
+    /// that invariant: the divergent seed is consumed as an objective on load and
+    /// starves/floods the differential campaign (observed empirically). This test
+    /// fails loudly if that happens.
+    ///
+    /// It runs under default features (no rich-corpus), so `build_corpus()` is the
+    /// differential set. Runtime 0-diff verification itself is an integration check
+    /// (needs both built PUTs) done by the campaign scripts / differential-execute;
+    /// this unit test guards the *composition* that must hold for that to pass.
+    #[test]
+    fn differential_corpus_composition_invariant() {
+        let names: Vec<&str> = build_corpus().into_iter().map(|(_, n)| n).collect();
+
+        // (1) the legit flows that MUST be present (incl. this session's additions).
+        for want in [
+            "seed_client_attacker_full_aesgcm",
+            "seed_client_attacker_pubkey_aesgcm",
+            "seed_client_attacker_passwd_change", // item-6 positive control
+            "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
+        ] {
+            assert!(
+                names.contains(&want),
+                "differential corpus is missing legit seed {want:?}; corpus={names:?}"
+            );
+        }
+
+        // (2) the by-design DIVERGENT probe seeds that must NEVER be registered in
+        // ANY corpus (they diverge on purpose and would starve/flood a campaign).
+        // Each is kept only as a callable reproducer (see the create_corpus NOTE).
+        for forbidden in [
+            "seed_client_attacker_bad_service", // auth-service divergence repro
+            "seed_client_attacker_unknown_msg", // item-7 pre-auth unknown message
+            "seed_client_attacker_dh_bad_exponent", // item-1 out-of-range DH exponent
+        ] {
+            assert!(
+                !names.contains(&forbidden),
+                "DIVERGENT probe {forbidden:?} must NOT be in the corpus (would break \
+                 the 0-diff invariant); corpus={names:?}"
+            );
+        }
+
+        // (3) no duplicate registration (a dup would double-load / skew campaigns).
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            names.len(),
+            "duplicate seed name(s) in the corpus; corpus={names:?}"
+        );
+
+        // (4) sanity: the differential corpus is non-trivial.
+        assert!(
+            names.len() >= 4,
+            "differential corpus unexpectedly small: {names:?}"
+        );
+    }
 
     // The credential-confusion seeds must build without panicking and carry the
     // full publickey handshake (9 steps: output + banner + kexinit + ecdh +
