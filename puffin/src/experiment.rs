@@ -31,7 +31,9 @@ pub fn format_title<PB: ProtocolBehavior>(
         ..
     } = fuzzer_config;
     let MutationStageConfig {
-        with_truncation, ..
+        with_truncation,
+        step_locked_stacking,
+        ..
     } = mutation_stage_config;
     let MutationConfig {
         with_bit_level,
@@ -50,6 +52,11 @@ pub fn format_title<PB: ProtocolBehavior>(
     let without_dy_mutations = if !*with_dy { "_wo-dy" } else { "" };
     let without_focus = if !*with_focus { "_wo-focus" } else { "" };
     let with_truncation = if *with_truncation { "_with-trunc" } else { "" };
+    let step_lock = if *step_locked_stacking {
+        "_steplock"
+    } else {
+        ""
+    };
     let minimizer = if *minimizer { "_with_minimizer" } else { "" };
     let option_string = format!(
         "_put-options-{}",
@@ -73,7 +80,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         .join("-");
     format!(
         "{date}\
-        --{default_put}-{num_cores}c{with_bit_level}{without_dy_mutations}{without_focus}{with_truncation}{minimizer}{with_put_options}\
+        --{default_put}-{num_cores}c{with_bit_level}{without_dy_mutations}{without_focus}{with_truncation}{step_lock}{minimizer}{with_put_options}\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),
