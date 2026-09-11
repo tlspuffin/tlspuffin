@@ -6,6 +6,10 @@ use std::marker::PhantomData;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
+use crate::fuzzer::utils::set_step_lock;
+use crate::protocol::ProtocolTypes;
+use crate::trace::Trace;
+
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
 pub struct FocusScheduledMutator<I, MT, MtPre, MtPost, S>
 where
@@ -360,11 +364,11 @@ where
 /// Wraps a [`ScheduledMutator`], forcing a FIXED number `n` of stacked inner mutations per input
 /// instead of the random `1<<(1+rand(0..7))` = 2..256. Selected via the `DY_STACK` env var.
 ///
-/// Motivation (coverage-hitchhiker effect): the mutational stage applies n mutations at once; if the
-/// bundle gains coverage, LibAFL stores ALL n even if only one was responsible. Measured: with the
-/// default stacking, ~100% of coverage-gaining inputs also restructure the trace (junk hitchhikers),
-/// eroding deep structures (e.g. the bad-switch multi-channel trace). Forcing small n keeps corpus
-/// entries clean. Delegates everything to the inner mutator except `iterations()`.
+/// Motivation (coverage-hitchhiker effect): the mutational stage applies n mutations at once; if
+/// the bundle gains coverage, LibAFL stores ALL n even if only one was responsible. Measured: with
+/// the default stacking, ~100% of coverage-gaining inputs also restructure the trace (junk
+/// hitchhikers), eroding deep structures (e.g. the bad-switch multi-channel trace). Forcing small n
+/// keeps corpus entries clean. Delegates everything to the inner mutator except `iterations()`.
 pub struct FixedStackMutator<M> {
     inner: M,
     n: u64,
@@ -384,9 +388,11 @@ impl<M: Named> Named for FixedStackMutator<M> {
 
 impl<M: ComposedByMutations> ComposedByMutations for FixedStackMutator<M> {
     type Mutations = M::Mutations;
+
     fn mutations(&self) -> &Self::Mutations {
         self.inner.mutations()
     }
+
     fn mutations_mut(&mut self) -> &mut Self::Mutations {
         self.inner.mutations_mut()
     }
@@ -401,6 +407,7 @@ where
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
         self.scheduled_mutate(state, input)
     }
+
     fn post_exec(&mut self, _state: &mut S, _id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
@@ -414,6 +421,7 @@ where
     fn iterations(&self, _state: &mut S, _input: &I) -> u64 {
         self.n
     }
+
     fn schedule(&self, state: &mut S, input: &I) -> MutationId {
         self.inner.schedule(state, input)
     }
@@ -422,8 +430,9 @@ where
 /// Wraps a [`ScheduledMutator`], drawing the number of stacked mutations per input from a
 /// TRUNCATED-GEOMETRIC distribution concentrated on 1-2 edits instead of AFL's `1<<(1+rand(0..7))`
 /// (mean ~36, median 16). AFL's log-uniform stacking suits flat byte inputs where a mutation is
-/// cheap/local; for grammar/DY term-tree mutation each edit is semantic and stacking dozens destroys
-/// deep structure and stores ~all as coverage hitchhikers (measured: 0% clean coverage-gains).
+/// cheap/local; for grammar/DY term-tree mutation each edit is semantic and stacking dozens
+/// destroys deep structure and stores ~all as coverage hitchhikers (measured: 0% clean
+/// coverage-gains).
 ///
 /// Distribution (cap 16): P(1)=0.40, P(2)=0.35, and the remaining 0.25 spread geometrically over
 /// n=3..=16 (ratio 1/2). => mean ~2.0, but keeps a light tail so coordinated multi-edit bugs and
@@ -446,9 +455,11 @@ impl<M: Named> Named for GeometricStackMutator<M> {
 
 impl<M: ComposedByMutations> ComposedByMutations for GeometricStackMutator<M> {
     type Mutations = M::Mutations;
+
     fn mutations(&self) -> &Self::Mutations {
         self.inner.mutations()
     }
+
     fn mutations_mut(&mut self) -> &mut Self::Mutations {
         self.inner.mutations_mut()
     }
@@ -464,6 +475,7 @@ where
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
         self.scheduled_mutate(state, input)
     }
+
     fn post_exec(&mut self, _state: &mut S, _id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
@@ -491,7 +503,81 @@ where
             n
         }
     }
+
     fn schedule(&self, state: &mut S, input: &I) -> MutationId {
         self.inner.schedule(state, input)
+    }
+}
+
+/// A [`Mutator`] wrapper that, when `enabled`, confines every anchor selection of the inner
+/// (stacking) mutator to a single randomly-chosen step for the duration of one mutational stage.
+///
+/// Rationale: with heavy stacking, a stage's mutations otherwise anchor on *different* steps -- one
+/// can improve coverage at step k while another breaks executability at a later step j, yet the
+/// whole (broken-tailed) trace is still saved to the corpus because coverage improved (the
+/// "coverage hitchhiker" effect). Locking all anchors of a stage to one step makes the coverage
+/// gain and any executability break attributable to the same step.
+///
+/// The lock is applied via [`crate::fuzzer::utils::set_step_lock`], which only affects anchor
+/// selection ([`crate::fuzzer::utils::reservoir_sample`]); Global/Step *fan-out* still spreads a
+/// mutation's effect across the whole trace, so a Global mutation's effect reaches other steps --
+/// only its anchor is confined to the locked step.
+pub struct StepLockedStackMutator<PT, M> {
+    inner: M,
+    enabled: bool,
+    phantom: PhantomData<PT>,
+}
+
+impl<PT, M> StepLockedStackMutator<PT, M> {
+    pub fn new(inner: M, enabled: bool) -> Self {
+        Self {
+            inner,
+            enabled,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<PT, M: Named> Named for StepLockedStackMutator<PT, M> {
+    fn name(&self) -> &Cow<'static, str> {
+        self.inner.name()
+    }
+}
+
+impl<PT, M: ComposedByMutations> ComposedByMutations for StepLockedStackMutator<PT, M> {
+    type Mutations = M::Mutations;
+
+    fn mutations(&self) -> &Self::Mutations {
+        self.inner.mutations()
+    }
+
+    fn mutations_mut(&mut self) -> &mut Self::Mutations {
+        self.inner.mutations_mut()
+    }
+}
+
+impl<S, PT, M> Mutator<Trace<PT>, S> for StepLockedStackMutator<PT, M>
+where
+    S: HasRand,
+    PT: ProtocolTypes,
+    M: Mutator<Trace<PT>, S>,
+{
+    #[inline]
+    fn mutate(&mut self, state: &mut S, input: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        let nsteps = input.steps.len();
+        let locked = if self.enabled && nsteps > 0 {
+            Some(state.rand_mut().below_or_zero(nsteps))
+        } else {
+            None
+        };
+        // Set the lock for the whole inner stacking loop, then restore the previous value.
+        let prev = set_step_lock(locked);
+        let r = self.inner.mutate(state, input);
+        set_step_lock(prev);
+        r
+    }
+
+    fn post_exec(&mut self, state: &mut S, id: Option<CorpusId>) -> Result<(), Error> {
+        self.inner.post_exec(state, id)
     }
 }
