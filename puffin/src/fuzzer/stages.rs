@@ -356,3 +356,142 @@ where
         }
     }
 }
+
+/// Wraps a [`ScheduledMutator`], forcing a FIXED number `n` of stacked inner mutations per input
+/// instead of the random `1<<(1+rand(0..7))` = 2..256. Selected via the `DY_STACK` env var.
+///
+/// Motivation (coverage-hitchhiker effect): the mutational stage applies n mutations at once; if the
+/// bundle gains coverage, LibAFL stores ALL n even if only one was responsible. Measured: with the
+/// default stacking, ~100% of coverage-gaining inputs also restructure the trace (junk hitchhikers),
+/// eroding deep structures (e.g. the bad-switch multi-channel trace). Forcing small n keeps corpus
+/// entries clean. Delegates everything to the inner mutator except `iterations()`.
+pub struct FixedStackMutator<M> {
+    inner: M,
+    n: u64,
+}
+
+impl<M> FixedStackMutator<M> {
+    pub fn new(inner: M, n: u64) -> Self {
+        Self { inner, n }
+    }
+}
+
+impl<M: Named> Named for FixedStackMutator<M> {
+    fn name(&self) -> &Cow<'static, str> {
+        self.inner.name()
+    }
+}
+
+impl<M: ComposedByMutations> ComposedByMutations for FixedStackMutator<M> {
+    type Mutations = M::Mutations;
+    fn mutations(&self) -> &Self::Mutations {
+        self.inner.mutations()
+    }
+    fn mutations_mut(&mut self) -> &mut Self::Mutations {
+        self.inner.mutations_mut()
+    }
+}
+
+impl<I, S, M> Mutator<I, S> for FixedStackMutator<M>
+where
+    M: ScheduledMutator<I, S>,
+    M::Mutations: MutatorsTuple<I, S>,
+{
+    #[inline]
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input)
+    }
+    fn post_exec(&mut self, _state: &mut S, _id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<I, S, M> ScheduledMutator<I, S> for FixedStackMutator<M>
+where
+    M: ScheduledMutator<I, S>,
+    M::Mutations: MutatorsTuple<I, S>,
+{
+    fn iterations(&self, _state: &mut S, _input: &I) -> u64 {
+        self.n
+    }
+    fn schedule(&self, state: &mut S, input: &I) -> MutationId {
+        self.inner.schedule(state, input)
+    }
+}
+
+/// Wraps a [`ScheduledMutator`], drawing the number of stacked mutations per input from a
+/// TRUNCATED-GEOMETRIC distribution concentrated on 1-2 edits instead of AFL's `1<<(1+rand(0..7))`
+/// (mean ~36, median 16). AFL's log-uniform stacking suits flat byte inputs where a mutation is
+/// cheap/local; for grammar/DY term-tree mutation each edit is semantic and stacking dozens destroys
+/// deep structure and stores ~all as coverage hitchhikers (measured: 0% clean coverage-gains).
+///
+/// Distribution (cap 16): P(1)=0.40, P(2)=0.35, and the remaining 0.25 spread geometrically over
+/// n=3..=16 (ratio 1/2). => mean ~2.0, but keeps a light tail so coordinated multi-edit bugs and
+/// plateau-escaping big jumps remain reachable. Selected via env `DY_STACK=geo`.
+pub struct GeometricStackMutator<M> {
+    inner: M,
+}
+
+impl<M> GeometricStackMutator<M> {
+    pub fn new(inner: M) -> Self {
+        Self { inner }
+    }
+}
+
+impl<M: Named> Named for GeometricStackMutator<M> {
+    fn name(&self) -> &Cow<'static, str> {
+        self.inner.name()
+    }
+}
+
+impl<M: ComposedByMutations> ComposedByMutations for GeometricStackMutator<M> {
+    type Mutations = M::Mutations;
+    fn mutations(&self) -> &Self::Mutations {
+        self.inner.mutations()
+    }
+    fn mutations_mut(&mut self) -> &mut Self::Mutations {
+        self.inner.mutations_mut()
+    }
+}
+
+impl<I, S, M> Mutator<I, S> for GeometricStackMutator<M>
+where
+    S: HasRand,
+    M: ScheduledMutator<I, S>,
+    M::Mutations: MutatorsTuple<I, S>,
+{
+    #[inline]
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input)
+    }
+    fn post_exec(&mut self, _state: &mut S, _id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<I, S, M> ScheduledMutator<I, S> for GeometricStackMutator<M>
+where
+    S: HasRand,
+    M: ScheduledMutator<I, S>,
+    M::Mutations: MutatorsTuple<I, S>,
+{
+    fn iterations(&self, state: &mut S, _input: &I) -> u64 {
+        // Integer thresholds over [0,100): [0,40)->1, [40,75)->2, else geometric 3..=16.
+        let r = state.rand_mut().below_or_zero(100);
+        if r < 40 {
+            1
+        } else if r < 75 {
+            2
+        } else {
+            let mut n: u64 = 3;
+            // 0.25 remaining mass spread geometrically (ratio 1/2), capped at 16.
+            while n < 16 && state.rand_mut().below_or_zero(2) == 0 {
+                n += 1;
+            }
+            n
+        }
+    }
+    fn schedule(&self, state: &mut S, input: &I) -> MutationId {
+        self.inner.schedule(state, input)
+    }
+}

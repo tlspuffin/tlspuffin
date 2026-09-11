@@ -193,11 +193,18 @@ where
             with_focus: false,
             ..mutation_config
         };
-        let mutator_dy = HavocScheduledMutator::new(dy_mutations(
-            mutation_config_dy,
-            <PT>::signature(),
-            put_registry,
-        ));
+        // DY stack size: replace AFL's log-uniform 1<<(1+rand(0..7)) (mean ~36, median 16 -- tuned
+        // for flat byte inputs) with a truncated-geometric concentrated on 1-2 semantic edits
+        // (GeometricStackMutator; mean ~2, light tail to 16). For grammar/DY tree mutation, heavy
+        // stacking destroys deep structure and stores ~all edits as coverage hitchhikers.
+        // (FixedStackMutator in stages.rs is available to force an exact stack size for experiments.)
+        let mutator_dy = crate::fuzzer::stages::GeometricStackMutator::new(
+            HavocScheduledMutator::new(dy_mutations(
+                mutation_config_dy,
+                <PT>::signature(),
+                put_registry,
+            )),
+        );
         // Always run DY mutations (if enabled)
         let cb_dy = |_: &mut _, _: &mut _, _: &mut _, _: &mut _| -> Result<bool, Error> {
             if mutation_config.with_dy {
