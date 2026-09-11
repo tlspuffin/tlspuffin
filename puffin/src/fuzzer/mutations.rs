@@ -39,7 +39,7 @@ impl Default for MutationConfig {
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,
-            max_result_trace_length: 15,
+            max_result_trace_length: 20,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
             with_bit_level: false,
