@@ -4,13 +4,56 @@ use crate::algebra::{DYTerm, Term, TermType};
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
+/// Size budget for terms and traces during mutation.
+///
+/// # Units
+///
+/// All `*_size` values below are **node counts** in the term tree (`Term::size()`): every
+/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` sums each
+/// input step's recipe size and additionally counts every output action as one node. They are NOT
+/// bytes.
+///
+/// # How the caps relate
+///
+/// - `min_term_size` / `max_term_size`: bounds on a *sub-term selected* as a mutation candidate.
+/// - `max_result_term_size`: **hard post-condition on the *result* of a replacement mutation** — a
+///   mutation that would push any single step recipe over `max_result_term_size` is rejected
+///   (reject-whole). Whole-trace growth is bounded instead by the number of steps
+///   (`MutationConfig::max_result_trace_length`) times this per-step cap. It is enforced
+///   *incrementally* on top of an already-bounded input (seeds within caps + reject-whole preserve
+///   the invariant), so set them at or above the largest seed: a cap configured *below* an existing
+///   seed's size is a corpus-boundary misconfiguration and cannot be enforced retroactively by the
+///   mutators (see the precondition on `replacement_within_caps`).
+///
+/// # Maintenance rules — READ THIS BEFORE ADDING A PROTOCOL OR EXTENDING A MAPPER
+///
+/// These numbers are chosen from the sizes of the hand-written seeds/attacks. When you add a
+/// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
+/// rules below**. As of this writing the largest seed values are:
+///
+/// | metric                         | TLS  | OPC UA | rule for the cap                                   |
+/// |--------------------------------|------|--------|----------------------------------------------------|
+/// | max single-step recipe (nodes) | 324  | 137    | `max_term_size >= 2 * max_seed_term`               |
+/// | max #steps                     | 13   | 10     | `max_result_trace_length >= max_seed_steps + 2`    |
+///
+/// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
+///   (and moderately grown variants) stay selectable. Largest today = 324 (TLS) ⇒ rule wants ≥648;
+///   the current value is conservative for this PR (300, as in #531) and will be revisited later.
+/// - whole-trace growth is bounded by `MutationConfig::max_result_trace_length` (max #steps) times
+///   the per-step `max_result_term_size` cap, so there is no separate whole-trace node cap.
+/// - `max_result_term_size` should exceed the largest seed step (324) with headroom. We keep a
+///   conservative value in this PR; the exact caps will be revisited and their impact measured in
+///   isolation in a later PR.
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
-    // For selecting (sub)terms for mutation candidates, for example
+    /// Minimum size of a sub-term selected as a mutation candidate.
     pub min_term_size: usize,
+    /// Maximum size of a sub-term selected as a mutation candidate. Rule: `>= 2 * max_seed_term`
+    /// (largest single-term size across all seeds). Measured max seed term = 324 (TLS).
     pub max_term_size: usize,
-    // For continuing exploring (sub)terms, if larger: we don't even bother traversing the term
-    pub max_term_size_explore: usize,
+    /// Hard post-condition: reject a replacement whose *result* makes any single step recipe
+    /// exceed this many nodes. Rule: `> max_seed_term` with headroom (measured max = 324).
+    pub max_result_term_size: usize,
     pub must_be_symbolic: bool,
     /// when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
@@ -39,10 +82,12 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, // we do not select larger terms for mutations
-            /* was 9000 but we were rewriting this to 300 anyway when
-             * instantiating the fuzzer */
-            max_term_size_explore: 1000, // we don't even bother exploring terms that are too large
+            // Selection cap. Conservative value kept for this PR (matches #531); the caps will be
+            // revisited and their impact measured in isolation in a later PR.
+            max_term_size: 300,
+            // Post-condition cap (reject-whole). Conservative for this PR (matches #531); to be
+            // revisited and measured in isolation later.
+            max_result_term_size: 500,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -61,12 +106,6 @@ impl Default for TermConstraints {
 }
 
 impl TermConstraints {
-    /// Returns whether a term is not extremely large (in which case we don't even bother exploring
-    /// it)
-    pub fn satisfy_size_max_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
-        term.size() < self.max_term_size_explore
-    }
-
     /// Returns whether a term satisfies all the constraint predicates.
     pub fn satisfy_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
         let size = term.size();
@@ -110,7 +149,7 @@ impl TermConstraints {
         Self {
             min_term_size: 0,
             max_term_size: usize::MAX,
-            max_term_size_explore: usize::MAX,
+            max_result_term_size: usize::MAX,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -198,14 +237,6 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
         match &step.action {
             Action::Input(input) => {
                 let term = &input.recipe;
-
-                if !constraints.satisfy_size_max_constraints(term) {
-                    log::warn!(
-                        "[reservoir_sample] Skipping term because it is too large: {}",
-                        term.size()
-                    );
-                    continue; // the term is too large, we don't even bother
-                }
 
                 let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
 
@@ -414,14 +445,6 @@ pub fn find_all_sub_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + 
     filter: P,
     constraints: &TermConstraints,
 ) -> Vec<TermPath> {
-    if !constraints.satisfy_size_max_constraints(term) {
-        log::warn!(
-            "[find_all_sub_term_filtered] Skipping term because it is too large: {}",
-            term.size()
-        );
-        return Vec::new(); // the term is too large, we don't even bother exploring it
-    }
-
     let mut result = Vec::new();
     let mut stack: Vec<(&Term<PT>, TermPath)> = vec![(term, Vec::new())];
 

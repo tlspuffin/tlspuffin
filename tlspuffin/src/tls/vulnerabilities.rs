@@ -1542,11 +1542,11 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below a certain threshold, else we should increase
-                        // max_term_size in fuzzer setup
+                        // a seed step recipe must fit the per-step result cap, else the
+                        // corpus boundary is misconfigured (see max_result_term_size)
                         let terms = input.recipe.size();
                         assert!(
-                            terms < TermConstraints::default().max_term_size_explore,
+                            terms < TermConstraints::default().max_result_term_size,
                             "{} has step with too large term size {}!",
                             name,
                             terms
