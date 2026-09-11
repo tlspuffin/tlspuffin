@@ -6,7 +6,6 @@ use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY,
 use puffin::fuzzer::mutations::{
     MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
-use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, Testcase};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
 use puffin::libafl::state::HasCorpus;
@@ -490,14 +489,38 @@ fn test_byte_interesting(put: &str) {
     assert_ne!(i, max);
 }
 
-fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtocolTypes>> {
+fn search_for_seed_cve_2021_3449(
+    state: &mut TLSState,
+    config: MutationConfig,
+) -> Option<Trace<TLSProtocolTypes>> {
     let loop_tries = 5000;
     let mut attempts = 0;
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
     let mut success = false;
 
+    // Accept a candidate only if the mutation left every step but the last one untouched. With the
+    // default (non-individual) scope, a replacement can rewrite matching sub-terms across several
+    // steps; that could reach the last-step sub-goal while silently undoing the sub-goals the
+    // earlier stages already established. Comparing the prefixes rejects such cross-step edits.
+    let others_unchanged = |orig: &Trace<TLSProtocolTypes>, mutant: &Trace<TLSProtocolTypes>| {
+        let n = mutant.steps.len();
+        n == orig.steps.len()
+            && orig
+                .steps
+                .iter()
+                .zip(mutant.steps.iter())
+                .take(n - 1)
+                .all(|(a, b)| match (&a.action, &b.action) {
+                    // only input recipes carry mutable terms; a mutation "changed" another step
+                    // iff its recipe differs.
+                    (Action::Input(x), Action::Input(y)) => x.recipe == y.recipe,
+                    (Action::Output(_), Action::Output(_)) => true,
+                    _ => false,
+                })
+    };
+
     // Check if we can append another encrypted message
-    let mut mutator = RepeatMutator::new(15, true);
+    let mut mutator = RepeatMutator::new(config.max_result_trace_length, config.with_dy);
 
     fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
         if let Action::Input(input) = &step.action {
@@ -537,8 +560,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     attempts = 0;
 
     // Check if we have a client hello in last encrypted one
-    let constraints = TermConstraints::default();
-    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
+    let mut mutator = ReplaceReuseMutator::new(config);
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -552,9 +574,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             if first_subterm.name() == fn_client_hello.name() {
-                                trace = mutate;
-                                success = true;
-                                break;
+                                if others_unchanged(&trace, &mutate) {
+                                    trace = mutate;
+                                    success = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -575,7 +599,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     attempts = 0;
 
     // Test if we can replace the sequence number
-    let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
+    let mut mutator = ReplaceMatchMutator::new(config, &TLS_SIGNATURE);
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -594,9 +618,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                         {
                             log::warn!("mutational result last subterm: {}", last_subterm);
                             if last_subterm.name() == fn_seq_1.name() {
-                                trace = mutate;
-                                success = true;
-                                break;
+                                if others_unchanged(&trace, &mutate) {
+                                    trace = mutate;
+                                    success = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -617,7 +643,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     attempts = 0;
 
     // Remove sig algo
-    let mut mutator = RemoveAndLiftMutator::new(constraints, true);
+    let mut mutator = RemoveAndLiftMutator::new(config.term_constraints, config.with_dy);
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -639,9 +665,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                                         fn_support_group_extension_make.name(),
                                     );
                                 if sig_alg_extensions == 0 && support_groups_extensions == 1 {
-                                    trace = mutate;
-                                    success = true;
-                                    break;
+                                    if others_unchanged(&trace, &mutate) {
+                                        trace = mutate;
+                                        success = true;
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -664,7 +692,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 
     // Sucessfully renegotiate
 
-    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
+    let mut mutator = ReplaceReuseMutator::new(config);
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -682,9 +710,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                             let signatures = first_subterm
                                 .count_functions_by_name(fn_client_sign_transcript.name());
                             if signatures == 1 && is_client_hello {
-                                trace = mutate;
-                                success = true;
-                                break;
+                                if others_unchanged(&trace, &mutate) {
+                                    trace = mutate;
+                                    success = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -707,7 +737,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 #[test_log::test]
 fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();
-    let trace = search_for_seed_cve_2021_3449(&mut state);
+    let trace = search_for_seed_cve_2021_3449(&mut state, MutationConfig::default_with_bit());
     assert!(trace.is_some());
 }
 
@@ -720,7 +750,9 @@ fn test_mutate_and_execute_seed_cve_2021_3449(put: &str) {
     run_in_subprocess(
         move || {
             log::error!("start in subprocess");
-            if let Some(trace) = search_for_seed_cve_2021_3449(&mut state) {
+            if let Some(trace) =
+                search_for_seed_cve_2021_3449(&mut state, MutationConfig::default_with_bit())
+            {
                 // In case we get None, the other test `test_mutate_seed_cve_2021_3449` will fail
                 log::error!("try");
                 for _i in 0..50 {
