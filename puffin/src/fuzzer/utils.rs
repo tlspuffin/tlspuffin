@@ -56,19 +56,22 @@ pub fn step_lock() -> Option<StepIndex> {
 /// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
 /// rules below**. As of this writing the largest seed values are:
 ///
-/// | metric                         | TLS  | OPC UA | rule for the cap                                   |
-/// |--------------------------------|------|--------|----------------------------------------------------|
-/// | max single-step recipe (nodes) | 324  | 137    | `max_term_size >= 2 * max_seed_term`               |
-/// | max #steps                     | 13   | 10     | `max_result_trace_length >= max_seed_steps + 2`    |
+/// | metric                         | TLS  | OPC UA | SSH  | rule for the cap                            |
+/// |--------------------------------|------|--------|------|---------------------------------------------|
+/// | max single-step recipe (nodes) | 324  | 137    | 285  | `max_term_size >= 2 * max_seed_term`        |
+/// | max #steps                     | 13   | 10     | 10   | `max_result_trace_length >= max_seed_steps + 2` |
 ///
+/// The current values sit **well above** these minima on purpose, to leave headroom for future
+/// growth of the mappers (larger signatures / seed terms / longer attacks) without another cap
+/// bump:
 /// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
 ///   (and moderately grown variants) stay selectable. Largest today = 324 (TLS) ⇒ rule wants ≥648;
-///   the current value is conservative for this PR (300, as in #531) and will be revisited later.
+///   set to 1000.
 /// - whole-trace growth is bounded by `MutationConfig::max_result_trace_length` (max #steps) times
 ///   the per-step `max_result_term_size` cap, so there is no separate whole-trace node cap.
-/// - `max_result_term_size` should exceed the largest seed step (324) with headroom. We keep a
-///   conservative value in this PR; the exact caps will be revisited and their impact measured in
-///   isolation in a later PR.
+///   `max_result_trace_length` is set to 20 (largest seed today = 13 steps, rule wants ≥15).
+/// - `max_result_term_size` must exceed `max_term_size` so a selected term can still grow; set to
+///   2000 (2x the selection cap).
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
     /// Minimum size of a sub-term selected as a mutation candidate.
@@ -107,12 +110,13 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            // Selection cap. Conservative value kept for this PR (matches #531); the caps will be
-            // revisited and their impact measured in isolation in a later PR.
-            max_term_size: 300,
-            // Post-condition cap (reject-whole). Conservative for this PR (matches #531); to be
-            // revisited and measured in isolation later.
-            max_result_term_size: 500,
+            // Selection cap. Comfortably above the maintenance rule `>= 2 * max_seed_term`
+            // (largest seed term today = 324 (TLS) => rule wants >= 648); we set 1000 to leave
+            // headroom for future growth of the mappers (larger signatures / seed terms).
+            max_term_size: 1000,
+            // Post-condition cap (reject-whole) on a single step recipe. Kept above `max_term_size`
+            // so a selected term still has room to grow before a replacement is rejected.
+            max_result_term_size: 2000,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
