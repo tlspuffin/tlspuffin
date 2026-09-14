@@ -67,7 +67,7 @@ fn test_replace_bitstring_multiple() {
         1, 1, // path=1: fn_random -> Random,
         32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
         3, 3, 3, // path=2: fn_sessionid -> SessionID,
-        0, 2, 19, 1, // path=fn_list_ciphersuite_append(...)
+        0, 2, 19, 1, // path=3: fn_ciphersuites([..]) -> CipherSuites,
         1, 0, // path= 4 fn_compressions -> Vec<Compression>,
         // path = 5 until the end
         0, 132, // path = 5,0,0,0,0  (empty) -> 44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44
@@ -94,34 +94,18 @@ fn test_replace_bitstring_multiple() {
     //       fn_random -> Random,                         // 1
     //       fn_sessionid -> SessionID,                  // 2
     //       fn_ciphersuites(                                 // 3
-    //           fn_list_ciphersuite_append(
-    //               fn_list_ciphersuite_empty -> Vec<CipherSuite>,
-    //               fn_ciphersuite_tls13_aes_128_gcm_sha256 -> CipherSuite
-    //           ) -> Vec<CipherSuite>
+    //           [fn_ciphersuite_tls13_aes_128_gcm_sha256] -> Vec<CipherSuite>
     //       ) -> CipherSuites,
     //       fn_compressions(                                 // 4
-    //           fn_list_compression_append(
-    //               fn_list_compression_empty -> Vec<Compression>,
-    //               fn_compression_null -> Compression
-    //           ) -> Vec<Compression>
+    //           [fn_compression_null] -> Vec<Compression>
     //       ) -> Compressions,
     //       fn_clientextensions(                             // 5, the bytes annotated above
-    //           fn_list_clientextension_append(
-    //               fn_list_clientextension_append(
-    //                   fn_list_clientextension_append(
-    //                       fn_list_clientextension_append(
-    //                           fn_list_clientextension_append(
-    //                               fn_list_clientextension_empty -> Vec<ClientExtension>,
-    //                               fn_clientextension_namedgroups(..) -> ClientExtension
-    //                           ) -> Vec<ClientExtension>,
-    //                           fn_clientextension_signaturealgorithms(..) -> ClientExtension
-    //                       ) -> Vec<ClientExtension>,
-    //                       ..
-    //                   ) -> Vec<ClientExtension>,
-    //                   ..
-    //               ) -> Vec<ClientExtension>,
+    //           [
+    //               fn_clientextension_namedgroups(..) -> ClientExtension,
+    //               fn_clientextension_signaturealgorithms(..) -> ClientExtension,
+    //               ..,
     //               fn_clientextension_supportedversions(..) -> ClientExtension
-    //           ) -> Vec<ClientExtension>
+    //           ] -> Vec<ClientExtension>
     //       ) -> ClientExtensions
     //     )) -> HandshakePayload
     //   )) -> MessagePayload
