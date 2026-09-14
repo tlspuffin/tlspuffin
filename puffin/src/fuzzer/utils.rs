@@ -1,16 +1,87 @@
+use std::cell::Cell;
+
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
+thread_local! {
+    /// Per-stage anchor step lock. When set to `Some(k)`, every anchor drawn by
+    /// [`reservoir_sample`] -- and therefore all `choose*` helpers built on it -- is restricted to
+    /// step `k`. Set by [`crate::fuzzer::stages::StepLockedStackMutator`] so that all mutations
+    /// stacked in one mutational stage edit the SAME step. Global/Step *fan-out* (via
+    /// `find_all_term_filtered` / `find_all_sub_term_filtered`) does NOT consult this lock, so a
+    /// Global mutation still spreads its effect across the whole trace -- only its anchor choice is
+    /// confined to the locked step. Safe as a thread-local: LibAFL runs a single mutation thread
+    /// per fuzzer process (one process per core), so there is no cross-trace interference.
+    static STEP_LOCK: Cell<Option<StepIndex>> = const { Cell::new(None) };
+}
+
+/// Set (or clear, with `None`) the process-local anchor step lock. Returns the previous value so
+/// the caller can restore it after the stage.
+pub fn set_step_lock(step: Option<StepIndex>) -> Option<StepIndex> {
+    STEP_LOCK.with(|c| c.replace(step))
+}
+
+/// Read the current anchor step lock (`None` when unlocked).
+pub fn step_lock() -> Option<StepIndex> {
+    STEP_LOCK.with(Cell::get)
+}
+
+/// Size budget for terms and traces during mutation.
+///
+/// # Units
+///
+/// All `*_size` values below are **node counts** in the term tree (`Term::size()`): every
+/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` sums each
+/// input step's recipe size and additionally counts every output action as one node. They are NOT
+/// bytes.
+///
+/// # How the caps relate
+///
+/// - `min_term_size` / `max_term_size`: bounds on a *sub-term selected* as a mutation candidate.
+/// - `max_result_term_size`: **hard post-condition on the *result* of a replacement mutation** — a
+///   mutation that would push any single step recipe over `max_result_term_size` is rejected
+///   (reject-whole). Whole-trace growth is bounded instead by the number of steps
+///   (`MutationConfig::max_result_trace_length`) times this per-step cap. It is enforced
+///   *incrementally* on top of an already-bounded input (seeds within caps + reject-whole preserve
+///   the invariant), so set them at or above the largest seed: a cap configured *below* an existing
+///   seed's size is a corpus-boundary misconfiguration and cannot be enforced retroactively by the
+///   mutators (see the precondition on `replacement_within_caps`).
+///
+/// # Maintenance rules — READ THIS BEFORE ADDING A PROTOCOL OR EXTENDING A MAPPER
+///
+/// These numbers are chosen from the sizes of the hand-written seeds/attacks. When you add a
+/// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
+/// rules below**. As of this writing the largest seed values are:
+///
+/// | metric                         | TLS  | OPC UA | SSH  | rule for the cap                            |
+/// |--------------------------------|------|--------|------|---------------------------------------------|
+/// | max single-step recipe (nodes) | 324  | 137    | 285  | `max_term_size >= 2 * max_seed_term`        |
+/// | max #steps                     | 13   | 10     | 10   | `max_result_trace_length >= max_seed_steps + 2` |
+///
+/// The current values sit **well above** these minima on purpose, to leave headroom for future
+/// growth of the mappers (larger signatures / seed terms / longer attacks) without another cap
+/// bump:
+/// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
+///   (and moderately grown variants) stay selectable. Largest today = 324 (TLS) ⇒ rule wants ≥648;
+///   set to 800.
+/// - whole-trace growth is bounded by `MutationConfig::max_result_trace_length` (max #steps) times
+///   the per-step `max_result_term_size` cap, so there is no separate whole-trace node cap.
+///   `max_result_trace_length` is set to 20 (largest seed today = 13 steps, rule wants ≥15).
+/// - `max_result_term_size` (whole step recipe after a replacement) is kept >= `max_term_size` so a
+///   max-size replacement sub-term still fits; set to 1000.
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
-    // For selecting (sub)terms for mutation candidates, for example
+    /// Minimum size of a sub-term selected as a mutation candidate.
     pub min_term_size: usize,
+    /// Maximum size of a sub-term selected as a mutation candidate. Rule: `>= 2 * max_seed_term`
+    /// (largest single-term size across all seeds). Measured max seed term = 324 (TLS).
     pub max_term_size: usize,
-    // For continuing exploring (sub)terms, if larger: we don't even bother traversing the term
-    pub max_term_size_explore: usize,
+    /// Hard post-condition: reject a replacement whose *result* makes any single step recipe
+    /// exceed this many nodes. Rule: `> max_seed_term` with headroom (measured max = 324).
+    pub max_result_term_size: usize,
     pub must_be_symbolic: bool,
     /// when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
@@ -39,10 +110,14 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, // we do not select larger terms for mutations
-            /* was 9000 but we were rewriting this to 300 anyway when
-             * instantiating the fuzzer */
-            max_term_size_explore: 1000, // we don't even bother exploring terms that are too large
+            // Selection cap. Comfortably above the maintenance rule `>= 2 * max_seed_term`
+            // (largest seed term today = 324 (TLS) => rule wants >= 648); we set 800 to leave
+            // headroom for future growth of the mappers (larger signatures / seed terms).
+            max_term_size: 800,
+            // Post-condition cap (reject-whole) on a single step recipe, i.e. the largest a step
+            // may become after a replacement. Kept >= `max_term_size` so a max-size replacement
+            // sub-term still fits into a step.
+            max_result_term_size: 1000,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -61,12 +136,6 @@ impl Default for TermConstraints {
 }
 
 impl TermConstraints {
-    /// Returns whether a term is not extremely large (in which case we don't even bother exploring
-    /// it)
-    pub fn satisfy_size_max_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
-        term.size() < self.max_term_size_explore
-    }
-
     /// Returns whether a term satisfies all the constraint predicates.
     pub fn satisfy_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
         let size = term.size();
@@ -110,7 +179,7 @@ impl TermConstraints {
         Self {
             min_term_size: 0,
             max_term_size: usize::MAX,
-            max_term_size_explore: usize::MAX,
+            max_result_term_size: usize::MAX,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -194,18 +263,17 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
     let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
     let mut visited = 0;
 
+    let locked = step_lock();
     for (step_index, step) in trace.steps.iter().enumerate() {
+        // Anchor step lock: when a stage has locked a step, only draw anchors from that step.
+        if let Some(k) = locked {
+            if step_index != k {
+                continue;
+            }
+        }
         match &step.action {
             Action::Input(input) => {
                 let term = &input.recipe;
-
-                if !constraints.satisfy_size_max_constraints(term) {
-                    log::warn!(
-                        "[reservoir_sample] Skipping term because it is too large: {}",
-                        term.size()
-                    );
-                    continue; // the term is too large, we don't even bother
-                }
 
                 let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
 
@@ -414,14 +482,6 @@ pub fn find_all_sub_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + 
     filter: P,
     constraints: &TermConstraints,
 ) -> Vec<TermPath> {
-    if !constraints.satisfy_size_max_constraints(term) {
-        log::warn!(
-            "[find_all_sub_term_filtered] Skipping term because it is too large: {}",
-            term.size()
-        );
-        return Vec::new(); // the term is too large, we don't even bother exploring it
-    }
-
     let mut result = Vec::new();
     let mut stack: Vec<(&Term<PT>, TermPath)> = vec![(term, Vec::new())];
 
@@ -548,5 +608,43 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
+    }
+
+    #[test_log::test]
+    fn test_step_lock_confines_anchors_to_locked_step() {
+        let trace = setup_simple_trace();
+        let n_steps = trace.steps.len();
+        assert!(n_steps >= 2, "need a multi-step trace to test the lock");
+        let mut rand = StdRand::with_seed(45);
+
+        // With a lock set, every anchor drawn must come from exactly the locked step.
+        for k in 0..n_steps {
+            let prev = set_step_lock(Some(k));
+            for _ in 0..500 {
+                if let Some((_, (step_index, _))) =
+                    choose(&trace, &TermConstraints::default(), &mut rand)
+                {
+                    assert_eq!(step_index, k, "anchor escaped the locked step {}", k);
+                }
+            }
+            set_step_lock(prev);
+        }
+
+        // Without a lock, anchors must spread across more than one step (sanity: the lock is what
+        // confined them above, not some other property of the trace).
+        set_step_lock(None);
+        let mut seen = HashSet::new();
+        for _ in 0..2000 {
+            if let Some((_, (step_index, _))) =
+                choose(&trace, &TermConstraints::default(), &mut rand)
+            {
+                seen.insert(step_index);
+            }
+        }
+        assert!(
+            seen.len() > 1,
+            "unlocked anchors should span multiple steps, saw {:?}",
+            seen
+        );
     }
 }
