@@ -24,10 +24,11 @@ use std::any::TypeId;
 use comparable::Comparable;
 use constructor_macro::Constructor;
 use puffin::agent::ProtocolDescriptorConfig;
+use puffin::algebra::dynamic_function::TypeShape;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::AnyMatcher;
 use puffin::error::Error;
-use puffin::protocol::{Extractable, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, codec, declare_signature, dummy_codec};
 use serde::{Deserialize, Serialize};
@@ -440,8 +441,12 @@ atom_extract_knowledge!(TestProtocolTypes, Flag);
 
 #[test]
 fn constructor_skip_all_composes_with_constructor_list() {
-    let list = fn_list_flag_append(&fn_list_flag_empty().unwrap(), &Flag::On).unwrap();
-    assert_eq!(list, vec![Flag::On]);
+    // The codec impl `#[constructor_list]` emits survives `#[constructor_skip_all]`: a `Vec<Flag>`
+    // encodes as its elements back to back.
+    assert_eq!(
+        codec::Codec::get_encoding(&vec![Flag::On, Flag::Off, Flag::On]),
+        vec![1, 0, 1]
+    );
 
     let names: Vec<&str> = TEST_SIGNATURE
         .functions
@@ -449,14 +454,12 @@ fn constructor_skip_all_composes_with_constructor_list() {
         .map(|(shape, _)| shape.name)
         .collect();
 
-    assert!(names.iter().any(|n| n.ends_with("fn_list_flag_empty")));
-    assert!(names.iter().any(|n| n.ends_with("fn_list_flag_append")));
     assert!(names.iter().any(|n| n.ends_with("fn_flag_on")));
     assert!(!names.iter().any(|n| n.ends_with("fn_flag_off")));
 }
 
 /// A struct has no variants to opt back in, so `#[constructor_skip_all]` drops its constructor
-/// outright — the list-functions-only case that `#[constructor_list(only)]` used to cover.
+/// outright — the codec-impl-only case that `#[constructor_list(only)]` used to cover.
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
 #[constructor_list]
@@ -475,9 +478,11 @@ impl codec::Codec for Token {
 atom_extract_knowledge!(TestProtocolTypes, Token);
 
 #[test]
-fn constructor_skip_all_on_a_struct_keeps_only_the_list_functions() {
-    let list = fn_list_token_append(&fn_list_token_empty().unwrap(), &Token(7)).unwrap();
-    assert_eq!(list, vec![Token(7)]);
+fn constructor_skip_all_on_a_struct_keeps_only_the_codec_impl() {
+    assert_eq!(
+        codec::Codec::get_encoding(&vec![Token(7), Token(9)]),
+        vec![7, 9]
+    );
 
     let names: Vec<&str> = TEST_SIGNATURE
         .functions
@@ -485,8 +490,6 @@ fn constructor_skip_all_on_a_struct_keeps_only_the_list_functions() {
         .map(|(shape, _)| shape.name)
         .collect();
 
-    assert!(names.iter().any(|n| n.ends_with("fn_list_token_empty")));
-    assert!(names.iter().any(|n| n.ends_with("fn_list_token_append")));
     assert!(!names.iter().any(|n| n.ends_with("fn_token")));
 }
 
@@ -601,20 +604,16 @@ fn generated_constructors_are_registered_in_the_signature() {
 }
 
 // ============================================================
-// `#[constructor_list]` – list constructors
+// `#[constructor_list]` – list element types, and where list types come from
 //
-// On top of the usual element constructor, `#[constructor_list]` generates two functions
-// operating on `Vec<Self>`:
-//   * `fn_list_<name>_empty()               -> Vec<Self>`   (an empty list)
-//   * `fn_list_<name>_append(&Vec, &Self)   -> Vec<Self>`   (a clone of the list with the element
-//     pushed at the end)
-// It also emits `impl VecCodecWoSize for Self` so that `Vec<Self>: Codec`, and registers both
-// functions into the signature.
+// `#[constructor_list]` marks an element type: it emits `impl VecCodecWoSize for Self` so that
+// `Vec<Self>: Codec`, and registers `Vec<Self>` as a readable type. That needs a *real* `Codec`
+// on the element type (the `dummy_codec!` used elsewhere only provides `CodecP`) and
+// `Extractable` on it (`Vec<T>: Extractable` then follows from a blanket impl).
 //
-// Because the functions register `Vec<Self>`, that type must be an `EvaluatedTerm`, which
-// requires a *real* `Codec` on the element type (the `dummy_codec!` used elsewhere only
-// provides `CodecP`) and `Extractable` on the element type (`Vec<T>: Extractable` then follows
-// from a blanket impl).
+// The *list types* of the signature -- the `Vec<T>` a `DYTerm::List` may build -- are not this
+// attribute's doing: the derive registers one for every constructor argument spelled `Vec<..>`,
+// since that is where a list is used at all.
 // ============================================================
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
@@ -633,53 +632,60 @@ impl codec::Codec for Item {
 }
 atom_extract_knowledge!(TestProtocolTypes, Item);
 
-#[test]
-fn constructor_list_empty_returns_an_empty_vec() {
-    let list = fn_list_item_empty().unwrap();
-    assert_eq!(list, Vec::<Item>::new());
-}
+/// A type holding a list of `Item`s: its constructor takes a `Vec<Item>`, which is what makes
+/// `Vec<Item>` a list type of the signature.
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
+struct Bag(Vec<Item>);
+
+dummy_codec!(TestProtocolTypes, Bag);
+atom_extract_knowledge!(TestProtocolTypes, Bag);
 
 #[test]
-fn constructor_list_append_pushes_the_element_at_the_end() {
-    let list = fn_list_item_empty().unwrap();
-    let list = fn_list_item_append(&list, &Item(1)).unwrap();
-    let list = fn_list_item_append(&list, &Item(2)).unwrap();
-    assert_eq!(list, vec![Item(1), Item(2)]);
-}
+fn a_vec_argument_registers_its_list_type_in_the_signature() {
+    // `fn_bag` takes a `Vec<Item>`, so a list of `Item`s can be built for it.
+    assert!(TEST_SIGNATURE.is_list_type(&TypeShape::of::<Vec<Item>>()));
+    assert_eq!(
+        TEST_SIGNATURE.list_element_type(&TypeShape::of::<Vec<Item>>()),
+        Some(&TypeShape::of::<Item>())
+    );
+    assert!(TEST_SIGNATURE.unregistered_list_arguments().is_empty());
 
-#[test]
-fn constructor_list_append_does_not_mutate_its_input() {
-    let original = fn_list_item_append(&vec![], &Item(9)).unwrap();
-    // `append` clones the list, so the list passed in is left untouched.
-    let _extended = fn_list_item_append(&original, &Item(10)).unwrap();
-    assert_eq!(original, vec![Item(9)]);
-}
-
-#[test]
-fn constructor_list_functions_are_registered_in_the_signature() {
+    // The plain element constructor is still generated alongside it.
     let names: Vec<&str> = TEST_SIGNATURE
         .functions
         .iter()
         .map(|(shape, _)| shape.name)
         .collect();
-    let is_registered = |suffix: &str| names.iter().any(|n| n.ends_with(suffix));
-
-    assert!(is_registered("fn_list_item_empty"));
-    assert!(is_registered("fn_list_item_append"));
-    // The plain element constructor is still generated alongside the list ones.
-    assert!(is_registered("fn_item"));
+    assert!(names.iter().any(|n| n.ends_with("fn_item")));
 }
 
 #[test]
-fn constructor_list_is_opt_in_and_absent_without_the_attribute() {
-    let names: Vec<&str> = TEST_SIGNATURE
-        .functions
-        .iter()
-        .map(|(shape, _)| shape.name)
-        .collect();
+fn a_registered_list_type_builds_a_vec_out_of_evaluated_elements() {
+    let elements: Vec<Box<dyn EvaluatedTerm<TestProtocolTypes>>> =
+        vec![Box::new(Item(1)), Box::new(Item(2))];
+    let list = TEST_SIGNATURE
+        .build_list(&TypeShape::of::<Vec<Item>>(), &elements)
+        .unwrap();
 
-    // `Point` does not carry `#[constructor_list]`, so no list constructors exist for it.
-    assert!(!names.iter().any(|n| n.contains("fn_list_point")));
+    assert_eq!(
+        list.as_any().downcast_ref::<Vec<Item>>().unwrap(),
+        &vec![Item(1), Item(2)]
+    );
+
+    // An element of another type is rejected rather than silently dropped.
+    let mixed: Vec<Box<dyn EvaluatedTerm<TestProtocolTypes>>> =
+        vec![Box::new(Item(1)), Box::new(Tagged(2))];
+    assert!(TEST_SIGNATURE
+        .build_list(&TypeShape::of::<Vec<Item>>(), &mixed)
+        .is_err());
+}
+
+#[test]
+fn a_vec_no_constructor_takes_is_no_list_type() {
+    // No constructor takes a `Vec<Point>`, so nothing would ever build one.
+    assert!(!TEST_SIGNATURE.is_list_type(&TypeShape::of::<Vec<Point>>()));
 }
 
 // ============================================================

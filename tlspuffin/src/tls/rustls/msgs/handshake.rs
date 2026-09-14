@@ -18,7 +18,7 @@ use crate::tls::rustls::msgs::enums::{
     PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm, SignatureScheme,
 };
 use crate::tls::rustls::{key, rand};
-use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
+use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_LISTDEFS, TLS_SIGNATURE_TYPEDEFS};
 
 macro_rules! declare_u8_vec (
   ($(#[$attr:meta])* $name:ident, $itemtype:ty) => {

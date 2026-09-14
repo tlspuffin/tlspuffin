@@ -136,6 +136,14 @@ impl<PT: ProtocolTypes> Term<PT> {
                 std::hash::Hash::hash(query, &mut h);
                 format!("d_{:x}", std::hash::Hasher::finish(&h))
             }
+            DYTerm::List(typ, elements) => {
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                std::hash::Hash::hash(typ, &mut h);
+                for element in elements {
+                    std::hash::Hash::hash(&element.unique_id(tree_mode, cluster_id), &mut h);
+                }
+                format!("l_{:x}", std::hash::Hasher::finish(&h))
+            }
         }
     }
 
@@ -201,6 +209,41 @@ impl<PT: ProtocolTypes> Term<PT> {
                     inner.unique_id(tree_mode, cluster_id)
                 ));
                 Self::collect_statements(inner, tree_mode, cluster_id, statements);
+            }
+            DYTerm::List(typ, elements) => {
+                let color = if term.is_symbolic() {
+                    if elements.is_empty() {
+                        COLOR_LEAVES
+                    } else {
+                        COLOR
+                    }
+                } else {
+                    COLOR_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    SHAPE
+                } else {
+                    SHAPE_PAYLOAD
+                };
+                statements.push(format!(
+                    "{} {} [fontname=\"{}\"];",
+                    term.unique_id(tree_mode, cluster_id),
+                    Self::node_attributes(
+                        format!("[]//{}", remove_prefix(typ.name)),
+                        color,
+                        shape,
+                    ),
+                    FONT
+                ));
+
+                for element in elements {
+                    statements.push(format!(
+                        "{} -> {};",
+                        term.unique_id(tree_mode, cluster_id),
+                        element.unique_id(tree_mode, cluster_id)
+                    ));
+                    Self::collect_statements(element, tree_mode, cluster_id, statements);
+                }
             }
             DYTerm::Application(func, subterms) => {
                 let color = if term.is_symbolic() {
