@@ -40,15 +40,12 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                             fn_ciphersuite_tls13_aes_128_ccm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        fn_list_serverextension_empty,
-                                        (fn_serverextension_keyshare(
-                                            (fn_key_share_deterministic((@curve)))
-                                        ))
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
                                     )),
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -74,7 +71,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                 fn_handshakemessagepayload(
                     fn_handshaketype_encryptedextensions,
                     fn_handshakepayload_encryptedextensions(
-                        fn_encryptedextensions(fn_list_serverextension_empty)
+                        fn_encryptedextensions([])
                     )
                 )
             )
@@ -91,13 +88,12 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                         fn_certificatepayloadtls13(
                             (fn_payloadu8((fn_empty_bytes_vec))),
                             (fn_certificateentries(
-                                (fn_list_certificateentry_append(
-                                    fn_list_certificateentry_empty,
+                                [
                                     (fn_certificateentry(
                                         fn_certificate(fn_alice_cert),
-                                        (fn_certificateextensions(fn_list_certificateextension_empty))
+                                        (fn_certificateextensions([]))
                                     ))
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -291,58 +287,44 @@ pub fn rfc_violation_alert_bad_key_share(
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            fn_list_namedgroup_empty,
-                                                            fn_namedgroup_secp384r1
-                                                        ))
-                                                    )
-                                                ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_keyshareentry(
-                                            fn_namedgroup_secp384r1,
-                                            (fn_payloadu16(fn_empty_bytes_vec))
-                                        ))
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_keyshareentry(
+                                        fn_namedgroup_secp384r1,
+                                        (fn_payloadu16(fn_empty_bytes_vec))
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -520,15 +502,12 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        fn_list_serverextension_empty,
-                                        (fn_serverextension_keyshare(
-                                            (fn_key_share_deterministic((@curve)))
-                                        ))
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
                                     )),
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -554,7 +533,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                 fn_handshakemessagepayload(
                     fn_handshaketype_encryptedextensions,
                     fn_handshakepayload_encryptedextensions(
-                        fn_encryptedextensions(fn_list_serverextension_empty)
+                        fn_encryptedextensions([])
                     )
                 )
             )
@@ -571,13 +550,12 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                         fn_certificatepayloadtls13(
                             (fn_payloadu8((fn_empty_bytes_vec))),
                             (fn_certificateentries(
-                                (fn_list_certificateentry_append(
-                                    fn_list_certificateentry_empty,
+                                [
                                     (fn_certificateentry(
                                         fn_certificate(fn_alice_cert),
-                                        (fn_certificateextensions(fn_list_certificateextension_empty))
+                                        (fn_certificateextensions([]))
                                     ))
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -777,20 +755,15 @@ pub fn rfc_violation_bad_alert_non_requested_psk(
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        (fn_list_serverextension_append(
-                                            fn_list_serverextension_empty,
-                                            (fn_serverextension_keyshare(
-                                                (fn_key_share_deterministic((@curve)))
-                                            ))
-                                        )),
-                                        (fn_serverextension_presharedkey(
-                                            (fn_u32_to_u16((fn_u64_to_u32(fn_seq_5))))
-                                        ))
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
+                                    )),
+                                    (fn_serverextension_presharedkey(
+                                        (fn_u32_to_u16((fn_u64_to_u32(fn_seq_5))))
                                     )),
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -837,65 +810,48 @@ pub fn rfc_violation_incorrect_keyshare_after_hrr(server: AgentName) -> Trace<TL
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            (fn_list_namedgroup_append(
-                                                                fn_list_namedgroup_empty,
-                                                                fn_namedgroup_x25519
-                                                            )),
-                                                            fn_namedgroup_secp256r1
-                                                        ))
-                                                    )
-                                                ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(fn_namedgroup_x25519))
-                                                ))
-                                            )
-                                        ))
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_x25519,
+                                                fn_namedgroup_secp256r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(fn_namedgroup_x25519))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -916,64 +872,49 @@ pub fn rfc_violation_incorrect_keyshare_after_hrr(server: AgentName) -> Trace<TL
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            fn_list_namedgroup_empty,
-                                                            fn_namedgroup_secp384r1
-                                                        ))
-                                                    )
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(
+                                                    fn_namedgroup_secp384r1
                                                 ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(
-                                                        fn_namedgroup_secp384r1
-                                                    ))
-                                                ))
-                                            )
-                                        ))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1040,20 +981,15 @@ pub fn rfc_violation_no_alert_duplicate_extension(
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        (fn_list_serverextension_append(
-                                            fn_list_serverextension_empty,
-                                            (fn_serverextension_keyshare(
-                                                (fn_key_share_deterministic((@curve)))
-                                            ))
-                                        )),
-                                        fn_serverextension_supportedversions(
-                                            fn_protocolversion_tlsv1_3
-                                        )
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
                                     )),
+                                    fn_serverextension_supportedversions(
+                                        fn_protocolversion_tlsv1_3
+                                    ),
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1102,54 +1038,42 @@ pub fn rfc_violation_missing_supported_group(server: AgentName) -> Trace<TLSProt
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            fn_list_clientextension_empty,
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(
-                                                        fn_namedgroup_secp384r1
-                                                    ))
+                                [
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(
+                                                    fn_namedgroup_secp384r1
                                                 ))
-                                            )
-                                        ))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1196,17 +1120,16 @@ pub fn rfc_violation_changing_cipher_after_hrr(client: AgentName) -> Trace<TLSPr
             K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_ciphersuite_tls13_aes_128_gcm_sha256,
             fn_compressions(
-                fn_list_compression_append(fn_list_compression_empty, fn_compression_null)
+                [
+                    fn_compression_null
+                ]
             ),
             (fn_helloretryextensions(
-                (fn_list_helloretryextension_append(
-                    (fn_list_helloretryextension_append(
-                        fn_list_helloretryextension_empty,
-                        fn_helloretryextension_supportedversions(fn_protocolversion_tlsv1_3)
-                    )),
+                [
+                    fn_helloretryextension_supportedversions(fn_protocolversion_tlsv1_3),
                     // ask the client to use P384 curve for the second client hello
                     (fn_helloretryextension_keyshare(fn_namedgroup_secp384r1))
-                ))
+                ]
             ))
         )
     };
@@ -1225,15 +1148,12 @@ pub fn rfc_violation_changing_cipher_after_hrr(client: AgentName) -> Trace<TLSPr
                             fn_ciphersuite_tls13_aes_256_gcm_sha384,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        fn_list_serverextension_empty,
-                                        (fn_serverextension_keyshare(
-                                            (fn_key_share_deterministic((@curve)))
-                                        ))
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
                                     )),
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1279,13 +1199,14 @@ pub fn rfc_violation_no_change_after_hrr(client: AgentName) -> Trace<TLSProtocol
             K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_ciphersuite_tls13_aes_128_gcm_sha256,
             fn_compressions(
-                fn_list_compression_append(fn_list_compression_empty, fn_compression_null)
+                [
+                    fn_compression_null
+                ]
             ),
             (fn_helloretryextensions(
-                (fn_list_helloretryextension_append(
-                    fn_list_helloretryextension_empty,
+                [
                     fn_helloretryextension_supportedversions(fn_protocolversion_tlsv1_3)
-                ))
+                ]
             ))
         )
     };
@@ -1336,18 +1257,13 @@ pub fn rfc_violation_incorrect_extension_in_sh(
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
-                                (fn_list_serverextension_append(
-                                    (fn_list_serverextension_append(
-                                        (fn_list_serverextension_append(
-                                            fn_list_serverextension_empty,
-                                            (fn_serverextension_keyshare(
-                                                (fn_key_share_deterministic((@curve)))
-                                            ))
-                                        )),
-                                        fn_serverextension_certificatestatusack
+                                [
+                                    (fn_serverextension_keyshare(
+                                        (fn_key_share_deterministic((@curve)))
                                     )),
+                                    fn_serverextension_certificatestatusack,
                                     fn_serverextension_supportedversions(fn_protocolversion_tlsv1_3)
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1395,65 +1311,48 @@ pub fn rfc_violation_client_changing_cipher_hrr(server: AgentName) -> Trace<TLSP
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            (fn_list_namedgroup_append(
-                                                                fn_list_namedgroup_empty,
-                                                                fn_namedgroup_x25519
-                                                            )),
-                                                            fn_namedgroup_secp384r1
-                                                        ))
-                                                    )
-                                                ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(fn_namedgroup_x25519))
-                                                ))
-                                            )
-                                        ))
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_x25519,
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(fn_namedgroup_x25519))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -1474,64 +1373,49 @@ pub fn rfc_violation_client_changing_cipher_hrr(server: AgentName) -> Trace<TLSP
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_256_gcm_sha384
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            fn_list_namedgroup_empty,
-                                                            fn_namedgroup_secp384r1
-                                                        ))
-                                                    )
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(
+                                                    fn_namedgroup_secp384r1
                                                 ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(
-                                                        fn_namedgroup_secp384r1
-                                                    ))
-                                                ))
-                                            )
-                                        ))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )

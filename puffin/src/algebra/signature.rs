@@ -70,6 +70,7 @@ use crate::algebra::dynamic_function::{
     make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, FunctionAttributes,
     TypeShape,
 };
+use crate::algebra::list_types::{ListTypeDefinition, ListTypes};
 use crate::algebra::readable_types::{ReadableTypeDefinition, ReadableTypes};
 use crate::algebra::Matcher;
 use crate::error::Error;
@@ -102,6 +103,9 @@ pub struct Signature<PT: ProtocolTypes> {
     /// The types of this signature a bitstring can be read back into, see
     /// [`Self::try_read_bytes`]. Filled in by [`Self::with_readable_types`].
     pub readable_types: ReadableTypes<PT>,
+    /// The `Vec<T>` types of this signature a [`crate::algebra::DYTerm::List`] can build, see
+    /// [`Self::build_list`]. Filled in by [`Self::with_list_types`].
+    pub list_types: ListTypes<PT>,
     /// Minimal generation depth and size per function symbol, see [`Self::min_gen_depth`] and
     /// [`Self::min_gen_size`].
     min_cost_by_name: HashMap<&'static str, Cost>,
@@ -164,7 +168,18 @@ impl<PT: ProtocolTypes> std::fmt::Debug for Signature<PT> {
 impl<PT: ProtocolTypes> Signature<PT> {
     /// Construct a `Signature` from the given [`FunctionDefinition`]s.
     #[must_use]
-    pub fn new(mut definitions: Vec<(FunctionDefinition<PT>, FunctionAttributes)>) -> Self {
+    pub fn new(definitions: Vec<(FunctionDefinition<PT>, FunctionAttributes)>) -> Self {
+        Self::build(definitions, ListTypes::new(vec![]))
+    }
+
+    /// Same as [`Self::new`], with the `Vec<T>` types a [`crate::algebra::DYTerm::List`] may
+    /// build: they are types of the signature too, and an empty list of any of them is a closed
+    /// term, which the generation costs below account for.
+    #[must_use]
+    fn build(
+        mut definitions: Vec<(FunctionDefinition<PT>, FunctionAttributes)>,
+        list_types: ListTypes<PT>,
+    ) -> Self {
         // Order the symbols by name before anything derives from them.
         //
         // `definitions` arrives from a `linkme::distributed_slice`, whose order is decided by the
@@ -210,10 +225,16 @@ impl<PT: ProtocolTypes> Signature<PT> {
             })
             .unique()
             .flatten()
+            .chain(
+                list_types
+                    .shapes()
+                    .flat_map(|(list, element)| [list.clone(), element.clone()]),
+            )
             .map(|typ| (typ.name, typ))
             .collect();
 
-        let (min_cost_by_name, min_cost_by_typ) = Self::compute_min_costs(&definitions);
+        let (min_cost_by_name, min_cost_by_typ) =
+            Self::compute_min_costs(&definitions, &list_types);
 
         let functions_by_typ_by_depth = functions_by_typ
             .iter()
@@ -234,7 +255,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
             })
             .collect();
 
-        Self {
+        let signature = Self {
             functions_by_name,
             functions_by_typ,
             functions: definitions.into_iter().map(|(fd, _attrs)| fd).collect(),
@@ -244,7 +265,10 @@ impl<PT: ProtocolTypes> Signature<PT> {
             min_cost_by_typ,
             functions_by_typ_by_depth,
             readable_types: ReadableTypes::new(vec![]),
-        }
+            list_types,
+        };
+
+        signature
     }
 
     /// Least fixed point of
@@ -256,6 +280,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
     /// return, are absent from the returned maps: no closed term exists for them at any cost.
     fn compute_min_costs(
         definitions: &[(FunctionDefinition<PT>, FunctionAttributes)],
+        list_types: &ListTypes<PT>,
     ) -> (HashMap<&'static str, Cost>, HashMap<TypeShape<PT>, Cost>) {
         use std::collections::hash_map::Entry;
 
@@ -285,6 +310,12 @@ impl<PT: ProtocolTypes> Signature<PT> {
 
         let mut by_name: HashMap<&'static str, Cost> = HashMap::new();
         let mut by_typ: HashMap<TypeShape<PT>, Cost> = HashMap::new();
+
+        // The empty list is a closed term of every registered list type, at the cost of a
+        // constant.
+        for (list, _element) in list_types.shapes() {
+            improve(&mut by_typ, list.clone(), Cost { depth: 1, size: 1 });
+        }
 
         // Each round either adds an entry or strictly decreases one, and both components are
         // bounded below by 1, so this terminates. In practice it converges in as many rounds as
@@ -372,6 +403,85 @@ impl<PT: ProtocolTypes> Signature<PT> {
         self.functions_by_typ_by_depth
             .get(typ)?
             .choose_within(depth, size, rand)
+    }
+
+    /// Attach the `Vec<T>` types a [`crate::algebra::DYTerm::List`] may build, as collected by
+    /// [`crate::define_list_types!`] and by the `Constructor` derive.
+    ///
+    /// Called by [`crate::declare_signature!`]; a `Signature` built by hand has an empty registry,
+    /// so no list term can be built or evaluated until this is called. Everything derived from
+    /// the symbols is recomputed, since a list type adds both a type and a way to build it.
+    #[must_use]
+    pub fn with_list_types(self, definitions: Vec<ListTypeDefinition<PT>>) -> Self {
+        let functions = self
+            .functions
+            .iter()
+            .map(|function| {
+                let attrs = self.attrs_by_name[function.0.name];
+                (function.clone(), attrs)
+            })
+            .collect();
+
+        let signature = Self {
+            readable_types: self.readable_types,
+            ..Self::build(functions, ListTypes::new(definitions))
+        };
+
+        // Only meaningful once the registry is attached: `Self::build` also runs on the
+        // list-less signature this is called on.
+        for (name, typ) in signature.unregistered_list_arguments() {
+            log::warn!(
+                "[Signature] {name} takes a {} that no list term can build: register it with \
+                 define_list_types!",
+                typ.name
+            );
+        }
+
+        signature
+    }
+
+    /// The `Vec<..>` argument types of this signature that no [`crate::algebra::DYTerm::List`]
+    /// can build, because they were never registered as list types.
+    ///
+    /// A symbol taking one can never be applied: nothing produces a value of that type. The
+    /// `Constructor` derive registers what it generates, so a non-empty result means a
+    /// hand-written symbol is missing a [`crate::define_list_types!`] entry.
+    ///
+    /// Recognising a `Vec` by the shape of its name is enough for a diagnostic and is all a
+    /// [`TypeShape`] allows -- a `TypeId` says nothing about the type it identifies.
+    pub fn unregistered_list_arguments(&self) -> Vec<(&'static str, &TypeShape<PT>)> {
+        self.functions
+            .iter()
+            .flat_map(|(shape, _)| {
+                shape
+                    .argument_types
+                    .iter()
+                    .map(move |typ| (shape.name, typ))
+            })
+            .filter(|(_, typ)| typ.name.starts_with("alloc::vec::Vec<") && !self.is_list_type(typ))
+            .collect()
+    }
+
+    /// The element type of `typ`, when `typ` is a `Vec<T>` registered by
+    /// [`crate::define_list_types!`].
+    #[must_use]
+    pub fn list_element_type(&self, typ: &TypeShape<PT>) -> Option<&TypeShape<PT>> {
+        self.list_types.element_type(typ)
+    }
+
+    /// Whether `typ` is a `Vec<T>` a [`crate::algebra::DYTerm::List`] may build.
+    #[must_use]
+    pub fn is_list_type(&self, typ: &TypeShape<PT>) -> bool {
+        self.list_types.contains(typ)
+    }
+
+    /// Build a value of the registered list type `typ` out of its evaluated `elements`.
+    pub fn build_list(
+        &self,
+        typ: &TypeShape<PT>,
+        elements: &[Box<dyn EvaluatedTerm<PT>>],
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, crate::algebra::error::FnError> {
+        self.list_types.build(typ, elements)
     }
 
     /// Attach the types a bitstring can be read back into, as collected by
@@ -468,6 +578,7 @@ pub const fn create_static_signature<PT: ProtocolTypes>(
 /// | `$name` | [`StaticSignature<$pt>`] | The lazily-initialised signature. |
 /// | `${name}_FNDEFS` | `linkme::DistributedSlice<[SignatureDefinitionFactory<$pt>]>` | Collects all registered function factories at link time. |
 /// | `${name}_TYPEDEFS` | `linkme::DistributedSlice<[ReadableTypeFactory<$pt>]>` | Collects the types a bitstring can be read back into, see [`Signature::try_read_bytes`]. |
+/// | `${name}_LISTDEFS` | `linkme::DistributedSlice<[ListTypeFactory<$pt>]>` | Collects the `Vec<T>` types a [`crate::algebra::DYTerm::List`] may build, see [`Signature::build_list`]. |
 ///
 /// Users of the signature only ever interact with `$name`. The `_FNDEFS` and `_TYPEDEFS` slices
 /// are an implementation detail; they are referenced internally by [`crate::define_signature!`]
@@ -519,6 +630,16 @@ macro_rules! declare_signature {
                 $crate::algebra::readable_types::ReadableTypeFactory<$pt>
             ] = [..];
 
+            /// Distributed slice that accumulates all
+            /// [`ListTypeFactory`](puffin::algebra::list_types::ListTypeFactory) entries
+            /// contributed by [`define_list_types!`] — and by the `Constructor` derive — for this
+            /// signature.
+            #[allow(non_upper_case_globals)]
+            #[$crate::linkme::distributed_slice]
+            pub static [<$name _LISTDEFS>]: [
+                $crate::algebra::list_types::ListTypeFactory<$pt>
+            ] = [..];
+
             /// Lazily-initialised signature built from every
             /// [`define_signature!`] contribution that references `[<$name _FNDEFS>]`, with the
             /// readable types from every contribution that references `[<$name _TYPEDEFS>]`.
@@ -532,8 +653,13 @@ macro_rules! declare_signature {
                         .iter()
                         .flat_map(|f| f())
                         .collect();
+                    let list_types: ::std::vec::Vec<_> = [<$name _LISTDEFS>]
+                        .iter()
+                        .flat_map(|f| f())
+                        .collect();
                     $crate::algebra::signature::Signature::new(definitions)
                         .with_readable_types(readable_types)
+                        .with_list_types(list_types)
                 });
         }
     };
