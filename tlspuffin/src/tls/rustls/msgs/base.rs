@@ -8,7 +8,7 @@ use puffin::{codec, define_readable_types};
 
 use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
-use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
+use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_LISTDEFS, TLS_SIGNATURE_TYPEDEFS};
 
 // `PayloadU24` has no `#[constructor_list]` — nothing constructs a list of them — so the derive
 // registers the type but not `Vec<PayloadU24>`, which is a message field all the same.

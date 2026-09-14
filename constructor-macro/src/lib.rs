@@ -10,25 +10,28 @@ const CONSTRUCTOR_ATTR: &str = "constructor";
 /// initialised from the expression it wraps: `#[constructor_default(EXPR)]`.
 const DEFAULT_ATTR: &str = "constructor_default";
 
-/// Opt-in attribute requesting generation of the list constructors: `#[constructor_list]`.
+/// Opt-in attribute marking a list *element* type: `#[constructor_list]`.
 ///
-/// It generates the two `Vec<Self>` constructors `fn_list_*_empty` (an empty list) and
-/// `fn_list_*_append` (a clone of the list with one element pushed at the end), plus, unless
-/// opted out of, `impl VecCodecWoSize for Self` so that `Vec<Self>: Codec`.
+/// It emits `impl VecCodecWoSize for Self`, which is what gives `Vec<Self>` a `Codec` — and hence
+/// makes it an `EvaluatedTerm` a `DYTerm::List` can build — and registers `Vec<Self>` as a
+/// readable type alongside `Self`.
 ///
-/// These functions operate on `Vec<Self>` and register it in the signature, which requires
-/// `Vec<Self>: EvaluatedTerm` — i.e. `Self: Codec` (not merely `CodecP`) and `Vec<Self>: Codec`.
-/// That only holds for genuine list *element* types, so list generation is off by default and
-/// must be requested explicitly.
+/// It does **not** register the list type: that follows from the constructor arguments taking a
+/// `Vec<..>`, wherever they are, so a `Vec<Self>` no symbol takes is no list type of the
+/// signature.
+///
+/// `impl VecCodecWoSize` needs `Self: Codec` (not merely `CodecP`) and says the elements are
+/// encoded back to back, with no length prefix of their own. That only holds for genuine list
+/// element types, so it is off by default and must be requested explicitly.
 ///
 /// One flag is accepted, `#[constructor_list(no_codec_impl)]`:
 ///
 /// * `no_codec_impl` — do not emit `impl VecCodecWoSize for Self`. Required when the type already
 ///   has one; the impl is only a convenience for types that do not.
 ///
-/// To generate *nothing but* the list functions, pair it with [`SKIP_ALL_ATTR`]. That replaces an
-/// earlier `only` flag, which was all-or-nothing: pairing with the skip attribute means a few
-/// variants can be kept alongside the list functions via [`NO_SKIP_ATTR`].
+/// It composes with [`SKIP_ALL_ATTR`], which drops the constructors while keeping the codec impl
+/// and the readable `Vec<Self>`. That replaces an earlier `only` flag, which was all-or-nothing:
+/// pairing with the skip attribute means a few variants can be kept via [`NO_SKIP_ATTR`].
 const LIST_ATTR: &str = "constructor_list";
 
 /// Opt-out attribute excluding an enum variant entirely: `#[constructor_skip]`, on the variant.
@@ -59,7 +62,7 @@ const SKIP_ATTR: &str = "constructor_skip";
 /// constructor outright.
 ///
 /// It composes with [`LIST_ATTR`]: the `Vec<Self>` constructors are about the list, not the
-/// variants, so they are still generated. That pairing — list functions plus a curated handful of
+/// variants, so it still happens. That pairing — the codec impl plus a curated handful of
 /// values — is what a wide protocol enum wants, and it replaces the earlier
 /// `#[constructor_list(only)]` flag, which could not keep any variant.
 const SKIP_ALL_ATTR: &str = "constructor_skip_all";
@@ -119,19 +122,19 @@ const NO_TRY_READ_ATTR: &str = "constructor_no_try_read";
 ///   protocol-types type.
 /// * `#[constructor_default(EXPR)]` — on a field. Excludes the field from the constructor
 ///   parameters and initialises it from `EXPR` (a literal, call, path, ...) instead.
-/// * `#[constructor_list]` — on the type. Additionally generates, for a `Vec<Self>`,
-///   `fn_list_*_empty` and `fn_list_*_append`, plus an `impl VecCodecWoSize for Self` unless its
-///   one flag, `#[constructor_list(no_codec_impl)]`, says the type already has one. Off by default
-///   because it needs `Self: Codec` and `Vec<Self>: Codec`, which only genuine list *element* types
-///   satisfy.
+/// * `#[constructor_list]` — on the type. Marks it a list *element* type: registers `Vec<Self>` as
+///   a readable type and emits `impl VecCodecWoSize for Self`, unless its one flag,
+///   `#[constructor_list(no_codec_impl)]`, says the type already has one. Off by default because it
+///   needs `Self: Codec`, which only genuine list element types satisfy. The list *type* itself is
+///   registered from the constructor arguments that take a `Vec<..>`, not from this attribute.
 /// * `#[constructor_skip]` — on an enum variant. Generates nothing at all for that variant. For
 ///   variants whose payload type no other function symbol can produce, or whose value the rest of
 ///   the crate cannot act on.
 /// * `#[constructor_skip_all]` — on an enum. Skips every variant, so only those carrying
 ///   `#[constructor_no_skip]` are generated; on a struct it drops the single constructor outright.
 ///   Use it when the wanted variants are the exception rather than the rule, as in a protocol enum
-///   listing every IANA-registered value. It composes with `#[constructor_list]`, whose `Vec<Self>`
-///   constructors are about the list rather than the variants and are still generated.
+///   listing every IANA-registered value. It composes with `#[constructor_list]`, which is about
+///   `Vec<Self>` rather than the variants and still applies.
 /// * `#[constructor_no_skip]` — on an enum variant. Keeps that variant under
 ///   `#[constructor_skip_all]`, and is rejected without it, where it would be a no-op.
 /// * `#[constructor_no_try_read]` — on the type. Keeps the type, and the `Vec<Self>` that
@@ -174,10 +177,13 @@ pub fn constructor_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     // `map_type_definition`: a type whose variants are all skipped is still a type a bitstring
     // can be read back into.
     let readable_types = add_to_readable_types(&input.ident, &options);
+    // Same reasoning for the list types, which follow from the constructors' arguments.
+    let list_types = add_to_list_types(&input, &options);
 
     quote! {
         #constructors
         #readable_types
+        #list_types
     }
     .into()
 }
@@ -258,7 +264,7 @@ impl ListOptions {
                     "no_codec_impl" => options.codec_impl = false,
                     "only" => panic!(
                         "the #[{LIST_ATTR}] flag `only` was replaced by #[{SKIP_ALL_ATTR}]: keep \
-                         #[{LIST_ATTR}] for the list functions and add #[{SKIP_ALL_ATTR}] to drop \
+                         #[{LIST_ATTR}] for the codec impl and add #[{SKIP_ALL_ATTR}] to drop \
                          the constructors, which additionally lets #[{NO_SKIP_ATTR}] keep a few \
                          variants"
                     ),
@@ -381,6 +387,65 @@ fn add_to_readable_types(name: &syn::Ident, options: &ConstructorOptions) -> Tok
     }
 }
 
+/// Registers a list type for every constructor argument that is a `Vec<..>`.
+///
+/// A list is written where a symbol takes one, so the symbols taking one are what define the list
+/// types of a signature -- and this is the one place where such an argument type is still a
+/// concrete Rust type, which is what `puffin::algebra::list_types::list_type` needs to capture
+/// a builder for it. An argument that turns out not to be a buildable list is skipped by
+/// `define_list_types!`, so listing every `Vec<..>` argument here is safe.
+fn add_to_list_types(input: &syn::DeriveInput, options: &ConstructorOptions) -> TokenStream {
+    let mut types: Vec<&syn::Type> = vec![];
+
+    match &input.data {
+        // A skipped struct has no constructor, hence no argument taking a list.
+        syn::Data::Struct(st) if !options.skip_all => {
+            types.extend(vec_arguments(st.fields.iter()));
+        }
+        syn::Data::Enum(en) => {
+            for variant in &en.variants {
+                if !options.skips(variant) {
+                    types.extend(vec_arguments(variant.fields.iter()));
+                }
+            }
+        }
+        _ => {}
+    }
+
+    if types.is_empty() {
+        return quote! {};
+    }
+
+    let signature_name = &options.sig_metadata.signature;
+    let protocol_types = &options.sig_metadata.protocol_types;
+    quote! {
+        puffin::define_list_types!(
+            #signature_name,
+            #protocol_types;
+            #(#types),*
+        );
+    }
+}
+
+/// The constructor-argument types of `fields` that are spelled `Vec<..>`.
+///
+/// `#[constructor_default(..)]` fields are filled in by the derive rather than passed in, so they
+/// are no argument and cannot hold a list the term algebra builds.
+fn vec_arguments<'a>(
+    fields: impl IntoIterator<Item = &'a syn::Field>,
+) -> impl Iterator<Item = &'a syn::Type> {
+    fields
+        .into_iter()
+        .filter(|field| has_attr(&field.attrs, DEFAULT_ATTR).is_none())
+        .map(|field| &field.ty)
+        .filter(|ty| {
+            matches!(ty, syn::Type::Path(path)
+                if path.path.segments.last().is_some_and(|s| s.ident == "Vec"))
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
 /// Same as [`add_to_signature`], with the `define_signature!` flags (`[list]`, ...) appended to
 /// the function name.
 fn add_to_signature_with_flags(
@@ -410,46 +475,22 @@ fn generated_fn_attrs() -> TokenStream {
     }
 }
 
-fn create_list_fn(
+/// Emits `impl VecCodecWoSize for Self`, so that `Vec<Self>: Codec` -- what makes a list of this
+/// type an `EvaluatedTerm` and hence buildable.
+///
+/// The list type itself is registered by [`add_to_list_types`], from the arguments that take one.
+fn register_list_type(
     name: &syn::Ident,
     generics: &syn::Generics,
     options: &ConstructorOptions,
 ) -> TokenStream {
-    let fn_attrs = generated_fn_attrs();
-    let name_lower = name.to_string().to_lowercase();
-    let create_list_fn_name = format_ident!("fn_list_{}_empty", name_lower);
-    let append_list_fn_name = format_ident!("fn_list_{}_append", name_lower);
-    let signature_name = &options.sig_metadata.signature;
-    let protocol_types = &options.sig_metadata.protocol_types;
     let (_, ty_generics, where_clause) = generics.split_for_impl();
-    let codec_impl = if options.list.codec_impl {
-        quote! { impl puffin::codec::VecCodecWoSize for #name #ty_generics #where_clause {} }
-    } else {
-        quote! {}
-    };
+    if !options.list.codec_impl {
+        return quote! {};
+    }
+
     quote! {
-        #fn_attrs
-
-        pub fn #create_list_fn_name() -> Result<Vec<#name #ty_generics>, puffin::algebra::error::FnError>  #where_clause {
-            Ok(vec![])
-        }
-
-        #fn_attrs
-
-        pub fn #append_list_fn_name(list: &Vec<#name #ty_generics>, e: &#name #ty_generics) -> Result<Vec<#name #ty_generics>, puffin::algebra::error::FnError> #where_clause {
-            let mut new: Vec<#name #ty_generics> = list.clone();
-            new.push(e.clone());
-            Ok(new)
-        }
-
-        #codec_impl
-
-        puffin::define_signature!(
-            #signature_name,
-            #protocol_types;
-            #create_list_fn_name [list]
-            #append_list_fn_name [list]
-        );
+        impl puffin::codec::VecCodecWoSize for #name #ty_generics #where_clause {}
     }
 }
 
@@ -531,8 +572,8 @@ fn extract_variants<'a>(
     let fn_attrs = generated_fn_attrs();
     let mut result = vec![];
 
-    let list_fn = if options.list.enabled {
-        create_list_fn(name, generics, options)
+    let list_type = if options.list.enabled {
+        register_list_type(name, generics, options)
     } else {
         quote! {}
     };
@@ -608,7 +649,7 @@ fn extract_variants<'a>(
     quote! {
         #(#result)*
 
-        #list_fn
+        #list_type
     }
 }
 
@@ -619,11 +660,11 @@ fn map_type_definition(
     options: &ConstructorOptions,
 ) -> TokenStream {
     // A struct has no variants to opt back in, so `#[constructor_skip_all]` drops its single
-    // constructor outright. The list functions are about `Vec<Self>` and survive, which is what
-    // an element type wanting only `fn_list_*` asks for.
+    // constructor outright. The codec impl is about `Vec<Self>` and survives, which is what an
+    // element type wanting only that asks for.
     if options.skip_all && !matches!(input.data, syn::Data::Enum(_)) {
         return if options.list.enabled {
-            create_list_fn(name, generics, options)
+            register_list_type(name, generics, options)
         } else {
             quote! {}
         };
@@ -635,8 +676,8 @@ fn map_type_definition(
             let fn_attrs = generated_fn_attrs();
             let fn_name = format_ident!("fn_{}", name.to_string().to_lowercase());
             let add_fn_to_sig = add_to_signature(&fn_name, options);
-            let create_list_fn = if options.list.enabled {
-                create_list_fn(name, generics, options)
+            let register_list_type = if options.list.enabled {
+                register_list_type(name, generics, options)
             } else {
                 quote! {}
             };
@@ -666,7 +707,7 @@ fn map_type_definition(
                         }
 
                         #add_fn_to_sig
-                        #create_list_fn
+                        #register_list_type
                     }
                 }
                 syn::Fields::Unnamed(unnamed) => {
@@ -693,7 +734,7 @@ fn map_type_definition(
                         }
 
                         #add_fn_to_sig
-                        #create_list_fn
+                        #register_list_type
                     }
                 }
                 syn::Fields::Unit => {
@@ -705,7 +746,7 @@ fn map_type_definition(
                         }
 
                         #add_fn_to_sig
-                        #create_list_fn
+                        #register_list_type
                     }
                 }
             }

@@ -71,16 +71,8 @@ nyi_fn! {
 nyi_fn! {
     /// Heartbeat => 0x000f,
 }
-/// ALProtocolNegotiation => 0x0010,
-pub fn fn_empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
-    Ok(vec![])
-}
-pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Vec<u8>>, FnError> {
-    // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://github.com/tlspuffin/tlspuffin/issues/155
-    let mut new = vec_of_vec.clone();
-    new.push(data.clone());
-    Ok(new)
+nyi_fn! {
+    /// ALProtocolNegotiation => 0x0010,
 }
 nyi_fn! {
     /// status_request_v2 => 0x0011

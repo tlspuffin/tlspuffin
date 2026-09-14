@@ -58,10 +58,14 @@ fn test_mutations_layout() {
 
     assert_eq!(
         dy_names.last().map(AsRef::as_ref),
-        Some("SwapMutator"),
+        Some("ListMutator"),
         "the DY mutations must all come before MakeMessage, found: {names:?}"
     );
-    for expected in ["MakeDeconstructorMutator", "MakeKnowledgeQueryMutator"] {
+    for expected in [
+        "MakeDeconstructorMutator",
+        "MakeKnowledgeQueryMutator",
+        "ListMutator",
+    ] {
         assert!(
             dy_names.iter().any(|name| name == expected),
             "{expected} is missing from the DY mutations: {dy_names:?}"
@@ -627,7 +631,7 @@ fn search_for_seed_cve_2021_3449(
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
                     DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
-                    DYTerm::Application(_, subterms) => {
+                    DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             if client_hello_payload(first_subterm).is_some() {
                                 if others_unchanged(&trace, &mutate) {
@@ -666,7 +670,7 @@ fn search_for_seed_cve_2021_3449(
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
                     DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
-                    DYTerm::Application(_, subterms) => {
+                    DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                         if let Some(last_subterm) = subterms
                             .iter()
                             .filter(|sb| *sb.get_type_shape() == TypeShape::of::<u64>())
@@ -710,7 +714,7 @@ fn search_for_seed_cve_2021_3449(
                 match &last.action {
                     Action::Input(input) => match &input.recipe.term {
                         DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
-                        DYTerm::Application(_, subterms) => {
+                        DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                             if let Some(first_subterm) = subterms.iter().next() {
                                 log::warn!("mutational result: {:?}", first_subterm);
                                 // Scope the counting to the ClientHello being sent: a
@@ -763,7 +767,7 @@ fn search_for_seed_cve_2021_3449(
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
                     DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
-                    DYTerm::Application(_, subterms) => {
+                    DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             log::warn!("mutational resul first sub-term: {:?}", first_subterm);
                             let is_client_hello = client_hello_payload(first_subterm).is_some();

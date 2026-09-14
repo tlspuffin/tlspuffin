@@ -134,8 +134,6 @@ define_signature!(
     fn_hello_retry_request [get] // because some compressions get lost
     fn_hello_retry_request_random
     // extensions
-    fn_empty_vec_of_vec
-    fn_append_vec [list]
     fn_session_ticket_request_extension
     fn_session_ticket_offer_extension
     fn_preshared_keys_extension_empty_binder [opaque]

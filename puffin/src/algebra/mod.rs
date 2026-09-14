@@ -41,6 +41,7 @@ pub mod atoms;
 pub mod bitstrings;
 pub mod dynamic_function;
 pub mod error;
+pub mod list_types;
 pub mod macros;
 pub mod readable_types;
 pub mod signature;
@@ -118,8 +119,8 @@ pub mod test_signature {
     use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, StepNumber, Trace};
     use crate::{
-        codec, declare_signature, define_signature, dummy_codec, dummy_extract_knowledge,
-        dummy_extract_knowledge_codec, term,
+        codec, declare_signature, define_list_types, define_signature, dummy_codec,
+        dummy_extract_knowledge, dummy_extract_knowledge_codec, term,
     };
 
     #[derive(Debug, Clone, Comparable)]
@@ -132,10 +133,8 @@ pub mod test_signature {
     pub struct ProtocolVersion;
     #[derive(Debug, Clone, Comparable)]
     pub struct Random;
-    #[derive(Debug, Clone, Comparable)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct ClientExtension;
-    #[derive(Debug, Clone, Comparable)]
-    pub struct ClientExtensions;
     #[derive(Debug, Clone, Comparable)]
     pub struct Group;
     #[derive(Debug, Clone, Comparable)]
@@ -154,8 +153,20 @@ pub mod test_signature {
     dummy_extract_knowledge_codec!(TestProtocolTypes, Encrypted);
     dummy_extract_knowledge_codec!(TestProtocolTypes, ProtocolVersion);
     dummy_extract_knowledge_codec!(TestProtocolTypes, Random);
-    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtension);
-    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtensions);
+    dummy_extract_knowledge!(TestProtocolTypes, ClientExtension);
+
+    // A list element type needs a real `Codec` (and a `Vec<Self>` one), unlike the dummy types
+    // above: `Vec<ClientExtension>` is what the list terms of the test signature evaluate to.
+    impl codec::Codec for ClientExtension {
+        fn encode(&self, bytes: &mut Vec<u8>) {
+            bytes.push(0);
+        }
+
+        fn read(r: &mut Reader) -> Option<Self> {
+            r.take(1).map(|_| Self)
+        }
+    }
+    impl codec::VecCodecWoSize for ClientExtension {}
     dummy_extract_knowledge_codec!(TestProtocolTypes, Group);
     dummy_extract_knowledge_codec!(TestProtocolTypes, SessionID);
     dummy_extract_knowledge_codec!(TestProtocolTypes, CipherSuites);
@@ -181,7 +192,7 @@ pub mod test_signature {
         _id: &SessionID,
         _suites: &CipherSuites,
         _compressions: &Compressions,
-        _extensions: &ClientExtensions,
+        _extensions: &Vec<ClientExtension>,
     ) -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
@@ -201,16 +212,6 @@ pub mod test_signature {
         Ok(Random)
     }
 
-    pub fn fn_client_extensions_append(
-        _extensions: &ClientExtensions,
-        _extension: &ClientExtension,
-    ) -> Result<ClientExtensions, FnError> {
-        Ok(ClientExtensions)
-    }
-
-    pub fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
-        Ok(ClientExtensions)
-    }
     pub fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
@@ -351,27 +352,16 @@ pub mod test_signature {
                     fn_cipher_suite12
                 )),
                 fn_compressions,
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    (fn_client_extensions_append(
-                                        fn_client_extensions_new,
-                                        (fn_support_group_extension(fn_named_group_secp384r1))
-                                    )),
-                                    fn_signature_algorithm_extension
-                                )),
-                                fn_ec_point_formats_extension
-                            )),
-                            fn_signed_certificate_timestamp_extension
-                        )),
-                         // Enable Renegotiation
-                        (fn_renegotiation_info_extension(fn_empty_bytes_vec))
-                    )),
+                [
+                    (fn_support_group_extension(fn_named_group_secp384r1)),
+                    fn_signature_algorithm_extension,
+                    fn_ec_point_formats_extension,
+                    fn_signed_certificate_timestamp_extension,
+                    // Enable Renegotiation
+                    (fn_renegotiation_info_extension(fn_empty_bytes_vec)),
                     // Add signature cert extension
                     fn_signature_algorithm_cert_extension
-                ))
+                ]
             )
         }
     }
@@ -413,6 +403,9 @@ pub mod test_signature {
 
     declare_signature!(TEST_SIGNATURE<TestProtocolTypes>);
 
+    // `fn_client_hello` is written by hand, so its list argument is registered by hand.
+    define_list_types!(TEST_SIGNATURE, TestProtocolTypes; Vec<ClientExtension>);
+
     define_signature!(
         TEST_SIGNATURE,
         TestProtocolTypes;
@@ -423,8 +416,6 @@ pub mod test_signature {
         fn_protocol_version12
         fn_new_session_id
         fn_new_random
-        fn_client_extensions_append
-        fn_client_extensions_new
         fn_support_group_extension
         fn_signature_algorithm_extension
         fn_ec_point_formats_extension
@@ -801,12 +792,9 @@ mod tests {
             K((client,0)/ProtocolVersion)
         };
         let _set_nested_function: TestTerm = term! {
-           fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    fn_client_extensions_new,
-                    (fn_support_group_extension(fn_named_group_secp384r1))
-                )),
-                (fn_support_group_extension(fn_named_group_secp384r1))
+           fn_hmac256(
+                fn_hmac256_new_key,
+                (fn_hmac256(fn_hmac256_new_key, fn_empty_bytes_vec))
             )
         };
     }
@@ -968,31 +956,31 @@ mod tests {
     #[test_log::test]
     fn term_macro_optional_parentheses() {
         let with_parens: TestTerm = term! {
-            fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    fn_client_extensions_new,
-                    (fn_support_group_extension(fn_named_group_secp384r1))
-                )),
-                (fn_support_group_extension(fn_named_group_secp384r1))
+            fn_hmac256(
+                fn_hmac256_new_key,
+                (fn_hmac256(
+                    fn_hmac256_new_key,
+                    (fn_hmac256(fn_hmac256_new_key, fn_empty_bytes_vec))
+                ))
             )
         };
         let without_parens: TestTerm = term! {
-            fn_client_extensions_append(
-                fn_client_extensions_append(
-                    fn_client_extensions_new,
-                    fn_support_group_extension(fn_named_group_secp384r1)
-                ),
-                fn_support_group_extension(fn_named_group_secp384r1)
+            fn_hmac256(
+                fn_hmac256_new_key,
+                fn_hmac256(
+                    fn_hmac256_new_key,
+                    fn_hmac256(fn_hmac256_new_key, fn_empty_bytes_vec)
+                )
             )
         };
         // Legacy and new spelling can also be freely mixed.
         let mixed: TestTerm = term! {
-            fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    fn_client_extensions_new,
-                    fn_support_group_extension(fn_named_group_secp384r1)
-                )),
-                fn_support_group_extension(fn_named_group_secp384r1)
+            fn_hmac256(
+                fn_hmac256_new_key,
+                (fn_hmac256(
+                    fn_hmac256_new_key,
+                    fn_hmac256(fn_hmac256_new_key, fn_empty_bytes_vec)
+                ))
             )
         };
 
@@ -1013,10 +1001,7 @@ mod tests {
                 fn_new_session_id,
                 fn_append_cipher_suite(fn_new_cipher_suites(), fn_cipher_suite12),
                 fn_compressions,
-                fn_client_extensions_append(
-                    fn_client_extensions_new,
-                    fn_support_group_extension(fn_named_group_secp384r1)
-                )
+                [fn_support_group_extension(fn_named_group_secp384r1)]
             )
         };
 
@@ -1259,5 +1244,107 @@ mod tests {
         let deconstructor = byte_container_deconstructor(1);
 
         assert!(deconstructor.evaluate_dy(&context).is_err());
+    }
+
+    // ---- `DYTerm::List` mechanism ----
+
+    /// The `[t1, t2]` `term!` syntax builds a list, of the type spelled out after `/` when there
+    /// is no enclosing argument to take it from.
+    #[test_log::test]
+    fn list_macro_builds_and_evaluates() {
+        let context = empty_context();
+        let list: TestTerm = term! {
+            [fn_signature_algorithm_extension, fn_ec_point_formats_extension]
+                / Vec<ClientExtension>
+        };
+
+        assert_eq!(
+            list.get_type_shape(),
+            &TypeShape::of::<Vec<ClientExtension>>()
+        );
+        // The elements are regular subterms: size counts them and `get` reaches them.
+        assert_eq!(list.size(), 3);
+        assert_eq!(
+            list.get(&[1]).unwrap().name(),
+            fn_ec_point_formats_extension.name()
+        );
+
+        let evaluated = list.evaluate_dy(&context).unwrap();
+        assert_eq!(
+            evaluated
+                .as_any()
+                .downcast_ref::<Vec<ClientExtension>>()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    /// As a function argument, the list type is the argument type, so the empty list is writable
+    /// and the elements need no type of their own.
+    #[test_log::test]
+    fn list_macro_infers_argument_type() {
+        let context = empty_context();
+        let client_hello: TestTerm = term! {
+            fn_client_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                fn_new_session_id,
+                fn_new_cipher_suites,
+                fn_compressions,
+                []
+            )
+        };
+
+        let extensions = client_hello.get(&[5]).unwrap();
+        assert!(matches!(&extensions.term, DYTerm::List(_, elements) if elements.is_empty()));
+        assert_eq!(
+            extensions.get_type_shape(),
+            &TypeShape::of::<Vec<ClientExtension>>()
+        );
+        assert!(client_hello.evaluate_dy(&context).is_ok());
+    }
+
+    /// Every element of a list must have the element type of the list type.
+    #[test_log::test]
+    fn list_rejects_elements_of_another_type() {
+        let well_typed = DYTerm::<TestProtocolTypes>::list(
+            TypeShape::of::<Vec<ClientExtension>>(),
+            vec![term! { fn_signature_algorithm_extension }],
+        );
+        assert!(well_typed.is_ok());
+
+        // `fn_new_random` returns a `Random`, not a `ClientExtension`.
+        let ill_typed = DYTerm::<TestProtocolTypes>::list(
+            TypeShape::of::<Vec<ClientExtension>>(),
+            vec![
+                term! { fn_signature_algorithm_extension },
+                term! { fn_new_random },
+            ],
+        );
+        assert!(ill_typed.is_err());
+
+        // Only a `Vec<T>` registered with `define_list_types!` is a list type.
+        let unregistered = DYTerm::<TestProtocolTypes>::list(TypeShape::of::<Vec<u8>>(), vec![]);
+        assert!(unregistered.is_err());
+    }
+
+    /// A list is a list term, is neither opaque nor a leaf unless empty, and displays its
+    /// elements.
+    #[test_log::test]
+    fn list_structure_and_display() {
+        let empty: TestTerm =
+            Term::from(DYTerm::list(TypeShape::of::<Vec<ClientExtension>>(), vec![]).unwrap());
+        let filled: TestTerm = term! { [fn_signature_algorithm_extension] / Vec<ClientExtension> };
+
+        assert!(empty.is_list() && filled.is_list());
+        assert!(!filled.is_opaque() && !filled.is_get());
+        assert!(empty.is_leaf() && !filled.is_leaf());
+        assert_eq!(empty.size(), 1);
+
+        // Iteration visits the elements and the list node itself.
+        assert_eq!(filled.into_iter().count(), 2);
+        assert!(empty.to_string().contains("[]"));
+        assert!(filled.to_string().contains("signature_algorithm_extension"));
     }
 }

@@ -32,7 +32,6 @@ use crate::tls::fn_impl::{
     fn_decrypt_multiple_handshake_messages, fn_derive_binder, fn_derive_psk,
     fn_encrypt_application, fn_server_finished_transcript, fn_server_hello_transcript,
 };
-use crate::tls::rustls::msgs::base::fn_list_payloadu8_append;
 use crate::tls::rustls::msgs::handshake::{
     fn_ocspcertificatestatusrequest, fn_serverhellopayload, HandshakePayload,
 };
@@ -414,14 +413,14 @@ pub fn ignore_add_payload_mutate() -> HashSet<String> {
 
 /// Functions that are unstables, we might be able to generate them but not easily
 ///
-/// `fn_list_payloadu8_append` is unstable for the encode / read / re-encode round trip rather than
+/// A `Vec<PayloadU8>` list is unstable for the encode / read / re-encode round trip rather than
 /// for generation: `PayloadU8::encode` writes its length as `self.0.len() as u8`, which wraps above
 /// 255 bytes and leaves an encoding that no longer describes the data. Of the 25 `Vec<u8>` symbols
 /// the zoo draws from only `fn_empty_bytes_vec` is reliably short — the certificates, keys,
 /// signatures and transcripts are all far longer — so whether a generated `Vec<PayloadU8>` survives
-/// the round trip depends on the draw. It belongs here rather than in an ignore list because it
-/// does succeed for some seeds, and an ignored symbol that succeeds fails these tests just as
-/// loudly as a missing one.
+/// the round trip depends on the draw. Symbols taking such a list belong here rather than in an
+/// ignore list because they do succeed for some seeds, and an ignored symbol that succeeds fails
+/// these tests just as loudly as a missing one.
 pub fn unstable_functions() -> HashSet<String> {
     vec![
         fn_derive_psk.name(),
@@ -429,7 +428,6 @@ pub fn unstable_functions() -> HashSet<String> {
         // `fn_hello_retry_request` or `fn_certificate_request13`, neither of which
         // survives the round trip a payload forces.
         fn_derive_binder.name(),
-        fn_list_payloadu8_append.name(),
         // Whether a payload can be placed in an `[opaque]` encryption symbol depends on *where*
         // `add_payloads_randomly` happens to put it: the children's encodings do not appear in the
         // ciphertext, so only some placements are locatable.
@@ -639,7 +637,7 @@ pub fn test_pay<PT: ProtocolTypes>(term: &Term<PT>) {
         let already_found = already_found || !term.is_symbolic();
         match &term.term {
             DYTerm::Variable(_) => {}
-            DYTerm::Application(_, sub) => {
+            DYTerm::Application(_, sub) | DYTerm::List(_, sub) => {
                 for ti in sub {
                     if already_found && !ti.is_symbolic() {
                         panic!("Eheh, found one! Sub: {ti},\n whole_term: {whole_term}")

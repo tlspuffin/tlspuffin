@@ -49,6 +49,60 @@ pub enum DYTerm<PT: ProtocolTypes> {
     /// the [`Query`]. This is the symmetric operation of a constructor
     /// [`DYTerm::Application`].
     Deconstructor(TypeShape<PT>, Box<Term<PT>>, Query<PT::Matcher>),
+
+    /// A flat list of `Term`s, all of the same type, evaluating to the `Vec<T>` given by the
+    /// [`TypeShape`].
+    ///
+    /// The type is carried by the node rather than read off the elements: an empty list has none,
+    /// and the type is what a mutation matches against. It must be a list type registered with
+    /// [`crate::define_list_types!`], whose element type every element must have — build the node
+    /// through [`Self::list`] to have both checked.
+    List(TypeShape<PT>, Vec<Term<PT>>),
+}
+
+impl<PT: ProtocolTypes> DYTerm<PT> {
+    /// Builds a list of type `typ` (a registered `Vec<T>`) out of `elements`, checking that every
+    /// element is a term of type `T`.
+    pub fn list(typ: TypeShape<PT>, elements: Vec<Term<PT>>) -> Result<Self, Error> {
+        let signature = PT::signature();
+        let element_type = signature.list_element_type(&typ).ok_or_else(|| {
+            Error::Term(format!(
+                "[DYTerm::list] {} is not a registered list type; see define_list_types!",
+                typ.name
+            ))
+        })?;
+
+        for (index, element) in elements.iter().enumerate() {
+            if element.get_type_shape() != element_type {
+                return Err(Error::Term(format!(
+                    "[DYTerm::list] Element #{index} of a list of {} has type {} instead of {}",
+                    typ.name,
+                    element.get_type_shape().name,
+                    element_type.name,
+                )));
+            }
+        }
+
+        Ok(Self::List(typ, elements))
+    }
+}
+
+/// The element type of the list type `list`, as registered by [`crate::define_list_types!`].
+///
+/// Used by the [`crate::term!`] macro to type the elements of a `[t1, t2, ...]` list out of the
+/// enclosing function's argument type; panics when `list` is not a registered list type, which is
+/// a mistake in the recipe rather than a runtime condition.
+#[must_use]
+pub fn element_type_of<PT: ProtocolTypes>(list: &TypeShape<PT>) -> TypeShape<PT> {
+    PT::signature()
+        .list_element_type(list)
+        .unwrap_or_else(|| {
+            panic!(
+                "[term!] {} is not a registered list type; see define_list_types!",
+                list.name
+            )
+        })
+        .clone()
 }
 
 impl<PT: ProtocolTypes> Eq for DYTerm<PT> {}
@@ -173,7 +227,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
 fn append<'a, PT: ProtocolTypes>(term: &'a DYTerm<PT>, v: &mut Vec<&'a DYTerm<PT>>) {
     match *term {
         DYTerm::Variable(_) => {}
-        DYTerm::Application(_, ref subterms) => {
+        DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
             for subterm in subterms {
                 append(&subterm.term, v);
             }
@@ -253,7 +307,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     /// Height of term, considering non-symbolic terms as atoms
     pub fn height(&self) -> usize {
         match &self.term {
-            DYTerm::Application(_, subterms) => {
+            DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                 if subterms.is_empty() || !self.is_symbolic() {
                     1
                 } else {
@@ -264,12 +318,13 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term starts with a list function symbol
+    /// When the term is a list, either a [`DYTerm::List`] or a list function symbol
     pub fn is_list(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_list(),
             DYTerm::Deconstructor(..) => false,
+            DYTerm::List(..) => true,
         }
     }
 
@@ -278,7 +333,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_opaque(),
-            DYTerm::Deconstructor(..) => false,
+            DYTerm::Deconstructor(..) | DYTerm::List(..) => false,
         }
     }
 
@@ -287,7 +342,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_get(),
-            DYTerm::Deconstructor(..) => false,
+            DYTerm::Deconstructor(..) | DYTerm::List(..) => false,
         }
     }
 
@@ -297,7 +352,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.no_bit(),
-            DYTerm::Deconstructor(..) => false,
+            DYTerm::Deconstructor(..) | DYTerm::List(..) => false,
         }
     }
 
@@ -306,7 +361,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.no_det(),
-            DYTerm::Deconstructor(..) => false,
+            DYTerm::Deconstructor(..) | DYTerm::List(..) => false,
         }
     }
 
@@ -315,7 +370,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => true,
             DYTerm::Deconstructor(_, inner, _) => !self.is_readable() && inner.has_variable(),
-            DYTerm::Application(_, args) => {
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                 !self.is_readable() && args.iter().any(|arg| arg.has_variable())
             }
         }
@@ -331,7 +386,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
                 !self.is_readable() && inner.has_no_det()
             }
-            DYTerm::Application(_, args) => {
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                 if self.is_no_det() {
                     return true;
                 }
@@ -357,7 +412,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
         match &mut self.term {
             DYTerm::Variable(_) => {}
-            DYTerm::Application(_, args) => {
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                 // Not true anymore: if opaque, we keep payloads in strict sub-terms
                 for t in args {
                     t.erase_payloads_subterms(true);
@@ -398,7 +453,8 @@ impl<PT: ProtocolTypes> Term<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::debug!("make_payload: about to symbolic evaluate to get eval_0...");
-        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
+        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without
+                                                   // payloads!
         self.add_payload(eval_0);
         Ok(())
     }
@@ -455,7 +511,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             }
             match &mut term.term {
                 DYTerm::Variable(_) => {}
-                DYTerm::Application(_, sts) => {
+                DYTerm::Application(_, sts) | DYTerm::List(_, sts) => {
                     for st in sts {
                         rec(st, acc);
                     }
@@ -476,7 +532,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         pub fn rec<'a, PT: ProtocolTypes>(term: &'a Term<PT>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
                 DYTerm::Variable(_) => {}
-                DYTerm::Application(_, args) => {
+                DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                     if !term.is_opaque() && !term.is_readable() {
                         for t in args {
                             rec(t, acc);
@@ -503,6 +559,45 @@ impl<PT: ProtocolTypes> Term<PT> {
         has_payload_to_replace_rec(self, true)
     }
 
+    /// Appends `element` to a [`DYTerm::List`], checking it has the list's element type.
+    ///
+    /// Fails with [`Error::Term`] on a type mismatch or when the term is no list.
+    pub fn push_element(&mut self, element: Self) -> Result<(), Error> {
+        let index = match &self.term {
+            DYTerm::List(_, elements) => elements.len(),
+            _ => 0, // `insert_element` rejects a non-list before reaching the index
+        };
+        self.insert_element(index, element)
+    }
+
+    /// Inserts `element` at `index` in a [`DYTerm::List`], checking it has the list's element
+    /// type. An `index` past the end appends.
+    pub fn insert_element(&mut self, index: usize, element: Self) -> Result<(), Error> {
+        let DYTerm::List(typ, elements) = &mut self.term else {
+            return Err(Error::Term(format!(
+                "[insert_element] {} is not a list",
+                self.get_type_shape().name
+            )));
+        };
+
+        let element_type = PT::signature().list_element_type(typ).ok_or_else(|| {
+            Error::Term(format!(
+                "[insert_element] {} is not a registered list type; see define_list_types!",
+                typ.name
+            ))
+        })?;
+        if element.get_type_shape() != element_type {
+            return Err(Error::Term(format!(
+                "[insert_element] Cannot insert a term of type {} into a list of {}",
+                element.get_type_shape().name,
+                typ.name
+            )));
+        }
+
+        elements.insert(index.min(elements.len()), element);
+        Ok(())
+    }
+
     /// Return whether there is at least one payload, except those under opaque terms or readable
     /// and at the root.
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
@@ -516,7 +611,7 @@ pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_ro
     }
     match &term.term {
         DYTerm::Variable(_) => {}
-        DYTerm::Application(_, args) => {
+        DYTerm::Application(_, args) | DYTerm::List(_, args) => {
             if !term.is_opaque() && !term.is_readable() {
                 for t in args {
                     if has_payload_to_replace_rec(t, true) {
@@ -594,6 +689,25 @@ fn display_term_at_depth<PT: ProtocolTypes>(
                 format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
         }
+        DYTerm::List(ref typ, ref elements) => {
+            let return_type = remove_prefix(typ.name);
+            if elements.is_empty() {
+                format!("{tabs}{is_bitstring}[] -> {return_type}")
+            } else {
+                let elements_str = elements
+                    .iter()
+                    .map(|element| {
+                        display_term_at_depth(
+                            &element.term,
+                            depth + 1,
+                            !element.is_symbolic(),
+                            element.is_readable(),
+                        )
+                    })
+                    .join(",\n");
+                format!("{tabs}{is_bitstring}[\n{elements_str}\n{tabs}] -> {return_type}")
+            }
+        }
         DYTerm::Deconstructor(ref typ, ref inner, ref query) => {
             let return_type = remove_prefix(typ.name);
             let inner_str = display_term_at_depth(
@@ -613,7 +727,7 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
     if term_eval.is_symbolic() {
         match term_eval.term {
             DYTerm::Variable(_) => {}
-            DYTerm::Application(_, ref subterms) => {
+            DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
                 for subterm in subterms {
                     append_eval(subterm, v);
                 }
@@ -666,6 +780,15 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         match &self.term {
             DYTerm::Variable(v) => v.resistant_id,
             DYTerm::Application(f, _) => f.resistant_id,
+            DYTerm::List(typ, elements) => {
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                typ.hash(&mut h);
+                for element in elements {
+                    element.resistant_id().hash(&mut h);
+                }
+                let hash = std::hash::Hasher::finish(&h);
+                (hash as u32) ^ ((hash >> 32) as u32)
+            }
             DYTerm::Deconstructor(typ, inner, query) => {
                 // Derive a stable id from the deconstructor's defining fields.
                 // Using the inner id directly causes collisions between the deconstructor node and
@@ -687,7 +810,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         } else {
             match &self.term {
                 DYTerm::Variable(_) => SIZE_LEAF,
-                DYTerm::Application(_, ref subterms) => {
+                DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
                     if !self.is_symbolic() {
                         SIZE_LEAF
                     } else {
@@ -714,6 +837,9 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                 DYTerm::Application(_, ref subterms) => {
                     subterms.is_empty() // constant
                 }
+                DYTerm::List(_, ref elements) => {
+                    elements.is_empty() // empty list
+                }
                 // A deconstructor always wraps a source term, so it is never a leaf.
                 DYTerm::Deconstructor(..) => false,
             }
@@ -726,7 +852,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         match &self.term {
             DYTerm::Variable(v) => &v.typ,
             DYTerm::Application(function, _) => &function.shape().return_type,
-            DYTerm::Deconstructor(typ, _, _) => typ,
+            DYTerm::Deconstructor(typ, _, _) | DYTerm::List(typ, _) => typ,
         }
     }
 
@@ -736,7 +862,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             match &self.term {
                 DYTerm::Variable(v) => v.typ.name,
                 DYTerm::Application(function, _) => function.name(),
-                DYTerm::Deconstructor(typ, _, _) => typ.name,
+                DYTerm::Deconstructor(typ, _, _) | DYTerm::List(typ, _) => typ.name,
             }
         } else {
             // let str =
@@ -775,7 +901,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                     "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
                 )))
             }
-            DYTerm::Application(_, args) => {
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                 let nb = path[0];
                 let path = &path[1..];
                 if args.len() <= nb {
@@ -839,7 +965,7 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
         for (i, subterm) in self.iter().enumerate() {
             match &subterm.term {
                 DYTerm::Variable(_) => {}
-                DYTerm::Application(_, grand_subterms) => {
+                DYTerm::Application(_, grand_subterms) | DYTerm::List(_, grand_subterms) => {
                     if subterm.is_symbolic() {
                         found_grand_subterms.extend(
                             grand_subterms

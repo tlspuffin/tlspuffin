@@ -208,6 +208,44 @@ macro_rules! term {
     }};
 
     //
+    // List: `[t1, t2, ...]`
+    //
+    // A flat list of terms, all of the same type, evaluating to the `Vec<T>` of that type. The
+    // list type is the enclosing function's argument type, threaded in through `> $req_type` --
+    // the same source the signature derives its list types from, and what makes the empty list
+    // `[]` writable. A standalone list has no such argument, so it spells the type out itself:
+    // `[..] / Vec<Element>`.
+    //
+    // These arms must come before the function-application arm for the same reason `D(...)` does.
+    //
+    ([ $( $e:tt $( ( $($inner:tt)* ) )? ),* $(,)? ] / $typ:ty) => {
+        // ignore any `> $req_type` as we are overriding it with $typ
+        $crate::term!(
+            [ $( $e $( ( $($inner)* ) )? ),* ]
+            > $crate::algebra::dynamic_function::TypeShape::of::<$typ>()
+        )
+    };
+    ([ $( $e:tt $( ( $($inner:tt)* ) )? ),* $(,)? ] > $req_type:expr) => {{
+        use $crate::algebra::{DYTerm, Term};
+
+        let list_type = $req_type;
+        #[allow(unused)]
+        let element_type = $crate::algebra::element_type_of(&list_type);
+
+        let elements = vec![$(
+            Term::from($crate::term_arg!($e $( ( $($inner)* ) )? > element_type.clone()))
+        ),*];
+
+        Term::from(DYTerm::list(list_type, elements).unwrap_or_else(|e| panic!("[term!] {e}")))
+    }};
+    ([ $($rest:tt)* ]) => {{
+        compile_error!(
+            "a list `[..]` has the type of the argument it is written for; standalone, it needs \
+             that type spelled out: `[..] / Vec<Element>`"
+        )
+    }};
+
+    //
     // Function Applications
     ($func:ident ( $( $arg:tt $( ( $($inner:tt)* ) )? ),* ) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;

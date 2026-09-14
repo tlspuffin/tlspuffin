@@ -5,7 +5,9 @@ use constructor_macro::Constructor;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
-use crate::tls::{TLSProtocolTypes, TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
+use crate::tls::{
+    TLSProtocolTypes, TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_LISTDEFS, TLS_SIGNATURE_TYPEDEFS,
+};
 
 /// This type contains a private key by value.
 ///

@@ -256,66 +256,48 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                                     fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                (fn_list_clientextension_append(
-                                                    (fn_list_clientextension_append(
-                                                        fn_list_clientextension_empty,
-                                                        (fn_clientextension_namedgroups(
-                                                            fn_namedgroups(
-                                                                (fn_list_namedgroup_append(
-                                                                    fn_list_namedgroup_empty,
-                                                                    fn_namedgroup_secp384r1
-                                                                ))
-                                                            )
-                                                        ))
-                                                    )),
-                                                    (fn_clientextension_signaturealgorithms(
-                                                        fn_supportedsignatureschemes(
-                                                            (fn_list_signaturescheme_append(
-                                                                (fn_list_signaturescheme_append(
-                                                                    fn_list_signaturescheme_empty,
-                                                                    fn_signaturescheme_rsa_pkcs1_sha256
-                                                                )),
-                                                                fn_signaturescheme_rsa_pss_sha256
-                                                            ))
-                                                        )
-                                                    ))
-                                                )),
-                                                fn_clientextension_ecpointformats(
-                                                    fn_ecpointformatlist(
-                                                        fn_list_ecpointformat_append(
-                                                            fn_list_ecpointformat_empty,
-                                                            fn_ecpointformat_uncompressed
-                                                        )
-                                                    )
-                                                )
-                                            )),
-                                            fn_clientextension_signedcertificatetimestamprequest
-                                        )),
-                                        // Enable Renegotiation
-                                        (fn_clientextension_renegotiationinfo(
-                                            (fn_payloadu8(fn_empty_bytes_vec))
-                                        ))
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    fn_clientextension_ecpointformats(
+                                        fn_ecpointformatlist(
+                                            [
+                                                fn_ecpointformat_uncompressed
+                                            ]
+                                        )
+                                    ),
+                                    fn_clientextension_signedcertificatetimestamprequest,
+                                    // Enable Renegotiation
+                                    (fn_clientextension_renegotiationinfo(
+                                        (fn_payloadu8(fn_empty_bytes_vec))
                                     )),
                                     // Add signature cert extension
                                     fn_signature_algorithm_cert_extension
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -403,64 +385,49 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     fn_ciphersuite_tls13_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                fn_list_clientextension_empty,
-                                                (fn_clientextension_namedgroups(
-                                                    fn_namedgroups(
-                                                        (fn_list_namedgroup_append(
-                                                            fn_list_namedgroup_empty,
-                                                            fn_namedgroup_secp384r1
-                                                        ))
-                                                    )
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_keyshare(
+                                        fn_keyshareentries(
+                                            [
+                                                (fn_key_share_deterministic(
+                                                    fn_namedgroup_secp384r1
                                                 ))
-                                            )),
-                                            (fn_clientextension_signaturealgorithms(
-                                                fn_supportedsignatureschemes(
-                                                    (fn_list_signaturescheme_append(
-                                                        (fn_list_signaturescheme_append(
-                                                            fn_list_signaturescheme_empty,
-                                                            fn_signaturescheme_rsa_pkcs1_sha256
-                                                        )),
-                                                        fn_signaturescheme_rsa_pss_sha256
-                                                    ))
-                                                )
-                                            ))
-                                        )),
-                                        (fn_clientextension_keyshare(
-                                            fn_keyshareentries(
-                                                (fn_list_keyshareentry_append(
-                                                    fn_list_keyshareentry_empty,
-                                                    (fn_key_share_deterministic(
-                                                        fn_namedgroup_secp384r1
-                                                    ))
-                                                ))
-                                            )
-                                        ))
+                                            ]
+                                        )
                                     )),
                                     fn_clientextension_supportedversions(
                                         fn_protocolversions(
-                                            fn_list_protocolversion_append(
-                                                fn_list_protocolversion_empty,
+                                            [
                                                 fn_protocolversion_tlsv1_3
-                                            )
+                                            ]
                                         )
                                     )
-                                ))
+                                ]
                             ))
                         )
                     )
@@ -599,66 +566,48 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_random,
                             fn_sessionid,
                             (fn_ciphersuites(
-                                (fn_list_ciphersuite_append(
-                                    (fn_list_ciphersuite_empty()),
+                                [
                                     // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                                     fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
-                                ))
+                                ]
                             )),
                             fn_compressions(
-                                fn_list_compression_append(
-                                    fn_list_compression_empty,
+                                [
                                     fn_compression_null
-                                )
+                                ]
                             ),
                             (fn_clientextensions(
-                                (fn_list_clientextension_append(
-                                    (fn_list_clientextension_append(
-                                        (fn_list_clientextension_append(
-                                            (fn_list_clientextension_append(
-                                                (fn_list_clientextension_append(
-                                                    (fn_list_clientextension_append(
-                                                        fn_list_clientextension_empty,
-                                                        (fn_clientextension_namedgroups(
-                                                            fn_namedgroups(
-                                                                (fn_list_namedgroup_append(
-                                                                    fn_list_namedgroup_empty,
-                                                                    fn_namedgroup_secp384r1
-                                                                ))
-                                                            )
-                                                        ))
-                                                    )),
-                                                    (fn_clientextension_signaturealgorithms(
-                                                        fn_supportedsignatureschemes(
-                                                            (fn_list_signaturescheme_append(
-                                                                (fn_list_signaturescheme_append(
-                                                                    fn_list_signaturescheme_empty,
-                                                                    fn_signaturescheme_rsa_pkcs1_sha256
-                                                                )),
-                                                                fn_signaturescheme_rsa_pss_sha256
-                                                            ))
-                                                        )
-                                                    ))
-                                                )),
-                                                fn_clientextension_ecpointformats(
-                                                    fn_ecpointformatlist(
-                                                        fn_list_ecpointformat_append(
-                                                            fn_list_ecpointformat_empty,
-                                                            fn_ecpointformat_uncompressed
-                                                        )
-                                                    )
-                                                )
-                                            )),
-                                            fn_clientextension_signedcertificatetimestamprequest
-                                        )),
-                                        // Enable Renegotiation
-                                        (fn_clientextension_renegotiationinfo(
-                                            (fn_payloadu8(fn_empty_bytes_vec))
-                                        ))
+                                [
+                                    (fn_clientextension_namedgroups(
+                                        fn_namedgroups(
+                                            [
+                                                fn_namedgroup_secp384r1
+                                            ]
+                                        )
+                                    )),
+                                    (fn_clientextension_signaturealgorithms(
+                                        fn_supportedsignatureschemes(
+                                            [
+                                                fn_signaturescheme_rsa_pkcs1_sha256,
+                                                fn_signaturescheme_rsa_pss_sha256
+                                            ]
+                                        )
+                                    )),
+                                    fn_clientextension_ecpointformats(
+                                        fn_ecpointformatlist(
+                                            [
+                                                fn_ecpointformat_uncompressed
+                                            ]
+                                        )
+                                    ),
+                                    fn_clientextension_signedcertificatetimestamprequest,
+                                    // Enable Renegotiation
+                                    (fn_clientextension_renegotiationinfo(
+                                        (fn_payloadu8(fn_empty_bytes_vec))
                                     )),
                                     // Add signature cert extension
                                     fn_signature_algorithm_cert_extension
-                                ))
+                                ]
                             ))
                         )
                     )

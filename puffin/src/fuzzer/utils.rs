@@ -87,9 +87,8 @@ pub struct TermConstraints {
     pub no_payload_in_subterm: bool,
     // when true: only look for terms with at least one payload in sub-terms
     pub must_payload_in_subterm: bool,
-    /// when true: we do not choose terms that have a list symbol and whose parent also has a list
-    /// symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
-    /// fn(append(t1,t2)
+    /// when true: we do not choose list terms, whose encoding is the concatenation of the
+    /// encodings of their elements
     pub not_inside_list: bool,
     /// choose term giving higher probability to deeper term
     pub weighted_depth: bool,
@@ -384,7 +383,11 @@ fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
         let frame = stack.last_mut().unwrap();
 
         let subterms: &'a [Term<PT>] = match &frame.term.term {
-            DYTerm::Application(_, subterms) if frame.term.is_symbolic() => subterms,
+            DYTerm::Application(_, subterms) | DYTerm::List(_, subterms)
+                if frame.term.is_symbolic() =>
+            {
+                subterms
+            }
             // A deconstructor's source is its single sub-term, at index 0.
             DYTerm::Deconstructor(_, inner, _) if frame.term.is_symbolic() => {
                 std::slice::from_ref(&**inner)
@@ -442,7 +445,7 @@ pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
 
     match &mut term.term {
         DYTerm::Variable(_) => None,
-        DYTerm::Application(_, subterms) => {
+        DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
             if let Some(subterm) = subterms.get_mut(subterm_index) {
                 find_term_by_term_path_mut(subterm, &term_path[1..])
             } else {
@@ -471,7 +474,7 @@ pub fn find_term_by_term_path<'a, PT: ProtocolTypes>(
 
     match &term.term {
         DYTerm::Variable(_) => None,
-        DYTerm::Application(_, subterms) => {
+        DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
             if let Some(subterm) = subterms.get(subterm_index) {
                 find_term_by_term_path(subterm, &term_path[1..])
             } else {
@@ -633,7 +636,7 @@ fn collect_subterms<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     if term.is_symbolic() {
         match &term.term {
             DYTerm::Variable(_) => {}
-            DYTerm::Application(_, subterms) => {
+            DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                 for (i, subterm) in subterms.iter().enumerate() {
                     path.push(i);
                     size += collect_subterms(
@@ -732,7 +735,7 @@ mod tests {
         if term.is_symbolic() {
             match &term.term {
                 DYTerm::Variable(_) => {}
-                DYTerm::Application(_, subterms) => {
+                DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
                     for (path_index, subterm) in subterms.iter().enumerate() {
                         path.push(path_index);
                         size += sample_subterms_reference(
@@ -808,18 +811,16 @@ mod tests {
             // Deconstructor at the root.
             term! { D(fn_make_byte_container, Vec<u8>) },
             deconstructor_of_deconstructor,
-            // Deconstructors under applications, with ordinary siblings on both sides: a size
-            // folded into the wrong sibling changes the outcome here.
+            // Deconstructors under a list and under applications, with siblings on both sides:
+            // a size folded into the wrong sibling changes the outcome here.
             term! {
-                fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        fn_client_extensions_new,
-                        (fn_renegotiation_info_extension(D(fn_make_byte_container)))
-                    )),
+                [
+                    (fn_renegotiation_info_extension(D(fn_make_byte_container))),
+                    fn_signature_algorithm_extension,
                     (fn_renegotiation_info_extension(
                         (fn_hmac256(fn_hmac256_new_key, D(fn_make_byte_pair)))
                     ))
-                )
+                ] / Vec<ClientExtension>
             },
         ];
 
