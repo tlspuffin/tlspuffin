@@ -392,6 +392,24 @@ impl<PT: ProtocolTypes> Term<PT> {
             .collect()
     }
 
+    /// Number of payloads in a term, without allocating (unlike `all_payloads().len()`, which
+    /// materialises a `Vec` via the `&Term` iterator). Cheap enough for the hot mutation path.
+    ///
+    /// Mirrors the iterator's traversal exactly so the count equals `all_payloads().len()`: count
+    /// this node's own payload, and recurse into sub-terms only while the node is symbolic (a
+    /// non-symbolic term keeps the invariant that it has no payloads in its strict sub-terms).
+    pub fn count_payloads(&self) -> usize {
+        let mut n = usize::from(self.payloads.is_some());
+        if self.is_symbolic() {
+            if let DYTerm::Application(_, subterms) = &self.term {
+                for subterm in subterms {
+                    n += subterm.count_payloads();
+                }
+            }
+        }
+        n
+    }
+
     /// Return all payloads contains in a term (mutable references), even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
     /// strict-subterms, see `add_payload/make_payload`.
