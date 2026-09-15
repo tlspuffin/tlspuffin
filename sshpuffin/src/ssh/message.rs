@@ -284,6 +284,13 @@ macro_rules! declare_crypto_atom (
 declare_crypto_atom!(SharedSecret);
 declare_crypto_atom!(ExchangeHash);
 declare_crypto_atom!(SessionId);
+// The SSH identification strings V_C / V_S (banner minus CR-LF), hashed into the
+// exchange hash H (RFC 4253 §8). Its own type — NOT `SshBytes` — so the DY mutator
+// (in particular `ReplaceMatchMutator`, which picks any signature function of a
+// matching return type) can only substitute a version string into a V_C/V_S slot,
+// never into the ~46 other `SshBytes` fields (pubkeys, signatures, namelists,
+// payloads, K_S, Q_C …). Same length-prefixed wire form as `SshBytes`.
+declare_crypto_atom!(VersionString);
 
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.

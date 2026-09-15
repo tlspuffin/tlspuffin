@@ -328,6 +328,83 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// Banner/version probe builder (REPORT_triaging.md H2/H3). A completing
+/// AES-256-GCM client-attacker handshake (mirrors `seed_client_attacker_full_aesgcm`,
+/// truncated at USERAUTH_REQUEST) whose WIRE banner and H-input V_C are both
+/// replaced by a caller-supplied out-of-spec pair. Because puffin reconstructs H
+/// from `vc`, a PUT completes to USERAUTH_{SUCCESS,FAILURE} IFF it binds exactly
+/// that RFC 4253 §8-canonical V_C; if instead it rejects the banner (or normalizes
+/// it to something else) the c2s AEAD keys diverge and it never reaches auth. A
+/// cross-PUT accept/reject asymmetry is therefore a real RFC 4253 §4.2 banner
+/// conformance divergence (H2); a split on the whitespace/control variants is a
+/// normalization divergence (H3 — transcript-injection viable). Not registered in
+/// any corpus (diverges by design; callable reproducer only).
+#[allow(dead_code)]
+fn banner_probe_seed(
+    server: AgentName,
+    banner_wire: Term<SshProtocolTypes>,
+    vc: Term<SshProtocolTypes>,
+) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    // H reconstructed from the caller's canonical V_C (not fn_puffin_id).
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@vc), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@key), (@iv), (fn_u32_1))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner((@banner_wire)) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// CONTROLLED conformance test for the injected-KexInit divergence. Identical to
 /// seed_client_attacker_full_aesgcm, but injects ONE valid, uncorrupted KEXINIT
 /// (encrypted, counter 0) as the first post-NewKeys packet — a client-initiated
@@ -2985,6 +3062,44 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
+    /// for `differential-execute libssh0114 wolfssh <trace>`. `#[ignore]`: run
+    /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
+    #[test]
+    #[ignore]
+    fn emit_banner_probe_traces() {
+        use puffin::libafl::inputs::Input;
+        let server = AgentName::first();
+        let dir = std::path::Path::new("/tmp/banner_probe");
+        std::fs::create_dir_all(dir).unwrap();
+        let cases: Vec<(&str, Term<SshProtocolTypes>, Term<SshProtocolTypes>)> = vec![
+            // CONTROL: canonical banner through the SAME builder — MUST be 0-diff,
+            // else a probe diff is a builder artifact, not a stack divergence.
+            (
+                "banner_control",
+                term! { fn_puffin_banner },
+                term! { fn_puffin_id },
+            ),
+            (
+                "banner_oversized",
+                term! { fn_banner_wire_oversized },
+                term! { fn_vc_oversized },
+            ),
+            (
+                "banner_ctrl",
+                term! { fn_banner_wire_ctrl },
+                term! { fn_vc_ctrl },
+            ),
+        ];
+        for (name, wire, vc) in cases {
+            let trace = banner_probe_seed(server, wire, vc);
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/banner_probe/{name}.trace");
+        }
+    }
 
     /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays
     /// 0-diff" property, WITHOUT needing to run PUTs).

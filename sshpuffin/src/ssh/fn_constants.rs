@@ -3,7 +3,7 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::SshBytes;
+use crate::ssh::message::{SshBytes, VersionString};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -79,8 +79,8 @@ pub fn fn_u32_6() -> Result<u32, FnError> {
 }
 
 /// "SSH-2.0-puffin" as SshBytes (no \\r\\n) — used as the attacker's banner ID.
-pub fn fn_puffin_id() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"SSH-2.0-puffin".to_vec()))
+pub fn fn_puffin_id() -> Result<VersionString, FnError> {
+    Ok(VersionString::new(b"SSH-2.0-puffin".to_vec()))
 }
 pub fn fn_channel_session() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"session".to_vec()))
@@ -186,6 +186,41 @@ pub fn fn_ext_val_rsa_sha2() -> Result<SshBytes, FnError> {
 
 pub fn fn_puffin_banner() -> Result<String, FnError> {
     Ok("SSH-2.0-puffin\r\n".to_string())
+}
+
+// ── Out-of-spec banner / version identification-string probes ────────────────
+// (REPORT_triaging.md hypotheses H2/H3/H4.) Each PAIR is a wire banner (String,
+// INCLUDING the CR-LF terminator, sent verbatim by `RawSshMessage::Banner`) and
+// its RFC 4253 §8-canonical V_C (SshBytes, ONLY the trailing CR-LF stripped, every
+// other byte kept). A probe seed sends the wire banner AND reconstructs the
+// exchange hash H from the paired V_C, so a PUT completes the handshake IFF it
+// binds exactly that canonical V_C. "Completes vs rejects" then answers H2, and a
+// cross-PUT completion asymmetry on the control-byte variant answers H3
+// (differing normalization ⇒ transcript-injection viable).
+
+// H2 — oversized 200-byte identification line: > libssh's 127-byte cap, < wolfSSH's
+// 255-byte WOLFSSH_PROTOID_LIMIT (incl. terminator). RFC 4253 §4.2 permits ≤255.
+fn oversized_line() -> String {
+    let mut s = String::from("SSH-2.0-puffin-");
+    while s.len() < 200 {
+        s.push('A');
+    }
+    s
+}
+pub fn fn_banner_wire_oversized() -> Result<String, FnError> {
+    Ok(format!("{}\r\n", oversized_line()))
+}
+pub fn fn_vc_oversized() -> Result<VersionString, FnError> {
+    Ok(VersionString::new(oversized_line().into_bytes()))
+}
+
+// H3 — embedded control byte (NUL) inside the identification line (does either
+// stack truncate/strip at a control byte before binding V_C?).
+pub fn fn_banner_wire_ctrl() -> Result<String, FnError> {
+    Ok("SSH-2.0-pu\u{0}ffin\r\n".to_string())
+}
+pub fn fn_vc_ctrl() -> Result<VersionString, FnError> {
+    Ok(VersionString::new(b"SSH-2.0-pu\x00ffin".to_vec()))
 }
 
 pub fn fn_placeholder_16bytes() -> Result<[u8; 16], FnError> {

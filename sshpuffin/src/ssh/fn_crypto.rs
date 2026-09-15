@@ -16,7 +16,7 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret,
-    SshBytes, SshMessage, SshPublicKey, SshSignature,
+    SshBytes, SshMessage, SshPublicKey, SshSignature, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -76,11 +76,11 @@ pub fn fn_ecdh_shared_secret(
 // ── Message extraction helpers ────────────────────────────────────────────────
 
 /// Extract the banner identification string without the trailing `\r\n`.
-pub fn fn_banner_id(raw: &RawSshMessage) -> Result<SshBytes, FnError> {
+pub fn fn_banner_id(raw: &RawSshMessage) -> Result<VersionString, FnError> {
     match raw {
         RawSshMessage::Banner(s) => {
             let trimmed = s.trim_end_matches('\n').trim_end_matches('\r');
-            Ok(SshBytes::new(trimmed.as_bytes().to_vec()))
+            Ok(VersionString::new(trimmed.as_bytes().to_vec()))
         }
         _ => Err(FnError::Malformed("Expected RawSshMessage::Banner".into())),
     }
@@ -204,8 +204,8 @@ fn to_mpint(raw: &[u8]) -> Vec<u8> {
 /// * `q_s` — server ephemeral X25519 public key (32 bytes)
 /// * `shared_secret` — 32-byte output of `fn_ecdh_shared_secret`
 pub fn fn_kex_exchange_hash(
-    v_c: &SshBytes,
-    v_s: &SshBytes,
+    v_c: &VersionString,
+    v_s: &VersionString,
     i_c: &SshBytes,
     i_s: &SshBytes,
     k_s: &SshBytes, // raw outer SSH-string bytes (includes 4-byte length prefix)
