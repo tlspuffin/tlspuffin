@@ -1,15 +1,19 @@
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::algebra::TermType;
+use crate::claims::Claim;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
-use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
+use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
+use crate::fuzzer::feedback::term_observer::CAPTURED_TERMS;
+use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
-    HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
-    TERM_SIZE, TRACE_LENGTH,
+    ALGEBRAIC_DIVERSITY, HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS,
+    NB_PAYLOAD, PAYLOAD_LENGTH, TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
@@ -56,6 +60,50 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     let mut fail_at_step = 0;
     match runner.execute(input, &mut fail_at_step) {
         Ok(ctx) => {
+            // Capture security claims generated during the execution trace
+            CAPTURED_CLAIMS.with(|captured| {
+                let claims_borrow = ctx.claims.claims.borrow();
+                let mut claim_keys: Vec<String> = Vec::new();
+                for claim in claims_borrow.iter() {
+                    // Normalize claims (get rid of volatile content)
+                    let key = claim.format_content_normalized();
+                    claim_keys.push(key);
+                }
+                *captured.borrow_mut() = Some(Box::new(claim_keys));
+            });
+            // Flatten and capture algebraic terms currently known by the attacker
+            CAPTURED_TERMS.with(|captured| {
+                let mut term_signatures: Vec<String> = Vec::new();
+
+                for raw_k in ctx.knowledge_store.knowledges() {
+                    if let Some(associated_term) = &raw_k.associated_term {
+                        // Extract the DY representation if available (probably never happened but
+                        // not sure)
+                        term_signatures.push(associated_term.to_string());
+                    } else {
+                        // Iterate over raw knnowledge to extract atomic knowledges
+                        for knowledge in raw_k {
+                            let type_name = knowledge.data.type_name();
+                            let signature = match &knowledge.matcher {
+                                Some(matcher) => {
+                                    format!("Type:{}|Matcher:{:?}", type_name, matcher)
+                                }
+                                None => format!("Type:{}", type_name),
+                            };
+
+                            term_signatures.push(signature);
+                        }
+                    }
+                }
+                let diversity = term_signatures
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<String>>()
+                    .len();
+
+                *captured.borrow_mut() = Some(term_signatures);
+                ALGEBRAIC_DIVERSITY.update(diversity);
+            });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
                 HARNESS_EXEC_AGENT_SUCCESS.increment();
@@ -153,6 +201,14 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
 
     match exec_res {
         Ok(ctx) => {
+            CAPTURED_CLAIMS.with(|captured| {
+                let claims_borrow = ctx.0.claims.claims.borrow();
+                let mut claim_keys: Vec<String> = Vec::new();
+                for claim in claims_borrow.iter() {
+                    claim_keys.push(claim.format_content_normalized());
+                }
+                *captured.borrow_mut() = Some(Box::new(claim_keys));
+            });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") {
                 if ctx.0.agents_successful() && ctx.1.agents_successful() {
