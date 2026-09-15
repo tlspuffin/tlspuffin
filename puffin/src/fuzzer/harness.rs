@@ -84,13 +84,15 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     first_put: &PutDescriptor,
     second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
+    fingerprinting: bool,
 ) -> ExitKind {
     OBJECTIVE_TRIGGERED.set(false);
     OBJECTIVE_HASH.set(None);
 
-    // Uniformize the put configuration
+    // Uniformize the put configuration (skipped in fingerprinting mode -- see the trait doc).
     let input = <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
         input.clone(),
+        fingerprinting,
     );
 
     // Map ALL agents in the trace (including prior traces) to the specified PUT.
@@ -110,6 +112,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         put_registry.clone(),
         Spawner::new(put_registry.clone()).with_mapping(&first_mappings),
         Spawner::new(put_registry.clone()).with_mapping(&second_mappings),
+        fingerprinting,
     );
 
     HARNESS_EXEC.increment();

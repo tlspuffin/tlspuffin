@@ -152,6 +152,8 @@ define_signature!(
     fn_signed_certificate_timestamp_extension
     fn_signed_certificate_timestamp_server_extension
     fn_signed_certificate_timestamp_certificate_extension
+    fn_encrypt_then_mac_extension
+    fn_encrypt_then_mac_server_extension
     fn_extended_master_secret_extension
     fn_extended_master_secret_server_extension
     fn_session_ticket_request_extension

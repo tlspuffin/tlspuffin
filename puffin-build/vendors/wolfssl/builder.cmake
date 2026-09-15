@@ -71,6 +71,12 @@ autotools_builder(
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS
+    # 5.5.0/5.5.1 only: their example server.c uses `earlyData` outside the WOLFSSL_EARLY_DATA
+    # guard (a bug fixed in 5.5.2), so build_wolfssl_servers.sh falls back to compiling it with
+    # -DWOLFSSL_EARLY_DATA, which then needs wolfSSL_get_early_data_status from the lib. Enable
+    # early-data in the lib for exactly these two versions so the example server links. Our probes
+    # never send early data, so server wire behaviour is unchanged (they still cluster with 5.5.2/3).
+    $<$<AND:$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.5.0>,$<VERSION_LESS:${VENDOR_VERSION},5.5.2>>:--enable-earlydata>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-cryptocb>
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>

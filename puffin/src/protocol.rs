@@ -227,6 +227,19 @@ pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize>;
 }
 
+/// Options controlling initial-corpus construction ([`ProtocolBehavior::create_corpus`]).
+///
+/// A small, dedicated struct (rather than the fuzzer-layer `FuzzerConfig`, which `create_corpus`
+/// does not need and which the `seed` CLI path does not build) so corpus generation stays
+/// decoupled and extensible. All-false (`Default`) means the full corpus for normal / differential
+/// fuzzing. Driven by the single `--fingerprinting` flag.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CorpusOptions {
+    /// Fingerprinting mode: restrict to remote-server-fingerprinting seeds (client-attacker only)
+    /// and include the fingerprinting-only probe seeds. `false` (Default) = full corpus.
+    pub fingerprinting: bool,
+}
+
 /// Defines the types used to manipulate and concretize Terms
 pub trait ProtocolTypes:
     'static + Clone + PartialEq + Eq + Hash + Display + Debug + Serialize + DeserializeOwned
@@ -250,8 +263,17 @@ pub trait ProtocolTypes:
     ) -> Vec<crate::algebra::Term<Self>>;
 
     /// Replace trace's agent protocol config with a set of parameters
-    /// that should be supported by all PUTs
-    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
+    /// that should be supported by all PUTs.
+    ///
+    /// When `fingerprinting` is true this is a no-op (the trace is returned unchanged): a
+    /// fingerprinting campaign probes each PUT under its real default config rather than an
+    /// artificial uniformised regime. The flag is threaded explicitly (via FuzzerConfig for the
+    /// fuzzing harness, and the `seed` subcommand flag for seed generation) so it reaches fuzzer
+    /// worker processes -- a process global set in `main` would not.
+    fn differential_fuzzing_uniformise_put_config(
+        trace: Trace<Self>,
+        fingerprinting: bool,
+    ) -> Trace<Self>;
 
     /// Check whether a difference should be kept
     /// Use this to remove specific false positive without altering the capabilities of the
@@ -287,7 +309,15 @@ pub trait ProtocolBehavior: 'static {
         + From<Self::ProtocolMessageFlight>;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+    /// Build the initial seed corpus. When `opts.fingerprinting` is set, the corpus is restricted
+    /// to remote-server-fingerprinting seeds (client-attacker only, plus fingerprinting-only probe
+    /// seeds); otherwise the full corpus is returned for normal / differential fuzzing. Driven by
+    /// the single `--fingerprinting` flag (threaded via `FuzzerConfig` / the `seed` subcommand) --
+    /// see [`CorpusOptions`].
+    fn create_corpus(
+        put: PutDescriptor,
+        opts: CorpusOptions,
+    ) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure

@@ -33,6 +33,11 @@ pub struct FuzzerConfig {
     pub put_options: PutOptions,
     pub verbosity: LevelFilter, // level for the client logging
     pub target: FuzzingTarget,
+    /// Fingerprinting mode: probe each PUT under its real default config (skip
+    /// cross-implementation uniformisation). Threaded to fuzzer workers via this config so it is
+    /// honoured in launched/forked campaigns; see
+    /// `ProtocolTypes::differential_fuzzing_uniformise_put_config`.
+    pub fingerprinting: bool,
 }
 
 impl Default for FuzzerConfig {
@@ -58,6 +63,7 @@ impl Default for FuzzerConfig {
             mutation_config: Default::default(),
             put_options: Default::default(),
             target: Default::default(),
+            fingerprinting: false,
         }
     }
 }

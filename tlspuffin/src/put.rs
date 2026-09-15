@@ -308,14 +308,14 @@ impl Put<TLSProtocolBehavior> for CAgent {
     }
 
     fn shutdown(&mut self) -> String {
-        todo!()
+        self.describe_state()
     }
 
     fn version() -> String
     where
         Self: Sized,
     {
-        todo!()
+        "C-PUT".to_string()
     }
 }
 
