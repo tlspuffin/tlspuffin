@@ -246,6 +246,16 @@ pub fn fn_placeholder_32bytes() -> Result<SshBytes, FnError> {
     ]))
 }
 
+/// A `Vec<u8>` payload leaf for CHANNEL_DATA / CHANNEL_EXTENDED_DATA. Unlike the
+/// opaque `fn_placeholder_32bytes` (a fixed `SshBytes`), this is a byte-vector
+/// leaf wrapped via `fn_ssh_bytes`, giving the fuzzer a direct target: bit-level
+/// havoc grows/shrinks/flips these bytes, and the DY mutator can swap the leaf
+/// for any other `Vec<u8>` producer (exec payload, password, empty, …). This is
+/// the entry point for fuzzing the peer's post-auth channel-data parser.
+pub fn fn_channel_payload() -> Result<Vec<u8>, FnError> {
+    Ok(b"puffin-channel-data-payload".to_vec())
+}
+
 // ── Channel / request type names ─────────────────────────────────────────────
 
 pub fn fn_channel_exec() -> Result<SshBytes, FnError> {
@@ -314,6 +324,27 @@ pub fn fn_password_empty() -> Result<Vec<u8>, FnError> {
 }
 pub fn fn_password_long() -> Result<Vec<u8>, FnError> {
     Ok(vec![b'p'; 512])
+}
+
+// ── Identities B and C ───────────────────────────────────────────────────────
+//
+// Distinct credentials for credential-confusion / impersonation fuzzing. The
+// harness allow-list (both PUTs) authorizes A ("user"/"test", key A) and B
+// ("userb"/"testb", key B); C ("userc"/"testc", key C) is NOT authorized. The
+// fuzzer swaps a username / pubkey-blob / signature across identities to try to
+// make a stack authenticate the wrong pairing. See fn_client_{b,c}_pubkey_blob
+// and fn_sign_userauth_{b,c} in fn_crypto.rs.
+pub fn fn_username_b() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"userb".to_vec()))
+}
+pub fn fn_username_c() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"userc".to_vec()))
+}
+pub fn fn_password_b() -> Result<Vec<u8>, FnError> {
+    Ok(b"testb".to_vec())
+}
+pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
+    Ok(b"testc".to_vec())
 }
 pub fn fn_u32_7() -> Result<u32, FnError> {
     Ok(7)

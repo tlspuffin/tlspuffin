@@ -783,9 +783,19 @@ impl Codec for ChannelOpenMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct ChannelOpenConfirmationMessage {
+    // The client's channel number, echoed back — both servers must return what
+    // the client sent, so this is a meaningful cross-vendor comparison.
     pub recipient_channel: u32,
+    // Server-chosen channel id and flow-control parameters. These are
+    // implementation-defined (RFC 4254 §5.1): libssh and wolfSSH pick different
+    // sender_channel ids and different default window / max-packet sizes, so
+    // they legitimately differ cross-vendor and must not be compared (same class
+    // as the KEX cookie / ephemeral key).
+    #[comparable_ignore]
     pub sender_channel: u32,
+    #[comparable_ignore]
     pub initial_window_size: u32,
+    #[comparable_ignore]
     pub maximum_packet_size: u32,
     #[extractable_no_recursion]
     pub channel_data: Vec<u8>,
