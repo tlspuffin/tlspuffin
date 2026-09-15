@@ -12,7 +12,12 @@ from functools import partial
 
 OSSL = 1
 WOLF = 2
-PUFFIN_PATH = Path("target/release/tlspuffin")
+PUFFIN_PATH = Path(os.environ.get("PUFFIN_PATH", "target/release/tlspuffin"))
+
+# Traces whose differential execution could not be parsed (timeout, sanitizer
+# abort, no JSON on stdout). Collected across threads and reported as a warning
+# at the end of run_triaging so a few bad executions do not go unnoticed.
+SKIPPED_TRACES: list[str] = []
 
 
 def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
@@ -27,9 +32,12 @@ def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
 
     try:
         return json.loads(result.stdout)
-    except Exception as e:
-        print(e)
-        raise BaseException
+    except Exception:
+        # A single un-parseable execution (timeout, sanitizer abort, no JSON on
+        # stdout) must not abort the whole triaging run: record and skip it so it
+        # is surfaced in the end-of-run warning instead of crashing the pool.
+        SKIPPED_TRACES.append(trace)
+        return None
 
 
 def get_status(trace: str, put: str) -> dict:
@@ -572,7 +580,9 @@ class TrueC(BucketCondition):
         return True
 
 
-VALID = re.compile(r".*\.trace(-[0-9]+)?$")
+# Match trace files while skipping LibAFL hidden lock/sidecar files
+# (e.g. ".<name>.trace"), whose basename starts with a dot.
+VALID = re.compile(r"^[^.].*\.trace(-[0-9]+)?$")
 
 
 def sort_obj(
@@ -643,6 +653,15 @@ def run_triaging(
         )
         for k, v in err_count.items():
             print(k, ": ", v)
+
+    if SKIPPED_TRACES:
+        print(
+            f"\nWARNING: skipped {len(SKIPPED_TRACES)} trace(s) whose differential "
+            f"execution could not be parsed (timeout / sanitizer abort / no JSON on "
+            f"stdout). These were NOT classified:"
+        )
+        for t in SKIPPED_TRACES:
+            print(f"  {t}")
 
 
 if __name__ == "__main__":
