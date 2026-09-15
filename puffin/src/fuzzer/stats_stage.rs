@@ -28,6 +28,11 @@ pub enum RuntimeStats {
     // Term eval counters
     AllTermEval(&'static Counter),
     AllTermEvalSuccess(&'static Counter),
+    // Deconstructor eval counters
+    DeconstructorEval(&'static Counter),
+    DeconstructorEvalFail(&'static Counter),
+    VariableEval(&'static Counter),
+    VariableEvalFail(&'static Counter),
     // Trace exec counters
     AllExec(&'static Counter),
     AllExecSuccess(&'static Counter),
@@ -71,6 +76,10 @@ impl RuntimeStats {
             Self::AllTermBugError(inner) => inner.fire(consume),
             Self::AllTermEval(inner) => inner.fire(consume),
             Self::AllTermEvalSuccess(inner) => inner.fire(consume),
+            Self::DeconstructorEval(inner) => inner.fire(consume),
+            Self::DeconstructorEvalFail(inner) => inner.fire(consume),
+            Self::VariableEval(inner) => inner.fire(consume),
+            Self::VariableEvalFail(inner) => inner.fire(consume),
             Self::AllExec(inner) => inner.fire(consume),
             Self::AllExecSuccess(inner) => inner.fire(consume),
             Self::AllExecAgentSuccess(inner) => inner.fire(consume),
@@ -141,6 +150,17 @@ pub static HARNESS_EXEC_AGENT_SUCCESS: Counter = Counter::new("harness-exec-agen
 pub static HARNESS_EXEC_SUCCESS: Counter = Counter::new("harness-exec-success");
 pub static ALL_TERM_EVAL: Counter = Counter::new("all-term-eval");
 pub static ALL_TERM_EVAL_SUCCESS: Counter = Counter::new("all-term-eval-success");
+/// Deconstructor-specific eval counters. `DECONSTRUCTOR_EVAL` counts every evaluation of a
+/// `DYTerm::Deconstructor` node; `DECONSTRUCTOR_EVAL_FAIL` counts those that fail specifically
+/// because no sub-value of the target type matched the query (the deconstructor's own failure
+/// mode). Their ratio `deconstructor-eval-fail / deconstructor-eval` is the symbol's failure rate,
+/// directly comparable to the global `all-term-eval-success / all-term-eval`.
+pub static DECONSTRUCTOR_EVAL: Counter = Counter::new("deconstructor-eval");
+pub static DECONSTRUCTOR_EVAL_FAIL: Counter = Counter::new("deconstructor-eval-fail");
+/// Query eval counters, the counterpart of the deconstructor ones: `VARIABLE_EVAL_FAIL` counts the
+/// evaluations the knowledge (or the claims) could not answer.
+pub static VARIABLE_EVAL: Counter = Counter::new("variable-eval");
+pub static VARIABLE_EVAL_FAIL: Counter = Counter::new("variable-eval-fail");
 pub static BIT_EXEC: Counter = Counter::new("bit-exec");
 pub static BIT_EXEC_SUCCESS: Counter = Counter::new("bit-exec-success");
 pub static MM_EXEC: Counter = Counter::new("mm-exec");
@@ -149,7 +169,7 @@ pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 35] = [
+pub static STATS: [RuntimeStats; 39] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -172,6 +192,10 @@ pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::PayloadLength(&PAYLOAD_LENGTH),
     RuntimeStats::AllTermEval(&ALL_TERM_EVAL),
     RuntimeStats::AllTermEvalSuccess(&ALL_TERM_EVAL_SUCCESS),
+    RuntimeStats::DeconstructorEval(&DECONSTRUCTOR_EVAL),
+    RuntimeStats::DeconstructorEvalFail(&DECONSTRUCTOR_EVAL_FAIL),
+    RuntimeStats::VariableEval(&VARIABLE_EVAL),
+    RuntimeStats::VariableEvalFail(&VARIABLE_EVAL_FAIL),
     RuntimeStats::AllExec(&ALL_EXEC),
     RuntimeStats::AllExecSuccess(&ALL_EXEC_SUCCESS),
     RuntimeStats::AllExecAgentSuccess(&ALL_EXEC_AGENT_SUCCESS),

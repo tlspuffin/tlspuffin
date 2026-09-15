@@ -7,12 +7,7 @@ use crate::static_certs::{
     RANDOM_EC_PRIVATE_KEY_PKCS8,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
-use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::enums::SignatureScheme;
-use crate::tls::rustls::msgs::handshake::{
-    CertificateEntry, CertificateExtensions, HandshakePayload,
-};
-use crate::tls::rustls::msgs::message::{Message, MessagePayload};
 use crate::tls::rustls::verify::{
     construct_tls13_client_verify_message_raw, construct_tls13_server_verify_message_raw,
 };
@@ -44,44 +39,6 @@ pub fn fn_random_ec_cert() -> Result<Vec<u8>, FnError> {
 
 pub fn fn_random_ec_key() -> Result<Vec<u8>, FnError> {
     Ok(RANDOM_EC_PRIVATE_KEY_PKCS8.1.into())
-}
-
-pub fn fn_certificate_entry_extensions(
-    cert: &Vec<u8>,
-    extensions: &CertificateExtensions,
-) -> Result<CertificateEntry, FnError> {
-    Ok(CertificateEntry {
-        cert: Certificate(cert.clone()),
-        exts: extensions.clone(),
-    })
-}
-
-pub fn fn_certificate_from_vec_u8(cert: &Vec<u8>) -> Result<Certificate, FnError> {
-    Ok(Certificate(cert.clone()))
-}
-
-pub fn fn_empty_certificate_chain() -> Result<Vec<CertificateEntry>, FnError> {
-    Ok(Vec::new())
-}
-
-pub fn fn_chain_append_certificate_entry(
-    chain: &Vec<CertificateEntry>,
-    cert: &CertificateEntry,
-) -> Result<Vec<CertificateEntry>, FnError> {
-    let mut res = chain.clone();
-    res.push(cert.clone());
-    Ok(res)
-}
-
-pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError> {
-    match certificate_request.payload.clone() {
-        MessagePayload::Handshake(payload) => match payload.payload {
-            HandshakePayload::CertificateRequestTLS13(payload) => Some(payload.context.0),
-            _ => None,
-        },
-        _ => None,
-    }
-    .ok_or_else(|| FnError::Malformed("Could not find context in message".to_owned()))
 }
 
 pub fn fn_eve_pkcs1_signature() -> Result<Vec<u8>, FnError> {
@@ -127,18 +84,6 @@ pub fn fn_ecdsa_sign_server(
     sign::ecdsa_sign(&message, private_key)
 }
 
-pub fn fn_rsa_pss_signature_algorithm() -> Result<SignatureScheme, FnError> {
-    Ok(SignatureScheme::RSA_PSS_SHA256)
-}
-
-pub fn fn_rsa_pkcs1_signature_algorithm() -> Result<SignatureScheme, FnError> {
-    Ok(SignatureScheme::RSA_PKCS1_SHA256)
-}
-
 pub fn fn_invalid_signature_algorithm() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::Unknown(0x0100))
-}
-
-pub fn fn_ecdsa_signature_algorithm() -> Result<SignatureScheme, FnError> {
-    Ok(SignatureScheme::ECDSA_NISTP256_SHA256)
 }

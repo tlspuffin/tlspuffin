@@ -7,11 +7,29 @@ use puffin::claims::Claim;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
-use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
+use puffin::{
+    codec, define_readable_types, dummy_codec, dummy_extract_knowledge,
+    dummy_extract_knowledge_codec,
+};
 use security_claims::ClaimTLSVersion;
 use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
+
+// The transcript types this module defines. They have a hand-written `Codec` rather than a
+// `Constructor` derive, so they are registered here instead of by the derive. The claim types
+// below them stay out: they only have a dummy codec, so their encoding carries nothing to read
+// back.
+define_readable_types!(
+    crate::tls::TLS_SIGNATURE,
+    TLSProtocolTypes;
+    TlsTranscript,
+    TranscriptPartialClientHello,
+    TranscriptServerHello,
+    TranscriptServerFinished,
+    TranscriptClientFinished,
+    TranscriptCertificate,
+);
 
 #[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);

@@ -113,7 +113,8 @@ fn test_term_eval() {
     // enabling stop_on_error.
     // The test passes for all function symbols except ignore_eval for zoo:MAX_TRIES = 110k
     // With zoo:MAX_TRIES = 1000: only a few failures:
-    // [fn_sign_transcript, fn_find_server_finished, fn_derive_psk, fn_encrypt_application]
+    // [fn_derive_psk, fn_encrypt_application] and two transcript/lookup symbols that no
+    // longer exist
     // With zoo:MAX_TRIES = 200, quite a lot of failures now.
     // For much larger values (I tested 11_000_000), we still fail to generate the excluded two
     // symbols.
@@ -143,6 +144,26 @@ fn test_term_old_eval() {
     }
 }
 
+/// Every `Vec<..>` argument of the signature must be a list type, or the symbol taking it could
+/// never be applied: nothing else produces a value of that type.
+///
+/// The `Constructor` derive registers the list types of what it generates, so this failing means
+/// a hand-written symbol takes a list and is missing a `define_list_types!` entry.
+#[test_log::test]
+fn test_list_arguments_are_all_registered() {
+    let unregistered: Vec<String> = TLS_SIGNATURE
+        .unregistered_list_arguments()
+        .iter()
+        .map(|(name, typ)| format!("{} (argument of {name})", typ.name))
+        .collect();
+
+    assert!(
+        unregistered.is_empty(),
+        "unregistered list arguments:\n{}",
+        unregistered.join("\n")
+    );
+}
+
 #[test_log::test]
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly evaluated, read, and re-encoded yielding the same encoding
@@ -151,7 +172,7 @@ fn test_term_read_encode() {
     let mut read_success = 0;
     let mut read_fail = 0;
     let mut read_wrong = 0;
-    let ignored_functions = ignore_eval();
+    let ignored_functions = ignore_read_encode();
     let mut closure = |term: &Term<TLSProtocolTypes>,
                        ctx: &TraceContext<TLSProtocolBehavior>,
                        _: &mut RomuDuoJrRand| {
