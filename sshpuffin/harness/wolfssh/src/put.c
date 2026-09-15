@@ -94,6 +94,33 @@ static void wolfssh_seed_rewind(void);
 static void emit_handshake_claim(AGENT agent);
 static void emit_kex_claim(AGENT agent);
 
+/* ── forwarding callback: enforce the shared forwarding-authz boundary ─────── */
+/* wolfSSH invokes this for tcpip-forward (WOLFSSH_FWD_REMOTE_SETUP) and
+ * direct-tcpip (WOLFSSH_FWD_LOCAL_SETUP). Return WS_FWD_SUCCESS (0) to ACCEPT,
+ * a non-zero WS_FwdCbError to REJECT — gated on the SAME (host,port) allow-list
+ * the libssh harness uses (ssh_creds_forward_authorized), so an accept/reject
+ * asymmetry is a real cross-vendor differential, not a harness artifact. No real
+ * socket I/O is performed (setup/cleanup just report the policy decision).
+ *
+ * NOT guarded by #ifdef WOLFSSH_FWD: that macro is set only in the wolfSSH
+ * LIBRARY's build flags, not written into the installed options.h the harness
+ * includes, so guarding here would compile the callback out even though the
+ * library (built with --enable-fwd) does dispatch it. The API
+ * (WS_FwdCbAction / wolfSSH_CTX_SetFwdCb) is declared unconditionally in ssh.h. */
+static int fwd_callback(WS_FwdCbAction action, void *ctx, const char *address, word32 port)
+{
+    (void)ctx;
+    switch (action)
+    {
+    case WOLFSSH_FWD_LOCAL_SETUP:  /* direct-tcpip: address=host-to-connect */
+    case WOLFSSH_FWD_REMOTE_SETUP: /* tcpip-forward: address=bind address */
+        return ssh_creds_forward_authorized(address, (uint32_t)port) ? WS_FWD_SUCCESS
+                                                                     : WS_FWD_NOT_AVAILABLE;
+    default: /* CLEANUP / CHANNEL_ID: nothing to tear down (no real socket) */
+        return WS_FWD_SUCCESS;
+    }
+}
+
 /* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
 static const char WOLFSSH_AUTH_PASSWORD[] = "password";
@@ -306,6 +333,10 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     if (is_server)
     {
         wolfSSH_SetUserAuth(ctx, auth_callback);
+        /* Gate forwarding on the shared (host,port) allow-list so a forward
+         * accept/reject asymmetry vs libssh is a real differential. Unconditional
+         * (see fwd_callback): WOLFSSH_FWD is not visible at harness-compile time. */
+        wolfSSH_CTX_SetFwdCb(ctx, fwd_callback, NULL);
         if (wolfSSH_CTX_UsePrivateKey_buffer(ctx,
                                              SERVER_KEY_DER,
                                              (uint32_t)SERVER_KEY_DER_LEN,

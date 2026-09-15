@@ -275,6 +275,41 @@ pub trait ProtocolTypes:
             .filter(Self::differential_fuzzing_filter_diff)
             .collect()
     }
+
+    /// Whole-trace preprocessing hook, applied once at the core execution entry
+    /// ([`Trace::execute_until_step`](crate::trace::Trace::execute_until_step)) on
+    /// EVERY execution — the fuzz loop and the CLI replay commands
+    /// (`execute` / `differential-execute` / `display-execute`) alike — so that a
+    /// trace discovered during fuzzing reproduces IDENTICALLY when replayed for
+    /// inspection.
+    ///
+    /// It is deliberately hooked at the core (not, like
+    /// [`Self::differential_fuzzing_uniformise_put_config`], at the differential
+    /// harness / CLI call sites): every execution funnels through
+    /// `execute_until_step`, so a single hook there covers all of them and
+    /// guarantees discovery ≡ replay, and it also applies to single-PUT execution
+    /// which the differential-only uniformise call sites would miss.
+    ///
+    /// The signature is zero-cost by default: returning `None` means "use the trace
+    /// unchanged, do not clone", so protocols that do not need it (e.g. TLS) — and
+    /// the hot single-PUT fuzzing loop — pay only a borrow. A protocol that needs a
+    /// per-execution rewrite returns `Some(rewritten)`, a THROWAWAY copy fed to this
+    /// one execution while the canonical stored testcase stays pristine. This is why
+    /// the hook takes `&Trace` and returns `Option<Trace>` rather than `&mut Trace`:
+    /// mutating the stored testcase in place would be both unavailable (the trace is
+    /// a shared borrow at the execute entry) and semantically wrong (it would bake a
+    /// per-execution derivation into the seed).
+    ///
+    /// The rewrite MUST preserve the step count (only rewrite recipe sub-terms),
+    /// because `execute_until_step`'s `stop_at_step` indexes the same step list.
+    ///
+    /// sshpuffin uses it to renumber AES-GCM packet counters: a seed authors its
+    /// c2s `fn_encrypt_packet_aesgcm` calls with a sentinel counter atom, and this
+    /// pass rewrites each to its true wire position, so step-deleting/reordering
+    /// mutations (which shift wire positions) keep GCM nonces valid.
+    fn preprocess_trace(_trace: &Trace<Self>) -> Option<Trace<Self>> {
+        None
+    }
 }
 
 /// Defines the protocol which is being tested.
