@@ -1,5 +1,12 @@
 use_languages(C)
 
+# Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) to the
+# claim layer so the decryption recipe can source H from the PUT instead of
+# reconstructing it from a (mutation-stale) hard-coded client KEXINIT. Pure
+# observation; no behaviour change. Anchors are identical across the sources we
+# build. (Digest/count hooks in the patch are unused by this branch but kept so
+# the file stays byte-identical to the proven PR #519 version.)
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
 
 cmake_builder(
   TARGETS

@@ -103,6 +103,17 @@ extern "C"
         const char *ciphers;
         const char *macs;
         const char *hostkey_algos;
+        /*
+         * Public-key algorithms the server ACCEPTS for user authentication —
+         * advertised to the client in the EXT_INFO `server-sig-algs` extension
+         * (RFC 8308 §3.1), which is DISTINCT from <hostkey_algos> (the KEXINIT
+         * host-key algorithms). Uniformised so both PUTs advertise the same
+         * server-sig-algs and their decrypted EXT_INFO no longer diverges on
+         * static per-implementation capability. NULL leaves the PUT default.
+         * libssh: SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES; wolfSSH:
+         * wolfSSH_CTX_SetAlgoListKeyAccepted.
+         */
+        const char *server_sig_algs;
     } SSH_AGENT_DESCRIPTOR;
 
     typedef struct SSH_PUT_INTERFACE

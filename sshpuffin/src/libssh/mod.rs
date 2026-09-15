@@ -40,7 +40,11 @@ struct ClaimerContext {
 /// Read a NUL-terminated C `char` buffer into an owned `String` (lossy on
 /// non-UTF-8, which auth user/method names never are).
 fn c_str_field_to_string(buf: &[c_char]) -> String {
-    let bytes: Vec<u8> = buf.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    let bytes: Vec<u8> = buf
+        .iter()
+        .take_while(|&&c| c != 0)
+        .map(|&c| c as u8)
+        .collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }
 
@@ -52,11 +56,28 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     }
     let ctx = unsafe { &*(context as *const ClaimerContext) };
     let c = unsafe { &*claim };
+    // Keep only claims that CARRY A SESSION ID (H). Both harnesses emit two such
+    // claims symmetrically: a post-KEX claim (phase 2, session id set, empty auth
+    // belief — fires as soon as KEX completes, so H is available even for traces
+    // whose auth is later rejected/aborted) and, on auth success, the completion
+    // claim (phase 3, session id + auth belief). Claims WITHOUT a session id are
+    // dropped: libssh's phase-1/KEX coverage claim (emitted before KEX finishes,
+    // so its session id is empty) — which wolfSSH does not emit — would otherwise
+    // desync the two PUTs' claim sequences. The result is a symmetric sequence
+    // ([post-KEX] on failure, [post-KEX, completion] on success) that the
+    // differential compares position-wise, and `find_claim` always resolves to a
+    // session-id-bearing claim for the decryption recipe. session_id itself is
+    // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
+    if c.session_id_len == 0 {
+        return;
+    }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
+    let sid_len = (c.session_id_len as usize).min(c.session_id.len());
     let inner = SshClaimInner {
         auth_method: c_str_field_to_string(&c.auth_method),
         auth_user: c_str_field_to_string(&c.auth_user),
         auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
+        session_id: c.session_id[..sid_len].to_vec(),
     };
     ctx.claims
         .deref_borrow_mut()
@@ -201,6 +222,7 @@ impl CAgent {
         let ciphers_c = as_cstring(&cfg.ciphers);
         let macs_c = as_cstring(&cfg.macs);
         let hostkey_c = as_cstring(&cfg.hostkey_algos);
+        let server_sig_algs_c = as_cstring(&cfg.server_sig_algs);
         let as_ptr =
             |c: &Option<std::ffi::CString>| c.as_ref().map_or(std::ptr::null(), |v| v.as_ptr());
 
@@ -214,6 +236,7 @@ impl CAgent {
             ciphers: as_ptr(&ciphers_c),
             macs: as_ptr(&macs_c),
             hostkey_algos: as_ptr(&hostkey_c),
+            server_sig_algs: as_ptr(&server_sig_algs_c),
         };
 
         let c_agent = unsafe { (put.interface.create.unwrap())(&c_descriptor as *const _) };
@@ -222,31 +245,40 @@ impl CAgent {
             return Err(Error::Put("C SSH agent creation failed".to_owned()));
         }
 
-        // Claims are STAGED but not ACTIVATED. The notify trampoline
-        // (`ssh_claim_notify`) already decodes the auth-belief into a comparable
-        // `SshClaimInner`, but no claimer is registered here, so the C harness
-        // emits nothing (it early-returns on the NULL claimer) and the differential
-        // compares only status + the decrypted transcript. Fully turning claims on
-        // additionally needs (1) the vendors built with the "claimer" instrumentation
-        // so the harness is compiled with -DHAS_CLAIMS, and (2) this registration —
-        // deferred as its own change (see SshClaimInner docs).
-        //
-        // Interim detection gap while claims are off: an *identity-attribution*
-        // divergence (both stacks emit USERAUTH_SUCCESS but believe they
-        // authenticated DIFFERENT users/keys) is not caught — USERAUTH_SUCCESS is
-        // identity-less on the wire, so only a claim can see it. The
-        // security-critical accept/reject divergence IS caught, by the transcript.
-        let _ = claims;
+        // Register the claim callback. The context owns a clone of the global
+        // claim list (Rc-backed) plus this agent's identity. The C harness emits a
+        // completion claim (auth-belief + the session id / exchange hash H) which
+        // the notify trampoline (`ssh_claim_notify`) decodes into `SshClaimInner`.
+        // Two consumers: the differential compares the auth-belief fields across
+        // PUTs (catching identity-attribution divergences that USERAUTH_SUCCESS, being
+        // identity-less on the wire, hides), and the s2c decryption recipe sources
+        // each PUT's H from `session_id` (see `fn_claim_exchange_hash`). Requires the
+        // vendors built with the "claimer" instrumentation (-DHAS_CLAIMS); without it
+        // the harness emits an empty session_id and the recipe falls back to failing
+        // decode, which is caught by the verification gates.
+        let context = Box::new(ClaimerContext {
+            claims: claims.clone(),
+            agent_name: descriptor.name,
+            is_server: matches!(descriptor.protocol_config.typ, AgentType::Server),
+        });
+        let claimer = Box::new(CLAIMER_CB {
+            context: Box::into_raw(context) as *mut c_void,
+            notify: Some(ssh_claim_notify),
+            destroy: Some(ssh_claim_destroy),
+        });
+        if let Some(register) = put.interface.agent_interface.register_claimer {
+            unsafe { register(c_agent, &*claimer as *const _) };
+        }
 
         Ok(Self {
             put: put.clone(),
             descriptor: descriptor.clone(),
             deframer: SshMessageDeframer::new(),
             c_agent,
-            claimer: None,
+            claimer: Some(claimer),
             // Move (not copy) the CStrings in: their heap buffers keep the same
             // address, so the pointers the harness stored stay valid until Drop.
-            _algos: [kex_c, ciphers_c, macs_c, hostkey_c]
+            _algos: [kex_c, ciphers_c, macs_c, hostkey_c, server_sig_algs_c]
                 .into_iter()
                 .flatten()
                 .collect(),
@@ -263,6 +295,11 @@ impl Put<SshProtocolBehavior> for CAgent {
     fn reset(&mut self, new_name: puffin::agent::AgentName) -> Result<(), Error> {
         self.descriptor.name = new_name;
         r_ccall!(self.put, reset, self.c_agent, new_name.into(), 0u8)?;
+        // The C side restarts the session (a fresh handshake, plaintext again), so
+        // the deframer must drop any buffered bytes AND its post-NewKeys encrypted
+        // state — otherwise the new handshake's plaintext KEXINIT would be treated
+        // as ciphertext.
+        self.deframer = SshMessageDeframer::new();
         Ok(())
     }
 

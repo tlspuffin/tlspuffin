@@ -175,6 +175,12 @@ pub struct SshDescriptorConfig {
     pub macs: Option<String>,
     #[serde(default)]
     pub hostkey_algos: Option<String>,
+    /// Public-key algorithms the server accepts for user auth, advertised in the
+    /// EXT_INFO `server-sig-algs` extension (RFC 8308 §3.1) — distinct from
+    /// `hostkey_algos` (KEXINIT host keys). Uniformised so the two PUTs' decrypted
+    /// EXT_INFO no longer diverges on static per-implementation capability.
+    #[serde(default)]
+    pub server_sig_algs: Option<String>,
 }
 
 impl ProtocolDescriptorConfig for SshDescriptorConfig {
@@ -192,6 +198,7 @@ impl Default for SshDescriptorConfig {
             ciphers: None,
             macs: None,
             hostkey_algos: None,
+            server_sig_algs: None,
         }
     }
 }
@@ -271,6 +278,17 @@ impl ProtocolTypes for SshProtocolTypes {
                 Some("aes256-gcm@openssh.com,aes128-gcm@openssh.com".into());
             agent.protocol_config.macs = Some("hmac-sha2-256,hmac-sha2-512".into());
             agent.protocol_config.hostkey_algos = Some("rsa-sha2-512,rsa-sha2-256".into());
+            // EXT_INFO `server-sig-algs` (accepted pubkey auth algos). Without this
+            // the two stacks advertise their full — and different — default sets
+            // (libssh ~15 incl. ed25519/sk-*/cert variants; wolfSSH ~5 rsa+ecdsa),
+            // which the decrypted-EXT_INFO comparison flags as a benign capability
+            // diff. Pin both to an identical, byte-for-byte common subset both
+            // support and the seeds' RSA auth still satisfies.
+            agent.protocol_config.server_sig_algs = Some(
+                "rsa-sha2-256,rsa-sha2-512,\
+                 ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"
+                    .into(),
+            );
         }
         for t in trace.prior_traces.iter_mut() {
             *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
@@ -480,10 +498,11 @@ mod knowledge_compare_positive_control {
         use crate::ssh::message::{NameList, UserAuthFailureMessage};
 
         let authed = transcript_store(vec![SshMessage::UserAuthSuccess]);
-        let rejected = transcript_store(vec![SshMessage::UserAuthFailure(UserAuthFailureMessage {
-            authentications_that_can_continue: NameList::empty(),
-            partial_success: false,
-        })]);
+        let rejected =
+            transcript_store(vec![SshMessage::UserAuthFailure(UserAuthFailureMessage {
+                authentications_that_can_continue: NameList::empty(),
+                partial_success: false,
+            })]);
 
         let diffs = authed
             .compare(&rejected)

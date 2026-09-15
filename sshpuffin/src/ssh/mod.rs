@@ -182,6 +182,10 @@ define_signature!(
     // Explicit ExchangeHash -> SessionId conversion; makes session-id-vs-exchange-hash
     // confusion (rekey / Terrapin) a first-class, well-typed DY mutation.
     fn_session_id_from_hash
+    // Sources the exchange hash H from the server's completion claim (session id)
+    // instead of reconstructing it from a hard-coded client KEXINIT. `no_gen`: a
+    // decryption-recipe helper (reads a claim), not for term generation.
+    fn_claim_exchange_hash [no_gen]
     fn_derive_enc_key_c2s
     fn_derive_enc_key_s2c
     fn_encrypt_packet

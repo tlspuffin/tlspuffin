@@ -12,10 +12,11 @@ use puffin::codec::Codec;
 use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey, StaticSecret};
 
+use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
-    ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret, SshBytes,
-    SshMessage, SshPublicKey, SshSignature,
+    ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret,
+    SshBytes, SshMessage, SshPublicKey, SshSignature,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -240,6 +241,34 @@ pub fn fn_session_id_from_hash(h: &ExchangeHash) -> Result<SessionId, FnError> {
     Ok(SessionId::new(h.0.clone()))
 }
 
+/// Exchange hash H sourced from the server's completion CLAIM (its SSH session
+/// id) instead of reconstructed from the wire. The PUT computed H from the
+/// KEXINIT it ACTUALLY negotiated, so this is correct for every seed — including
+/// ext_info (curve25519 + ext-info-c), whose KEXINIT differs from the plain
+/// AES-GCM offer — and, crucially, it stays correct under negotiation/downgrade
+/// mutation, where a hard-coded reconstructed `I_C` would desync from the mutated
+/// KEXINIT and silently break s2c decryption. `session_id` is the first-KEX H
+/// (== session id, RFC 4253 §7.2), exactly what the auth-complete s2c key
+/// schedule needs. An empty `session_id` (PUT not built with claimer
+/// instrumentation, so no H is exposed) is an error, so the fold fails loudly
+/// rather than decrypting with a wrong key and producing garbage.
+///
+/// The argument is `&Box<SshClaimInner>` (not `&SshClaimInner`) ON PURPOSE: a
+/// decryption-recipe `Variable` resolves against a claim via
+/// `TraceContext::find_claim`, which matches on `SshClaim::id()` and yields
+/// `SshClaim::inner()` — both of which are `Box<SshClaimInner>` (the registered
+/// `EvaluatedTerm` type). The DY function's parameter type must equal that
+/// concrete type exactly or the term fails its type-shape check. Hence the box.
+#[allow(clippy::borrowed_box)]
+pub fn fn_claim_exchange_hash(claim: &Box<SshClaimInner>) -> Result<ExchangeHash, FnError> {
+    if claim.session_id.is_empty() {
+        return Err(FnError::Malformed(
+            "claim carries no session_id (PUT not built with claimer instrumentation?)".into(),
+        ));
+    }
+    Ok(ExchangeHash::new(claim.session_id.clone()))
+}
+
 // ── Key derivation (RFC 4253 §7) ─────────────────────────────────────────────
 
 // Takes raw byte slices (not the role newtypes) so every caller — AES-GCM, CTR,
@@ -316,11 +345,19 @@ pub fn fn_derive_aes_key_s2c(
     Ok(derive_key(&s.0, &h.0, &sid.0, b'D', 32))
 }
 /// Client-to-server initial IV (id `'A'`, 12 bytes).
-pub fn fn_derive_iv_c2s(s: &SharedSecret, h: &ExchangeHash, sid: &SessionId) -> Result<SshBytes, FnError> {
+pub fn fn_derive_iv_c2s(
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
+) -> Result<SshBytes, FnError> {
     Ok(derive_key(&s.0, &h.0, &sid.0, b'A', 12))
 }
 /// Server-to-client initial IV (id `'B'`, 12 bytes).
-pub fn fn_derive_iv_s2c(s: &SharedSecret, h: &ExchangeHash, sid: &SessionId) -> Result<SshBytes, FnError> {
+pub fn fn_derive_iv_s2c(
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
+) -> Result<SshBytes, FnError> {
     Ok(derive_key(&s.0, &h.0, &sid.0, b'B', 12))
 }
 
@@ -1369,7 +1406,10 @@ mod tests {
         let h = ExchangeHash::new(h_raw.clone());
 
         let sid = fn_session_id_from_hash(&h).unwrap();
-        assert_eq!(sid.0, h_raw, "session id must be a byte-copy of the first H");
+        assert_eq!(
+            sid.0, h_raw,
+            "session id must be a byte-copy of the first H"
+        );
 
         // Typed key/IV derivation == raw derive_key over the identical bytes.
         let key = fn_derive_aes_key_s2c(&shared, &h, &sid).unwrap();
