@@ -151,6 +151,10 @@ struct AGENT_TYPE
        want_reply exec/shell request — rather than the harness re-implementing it
        via the low-level ssh_message API. */
     struct ssh_server_callbacks_struct server_cb;
+    /* Session-level callbacks. `global_request_function` (tcpip-forward handling)
+     * lives HERE in ssh_callbacks_struct, not in the server callbacks, in both
+     * libssh 0.10.4 and 0.11.4 — so it is set via ssh_set_callbacks(). */
+    struct ssh_callbacks_struct session_cb;
     struct ssh_channel_callbacks_struct channel_cb;
     ssh_event event;      /* event loop that dispatches the callbacks */
     ssh_channel channel;  /* session channel the client opened, or NULL */
@@ -528,6 +532,54 @@ static int cb_service_request(ssh_session session, const char *service, void *us
     return 0; /* accept the service request */
 }
 
+/* Global-request handler (tcpip-forward / cancel-tcpip-forward). libssh calls this
+ * with the request message; we ACCEPT by replying success iff the (host,port) is
+ * on the shared forwarding allow-list (ssh_creds_forward_authorized) — the SAME
+ * boundary the wolfSSH FwdCb enforces — else leave it unanswered (refused). This
+ * makes a forward accept/reject asymmetry a real cross-vendor differential.
+ * (direct-tcpip is a CHANNEL open, handled via the message API, not here.) */
+static void cb_global_request(ssh_session session, ssh_message message, void *userdata)
+{
+    (void)session;
+    (void)userdata;
+    if (ssh_message_type(message) != SSH_REQUEST_GLOBAL)
+        return;
+    int subtype = ssh_message_subtype(message);
+    if (subtype == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
+    {
+        const char *addr = ssh_message_global_request_address(message);
+        int port = ssh_message_global_request_port(message);
+        if (ssh_creds_forward_authorized(addr, (uint32_t)port))
+            ssh_message_global_request_reply_success(message, (uint16_t)port);
+        /* else: unanswered => libssh sends REQUEST_FAILURE */
+    }
+}
+
+/* Message callback — catches messages the server callbacks do NOT handle. libssh
+ * dispatches server callbacks FIRST (ssh_message_queue): session channel-open,
+ * auth, service etc. are handled there and never reach here, so this does not
+ * disturb the existing (event-loop) seeds. It exists to accept an inbound
+ * `direct-tcpip` channel open (which has no dedicated server-callback hook in the
+ * 0.10.4/0.11.4 model), gated on the SAME forwarding allow-list as the wolfSSH
+ * FwdCb so a direct-tcpip accept/reject is a real cross-vendor differential.
+ * Return 0 = handled (we replied); 1 = not handled => libssh sends the default
+ * failure. Accepted channels are owned by the session and freed by ssh_free(). */
+static int cb_message(ssh_session session, ssh_message message, void *userdata)
+{
+    (void)session;
+    (void)userdata;
+    if (ssh_message_type(message) == SSH_REQUEST_CHANNEL_OPEN &&
+        ssh_message_subtype(message) == SSH_CHANNEL_DIRECT_TCPIP)
+    {
+        const char *host = ssh_message_channel_request_open_destination(message);
+        int port = ssh_message_channel_request_open_destination_port(message);
+        if (ssh_creds_forward_authorized(host, (uint32_t)port) &&
+            ssh_message_channel_request_open_reply_accept(message) != NULL)
+            return 0; /* accepted (CHANNEL_OPEN_CONFIRMATION sent) */
+    }
+    return 1; /* not handled => default failure (ADMINISTRATIVELY_PROHIBITED) */
+}
+
 static int
 cb_channel_exec(ssh_session session, ssh_channel channel, const char *command, void *userdata)
 {
@@ -811,6 +863,15 @@ static RESULT libssh_progress(AGENT agent)
             agent->server_cb.service_request_function = cb_service_request;
             agent->server_cb.channel_open_request_session_function = cb_channel_open;
             ssh_set_server_callbacks(agent->session, &agent->server_cb);
+            /* global_request_function (tcpip-forward) is a SESSION callback. */
+            ssh_callbacks_init(&agent->session_cb);
+            agent->session_cb.userdata = agent;
+            agent->session_cb.global_request_function = cb_global_request;
+            ssh_set_callbacks(agent->session, &agent->session_cb);
+            /* Fallback for messages the server callbacks don't handle (direct-tcpip
+             * channel open). Server callbacks run first, so existing seeds are
+             * unaffected; this only catches the fall-through. */
+            ssh_set_message_callback(agent->session, cb_message, agent);
             ssh_set_auth_methods(agent->session,
                                  SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
             agent->event = ssh_event_new();

@@ -364,6 +364,28 @@ impl ProtocolTypes for SshProtocolTypes {
             // accept-vs-reject divergence — is NEVER shadowed.
             return false;
         }
+        if SHADOW_KNOWN_BUGS && is_fwd_reqsuccess_port_echo_diff(diff) {
+            // wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (see
+            // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks
+            // ACCEPT an authorized tcpip-forward, but wolfSSH appends the bound
+            // port to SSH_MSG_REQUEST_SUCCESS even for a non-zero (non-dynamic)
+            // requested port; RFC 4254 §7.1 returns that uint32 only for a port-0
+            // request (OpenSSH and libssh both send a bare reply). Documented,
+            // root-caused, still-live-on-master conformance deviation (LOW / not a
+            // MUST — §7.1 is descriptive). The `forwarding` seed + its PoC keep the
+            // finding on record; this shadow only stops long campaigns
+            // re-reporting it.
+            //
+            // Gated behind SHADOW_KNOWN_BUGS (NOT SHADOW_KNOWN_BENIGN): this is a
+            // REAL, documented wolfSSH bug we suppress to avoid re-reporting a
+            // closed finding — categorically different from the benign non-findings
+            // above, and re-surfaceable INDEPENDENTLY of them for a bug-focused
+            // re-audit. GUARDED (see `is_fwd_reqsuccess_port_echo_diff`) to fire
+            // ONLY on a both-accepted, response_data-only, purely-additive port
+            // echo — an accept-vs-reject forward divergence (RequestFailure vs
+            // RequestSuccess) or any other message change is NEVER shadowed.
+            return false;
+        }
         true
     }
 
@@ -429,10 +451,32 @@ impl ProtocolTypes for SshProtocolTypes {
     // hidden by the short-circuit.
 }
 
-/// Master switch for shadowing documented-benign divergence classes (see
-/// `differential_fuzzing_filter_diff`). Flip to `false` to re-surface every
-/// shadowed class as an objective.
+/// Master switch for shadowing documented-BENIGN divergence classes — divergences
+/// investigated to a benign (non-bug) conclusion, so suppressing them removes
+/// NOISE, not findings (see `differential_fuzzing_filter_diff`). Currently:
+///   * `is_banner_strictness_diff`         — Finding A, pre-auth banner strictness;
+///   * `is_userauth_failure_only_diff`     — Finding 3, USERAUTH_FAILURE-only delta;
+///   * `is_banner_induced_transcript_presence` — the banner reject's induced transcript-presence
+///     diff (context-aware co-drop, banner-gated).
+/// Flip to `false` to re-surface every benign class as an objective. This does
+/// NOT control `SHADOW_KNOWN_BUGS` below — the two categories are independent.
 const SHADOW_KNOWN_BENIGN: bool = true;
+
+/// Master switch for shadowing documented, root-caused REAL BUGS that we have
+/// already reported/recorded and do not want long campaigns to KEEP re-reporting.
+/// Distinct from `SHADOW_KNOWN_BENIGN` on purpose: these ARE genuine
+/// implementation defects (not benign noise), so they are gated separately and can
+/// be re-surfaced INDEPENDENTLY for a bug-focused re-audit (flip THIS to `false`
+/// while leaving the benign shadows on). Each such shadow must reference the
+/// finding's writeup and be surgically guarded so it can never mask a NEW or
+/// more-dangerous divergence. Currently:
+///   * `is_fwd_reqsuccess_port_echo_diff` — wolfSSH tcpip-forward REQUEST_SUCCESS bound-port echo
+///     for a non-zero requested port, RFC 4254 §7.1
+///     (findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Still live on wolfSSH master; LOW
+///     severity. The diverging `forwarding` seed + PoC remain the permanent record; this switch
+///     only silences campaign re-reporting.
+/// `true` by default (documented, LOW-severity, already recorded).
+const SHADOW_KNOWN_BUGS: bool = true;
 
 /// Finding A — pre-auth banner/version strictness (documented benign in
 /// BUG_HUNTING.md / REPORT_triaging.md). libssh caps the client identification
@@ -524,6 +568,58 @@ fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDifference) -
     type_name.contains("AlignedTranscript")
         && diff.contains("UserAuthFailure")
         && !diff.contains("UserAuthSuccess")
+}
+
+/// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (findings_phase3/
+/// WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks ACCEPT an authorized
+/// tcpip-forward (both emit SSH_MSG_REQUEST_SUCCESS), but wolfSSH appends the
+/// bound port even for a non-zero requested port, while libssh sends a bare reply;
+/// so the `comparable` transcript diff is a single `Changed` on the REQUEST_SUCCESS
+/// (msg 81) key whose ONLY delta is a purely-additive `response_data` byte run (the
+/// echoed port). RFC 4254 §7.1 returns the port only for a port-0 dynamic request
+/// (OpenSSH + libssh agree); a documented, root-caused, LOW-severity conformance
+/// deviation. Shadowed so long campaigns stop re-reporting it; the diverging
+/// `forwarding` seed + PoC remain the record.
+///
+/// VERY STRICT — matches ONLY that exact shape, so it can never mask a real
+/// forwarding divergence:
+///   * `BothRequestSuccess`  => both ACCEPTED (an accept-vs-reject forward, i.e. RequestSuccess vs
+///     RequestFailure, is NOT "BothRequestSuccess" -> KEPT);
+///   * the ONLY changed field is `response_data` (`RequestSuccessMessageChange`);
+///   * EXACTLY ONE changed alignment key, and it is msg 81 (no other message present/absent/changed
+///     -> a diff touching anything else is KEPT);
+///   * the response_data delta is PURELY ADDITIVE and short (a uint32-ish port echo): only `Added(`
+///     entries, no `Removed(`/`Changed(` -> a both-non-empty or otherwise-shaped response_data
+///     difference is KEPT.
+/// Not keyed to a specific port value, so a mutated forward port is still shadowed
+/// but nothing broader is.
+fn is_fwd_reqsuccess_port_echo_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    use puffin::differential::{KnowledgeDiff, TraceDifference};
+    let TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
+        type_name, diff, ..
+    }) = diff
+    else {
+        return false;
+    };
+    // count of `Added(` entries inside the response_data delta (the echoed bytes)
+    let added = diff.matches("Added(").count();
+    type_name.contains("AlignedTranscript")
+        // both accepted the forward (guards against masking accept-vs-reject)
+        && diff.contains("BothRequestSuccess")
+        // the only delta is the response_data field of the REQUEST_SUCCESS
+        && diff.contains("RequestSuccessMessageChange")
+        && diff.contains("response_data")
+        // EXACTLY ONE changed alignment key, and it is REQUEST_SUCCESS (msg 81);
+        // any additional present/absent/changed message keeps the objective
+        && diff.matches("Changed(AlignmentKey").count() == 1
+        && diff.contains("msg_number: 81")
+        && !diff.contains("Added(AlignmentKey")
+        && !diff.contains("Removed(AlignmentKey")
+        // purely-additive, short port echo: some Added bytes, no Removed, no
+        // nested Changed inside response_data (both-non-empty differences KEPT)
+        && added >= 1
+        && added <= 8
+        && !diff.contains("Removed(")
 }
 
 // ── AES-GCM packet-counter renumbering (RFC 4253 §7.1 auto-discovery) ────────
@@ -827,6 +923,39 @@ mod filter_diff_tests {
         // SUCCESS and FAILURE both in the delta — still kept (guard wins)
         assert!(keep(&transcript_inner_diff(
             "AlignedTranscriptChange([Added(..., UserAuthSuccess), Removed(..., UserAuthFailure(...))])"
+        )));
+    }
+
+    /// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo — the EXACT diff produced by
+    /// `seed_client_attacker_forwarding` (both accept the forward; wolfSSH appends
+    /// the bound port to REQUEST_SUCCESS, libssh sends a bare reply). Documented
+    /// benign (WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md) and SHADOWED.
+    #[test]
+    fn fwd_reqsuccess_port_echo_is_shadowed() {
+        assert!(!keep(&transcript_inner_diff(
+            "[ByKey([Changed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 }, \
+             BothRequestSuccess(RequestSuccessMessageChange { response_data: \
+             [Added(0, 0), Added(1, 0), Added(2, 0), Added(3, 22)] }))])]"
+        )));
+    }
+
+    /// SAFETY GUARD: an accept-vs-reject FORWARD divergence — one stack accepts the
+    /// tcpip-forward (REQUEST_SUCCESS), the other refuses it (REQUEST_FAILURE) — is
+    /// the genuinely interesting case and MUST survive. It is NOT a
+    /// `BothRequestSuccess` change, so the port-echo shadow never touches it.
+    #[test]
+    fn fwd_accept_vs_reject_is_always_kept() {
+        // one side REQUEST_SUCCESS, the other REQUEST_FAILURE (msg 81 vs 82)
+        assert!(keep(&transcript_inner_diff(
+            "[ByKey([Added(AlignmentKey { channel: 0, msg_number: 82, ordinal: 0 }, \
+             RequestFailure), Removed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 })])]"
+        )));
+        // both accept BUT another message also diverges (channel-open asymmetry):
+        // more than one changed key => KEPT (shadow requires exactly msg 81 alone)
+        assert!(keep(&transcript_inner_diff(
+            "[ByKey([Changed(AlignmentKey { channel: 0, msg_number: 81, ordinal: 0 }, \
+             BothRequestSuccess(RequestSuccessMessageChange { response_data: [Added(0, 22)] })), \
+             Added(AlignmentKey { channel: 0, msg_number: 91, ordinal: 0 }, ChannelOpenConfirmation)])]"
         )));
     }
 
