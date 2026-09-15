@@ -2616,6 +2616,8 @@ name = "sppuffin"
 version = "0.1.0"
 dependencies = [
  "comparable",
+ "criterion",
+ "env_logger 0.10.2",
  "extractable-macro",
  "javac",
  "jni",
@@ -2626,6 +2628,8 @@ dependencies = [
  "puffin-build",
  "rand 0.8.8",
  "serde",
+ "serde_json",
+ "test-log",
 ]
 
 [[package]]
