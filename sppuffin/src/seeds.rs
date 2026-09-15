@@ -19,9 +19,9 @@ pub fn seed_simple_three_terms() -> Trace<SwissProtocolTypes> {
         steps: vec![Step {
             agent,
             action: Action::Input(input_action! { term! {
-               // fn_immutable_byte_array_length(
+                fn_immutable_byte_array_length(
                    fn_new_immutable_byte_array
-               // )
+                )
                 }
             }),
         }],
