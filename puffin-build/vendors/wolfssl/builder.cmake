@@ -23,6 +23,10 @@ if(VENDOR_VERSION VERSION_LESS "5.5.2")
   declare_vulnerability("CVE-2022-42905" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
 endif()
 
+if(VENDOR_VERSION VERSION_LESS "5.7.2")
+  declare_vulnerability("CVE-2024-5814")
+endif()
+
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
@@ -62,7 +66,8 @@ autotools_builder(
     --enable-sp
     --disable-sha3
     --enable-curve25519
-    --enable-secure-renegotiation
+    --enable-renegotiation-indication # Adds a security layer above secure-renegotiation
+    # --enable-secure-renegotiation   => cannot be used in conjunction of enable-renegotiation-indication
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS
@@ -122,6 +127,7 @@ set(transcript_extraction yes)
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.0")
   set(tls12_session_resumption yes)
   set(tls13_session_resumption yes)
+  set(psk_ke_support yes)
   set(client_authentication_transcript_extraction yes)
 endif()
 set(allow_setting_tls12_ciphers yes)

@@ -19,11 +19,11 @@ pub fn runtime_dir() -> String {
         .output()
         .expect("failed to get runtime dir from `clang --print-runtime-dir`. Is clang in PATH?");
 
-    let clang_runtime_dir = output
-        .status
-        .success()
-        .then(|| std::str::from_utf8(&output.stdout).unwrap().trim())
-        .unwrap_or("");
+    let clang_runtime_dir = if output.status.success() {
+        std::str::from_utf8(&output.stdout).unwrap().trim()
+    } else {
+        ""
+    };
 
     if clang_runtime_dir.is_empty() {
         return runtime_dir_fallback();

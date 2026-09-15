@@ -1,5 +1,6 @@
 use std::{fmt, mem};
 
+use comparable::Comparable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader};
 use ring::digest;
@@ -75,9 +76,10 @@ impl HandshakeHashBuffer {
 ///
 /// For client auth, we also need to buffer all the messages.
 /// This is disabled in cases where client auth is not possible.
-#[derive(Clone)]
+#[derive(Clone, Comparable)]
 pub struct HandshakeHash {
     /// None before we know what hash function we're using
+    #[comparable_ignore]
     ctx: digest::Context,
 
     /// buffer for client-auth.

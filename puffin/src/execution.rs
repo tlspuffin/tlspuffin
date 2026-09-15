@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -8,14 +9,14 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
     type R;
-    type E;
+    type E: Display;
 
     fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
     where
@@ -70,10 +71,13 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
-        trace.as_ref().execute(&mut ctx, &mut 0).map_err(|e| {
-            *executed_until = ctx.executed_until;
-            e
-        })?;
+        trace
+            .as_ref()
+            .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
+            .map_err(|e| {
+                *executed_until = ctx.executed_until;
+                e
+            })?;
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }
@@ -128,13 +132,190 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             || {
                 let ret = match runner.execute_config(trace, config_trace, executed_until) {
                     Ok(_) => 0,
-                    Err(_) => 1,
+                    Err(e) => {
+                        log::info!("{}", e);
+                        1
+                    }
                 };
 
                 std::process::exit(ret);
             },
             self.timeout,
         )
+    }
+}
+
+/// Run traces on two different PUT to identify differences between the executions
+#[derive(Debug, Clone)]
+pub struct DifferentialRunner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    first_spawner: Spawner<PB>,
+    second_spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
+    pub fn new(
+        registry: impl Into<PutRegistry<PB>>,
+        first_spawner: impl Into<Spawner<PB>>,
+        second_spawner: impl Into<Spawner<PB>>,
+    ) -> Self {
+        Self {
+            registry: registry.into(),
+            first_spawner: first_spawner.into(),
+            second_spawner: second_spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
+    type E = Error;
+    type PB = PB;
+    type R = (TraceContext<Self::PB>, TraceContext<Self::PB>);
+
+    /// Execute `trace` on the two PUTs provided by `self`, return `Ok` if both
+    /// execution exhibit no differences, `Err(diff)` else
+    fn execute_config<T>(
+        self,
+        trace: T,
+        config_trace: ConfigTrace,
+        executed_until: &mut usize,
+    ) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        if config_trace.with_reseed {
+            // We reseed all PUTs before executing a trace!
+            self.registry.determinism_reseed_all_factories();
+        }
+
+        log::debug!("Executing first PUT");
+        let mut first_ctx = TraceContext::new(self.first_spawner.clone());
+        let first_trace_status = trace.as_ref().execute(
+            &mut first_ctx,
+            &mut 0,
+            config_trace.check_security_violation,
+        );
+
+        log::debug!("Executing second PUT");
+        let mut second_ctx = TraceContext::new(self.second_spawner.clone());
+        let second_trace_status = trace.as_ref().execute(
+            &mut second_ctx,
+            &mut 0,
+            config_trace.check_security_violation,
+        );
+
+        // Check execution status first
+        // Only match Error::Put and ignore Error::Term, Error::Fn, etc.
+        let mut diff = vec![];
+        #[cfg(not(feature = "ddyf-disable-status"))]
+        match (&first_trace_status, &second_trace_status) {
+            (Err(Error::Put(put1_error)), Err(Error::Put(put2_error))) => {
+                // If both PUT fail at the same step we consider that they fail for the same
+                // reason
+                if first_ctx.executed_until != second_ctx.executed_until {
+                    diff.push(
+                        crate::differential::StatusDiff {
+                            first_executed_steps: first_ctx.executed_until,
+                            first_status: put1_error.to_string(),
+                            second_executed_steps: second_ctx.executed_until,
+                            second_status: put2_error.to_string(),
+                            total_step: trace.as_ref().steps.len(),
+                        }
+                        .as_trace_difference(),
+                    )
+                }
+            }
+            (Err(Error::Put(put1_error)), second_put_status) => diff.push(
+                crate::differential::StatusDiff {
+                    first_executed_steps: first_ctx.executed_until,
+                    first_status: put1_error.to_string(),
+                    second_executed_steps: second_ctx.executed_until,
+                    second_status: match second_put_status {
+                        Ok(_) => "Success".into(),
+                        Err(e) => e.to_string(),
+                    },
+                    total_step: trace.as_ref().steps.len(),
+                }
+                .as_trace_difference(),
+            ),
+            (first_put_status, Err(Error::Put(put2_error))) => diff.push(
+                crate::differential::StatusDiff {
+                    first_executed_steps: first_ctx.executed_until,
+                    first_status: match first_put_status {
+                        Ok(_) => "Success".into(),
+                        Err(e) => e.to_string(),
+                    },
+                    second_executed_steps: second_ctx.executed_until,
+                    second_status: put2_error.to_string(),
+                    total_step: trace.as_ref().steps.len(),
+                }
+                .as_trace_difference(),
+            ),
+            _ => (),
+        };
+
+        // Maximum executed step on the two PUTs
+        *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
+
+        //check if we have security claim violation (if security claims are enabled)
+        diff.extend(match (&first_trace_status, &second_trace_status) {
+            (Err(Error::SecurityClaim(put1_err)), Err(Error::SecurityClaim(put2_err))) => {
+                vec![crate::differential::SecurityClaimDiff::BothError {
+                    first_put: put1_err.to_string(),
+                    second_put: put2_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            (Err(Error::SecurityClaim(put1_err)), _) => {
+                vec![crate::differential::SecurityClaimDiff::Different {
+                    put: 1,
+                    claim: put1_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            (_, Err(Error::SecurityClaim(put2_err))) => {
+                vec![crate::differential::SecurityClaimDiff::Different {
+                    put: 2,
+                    claim: put2_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            _ => vec![],
+        });
+
+        // If we have status diff or security violation we return the diffs without checking for
+        // others diffs
+        if diff.is_empty() {
+            // Compare the trace context
+            diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
+
+            // Apply filter to remove false positives
+            diff = diff
+            .into_iter()
+            .filter(<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff)
+            .collect();
+        }
+
+        if !diff.is_empty() {
+            return Err(Error::Difference {
+                differences: diff,
+                put1_status: first_trace_status
+                    .err()
+                    .map_or("Success".into(), |x| x.to_string()),
+                put2_status: second_trace_status
+                    .err()
+                    .map_or("Success".into(), |x| x.to_string()),
+            });
+        }
+
+        Ok((first_ctx, second_ctx))
+    }
+
+    fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        self.execute_config(trace, ConfigTrace::default(), executed_until)
     }
 }
 

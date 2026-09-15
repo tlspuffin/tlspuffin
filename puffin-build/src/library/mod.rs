@@ -54,7 +54,12 @@ impl Library {
     }
 
     pub fn include_dirs(&self) -> Vec<PathBuf> {
-        vec![self.path().join("include")]
+        let mut dirs = vec![self.path().join("include")];
+        let vendor_src = self.path().join("src").join("vendor");
+        if vendor_src.exists() {
+            dirs.push(vendor_src);
+        }
+        dirs
     }
 
     pub fn link_libraries(&self) -> Vec<PathBuf> {

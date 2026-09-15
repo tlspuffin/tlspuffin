@@ -10,7 +10,7 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     #[must_use]
-    pub const fn init(bytes: &[u8]) -> Reader {
+    pub const fn init(bytes: &[u8]) -> Reader<'_> {
         Reader {
             buf: bytes,
             offs: 0,
@@ -58,7 +58,7 @@ impl<'a> Reader<'a> {
         self.offs
     }
 
-    pub fn sub(&mut self, len: usize) -> Option<Reader> {
+    pub fn sub(&mut self, len: usize) -> Option<Reader<'_>> {
         self.take(len).map(Reader::init)
     }
 }
@@ -378,10 +378,10 @@ impl Codec for [u8; 16] {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        <Vec<u8> as Codec>::read(r).and_then(|v| {
+        <Vec<u8> as Codec>::read(r).map(|v| {
             let mut ret = [0u8; 16];
             ret.copy_from_slice(&v);
-            Some(ret)
+            ret
         })
     }
 }
@@ -415,5 +415,18 @@ impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
         }
 
         Some(ret)
+    }
+}
+
+pub fn compare_encoding<X: Codec, Y: Codec>(x: &X, y: &Y) -> std::cmp::Ordering {
+    let x_enc = Codec::get_encoding(x);
+    let y_enc = Codec::get_encoding(y);
+
+    if x_enc < y_enc {
+        std::cmp::Ordering::Less
+    } else if x_enc > y_enc {
+        std::cmp::Ordering::Greater
+    } else {
+        std::cmp::Ordering::Equal
     }
 }

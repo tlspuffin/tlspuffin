@@ -184,28 +184,24 @@ impl CAgent {
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
-        let ciphers_tls13 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .cipher_string_tls13
-                .clone(),
-        )
-        .unwrap();
-        let ciphers_tls12 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .cipher_string_tls12
-                .clone(),
-        )
-        .unwrap();
+        let ciphers_tls13 =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_13()).unwrap();
+        let ciphers_tls12 =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_12()).unwrap();
+        let ciphers_tlsboth =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_both()).unwrap();
         let groups = config
             .descriptor
             .protocol_config
             .groups
             .clone()
-            .map_or(None, |x| Some(CString::new(x.clone()).unwrap()));
+            .map(|x| CString::new(x.clone()).unwrap());
+        let sigalgs = config
+            .descriptor
+            .protocol_config
+            .sigalgs
+            .clone()
+            .map(|x| CString::new(x.clone()).unwrap());
 
         let descriptor = match config.descriptor.protocol_config.typ {
             AgentType::Server => make_descriptor(
@@ -215,7 +211,9 @@ impl CAgent {
                 &server_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
+                &ciphers_tlsboth,
                 &groups,
+                &sigalgs,
             ),
             AgentType::Client => make_descriptor(
                 &config,
@@ -224,7 +222,9 @@ impl CAgent {
                 &client_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
+                &ciphers_tlsboth,
                 &groups,
+                &sigalgs,
             ),
         };
 
@@ -250,16 +250,16 @@ impl CAgent {
             use crate::claims::claims_helpers;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
             let agent_name = self.config.descriptor.name;
 
             let claimer = make_claimer(move |claim: Claim| {
-                if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                if let Some(data) = claims_helpers::to_claim_data(claim) {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
-                        protocol_version,
+                        config_version,
                         data,
                         step: None,
                     })
@@ -338,8 +338,10 @@ impl Stream<TLSProtocolBehavior> for CAgent {
 
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessageFlight>, Error>
-    {
+        output_flight: &mut Option<
+            <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessageFlight,
+        >,
+    ) -> Result<(), Error> {
         let mut flight = OpaqueMessageFlight::new();
         loop {
             if let Some(opaque_message) = self.deframer.pop_frame() {
@@ -362,13 +364,18 @@ impl Stream<TLSProtocolBehavior> for CAgent {
                             // from the TCPStream in the next steps.
                             break;
                         }
-                        _ => return Err(err.into()),
+                        _ => {
+                            *output_flight = (!flight.messages.is_empty()).then_some(flight);
+                            return Err(err.into());
+                        }
                     },
                 }
             }
         }
 
-        Ok((!flight.messages.is_empty()).then_some(flight))
+        *output_flight = (!flight.messages.is_empty()).then_some(flight);
+
+        Ok(())
     }
 }
 
@@ -387,7 +394,9 @@ fn make_descriptor(
     store: &[*const PEM],
     ciphers_tls13: &CString,
     ciphers_tls12: &CString,
+    ciphers_tlsboth: &CString,
     groups: &Option<CString>,
+    sigalgs: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -404,13 +413,20 @@ fn make_descriptor(
         tls_version: match config.descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => TLS_VERSION::V1_3,
             TLSVersion::V1_2 => TLS_VERSION::V1_2,
+            TLSVersion::Both => TLS_VERSION::Both,
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
         cipher_string_tls13: ciphers_tls13.as_ptr(),
         cipher_string_tls12: ciphers_tls12.as_ptr(),
+        cipher_string_tlsboth: ciphers_tlsboth.as_ptr(),
         group_list: if let Some(group_list) = groups {
             group_list.as_ref().as_ptr()
+        } else {
+            std::ptr::null()
+        },
+        sigalgs_list: if let Some(sigalgs_list) = sigalgs {
+            sigalgs_list.as_ref().as_ptr()
         } else {
             std::ptr::null()
         },

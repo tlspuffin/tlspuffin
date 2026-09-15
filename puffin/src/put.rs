@@ -7,7 +7,10 @@ use crate::error::Error;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::stream::Stream;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+/// Put options to set when creating a put descriptor
+/// Set the key in the cli or tests and get it from the put descriptor wherever needed
+/// (ex:`use_clear` : use clear method instead of free on Agents in between traces of some Input)
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutOptions {
     options: Vec<(String, String)>,
 }
@@ -16,6 +19,18 @@ impl PutOptions {
     #[must_use]
     pub const fn new(options: Vec<(String, String)>) -> Self {
         Self { options }
+    }
+
+    pub const fn empty() -> Self {
+        Self {
+            options: Vec::new(),
+        }
+    }
+}
+
+impl Default for PutOptions {
+    fn default() -> Self {
+        Self::empty()
     }
 }
 
@@ -26,6 +41,27 @@ impl PutOptions {
             .iter()
             .find(|(found_key, _value)| -> bool { found_key == key })
             .map(|(_key, value)| value.as_str())
+    }
+
+    pub fn add_option(&mut self, key: &str, value: &str) {
+        if self
+            .options
+            .iter()
+            .any(|(found_key, _value)| -> bool { found_key == key })
+        {
+            panic!("Option {} already exists", key);
+        }
+        self.options.push((key.into(), value.into()));
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.options.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.options
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
     }
 }
 
@@ -43,7 +79,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutDescriptor {
     pub factory: String,
     pub options: PutOptions,
@@ -55,15 +91,6 @@ impl PutDescriptor {
             factory: factory.into(),
             options: options.into(),
         }
-    }
-}
-
-impl<S> From<S> for PutDescriptor
-where
-    S: Into<String>,
-{
-    fn from(name: S) -> Self {
-        Self::new(name, PutOptions::default())
     }
 }
 

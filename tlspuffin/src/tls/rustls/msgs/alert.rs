@@ -1,10 +1,11 @@
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
 use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::msgs::enums::{AlertDescription, AlertLevel};
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct AlertMessagePayload {
     #[extractable_no_recursion]

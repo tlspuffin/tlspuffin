@@ -54,8 +54,6 @@ jobs:
         run: just check-crate wolfssl wolfssl430,wolfssl-sys/wolfssl430
       - name: check `wolfssl-sys`
         run: just check-crate wolfssl-sys wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
-      - name: check `boringssl-sys`
-        run: just check-crate boringssl-sys boringssl202403
 
   msrv:
     name: msrv

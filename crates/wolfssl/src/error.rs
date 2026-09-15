@@ -54,7 +54,7 @@ impl error::Error for ErrorStack {}
 
 impl From<ErrorStack> for io::Error {
     fn from(e: ErrorStack) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, e)
+        io::Error::other(e)
     }
 }
 

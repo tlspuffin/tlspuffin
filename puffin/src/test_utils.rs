@@ -134,6 +134,23 @@ macro_rules! test_puts {
 }
 
 #[macro_export]
+macro_rules! test_differential_puts {
+    ($func:ident,first = $first:literal,second = $second:literal) => {
+        mod $func {
+            #![allow(unexpected_cfgs)]
+            use super::*;
+
+            #[cfg(all(has_put = $first, has_put = $second))]
+            #[test_log::test]
+            fn run() {
+                super::$func();
+            }
+        }
+    };
+}
+
+#[macro_export]
+#[allow(clippy::crate_in_macro_def)]
 macro_rules! supports {
     ($put:expr, $cap:expr) => {{
         use crate::put_registry::tls_registry;
@@ -146,4 +163,4 @@ macro_rules! supports {
 }
 
 #[allow(unused_imports)]
-pub(crate) use {supports, test_puts};
+pub(crate) use {supports, test_differential_puts, test_puts};

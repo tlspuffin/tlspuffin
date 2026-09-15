@@ -15,6 +15,9 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
+# Tracks vendor directory for auto rebuild if a CPUT has been built or deleted
+watch-vendor = ["puffin-build/watch-vendor"]
+
 cputs = ["deterministic", "claims"]
 rust-put = []
 
@@ -340,6 +343,12 @@ enable-guards = []
 # utility functions for testing tlspuffin
 test-utils = ["tempfile"]
 
+# Options to disable part of differential fuzzing, used to do ablation studies
+ddyf-disable-status = ["puffin/ddyf-disable-status"]
+ddyf-disable-claims = ["puffin/ddyf-disable-claims"]
+ddyf-disable-knowledges = ["puffin/ddyf-disable-knowledges"]
+ddyf-disable-decryption = ["puffin/ddyf-disable-decryption"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }
@@ -354,6 +363,7 @@ hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true }
 once_cell = { workspace = true }
+comparable = { workspace = true, features = ["derive"] }
 
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
@@ -363,7 +373,7 @@ sct = "0.7.0"
 
 # Up to version 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
-openssl-sys = { version = "*", features = ["vendored"], optional = true }
+openssl-sys = { version = "=0.9.85", features = ["vendored"], optional = true }
 
 foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { path = "../tlspuffin-claims", version = "0.1.0", optional = false }
@@ -381,10 +391,11 @@ puffin-build = { path = "../puffin-build" }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
-openssl-src = { version = "*", features = [], optional = true }
+openssl-src = { version = "=111.22.0", features = [], optional = true }
 puffin-build = { path = "../puffin-build" }
 itertools = { workspace = true }
 bindgen = { workspace = true }
+cc = "1.0.79"
 
 [dev-dependencies]
 test-log = { workspace = true }

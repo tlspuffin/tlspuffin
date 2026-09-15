@@ -182,7 +182,7 @@ pub fn fn_verify_data_server(
 // seed_client_attacker12()
 // ----
 
-pub fn fn_sign_transcript(
+pub fn fn_client_sign_transcript(
     server_random: &Random,
     server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
@@ -202,6 +202,28 @@ pub fn fn_sign_transcript(
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
+}
+
+pub fn fn_server_sign_transcript(
+    server_random: &Random,
+    client_ecdh_pubkey: &Vec<u8>,
+    transcript: &HandshakeHash,
+    group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        client_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
+
+    let vh = transcript.get_current_hash();
+    Ok(secrets.server_verify_data(&vh))
 }
 
 // ----
@@ -251,6 +273,12 @@ pub fn fn_cipher_suite13_aes_128_ccm_sha256() -> Result<CipherSuite, FnError> {
 
 pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
+}
+
+/// Cipher suite that is not in the configuration list given to the PUT, therefore not supported by
+/// the PUT.
+pub fn fn_excluded_cipher_suite() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
 }
 
 pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {

@@ -13,21 +13,22 @@ use crate::trace::Trace;
 pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
-mod stages;
+pub mod stages;
 mod stats_monitor;
 pub mod stats_stage;
 pub mod term_zoo;
 // Public for benchmarks
 pub mod bit_mutations;
+pub mod config;
 pub mod feedback;
 pub mod mutations;
 pub mod utils;
 
-pub use libafl_setup::{start, FuzzerConfig};
+pub use libafl_setup::start;
 
 // LibAFL support
 impl<PT: ProtocolTypes> Input for Trace<PT> {
-    fn generate_name(&self, _idx: usize) -> String {
+    fn generate_name(&self, _idx: Option<libafl::corpus::CorpusId>) -> String {
         let now = Utc::now();
         let mut hasher = ahash::RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         self.hash(&mut hasher);

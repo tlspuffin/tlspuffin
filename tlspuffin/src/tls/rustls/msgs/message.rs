@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -23,13 +24,14 @@ use crate::tls::rustls::msgs::enums::{
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
     CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
-    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, NewSessionTicketExtension,
-    NewSessionTicketExtensions, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
-    SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
+    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, KeyShareEntries,
+    KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity,
+    Random, ServerExtension, ServerExtensions, ServerName, ServerNameRequest, SessionID,
+    SupportedSignatureSchemes, VecU16OfPayloadU16, VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum MessagePayload {
     Alert(AlertMessagePayload),
@@ -53,6 +55,24 @@ impl codec::CodecP for MessagePayload {
         )))
     }
 }
+
+impl PartialEq for MessagePayload {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (MessagePayload::Alert(_), MessagePayload::Alert(_)) => true,
+            (MessagePayload::Handshake(_), MessagePayload::Handshake(_)) => true,
+            (
+                MessagePayload::TLS12EncryptedHandshake(_),
+                MessagePayload::TLS12EncryptedHandshake(_),
+            ) => true,
+            (MessagePayload::ChangeCipherSpec(_), MessagePayload::ChangeCipherSpec(_)) => true,
+            (MessagePayload::ApplicationData(_), MessagePayload::ApplicationData(_)) => true,
+            (MessagePayload::Heartbeat(_), MessagePayload::Heartbeat(_)) => true,
+            (_, _) => false,
+        }
+    }
+}
+
 impl MessagePayload {
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
@@ -72,7 +92,7 @@ impl MessagePayload {
             ContentType::ApplicationData => return Ok(Self::ApplicationData(payload)),
             ContentType::Alert => AlertMessagePayload::read(&mut r).map(MessagePayload::Alert),
             ContentType::Handshake => {
-                HandshakeMessagePayload::read_version(&mut r, vers)
+                HandshakeMessagePayload::read_version_exact(&mut r, vers)
                     .map(MessagePayload::Handshake)
                     // this type is for TLS 1.2 encrypted handshake messages
                     .or(Some(MessagePayload::TLS12EncryptedHandshake(
@@ -146,7 +166,7 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessage {
     #[extractable_ignore]
@@ -154,6 +174,7 @@ pub struct OpaqueMessage {
     #[extractable_ignore]
     pub version: ProtocolVersion,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub payload: Payload,
 }
 
@@ -299,7 +320,7 @@ impl PlainMessage {
 }
 
 /// A message with decoded payload
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
@@ -409,7 +430,7 @@ pub enum MessageError {
 // encoded in 2 bytes For each type: whether it produces empty bitstring for empty list ([]), and u8
 // or u16 length prefix (8/16)
 impl VecCodecWoSize for ClientExtension {} // []/u16
-impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least oen extension it seems)
+impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least one extension it seems)
 impl VecCodecWoSize for HelloRetryExtension {} // ?/u16
 impl VecCodecWoSize for CertReqExtension {} // u16 -s
 impl VecCodecWoSize for CertificateExtension {} // u16 -s
@@ -420,6 +441,11 @@ impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 impl VecCodecWoSize for NamedGroup {} //u16
+impl VecCodecWoSize for KeyShareEntry {} //u16
+                                         // impl VecCodecWoSize for ECPointFormat {} //u8
+                                         // impl VecCodecWoSize for PSKKeyExchangeMode {} //u8
+impl VecCodecWoSize for SignatureScheme {} //u16
+impl VecCodecWoSize for ServerName {} //u16
 
 #[macro_export]
 macro_rules! try_read {
@@ -523,8 +549,8 @@ pub fn try_read_bytes(
         TlsTranscript,
         TranscriptPartialClientHello,
         TranscriptServerHello,
-        TranscriptServerFinished,
         TranscriptCertificate,
+        TranscriptClientFinished,
         u64,
         u32,
         u16,
@@ -541,6 +567,20 @@ pub fn try_read_bytes(
         Vec<u8>,
         Option<Vec<u8>>,
         Vec<NamedGroup>,
+        // ECPointFormatList,
+        // Vec<ECPointFormat>,
+        // ECPointFormat,
+        // PSKKeyExchangeModes,
+        // Vec<PSKKeyExchangeMode>,
+        // PSKKeyExchangeMode,
+        SupportedSignatureSchemes,
+        Vec<SignatureScheme>,
+        ServerNameRequest,
+        Vec<ServerName>,
+        ServerName,
+        KeyShareEntries,
+        Vec<KeyShareEntry>,
+        KeyShareEntry,
         Vec<Vec<u8>>,
         bool,
         NamedGroup /* Option<Vec<Vec<u8>>>,

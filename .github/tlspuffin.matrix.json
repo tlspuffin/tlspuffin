@@ -155,6 +155,20 @@
     "labels": [
       "fast"
     ],
+    "name": "libressl421",
+    "mk_vendor": {
+      "vendor": "libressl",
+      "preset": "libressl421"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
     "name": "wolfssl430",
     "mk_vendor": {
       "vendor": "wolfssl",
@@ -389,30 +403,32 @@
     }
   },
   {
-    "labels": [],
-    "name": "boringssl202403",
-    "mk_vendor": {
-      "vendor": "boringssl",
-      "preset": "boringssl202403"
-    },
-    "cargo": {
-      "name": "boringssl202403",
-      "features": []
-    }
-  },
-  {
     "labels": [
       "fast"
     ],
-    "name": "boringssl202403-asan",
+    "name": "boringssl20260508",
     "mk_vendor": {
       "vendor": "boringssl",
-      "preset": "boringssl202403-asan"
+      "preset": "boringssl20260508"
     },
     "cargo": {
-      "name": "boringssl202403",
+      "name": "",
       "features": [
-        "asan"
+        "cputs"
+      ]
+    }
+  },
+  {
+    "labels": [],
+    "name": "boringssl20260508-asan",
+    "mk_vendor": {
+      "vendor": "boringssl",
+      "preset": "boringssl20260508-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": [
+        "cputs"
       ]
     }
   }

@@ -8,3 +8,14 @@ sancov = true
 sources = { repo = "https://github.com/tlspuffin/libressl.git", branch = "fuzz-v3.3.3", version = "3.3.3" }
 builder = { type = "builtin", name = "libressl" }
 sancov = true
+
+[libressl421-asan]
+sources = { repo = "https://github.com/tlspuffin/libressl.git", branch = "fuzz-v4.2.1", version = "4.2.1" }
+builder = { type = "builtin", name = "libressl" }
+asan = true
+sancov = true
+
+[libressl421]
+sources = { repo = "https://github.com/tlspuffin/libressl.git", branch = "fuzz-v4.2.1", version = "4.2.1" }
+builder = { type = "builtin", name = "libressl" }
+sancov = true

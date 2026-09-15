@@ -1,5 +1,6 @@
 use std::fmt;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
@@ -20,7 +21,7 @@ pub struct PrivateKey(pub Vec<u8>);
 /// The certificate must be DER-encoded X.509.
 ///
 /// The `rustls-pemfile` crate can be used to parse a PEM file.
-#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Extractable)]
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct Certificate(#[extractable_no_recursion] pub Vec<u8>);
 
