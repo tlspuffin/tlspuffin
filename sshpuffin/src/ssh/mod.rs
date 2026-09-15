@@ -186,6 +186,11 @@ define_signature!(
     // instead of reconstructing it from a hard-coded client KEXINIT. `no_gen`: a
     // decryption-recipe helper (reads a claim), not for term generation.
     fn_claim_exchange_hash [no_gen]
+    // Extracts the server's assigned channel number from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION, so a client can re-address channel traffic to the
+    // channel THIS stack owns (libssh vs wolfSSH pick different numbers). `no_gen`:
+    // decryption helper, not for term generation.
+    fn_s2c_confirmation_sender_channel [no_gen]
     fn_derive_enc_key_c2s
     fn_derive_enc_key_s2c
     fn_encrypt_packet

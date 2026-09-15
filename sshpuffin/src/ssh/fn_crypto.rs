@@ -674,6 +674,35 @@ pub fn fn_fold_s2c_transcript(
     Ok(AlignedTranscript::from_messages(messages))
 }
 
+/// Extract the channel number the SERVER assigned, from its (decrypted)
+/// CHANNEL_OPEN_CONFIRMATION `sender_channel`, so a client can address subsequent
+/// connection-protocol messages to the channel THIS server actually owns.
+///
+/// libssh and wolfSSH pick different channel numbers (e.g. 43 vs 0), so a seed
+/// that hard-codes `recipient_channel = 0` is only routed correctly by the stack
+/// that happened to pick 0 — the other silently drops the traffic. Evaluated
+/// per-PUT in the differential (the term resolves against each PUT's own s2c
+/// output), this yields each stack's real channel number, so the SAME trace
+/// routes to libssh's channel on the libssh run and wolfSSH's on the wolfSSH run.
+/// Decrypts with the s2c key/iv via the same peel as `fn_fold_s2c_transcript`.
+pub fn fn_s2c_confirmation_sender_channel(
+    flight: &RawSshMessageFlight,
+    key: &SshBytes,
+    iv: &SshBytes,
+) -> Result<u32, FnError> {
+    let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
+    transcript
+        .0
+        .values()
+        .find_map(|m| match m {
+            SshMessage::ChannelOpenConfirmation(c) => Some(c.sender_channel),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            FnError::Malformed("no CHANNEL_OPEN_CONFIRMATION in decrypted s2c flight".into())
+        })
+}
+
 // ── AES-256-CTR + HMAC-SHA2-256 (RFC 4253 §6, Encrypt-and-MAC) ────────────────
 //
 // The classic non-AEAD SSH suite, supported by both libssh and wolfSSH. Unlike
