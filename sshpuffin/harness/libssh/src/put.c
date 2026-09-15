@@ -681,8 +681,7 @@ static void emit_phase_claim(AGENT agent)
     const unsigned char *sid = NULL;
     size_t sid_len = 0;
     bool have_sid = (puffin_ssh_get_session_id != NULL &&
-                     puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 &&
-                     sid != NULL);
+                     puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL);
 
     int phase;
     switch (agent->state)

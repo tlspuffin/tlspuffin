@@ -24,13 +24,16 @@ def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
     """
     execute `trace` and get differences between `first_put` and `second_put`
     """
-    result = subprocess.run(
-        [PUFFIN_PATH, "differential-execute", "--json", first_put, second_put, trace],
-        timeout=5,  # 5 second timeout
-        capture_output=True,
-    )
-
     try:
+        # subprocess.run must be INSIDE the try: on timeout it raises
+        # subprocess.TimeoutExpired (not a JSON error), and that must be recorded
+        # and skipped like any other un-parseable execution rather than aborting
+        # the whole thread-pool run.
+        result = subprocess.run(
+            [PUFFIN_PATH, "differential-execute", "--json", first_put, second_put, trace],
+            timeout=5,  # 5 second timeout
+            capture_output=True,
+        )
         return json.loads(result.stdout)
     except Exception:
         # A single un-parseable execution (timeout, sanitizer abort, no JSON on
@@ -44,27 +47,29 @@ def get_status(trace: str, put: str) -> dict:
     """
     Execute `trace` on `put` and get terms, knowledges, decryption, status and claims
     """
-    result = subprocess.run(
-        [
-            PUFFIN_PATH,
-            "--put",
-            put,
-            "display-execute",
-            "--json",
-            "-t",
-            "-k",
-            "-c",
-            "-p",
-            trace,
-        ],
-        timeout=5,  # 5 second timeout
-        capture_output=True,
-    )
-
+    result = None
     try:
+        # subprocess.run inside the try so a timeout (subprocess.TimeoutExpired)
+        # is handled the same as a JSON-decode failure below.
+        result = subprocess.run(
+            [
+                PUFFIN_PATH,
+                "--put",
+                put,
+                "display-execute",
+                "--json",
+                "-t",
+                "-k",
+                "-c",
+                "-p",
+                trace,
+            ],
+            timeout=5,  # 5 second timeout
+            capture_output=True,
+        )
         return json.loads(result.stdout)
     except Exception as e:
-        print(e, ":", result.stdout)
+        print(e, ":", result.stdout if result is not None else "<no output (timeout)>")
         raise BaseException
 
 
@@ -610,6 +615,16 @@ def sort_obj(
                     f"{filepath}_wolf.json",
                     f"{filepath}_diff.json",
                 ]
+                # Also co-locate the Phase-0 metadata logs, which use a
+                # `metadata_<put>_<trace>.log` PREFIX naming (see
+                # phase0_produce_metadata.sh) rather than the `<trace>_*.json`
+                # suffix above. Glob so this stays protocol-agnostic (PUT names
+                # differ between the TLS and SSH pipelines).
+                import glob as _glob
+
+                trace_and_metadata += _glob.glob(
+                    os.path.join(source, f"metadata_*_{file}.log")
+                )
                 for file_path in trace_and_metadata:
                     try:
                         os.rename(

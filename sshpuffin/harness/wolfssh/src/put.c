@@ -38,8 +38,8 @@
  * empty. Pure observation; never affects the protocol path.
  */
 #ifdef HAS_CLAIMS
-extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out,
-                                         unsigned int *len) __attribute__((weak));
+extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsigned int *len)
+    __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -112,8 +112,7 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
         if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
         {
             authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
-            authData->sf.password.passwordSz =
-                (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+            authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
         }
         return WOLFSSH_USERAUTH_SUCCESS;
     }
@@ -137,7 +136,10 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
        claim triggering perfectly aligned. */
 
     char user[SSH_CLAIM_STR_LEN];
-    snprintf(user, sizeof(user), "%.*s", (int)authData->usernameSz,
+    snprintf(user,
+             sizeof(user),
+             "%.*s",
+             (int)authData->usernameSz,
              authData->username ? (const char *)authData->username : "");
     snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user);
 
@@ -147,8 +149,7 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
             return WOLFSSH_USERAUTH_SUCCESS; /* probe: let the client send the sig */
 
         uint8_t fp[32];
-        wc_Sha256Hash(authData->sf.publicKey.publicKey,
-                      authData->sf.publicKey.publicKeySz, fp);
+        wc_Sha256Hash(authData->sf.publicKey.publicKey, authData->sf.publicKey.publicKeySz, fp);
         if (!ssh_creds_key_authorized(user, fp, sizeof(fp)))
             return WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
 
@@ -167,7 +168,8 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
     }
     else if (authType == WOLFSSH_USERAUTH_PASSWORD)
     {
-        if (!ssh_creds_password_authorized(user, authData->sf.password.password,
+        if (!ssh_creds_password_authorized(user,
+                                           authData->sf.password.password,
                                            authData->sf.password.passwordSz))
             return WOLFSSH_USERAUTH_INVALID_PASSWORD;
 
@@ -434,7 +436,7 @@ static void emit_handshake_claim(AGENT agent)
             claim.session_id_len = (uint8_t)sid_len;
         }
     }
-#endif /* HAS_CLAIMS */
+#endif               /* HAS_CLAIMS */
     claim.phase = 3; /* PHASE_DONE: this is the completed-handshake claim */
 
     agent->claimer->notify(agent->claimer->context, &claim);
@@ -533,11 +535,11 @@ static RESULT wolfssh_progress(AGENT agent)
                libssh: a channel-data status means KEX+auth+channel-open already
                completed, so move to DONE (the DONE path's wolfSSH_worker drains
                the channel); a rekey status just means keep progressing. */
-            if (rc == WS_CHAN_RXD || gerr == WS_CHAN_RXD || rc == WS_EXTDATA ||
-                gerr == WS_EXTDATA)
+            if (rc == WS_CHAN_RXD || gerr == WS_CHAN_RXD || rc == WS_EXTDATA || gerr == WS_EXTDATA)
             {
                 agent->state = PUT_STATE_DONE;
-                snprintf(agent->state_desc, sizeof(agent->state_desc),
+                snprintf(agent->state_desc,
+                         sizeof(agent->state_desc),
                          "DONE (channel data during accept)");
                 return ok_result();
             }
