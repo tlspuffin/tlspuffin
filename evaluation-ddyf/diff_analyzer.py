@@ -12,51 +12,64 @@ from functools import partial
 
 OSSL = 1
 WOLF = 2
-PUFFIN_PATH = Path("target/release/tlspuffin")
+PUFFIN_PATH = Path(os.environ.get("PUFFIN_PATH", "target/release/tlspuffin"))
+
+# Traces whose differential execution could not be parsed (timeout, sanitizer
+# abort, no JSON on stdout). Collected across threads and reported as a warning
+# at the end of run_triaging so a few bad executions do not go unnoticed.
+SKIPPED_TRACES: list[str] = []
 
 
 def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
     """
     execute `trace` and get differences between `first_put` and `second_put`
     """
-    result = subprocess.run(
-        [PUFFIN_PATH, "differential-execute", "--json", first_put, second_put, trace],
-        timeout=5,  # 5 second timeout
-        capture_output=True,
-    )
-
     try:
+        # subprocess.run must be INSIDE the try: on timeout it raises
+        # subprocess.TimeoutExpired (not a JSON error), and that must be recorded
+        # and skipped like any other un-parseable execution rather than aborting
+        # the whole thread-pool run.
+        result = subprocess.run(
+            [PUFFIN_PATH, "differential-execute", "--json", first_put, second_put, trace],
+            timeout=5,  # 5 second timeout
+            capture_output=True,
+        )
         return json.loads(result.stdout)
-    except Exception as e:
-        print(e)
-        raise BaseException
+    except Exception:
+        # A single un-parseable execution (timeout, sanitizer abort, no JSON on
+        # stdout) must not abort the whole triaging run: record and skip it so it
+        # is surfaced in the end-of-run warning instead of crashing the pool.
+        SKIPPED_TRACES.append(trace)
+        return None
 
 
 def get_status(trace: str, put: str) -> dict:
     """
     Execute `trace` on `put` and get terms, knowledges, decryption, status and claims
     """
-    result = subprocess.run(
-        [
-            PUFFIN_PATH,
-            "--put",
-            put,
-            "display-execute",
-            "--json",
-            "-t",
-            "-k",
-            "-c",
-            "-p",
-            trace,
-        ],
-        timeout=5,  # 5 second timeout
-        capture_output=True,
-    )
-
+    result = None
     try:
+        # subprocess.run inside the try so a timeout (subprocess.TimeoutExpired)
+        # is handled the same as a JSON-decode failure below.
+        result = subprocess.run(
+            [
+                PUFFIN_PATH,
+                "--put",
+                put,
+                "display-execute",
+                "--json",
+                "-t",
+                "-k",
+                "-c",
+                "-p",
+                trace,
+            ],
+            timeout=5,  # 5 second timeout
+            capture_output=True,
+        )
         return json.loads(result.stdout)
     except Exception as e:
-        print(e, ":", result.stdout)
+        print(e, ":", result.stdout if result is not None else "<no output (timeout)>")
         raise BaseException
 
 
@@ -572,7 +585,9 @@ class TrueC(BucketCondition):
         return True
 
 
-VALID = re.compile(r".*\.trace(-[0-9]+)?$")
+# Match trace files while skipping LibAFL hidden lock/sidecar files
+# (e.g. ".<name>.trace"), whose basename starts with a dot.
+VALID = re.compile(r"^[^.].*\.trace(-[0-9]+)?$")
 
 
 def sort_obj(
@@ -600,6 +615,16 @@ def sort_obj(
                     f"{filepath}_wolf.json",
                     f"{filepath}_diff.json",
                 ]
+                # Also co-locate the Phase-0 metadata logs, which use a
+                # `metadata_<put>_<trace>.log` PREFIX naming (see
+                # phase0_produce_metadata.sh) rather than the `<trace>_*.json`
+                # suffix above. Glob so this stays protocol-agnostic (PUT names
+                # differ between the TLS and SSH pipelines).
+                import glob as _glob
+
+                trace_and_metadata += _glob.glob(
+                    os.path.join(source, f"metadata_*_{file}.log")
+                )
                 for file_path in trace_and_metadata:
                     try:
                         os.rename(
@@ -643,6 +668,15 @@ def run_triaging(
         )
         for k, v in err_count.items():
             print(k, ": ", v)
+
+    if SKIPPED_TRACES:
+        print(
+            f"\nWARNING: skipped {len(SKIPPED_TRACES)} trace(s) whose differential "
+            f"execution could not be parsed (timeout / sanitizer abort / no JSON on "
+            f"stdout). These were NOT classified:"
+        )
+        for t in SKIPPED_TRACES:
+            print(f"  {t}")
 
 
 if __name__ == "__main__":
