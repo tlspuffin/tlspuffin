@@ -24,13 +24,16 @@ static JVM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| {
     let jvm_args = jni::InitArgsBuilder::new()
         .version(JNIVersion::V1_8)
         .option(format!(
-            "-Djava.class.path={}:{}:{}:{}:{}:{}",
+            "-Djava.class.path={}:{}:{}:{}:{}:{}:{}:{}:{}",
             "/home/binj/Documents/stageM2/e-voting/control-component/target/control-component-1.5.3.2.jar",
             "/home/binj/Documents/stageM2/crypto-primitives/target/crypto-primitives-1.5.2.1.jar",
             "/home/binj/.m2/repository/com/google/guava/guava/32.0.1-jre/guava-32.0.1-jre.jar",
             "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.20.0/jackson-databind-2.20.0.jar",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.20.0/jackson-core-2.20.0.jar",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.20.0/jackson-annotations-2.20.0.jar",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.20.0/",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.20.0/",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.20.0/",
+            "/home/binj/Documents/stageM2/tlspuffin/sppuffHin/jackson-databind-2.20.0.jar",
+            "/home/binj/Documents/stageM2/tlspuffin/sppuffin/jackson-core-2.20.0.jar",
         ))
         .option("-Xcheck:jni")
         .build();
@@ -79,34 +82,35 @@ impl puffin::codec::Codec for ImmutableByteArray {
 
         if let Err(e) = vm.attach_current_thread(
             |env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
-                let mapper_class_opt =
-                    env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
-
-                let mapper_class = match mapper_class_opt {
-                    Ok(class) => class,
-                    Err(e) => {
-                        if env.exception_check() {
-                            env.exception_describe();
-                            env.exception_clear();
-                        }
-                        return Err(Box::new(e));
-
-                    }
-                };
-
-                let mapper = env.new_object(mapper_class, jni_sig!(()), &[])?;
-
-                let java_serialized = env.call_method(
-                    &mapper,
-                    jni_str!("writeValueAsString"),
-                    jni_sig!((obj: JObject) -> JString),
-                    &[JValue::Object(self.0.as_obj())],
-                )?;
-
-                let jstr_obj = java_serialized.l()?;
-                let jstr = JString::cast_local(env, jstr_obj)?;
-
-                let rust_str: String = jstr.to_string();
+                // let mapper_class_opt =
+                //     env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
+                //
+                // let mapper_class = match mapper_class_opt {
+                //     Ok(class) => class,
+                //     Err(e) => {
+                //         if env.exception_check() {
+                //             env.exception_describe();
+                //             env.exception_clear();
+                //         }
+                //         return Err(Box::new(e));
+                //
+                //     }
+                // };
+                //
+                // let mapper = env.new_object(mapper_class, jni_sig!(()), &[])?;
+                //
+                // let java_serialized = env.call_method(
+                //     &mapper,
+                //     jni_str!("writeValueAsString"),
+                //     jni_sig!((obj: JObject) -> JString),
+                //     &[JValue::Object(self.0.as_obj())],
+                // )?;
+                //
+                // let jstr_obj = java_serialized.l()?;
+                // let jstr = JString::cast_local(env, jstr_obj)?;
+                //
+                // let rust_str: String = jstr.to_string();
+                let rust_str: String = String::new();
 
                 bytes.extend_from_slice(rust_str.as_bytes());
                 bytes.extend_from_slice(b"Agauog");
@@ -306,19 +310,15 @@ pub fn duplicate_global(g: &JavaGlobal) -> Result<JavaGlobal, FnError> {
 
 // Exposed functions used in the signature
 pub fn fn_new_immutable_byte_array() -> Result<ImmutableByteArray, FnError> {
-    println!("NEW");
+    log::debug!("Creation of a new Byte Array");
     let a = [
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1,
+        1,2,3,5,5
     ];
     let array = create_global_from_bytes(&a).map(ImmutableByteArray);
-    println!("NEWFINI");
     array
 }
 
 pub fn fn_immutable_byte_array_length(a: &ImmutableByteArray) -> Result<SppU64, FnError> {
-    println!("LENGTH");
+    log::debug!("Execution of fn_immutable_byte_array_length");
     global_length(&a.0).map(|l| SppU64(l as u64))
 }

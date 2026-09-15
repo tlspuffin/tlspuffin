@@ -23,7 +23,7 @@ impl Factory<SwissProtocolBehavior> for SppRustFactory {
         _claims: &GlobalClaimList<<SwissProtocolBehavior as ProtocolBehavior>::Claim>,
         _options: &PutOptions,
     ) -> Result<Box<dyn Put<SwissProtocolBehavior>>, PuffinError> {
-        print!("NEW");
+        log::debug!("NEW");
         Ok(Box::new(SppPut::new(agent_descriptor.clone())))
     }
 
@@ -110,10 +110,10 @@ use std::io::Write;
 
 impl Put<SwissProtocolBehavior> for SppPut {
     fn progress(&mut self) -> Result<(), PuffinError> {
-        println!("PROGRESS");
+        log::debug!("PROGRESS");
         // Send data to the Lua server if connected
         if let Some(ref mut sock) = self.socket {
-            let msg = b"test message from fuzzer\n";
+            let msg = b"\n";
             if let Err(e) = sock.write_all(msg) {
                 eprintln!("Error writing to socket: {}", e);
                 self.socket = None;

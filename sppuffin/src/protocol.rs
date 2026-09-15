@@ -74,7 +74,9 @@ pub struct SppU64(pub u64);
 
 impl puffin::codec::Codec for SppU64 {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        <u64 as puffin::codec::Codec>::encode(&self.0, bytes);
+        // <u64 as puffin::codec::Codec>::encode(&self.0, bytes);
+
+        bytes.push(48 + self.0 as u8);
     }
 
     fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
