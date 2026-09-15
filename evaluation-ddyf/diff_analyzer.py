@@ -5,37 +5,33 @@ from pathlib import Path
 from typing import Callable, Any
 import re
 from multiprocessing.pool import ThreadPool as Pool
-# from pathos.multiprocessing import Pool
 from functools import reduce
 from functools import partial
 
-
 OSSL = 1
 WOLF = 2
-PUFFIN_PATH = Path("target/release/tlspuffin")
-
+PUFFIN_PATH = Path("./sshpuffin_diff")
 
 def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
-    """
-    execute `trace` and get differences between `first_put` and `second_put`
-    """
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = f"/nix/store/k0rqiflg1vkn1kj96br5pfxj40p3srz4-zstd-1.5.7/lib:{env.get('LD_LIBRARY_PATH', '')}"
+    env["ASAN_OPTIONS"] = "verify_asan_link_order=1:detect_leaks=0:abort_on_error=1"
     result = subprocess.run(
         [PUFFIN_PATH, "differential-execute", "--json", first_put, second_put, trace],
-        timeout=5,  # 5 second timeout
+        timeout=5,
         capture_output=True,
+        env=env,
     )
-
     try:
         return json.loads(result.stdout)
     except Exception as e:
-        print(e)
-        raise BaseException
-
+        print(f"Error parsing trace {trace}: {e}")
+        return []
 
 def get_status(trace: str, put: str) -> dict:
-    """
-    Execute `trace` on `put` and get terms, knowledges, decryption, status and claims
-    """
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = f"/nix/store/k0rqiflg1vkn1kj96br5pfxj40p3srz4-zstd-1.5.7/lib:{env.get('LD_LIBRARY_PATH', '')}"
+    env["ASAN_OPTIONS"] = "verify_asan_link_order=1:detect_leaks=0:abort_on_error=1"
     result = subprocess.run(
         [
             PUFFIN_PATH,
@@ -43,22 +39,18 @@ def get_status(trace: str, put: str) -> dict:
             put,
             "display-execute",
             "--json",
-            "-t",
-            "-k",
-            "-c",
-            "-p",
+            "-tckp",
             trace,
         ],
-        timeout=5,  # 5 second timeout
+        timeout=5,
         capture_output=True,
+        env=env,
     )
-
     try:
         return json.loads(result.stdout)
     except Exception as e:
-        print(e, ":", result.stdout)
-        raise BaseException
-
+        print(f"Error parsing status for {trace}: {e} output: {result.stdout}")
+        return {}
 
 def get_error_from_status(status: dict) -> tuple[str, int]:
     error = status.get("first_status")
@@ -67,7 +59,6 @@ def get_error_from_status(status: dict) -> tuple[str, int]:
         error = status.get("second_status")
         put = 2
     return (error, put)
-
 
 def get_error(errors) -> str:
     if len(errors) == 0:
@@ -97,7 +88,6 @@ def get_error(errors) -> str:
             )
     return "unknown"
 
-
 class ExecutionStatus:
     errors: list[dict] = []
     put1_status: dict | None = None
@@ -108,7 +98,6 @@ class ExecutionStatus:
 
     def __init__(self, filepath: str, first_put: str, second_put: str):
         self.errors = get_diff(filepath, first_put, second_put)
-
         self.filepath = filepath
         self.first_put_name = first_put
         self.second_put_name = second_put
@@ -123,33 +112,16 @@ class ExecutionStatus:
             self.put2_status = get_status(self.filepath, self.second_put_name)
         return self.put2_status
 
-
 class BucketCondition:
-    """
-    All conditions must inherit this class
-    """
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         return False
 
-
 class NoDiffC(BucketCondition):
-    """
-    True if there are no differences between the execution
-    """
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         return len(exec_stat.errors) == 0
 
-
 class StepC(BucketCondition):
-    """
-    Check condition on execution step
-    """
-
-    # a function of first executed step, second executed step and total step
     cond: Callable[[int, int, int], bool]
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         if exec_stat.errors[0].get("Status") is not None:
             status = exec_stat.errors[0].get("Status")
@@ -157,40 +129,28 @@ class StepC(BucketCondition):
             first: int = status.get("first_executed_steps")
             second: int = status.get("second_executed_steps")
             total: int = status.get("total_step")
-
             return self.cond(first, second, total)
         return False
-
     def __init__(self, cond: Callable[[int, int, int], bool]):
         self.cond = cond
-
 
 class CheckAgentC(BucketCondition):
     key: list[str]
     value: Any
-
     def __init__(self, key: list[str], value: Any):
         self.key = key
         self.value = value
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         first_agent = exec_stat.put1().get("execution").get("agents")[0]
         v = reduce(dict.__getitem__, self.key, first_agent)
         return v == self.value
 
-
 class StatusC(BucketCondition):
-    """
-    Check the error status of a PUT and the number of executed steps
-
-    `first_to_fail` checks that `put_num` is the first PUT to fail when executing the trace
-    """
     put_num: int
     in_error: str | None
     first_executed_steps: Callable[[int], bool] | None
     second_executed_steps: Callable[[int], bool] | None
     first_to_fail: bool
-
     def __init__(
         self,
         put_num: int,
@@ -204,14 +164,11 @@ class StatusC(BucketCondition):
         self.first_executed_steps = first_executed_steps
         self.second_executed_steps = second_executed_steps
         self.first_to_fail = first_to_fail
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         status = exec_stat.put1()
         if self.put_num == 2:
             status = exec_stat.put2()
-
-        error = status["error"]
-
+        error = status.get("error")
         if self.first_to_fail:
             if len(exec_stat.errors) > 0:
                 s= exec_stat.errors[0].get("Status")
@@ -222,11 +179,8 @@ class StatusC(BucketCondition):
                     return False
             else:
                 return False
-
-
         if error is None:
             return False
-
         if (self.in_error is not None) and (self.in_error not in error):
             return False
         elif (
@@ -239,11 +193,9 @@ class StatusC(BucketCondition):
             return False
         return True
 
-
 class InnerKnowledgeC(BucketCondition):
     type_name: str | None
     diff_contains: str
-
     def __init__(
         self,
         diff_contains: str,
@@ -251,7 +203,6 @@ class InnerKnowledgeC(BucketCondition):
     ):
         self.type_name = type_name
         self.diff_contains = diff_contains
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for err in exec_stat.errors:
             if err.get("Knowledges") is not None and err.get("Knowledges").get(
@@ -264,11 +215,9 @@ class InnerKnowledgeC(BucketCondition):
                     return True
         return False
 
-
 class KnowledgeDiffC(BucketCondition):
     first_type_name: str
     second_type_name: str
-
     def __init__(
         self,
         first_type_name: str,
@@ -276,7 +225,6 @@ class KnowledgeDiffC(BucketCondition):
     ):
         self.first_type_name = first_type_name
         self.second_type_name = second_type_name
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for err in exec_stat.errors:
             if err.get("Knowledges") is not None and err.get("Knowledges").get(
@@ -290,14 +238,12 @@ class KnowledgeDiffC(BucketCondition):
                     return True
         return False
 
-
 class OnlyKnowledgeC(BucketCondition):
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for err in exec_stat.errors:
             if err.get("Knowledges") is None:
                 return False
         return True
-
 
 class SecurityClaimC(BucketCondition):
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
@@ -306,11 +252,9 @@ class SecurityClaimC(BucketCondition):
                 return True
         return False
 
-
 class DifferentClaimC(BucketCondition):
     in_first_type: str | None
     in_second_type: str | None
-
     def __init__(
         self,
         in_first_type: str | None = None,
@@ -318,7 +262,6 @@ class DifferentClaimC(BucketCondition):
     ):
         self.in_first_type = in_first_type
         self.in_second_type = in_second_type
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for err in exec_stat.errors:
             if (
@@ -337,7 +280,6 @@ class DifferentClaimC(BucketCondition):
                 return True
         return False
 
-
 class OnlyClaimC(BucketCondition):
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for err in exec_stat.errors:
@@ -345,17 +287,11 @@ class OnlyClaimC(BucketCondition):
                 return False
         return True
 
-
 class TermContainsC(BucketCondition):
-    """
-    Check if a specific input step contains a specific term/symbol
-    """
-
     put_num: int
     in_term: str
     check_first_input: bool
     last_input_executed: bool
-
     def __init__(
         self,
         put_num: int,
@@ -367,7 +303,6 @@ class TermContainsC(BucketCondition):
         self.in_term = in_term
         self.check_first_input = check_first_input
         self.last_input_executed = last_input_executed
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         status = exec_stat.put1() if self.put_num == 1 else exec_stat.put2()
         executed_until = status.get("execution").get("executed_until")
@@ -385,20 +320,13 @@ class TermContainsC(BucketCondition):
                 if self.in_term in input_term.get("recipe"):
                     return True
             is_first_input = False
-
         return False
 
-
 class TermContainsReC(BucketCondition):
-    """
-    Check if a specific input step contains a specific term/symbol expressed with a regex
-    """
-
     put_num: int
     in_term: str
     check_first_input: bool
     last_input_executed: bool
-
     def __init__(
         self,
         put_num: int,
@@ -410,7 +338,6 @@ class TermContainsReC(BucketCondition):
         self.in_term = in_term
         self.check_first_input = check_first_input
         self.last_input_executed = last_input_executed
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         exp = re.compile(self.in_term, re.MULTILINE)
         status = exec_stat.put1() if self.put_num == 1 else exec_stat.put2()
@@ -431,18 +358,12 @@ class TermContainsReC(BucketCondition):
             is_first_input = False
         return False
 
-
 class KnowledgeContainsC(BucketCondition):
-    """
-    Check if a specific knowledges contains a specific value
-    """
-
     put_num: int
     in_knowledge: str
     check_first_input: bool
     last_input_executed: bool
     check_extra: bool
-
     def __init__(
         self,
         put_num: int,
@@ -456,7 +377,6 @@ class KnowledgeContainsC(BucketCondition):
         self.check_first_input = check_first_input
         self.last_input_executed = last_input_executed
         self.check_extra = check_extra
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         status = exec_stat.put1() if self.put_num == 1 else exec_stat.put2()
         if status is None:
@@ -477,20 +397,13 @@ class KnowledgeContainsC(BucketCondition):
             for k in status.get("execution").get("extra_knowledges"):
                 if self.in_knowledge in k[1]:
                     return True
-
         return False
 
-
 class ClaimContainsC(BucketCondition):
-    """
-    Check if a specific claim contains a specific value
-    """
-
     put_num: int
     in_claim: str
     check_first_input: bool
     last_input_executed: bool
-
     def __init__(
         self,
         put_num: int,
@@ -502,7 +415,6 @@ class ClaimContainsC(BucketCondition):
         self.in_claim = in_claim
         self.check_first_input = check_first_input
         self.last_input_executed = last_input_executed
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         exp = re.compile(self.in_claim, re.MULTILINE)
         status = exec_stat.put1() if self.put_num == 1 else exec_stat.put2()
@@ -518,62 +430,40 @@ class ClaimContainsC(BucketCondition):
                 if exp.search(c):
                     return True
             is_first_input = False
-
         return False
 
-
 class AllC(BucketCondition):
-    """
-    True if all the given conditions are true
-    """
     conditions: list[BucketCondition]
-
     def __init__(self, *conditions: BucketCondition):
         self.conditions = list(conditions)
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for c in self.conditions:
             if not c.check_condition(exec_stat):
                 return False
         return True
 
-
 class AnyC(BucketCondition):
-    """
-    True if any of the given conditions is true
-    """
     conditions: list[BucketCondition]
-
     def __init__(self, *conditions: BucketCondition):
         self.conditions = list(conditions)
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         for c in self.conditions:
             if c.check_condition(exec_stat):
                 return True
         return False
 
-
 class NotC(BucketCondition):
-    """
-    Not operator on a condition
-    """
     condition: BucketCondition
-
     def __init__(self, condition: BucketCondition):
         self.condition = condition
-
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         return not (self.condition.check_condition(exec_stat))
-
 
 class TrueC(BucketCondition):
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         return True
 
-
 VALID = re.compile(r".*\.trace(-[0-9]+)?$")
-
 
 def sort_obj(
     source,
@@ -583,7 +473,6 @@ def sort_obj(
     second_put: str,
     file,
 ) -> str | None:
-    # check that the file is a valid trace
     if VALID.search(file) is not None:
         filepath = os.path.join(source, file)
         print(f"Trace : {file}")
@@ -594,11 +483,12 @@ def sort_obj(
         for bucket, condition in buckets.items():
             if condition.check_condition(exec_stat):
                 print(f"{file} checked {bucket} conditions")
+                # Modified move logic for SSH PUTs
                 trace_and_metadata = [
                     filepath,
-                    f"{filepath}_ossl.json",
-                    f"{filepath}_wolf.json",
-                    f"{filepath}_diff.json",
+                    f"{os.path.dirname(filepath)}/metadata_diff_{os.path.basename(filepath)}.log",
+                    f"{os.path.dirname(filepath)}/metadata_{first_put.replace('-asan', '')}_{os.path.basename(filepath)}.log",
+                    f"{os.path.dirname(filepath)}/metadata_{second_put.replace('-asan', '')}_{os.path.basename(filepath)}.log",
                 ]
                 for file_path in trace_and_metadata:
                     try:
@@ -611,7 +501,6 @@ def sort_obj(
                 break
         return get_error(exec_stat.errors)
 
-
 def run_triaging(
     buckets: dict[str, BucketCondition],
     first_put: str,
@@ -623,15 +512,12 @@ def run_triaging(
     if not os.path.isdir(source_folder):
         print(f"objective folder {source_folder} does not exist")
 
-    # Create all buckets
     for k, _ in buckets.items():
         os.makedirs(os.path.dirname(os.path.join(target_folder, k)), exist_ok=True)
 
-    # read all files in the objective directory
     func_wrapper = partial(
         sort_obj, source_folder, target_folder, buckets, first_put, second_put
     )
-    # Using threadpool instead of a process pool to allow Python to pickle lambda functions
     with Pool(parallelism) as p:
         errs = p.map(func_wrapper, os.listdir(source_folder))
         err_count = {}
@@ -643,7 +529,6 @@ def run_triaging(
         )
         for k, v in err_count.items():
             print(k, ": ", v)
-
 
 if __name__ == "__main__":
     pass
