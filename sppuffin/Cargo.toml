@@ -24,3 +24,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 log = "0.4.29"
 once_cell = { workspace = true }
 rand = "0.8"
+
+[dev-dependencies]
+test-log = { workspace = true }
+env_logger = { workspace = true }
+serde_json = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "benchmark"
+harness = false
