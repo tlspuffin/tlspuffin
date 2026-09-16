@@ -22,6 +22,55 @@ thread_local! {
     pub static OBJECTIVE_HASH: Cell<Option<u64>> = const { Cell::new(None)};
 }
 
+/// Temporary feedback for bring-up: treat every executed input as corpus-worthy.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct AlwaysInterestingFeedback;
+
+impl AlwaysInterestingFeedback {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Named for AlwaysInterestingFeedback {
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("AlwaysInterestingFeedback")
+    }
+}
+
+impl<S> StateInitializer<S> for AlwaysInterestingFeedback {
+    fn init_state(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<EM, I, OT, S> Feedback<EM, I, OT, S> for AlwaysInterestingFeedback
+where
+    OT: ObserversTuple<I, S>,
+{
+    fn is_interesting(
+        &mut self,
+        _: &mut S,
+        _: &mut EM,
+        _: &I,
+        _: &OT,
+        _: &ExitKind,
+    ) -> Result<bool, Error> {
+        Ok(true)
+    }
+
+    fn is_interesting_introspection(
+        &mut self,
+        s: &mut S,
+        em: &mut EM,
+        i: &I,
+        ot: &OT,
+        ek: &ExitKind,
+    ) -> Result<bool, Error> {
+        self.is_interesting(s, em, i, ot, ek)
+    }
+}
+
 /// Feedback that triggers when the harness sets [`OBJECTIVE_TRIGGERED`] to `true`.
 ///
 /// Used to record security-claim violations and differential differences as objectives
