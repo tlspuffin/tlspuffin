@@ -38,23 +38,34 @@
 
 #include "bindings.h"
 #include "rng.h"
+#include <puffin/ssh_authorized_creds.h>
 
 /*
- * PUFFIN claim-instrumentation hooks exposed by the patched libssh
- * (puffin-build/vendors/libssh/instrument_claims.cmake). They expose the
- * session id (exchange hash H) and a per-direction secure-channel message-type
- * digest, for the matching-conversation oracle. Declared here because they are
- * not part of any libssh public header. Declared `weak` so the harness still
- * links against a libssh build that lacks the instrumentation patch (e.g. an
- * older vendored version): the symbols then resolve to NULL and the claim
- * fields stay "unavailable" (0 / empty), which the oracle treats as a no-op.
+ * Claim instrumentation (HAS_CLAIMS).
+ *
+ * Everything guarded by HAS_CLAIMS below builds the security-claim used by the
+ * claims-based matching-conversation / entity-authentication oracle. It is
+ * compiled ONLY when the vendored libssh carries the PUFFIN claim-instrumentation
+ * patch (puffin-build/vendors/libssh/instrument_claims.cmake) — the build sets
+ * -DHAS_CLAIMS iff the library exposes those hooks (see puffin-build harness
+ * wrap()). When it is absent (a plain vendored libssh, or the differential
+ * fuzzing setup that does not register a claimer), this code compiles out to
+ * no-ops, keeping the harness minimal and symmetric with the wolfSSH harness —
+ * i.e. a thin driver that only makes authorization decisions and lets libssh
+ * own the protocol. It never affects the protocol path (state transitions live
+ * outside these functions), only whether a claim is emitted.
+ *
+ * The hooks below expose the session id (exchange hash H) and per-direction
+ * secure-channel message-type digests; they are not in any public libssh header.
  */
+#ifdef HAS_CLAIMS
 extern uint64_t puffin_ssh_get_secure_tx_digest(ssh_session session) __attribute__((weak));
 extern uint64_t puffin_ssh_get_secure_rx_digest(ssh_session session) __attribute__((weak));
 extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, size_t *len)
     __attribute__((weak));
 extern uint32_t puffin_ssh_get_rx_count(ssh_session session) __attribute__((weak));
 extern uint32_t puffin_ssh_get_tx_count(ssh_session session) __attribute__((weak));
+#endif /* HAS_CLAIMS */
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
 
@@ -132,6 +143,19 @@ struct AGENT_TYPE
     char auth_user[SSH_CLAIM_STR_LEN];
     uint8_t auth_key_fp[32];
     uint8_t auth_key_fp_len;
+
+    /* High-level server-callbacks harness state. libssh keeps pointers to these
+       callback structs for the whole session lifetime, so they must live in the
+       agent (not on the stack). This lets libssh's own state machine drive auth,
+       service and channel handling — including sending CHANNEL_SUCCESS for a
+       want_reply exec/shell request — rather than the harness re-implementing it
+       via the low-level ssh_message API. */
+    struct ssh_server_callbacks_struct server_cb;
+    struct ssh_channel_callbacks_struct channel_cb;
+    ssh_event event;      /* event loop that dispatches the callbacks */
+    ssh_channel channel;  /* session channel the client opened, or NULL */
+    bool authenticated;   /* set by the auth callback */
+    bool callbacks_ready; /* server callbacks + event registered (post-KEX) */
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -383,6 +407,14 @@ static void libssh_destroy(AGENT agent)
 
     close(agent->fuzz_fd);
 
+    /* Remove the session from the event before freeing either. The channel is
+     * owned by the session and freed by ssh_free below. */
+    if (agent->event)
+    {
+        ssh_event_remove_session(agent->event, agent->session);
+        ssh_event_free(agent->event);
+    }
+
     if (agent->bind)
         ssh_bind_free(agent->bind);
 
@@ -414,6 +446,7 @@ static void libssh_destroy(AGENT agent)
 
 /* ── claim emission ──────────────────────────────────────────────────────── */
 
+#ifdef HAS_CLAIMS
 /* Copy a libssh getter string (may be NULL) into a fixed-size claim buffer. */
 static void claim_set(char *dst, const char *src)
 {
@@ -421,48 +454,122 @@ static void claim_set(char *dst, const char *src)
         src = "";
     snprintf(dst, SSH_CLAIM_STR_LEN, "%s", src);
 }
+#endif /* HAS_CLAIMS */
 
-/*
- * Server-side publickey authentication.
+/* ── High-level server callbacks ─────────────────────────────────────────────
  *
- * libssh performs the cryptographic signature verification itself; we only make
- * the *authorization* decision and record the agent's belief about which key
- * authenticated. Returns 1 to accept (signature verified), 0 if a "pk_ok" probe
- * reply was sent and we must await the signature, and -1 to reject.
- *
- * On accept we record the SHA-256 fingerprint of the verified key. The
- * impersonation oracle later checks that fingerprint against the single client
- * key the attacker can sign for; any other key means the library accepted a
- * credential the attacker could not legitimately produce.
+ * These let libssh's own state machine own auth / service / channel handling.
+ * userdata is the AGENT. libssh verifies publickey signatures and enforces
+ * message ordering itself before invoking these, so the harness only makes the
+ * authorization decision and records the belief for the claim.
  */
-static int handle_publickey_auth(AGENT agent, ssh_message msg, const char *user)
+
+static int cb_auth_pubkey(ssh_session session,
+                          const char *user,
+                          struct ssh_key_struct *pubkey,
+                          char sig_state,
+                          void *userdata)
 {
-    enum ssh_publickey_state_e state = ssh_message_auth_publickey_state(msg);
+    (void)session;
+    AGENT agent = (AGENT)userdata;
 
-    if (state == SSH_PUBLICKEY_STATE_NONE)
-    {
-        /* Probe: tell the client the key is acceptable, so it sends a signature. */
-        ssh_message_auth_reply_pk_ok_simple(msg);
-        return 0;
-    }
-    if (state != SSH_PUBLICKEY_STATE_VALID)
-        return -1;
+    /* Probe (no signature yet): tell libssh the key is acceptable so it replies
+     * SSH_MSG_USERAUTH_PK_OK and the client sends the signed request. */
+    if (sig_state == SSH_PUBLICKEY_STATE_NONE)
+        return SSH_AUTH_SUCCESS;
+    if (sig_state != SSH_PUBLICKEY_STATE_VALID)
+        return SSH_AUTH_DENIED;
 
-    ssh_key key = ssh_message_auth_pubkey(msg);
+    /* libssh cryptographically verified the signature. Compute the key
+     * fingerprint and enforce the shared (user, key) allow-list: a valid
+     * signature is necessary but not sufficient — the key must be authorized
+     * FOR THIS USER. This rejects unauthorized key C and any cross-identity
+     * pairing (e.g. user "user" presenting key B), which is the credential-
+     * confusion boundary a differential run can compare against wolfSSH. */
     unsigned char *hash = NULL;
     size_t hlen = 0;
-    if (key != NULL && ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
+    uint8_t fp[32];
+    size_t fp_len = 0;
+    if (pubkey != NULL &&
+        ssh_get_publickey_hash(pubkey, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
     {
-        size_t n = hlen > sizeof(agent->auth_key_fp) ? sizeof(agent->auth_key_fp) : hlen;
-        memcpy(agent->auth_key_fp, hash, n);
-        agent->auth_key_fp_len = (uint8_t)n;
+        fp_len = hlen > sizeof(fp) ? sizeof(fp) : hlen;
+        memcpy(fp, hash, fp_len);
         ssh_clean_pubkey_hash(&hash);
     }
+
+    if (!ssh_creds_key_authorized(user, fp, fp_len))
+        return SSH_AUTH_DENIED;
+
+    /* Authorized: record the belief (kept for the claim path). */
+    memcpy(agent->auth_key_fp, fp, fp_len);
+    agent->auth_key_fp_len = (uint8_t)fp_len;
     snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
     snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user ? user : "");
-    return 1;
+    agent->authenticated = true;
+    return SSH_AUTH_SUCCESS;
 }
 
+static int
+cb_auth_password(ssh_session session, const char *user, const char *password, void *userdata)
+{
+    (void)session;
+    AGENT agent = (AGENT)userdata;
+    /* Enforce the shared (user, password) allow-list, mirroring wolfSSH. */
+    size_t pw_len = password ? strlen(password) : 0;
+    if (!ssh_creds_password_authorized(user, (const uint8_t *)password, pw_len))
+        return SSH_AUTH_DENIED;
+
+    snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
+    snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user ? user : "");
+    agent->auth_key_fp_len = 0;
+    agent->authenticated = true;
+    return SSH_AUTH_SUCCESS;
+}
+
+static int cb_service_request(ssh_session session, const char *service, void *userdata)
+{
+    (void)session;
+    (void)service;
+    (void)userdata;
+    return 0; /* accept the service request */
+}
+
+static int
+cb_channel_exec(ssh_session session, ssh_channel channel, const char *command, void *userdata)
+{
+    (void)session;
+    (void)channel;
+    (void)command;
+    (void)userdata;
+    return SSH_OK; /* accept → libssh sends CHANNEL_SUCCESS if want_reply */
+}
+
+static int cb_channel_shell(ssh_session session, ssh_channel channel, void *userdata)
+{
+    (void)session;
+    (void)channel;
+    (void)userdata;
+    return SSH_OK;
+}
+
+static ssh_channel cb_channel_open(ssh_session session, void *userdata)
+{
+    AGENT agent = (AGENT)userdata;
+    if (agent->channel != NULL)
+        return NULL; /* one session channel is enough */
+    agent->channel = ssh_channel_new(session);
+    if (agent->channel == NULL)
+        return NULL;
+    ssh_callbacks_init(&agent->channel_cb);
+    agent->channel_cb.userdata = agent;
+    agent->channel_cb.channel_exec_request_function = cb_channel_exec;
+    agent->channel_cb.channel_shell_request_function = cb_channel_shell;
+    ssh_set_channel_callbacks(agent->channel, &agent->channel_cb);
+    return agent->channel;
+}
+
+#ifdef HAS_CLAIMS
 /*
  * Build a HandshakeComplete claim from the session's negotiated parameters and
  * hand it to the registered callback. Fires at most once per agent (guarded by
@@ -562,6 +669,20 @@ static void emit_phase_claim(AGENT agent)
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->last_emitted_phase = phase;
 }
+#else  /* !HAS_CLAIMS */
+/* No claim instrumentation in this libssh build: claim emission compiles out to
+ * no-ops so call sites need no guarding and the differential harness stays
+ * minimal. Protocol behaviour is unaffected — state transitions live in the
+ * caller, not here. */
+static void emit_handshake_claim(AGENT agent)
+{
+    (void)agent;
+}
+static void emit_phase_claim(AGENT agent)
+{
+    (void)agent;
+}
+#endif /* HAS_CLAIMS */
 
 static RESULT libssh_progress(AGENT agent)
 {
@@ -573,29 +694,15 @@ static RESULT libssh_progress(AGENT agent)
 
     if (agent->state == PUT_STATE_DONE)
     {
-        /* Handle channel-level traffic so the fuzzer can exercise channel code paths */
-        if (agent->descriptor.role == SSH_SERVER)
+        /* Post-auth: keep dispatching the event loop so libssh handles any
+         * further channel traffic (open, exec/shell requests, data) itself. */
+        if (agent->descriptor.role == SSH_SERVER && agent->event != NULL)
         {
-            ssh_message msg;
-            for (int i = 0; i < 8; ++i)
+            for (int i = 0; i < 16; ++i)
             {
-                msg = ssh_message_get(agent->session);
-                if (!msg)
+                int rc = ssh_event_dopoll(agent->event, 0);
+                if (rc == SSH_ERROR || rc == SSH_AGAIN)
                     break;
-                int type = ssh_message_type(msg);
-                if (type == SSH_REQUEST_CHANNEL_OPEN)
-                {
-                    ssh_message_channel_request_open_reply_accept(msg);
-                }
-                else if (type == SSH_REQUEST_CHANNEL)
-                {
-                    ssh_message_channel_request_reply_success(msg);
-                }
-                else
-                {
-                    ssh_message_reply_default(msg);
-                }
-                ssh_message_free(msg);
             }
         }
         return ok_result();
@@ -627,99 +734,62 @@ static RESULT libssh_progress(AGENT agent)
                 return ok_result();
         }
 
-        if (agent->state == PUT_STATE_AUTH)
+        /* Register the high-level server callbacks once, right after KEX. From
+         * here libssh's own state machine drives auth (publickey/password),
+         * service requests, channel open, and channel requests — including
+         * sending USERAUTH_PK_OK/FAILURE/SUCCESS and CHANNEL_SUCCESS/FAILURE per
+         * RFC 4252/4254 — instead of the harness re-implementing it. This keeps
+         * the harness thin and its behaviour close to a real libssh server (and
+         * symmetric with the wolfSSH harness, which delegates to wolfSSH_accept). */
+        if (!agent->callbacks_ready)
         {
-            for (int i = 0; i < 4; ++i)
+            ssh_callbacks_init(&agent->server_cb);
+            agent->server_cb.userdata = agent;
+            agent->server_cb.auth_pubkey_function = cb_auth_pubkey;
+            agent->server_cb.auth_password_function = cb_auth_password;
+            agent->server_cb.service_request_function = cb_service_request;
+            agent->server_cb.channel_open_request_session_function = cb_channel_open;
+            ssh_set_server_callbacks(agent->session, &agent->server_cb);
+            ssh_set_auth_methods(agent->session,
+                                 SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
+            agent->event = ssh_event_new();
+            if (agent->event == NULL)
             {
-                ssh_message msg = ssh_message_get(agent->session);
-                if (!msg)
-                {
-                    /* Check if the session is in error state (e.g. MAC failure) */
-                    if (ssh_get_status(agent->session) & SSH_CLOSED_ERROR)
-                    {
-                        agent->state = PUT_STATE_ERROR;
-                        snprintf(agent->state_desc,
-                                 sizeof(agent->state_desc),
-                                 "AUTH/SESSION_ERROR: %s",
-                                 ssh_get_error(agent->session));
-                        return error_result(agent->state_desc);
-                    }
-                    break;
-                }
-
-                int msg_type = ssh_message_type(msg);
-                if (msg_type == SSH_REQUEST_AUTH)
-                {
-                    int method = ssh_message_subtype(msg);
-                    const char *user = ssh_message_auth_user(msg);
-                    if (method == SSH_AUTH_METHOD_PUBLICKEY)
-                    {
-                        /* libssh cryptographically verifies the signature; when
-                         * the state is VALID we record exactly which public key
-                         * was accepted, so the impersonation oracle can check it
-                         * against the only key the attacker can sign for. */
-                        int pk = handle_publickey_auth(agent, msg, user);
-                        if (pk == 1)
-                        {
-                            ssh_message_auth_reply_success(msg, 0);
-                            agent->state = PUT_STATE_DONE;
-                            snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
-                            emit_handshake_claim(agent);
-                            ssh_message_free(msg);
-                            break;
-                        }
-                        else if (pk < 0)
-                        {
-                            ssh_message_reply_default(msg);
-                        }
-                        /* pk == 0: a pk_ok probe reply was sent; await signature. */
-                    }
-                    else
-                    {
-                        /* Password / other: accepted as before (the impersonation
-                         * property is publickey-specific). */
-                        snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
-                        snprintf(agent->auth_user,
-                                 sizeof(agent->auth_user),
-                                 "%s",
-                                 user ? user : "");
-                        agent->auth_key_fp_len = 0;
-                        ssh_message_auth_reply_success(msg, 0);
-                        agent->state = PUT_STATE_DONE;
-                        snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
-                        emit_handshake_claim(agent);
-                        ssh_message_free(msg);
-                        break;
-                    }
-                }
-                else if ((msg_type == SSH_REQUEST_CHANNEL_OPEN ||
-                          msg_type == SSH_REQUEST_CHANNEL) &&
-                         agent->auth_method[0] == '\0')
-                {
-                    /* A post-authentication request (channel open) accepted by
-                       the library while we, the application, authenticated no
-                       one: the peer reached an authenticated state without any
-                       authentication having occurred — an authentication bypass
-                       (e.g. CVE-2018-10933). The handshake "completes" with no
-                       auth method recorded, which the entity-authentication
-                       oracle flags. */
-                    snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE/AUTH-BYPASS");
-                    agent->state = PUT_STATE_DONE;
-                    emit_handshake_claim(agent);
-                    ssh_message_free(msg);
-                    break;
-                }
-                else if (msg_type == SSH_REQUEST_SERVICE)
-                {
-                    /* Accept the service request so the client can proceed to auth */
-                    ssh_message_service_reply_success(msg);
-                }
-                else
-                {
-                    ssh_message_reply_default(msg);
-                }
-                ssh_message_free(msg);
+                agent->state = PUT_STATE_ERROR;
+                return error_result("ssh_event_new failed");
             }
+            ssh_event_add_session(agent->event, agent->session);
+            agent->callbacks_ready = true;
+        }
+
+        /* Dispatch pending callbacks non-blocking (timeout 0). Each dopoll
+         * processes whatever input the fuzzer already delivered and lets libssh
+         * emit its replies; SSH_AGAIN means no more data is ready right now. */
+        for (int i = 0; i < 16; ++i)
+        {
+            int rc = ssh_event_dopoll(agent->event, 0);
+            if (rc == SSH_ERROR)
+            {
+                if (ssh_get_status(agent->session) & (SSH_CLOSED | SSH_CLOSED_ERROR))
+                {
+                    agent->state = PUT_STATE_ERROR;
+                    snprintf(agent->state_desc,
+                             sizeof(agent->state_desc),
+                             "SESSION_ERROR: %s",
+                             ssh_get_error(agent->session));
+                    return error_result(agent->state_desc);
+                }
+                break;
+            }
+            if (rc == SSH_AGAIN)
+                break;
+        }
+
+        if (agent->authenticated && !agent->claim_emitted)
+        {
+            agent->state = PUT_STATE_DONE;
+            snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+            emit_handshake_claim(agent);
         }
     }
     else /* SSH_CLIENT */

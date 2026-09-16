@@ -4,6 +4,7 @@
 #include <puffin/puffin.h>
 #include <puffin/ssh.h>
 
+#include <libssh/callbacks.h>
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 

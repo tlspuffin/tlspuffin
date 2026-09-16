@@ -13,6 +13,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub mod message;
 pub(crate) mod seeds;
+pub mod transcript;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
@@ -95,6 +96,10 @@ define_signature!(
     fn_username_long
     fn_password_empty
     fn_password_long
+    fn_username_b
+    fn_username_c
+    fn_password_b
+    fn_password_c
     fn_u32_7
     fn_u32_max
     fn_u32_0x10000
@@ -110,6 +115,7 @@ define_signature!(
     fn_password_auth_data
     fn_none_auth_data
     fn_exec_payload
+    fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty
     fn_ssh_public_key
@@ -183,6 +189,12 @@ define_signature!(
     fn_derive_iv_s2c
     fn_encrypt_packet_aesgcm
     fn_decrypt_packet_aesgcm
+    fn_decrypt_flight_aesgcm
+    // Single comparison recipe of the AES-GCM decryption differential: folds a
+    // server flight into one key-aligned `AlignedTranscript` (see
+    // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
+    fn_fold_s2c_transcript [no_gen]
+    fn_concat_raw_flights
     fn_derive_ctr_key_c2s
     fn_derive_ctr_key_s2c
     fn_derive_ctr_iv_c2s
@@ -197,6 +209,10 @@ define_signature!(
     fn_sign_exchange_hash [no_gen]
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
+    fn_client_b_pubkey_blob
+    fn_client_c_pubkey_blob
     fn_sign_userauth [no_gen]
+    fn_sign_userauth_b [no_gen]
+    fn_sign_userauth_c [no_gen]
     fn_publickey_auth_data
 );

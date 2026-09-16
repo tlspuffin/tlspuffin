@@ -26,6 +26,7 @@
 
 #include "bindings.h"
 #include "server_key.h"
+#include <puffin/ssh_authorized_creds.h>
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
 
@@ -75,48 +76,71 @@ static RESULT
 wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 
-/* ── auth callback: accept everything ────────────────────────────────────── */
+/* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
 static const char WOLFSSH_AUTH_PASSWORD[] = "password";
 
 static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 {
     AGENT agent = (AGENT)ctx;
-    /* Dual purpose: as a SERVER, accept any credential (return SUCCESS); as a
-       CLIENT, *provide* a password so SendUserAuthRequest has something to send
-       (wolfSSH calls the same callback to obtain client credentials). */
-    if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
+    bool is_server = (agent != NULL && agent->descriptor.role == SSH_SERVER);
+
+    /* CLIENT role: *provide* a password so SendUserAuthRequest has something to
+       send (wolfSSH calls the same callback to obtain client credentials). Only
+       do this off the server path — on the server, sf.password holds the
+       RECEIVED password and must not be overwritten. */
+    if (!is_server)
     {
-        authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
-        authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+        if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
+        {
+            authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
+            authData->sf.password.passwordSz =
+                (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+        }
+        return WOLFSSH_USERAUTH_SUCCESS;
     }
 
-    /* Record the server's authentication belief for the claim. wolfSSH has
-       cryptographically verified the publickey signature by the time it calls
-       us with hasSignature set, so this mirrors the libssh harness: the method,
-       user, and — for publickey — the SHA-256 fingerprint of the verified key. */
-    if (agent != NULL && agent->descriptor.role == SSH_SERVER && authData != NULL)
+    /* SERVER role: enforce the shared (user, key) / (user, password) allow-list
+       so the boundary is identical to the libssh harness. wolfSSH has
+       cryptographically verified the publickey signature by the time it calls us
+       with hasSignature set; a valid signature is necessary but not sufficient —
+       the key must be authorized FOR THIS USER. */
+    if (authData == NULL)
+        return WOLFSSH_USERAUTH_FAILURE;
+
+    char user[SSH_CLAIM_STR_LEN];
+    snprintf(user, sizeof(user), "%.*s", (int)authData->usernameSz,
+             authData->username ? (const char *)authData->username : "");
+    snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user);
+
+    if (authType == WOLFSSH_USERAUTH_PUBLICKEY)
     {
-        snprintf(agent->auth_user,
-                 sizeof(agent->auth_user),
-                 "%.*s",
-                 (int)authData->usernameSz,
-                 authData->username ? (const char *)authData->username : "");
-        if (authType == WOLFSSH_USERAUTH_PUBLICKEY && authData->sf.publicKey.hasSignature)
-        {
-            snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
-            wc_Sha256Hash(authData->sf.publicKey.publicKey,
-                          authData->sf.publicKey.publicKeySz,
-                          agent->auth_key_fp);
-            agent->auth_key_fp_len = 32;
-        }
-        else if (authType == WOLFSSH_USERAUTH_PASSWORD)
-        {
-            snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
-            agent->auth_key_fp_len = 0;
-        }
+        if (!authData->sf.publicKey.hasSignature)
+            return WOLFSSH_USERAUTH_SUCCESS; /* probe: let the client send the sig */
+
+        uint8_t fp[32];
+        wc_Sha256Hash(authData->sf.publicKey.publicKey,
+                      authData->sf.publicKey.publicKeySz, fp);
+        if (!ssh_creds_key_authorized(user, fp, sizeof(fp)))
+            return WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
+
+        snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
+        memcpy(agent->auth_key_fp, fp, sizeof(fp));
+        agent->auth_key_fp_len = 32;
+        return WOLFSSH_USERAUTH_SUCCESS;
     }
-    return WOLFSSH_USERAUTH_SUCCESS;
+    else if (authType == WOLFSSH_USERAUTH_PASSWORD)
+    {
+        if (!ssh_creds_password_authorized(user, authData->sf.password.password,
+                                           authData->sf.password.passwordSz))
+            return WOLFSSH_USERAUTH_INVALID_PASSWORD;
+
+        snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
+        agent->auth_key_fp_len = 0;
+        return WOLFSSH_USERAUTH_SUCCESS;
+    }
+
+    return WOLFSSH_USERAUTH_FAILURE;
 }
 
 /* Client-side host-key check: accept any server key. Without this, wolfSSH's
@@ -392,6 +416,29 @@ static RESULT wolfssh_progress(AGENT agent)
                 snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/WOULD_BLOCK");
                 return ok_result();
             }
+            /* wolfSSH_accept returns non-error STATUS codes (not failures) when
+               channel activity happens while it is still driving the accept
+               loop: channel data / extended data became available, or a rekey
+               is in flight. libssh's harness consumes these via its channel
+               callbacks and keeps going; treating them as a failed handshake
+               here (as any non-would-block code otherwise is) is a harness
+               asymmetry that made post-auth channel-data seeds diverge. Mirror
+               libssh: a channel-data status means KEX+auth+channel-open already
+               completed, so move to DONE (the DONE path's wolfSSH_worker drains
+               the channel); a rekey status just means keep progressing. */
+            if (rc == WS_CHAN_RXD || gerr == WS_CHAN_RXD || rc == WS_EXTDATA ||
+                gerr == WS_EXTDATA)
+            {
+                agent->state = PUT_STATE_DONE;
+                snprintf(agent->state_desc, sizeof(agent->state_desc),
+                         "DONE (channel data during accept)");
+                return ok_result();
+            }
+            if (rc == WS_REKEYING || gerr == WS_REKEYING)
+            {
+                snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/REKEYING");
+                return ok_result();
+            }
             /* A failed handshake is the common, expected outcome when the
                fuzzer feeds mutated input — the PUT is correctly rejecting it.
                Report it through error_result (the channel the fuzzer handles)
@@ -415,13 +462,37 @@ static RESULT wolfssh_progress(AGENT agent)
 
     if (agent->state == PUT_STATE_DONE)
     {
-        /* Drive the channel layer so post-auth traffic is processed. */
-        word32 channelId = 0;
-        int rc = wolfSSH_worker(agent->ssh, &channelId);
-        if (rc != WS_SUCCESS && !is_would_block(rc))
+        /* Drive the post-handshake state machine to quiescence, exactly like a
+         * real server's event loop (and mirroring the libssh harness's
+         * ssh_event_dopoll loop above). A SINGLE wolfSSH_worker call is NOT a
+         * faithful I/O stub: some operations need several worker calls to fully
+         * process input and FLUSH all output (e.g. reading a peer KEXINIT and
+         * then sending the rekey KEXINIT response). Calling worker once dropped
+         * that second-step output, making the harness's wolfSSH behave
+         * differently from a real TCP server. Loop until it would-block (nothing
+         * left to do) or hits a fatal error; a bounded cap prevents a spin. */
+        for (int i = 0; i < 32; ++i)
         {
-            /* Channel-layer errors are not fatal for the harness. */
+            word32 channelId = 0;
+            int rc = wolfSSH_worker(agent->ssh, &channelId);
+            int err = wolfSSH_get_error(agent->ssh);
+            /* Mirror the wolfSSH echoserver's post-handshake loop exactly (see
+             * examples/echoserver.c): during a rekey, KEEP TURNING THE CRANK —
+             * wolfSSH_worker returns WS_REKEYING while it drives the re-exchange
+             * across several calls (reading the peer KEXINIT, sending its own
+             * KEXINIT and KEXDH_REPLY, NEWKEYS). Breaking on WS_REKEYING (as a
+             * single call does) leaves the rekey half-driven and drops the
+             * server's rekey output, making the harness diverge from a real
+             * server. */
+            if (rc == WS_REKEYING)
+                continue;
+            if (is_would_block(err))
+                break; /* WANT_READ/WANT_WRITE: no more to do this round */
+            if (rc == WS_SUCCESS || rc == WS_CHAN_RXD)
+                continue; /* made progress; more may be pending */
+            /* Real error / EOF: record and stop (next input feeds on next step). */
             snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE/worker rc=%d", rc);
+            break;
         }
         return ok_result();
     }

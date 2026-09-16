@@ -124,6 +124,21 @@ fn main() {
     if cfg!(feature = "gcov") {
         println!("cargo:rustc-link-arg=-ftest-coverage");
         println!("cargo:rustc-link-arg=-fprofile-arcs");
+        // The gcov/profile runtime references atexit, which glibc keeps in
+        // libc_nonshared.a — suppressed by rust's -nodefaultlibs. Compile a shim
+        // that provides atexit (via __cxa_atexit in libc.so) and link it, so the
+        // gcov build resolves instead of failing with "undefined reference to
+        // atexit".
+        let shim_src = project_dir.join("sshpuffin/harness/gcov_atexit_shim.c");
+        let shim_obj = PathBuf::from(&out_dir).join("gcov_atexit_shim.o");
+        let status = std::process::Command::new("clang")
+            .args(["-c", "-fPIC", "-o"])
+            .arg(&shim_obj)
+            .arg(&shim_src)
+            .status()
+            .expect("failed to compile gcov atexit shim");
+        assert!(status.success(), "gcov atexit shim compile failed");
+        println!("cargo:rustc-link-arg={}", shim_obj.display());
     }
 
     if cfg!(feature = "llvm_cov") {

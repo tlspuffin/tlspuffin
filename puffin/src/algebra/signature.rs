@@ -318,6 +318,28 @@ impl<PT: ProtocolTypes> Signature<PT> {
             source,
             matcher,
             counter,
+            concatenate_all: false,
+        };
+        Variable::new(type_shape, query)
+    }
+
+    /// Like [`Self::new_var`] but the variable resolves to the CONCATENATION of
+    /// all matching knowledges (see [`Query::concatenate_all`]). Used by the
+    /// `term!((agent, *) / Type)` query syntax.
+    #[must_use]
+    pub fn new_var_all<M: Matcher>(
+        type_shape: TypeShape<PT>,
+        source: Option<Source>,
+        matcher: Option<M>,
+    ) -> Variable<PT>
+    where
+        PT: ProtocolTypes<Matcher = M>,
+    {
+        let query = Query {
+            source,
+            matcher,
+            counter: 0,
+            concatenate_all: true,
         };
         Variable::new(type_shape, query)
     }

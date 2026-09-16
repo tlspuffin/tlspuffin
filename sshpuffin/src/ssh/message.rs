@@ -783,9 +783,19 @@ impl Codec for ChannelOpenMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct ChannelOpenConfirmationMessage {
+    // The client's channel number, echoed back — both servers must return what
+    // the client sent, so this is a meaningful cross-vendor comparison.
     pub recipient_channel: u32,
+    // Server-chosen channel id and flow-control parameters. These are
+    // implementation-defined (RFC 4254 §5.1): libssh and wolfSSH pick different
+    // sender_channel ids and different default window / max-packet sizes, so
+    // they legitimately differ cross-vendor and must not be compared (same class
+    // as the KEX cookie / ephemeral key).
+    #[comparable_ignore]
     pub sender_channel: u32,
+    #[comparable_ignore]
     pub initial_window_size: u32,
+    #[comparable_ignore]
     pub maximum_packet_size: u32,
     #[extractable_no_recursion]
     pub channel_data: Vec<u8>,
@@ -1293,6 +1303,76 @@ mod tests {
     use puffin::codec::Codec;
 
     use super::*;
+
+    /// The `(agent, *)` concatenate-all query (`Query::concatenate_all` /
+    /// `TraceContext::find_variable_concat`) recovers a fragmented stream by
+    /// concatenating every matching knowledge's ENCODING and re-reading the whole
+    /// buffer as one value. This locks in the property that resolution relies on
+    /// for SSH: several per-drain `RawSshMessageFlight` encodings, joined and
+    /// re-read via `try_read_bytes`, reconstruct one flight carrying every message
+    /// in emission order (the deframer re-frames across the joined drain
+    /// boundaries). If this regressed, the s2c decryption differential would
+    /// desync at the (PUT-dependent) drain boundaries and manufacture false
+    /// positives. PUT-free.
+    #[test]
+    fn concatenated_flights_reread_as_one_stream() {
+        use std::any::TypeId;
+
+        use puffin::codec::Reader;
+        use puffin::protocol::ProtocolMessage;
+
+        use crate::protocol::RawSshMessageFlight;
+
+        // Three "drains", split at arbitrary boundaries (as puffin's per-step
+        // output drains would capture them, and as the two PUTs batch
+        // differently). Pre-NEWKEYS plaintext packets only: a NEWKEYS (msg 21)
+        // would flip the deframer into encrypted mode and legitimately re-frame
+        // everything after it as opaque ciphertext, which is a different regime.
+        let sa = |n: &[u8]| {
+            SshMessage::ServiceAccept(ServiceAcceptMessage {
+                service_name: SshBytes::new(n),
+            })
+        };
+        let eof = |c: u32| {
+            SshMessage::ChannelEof(ChannelEofMessage {
+                recipient_channel: c,
+            })
+        };
+        let d1 = vec![sa(b"ssh-userauth")];
+        let d2 = vec![eof(7)];
+        let d3 = vec![sa(b"ssh-connection"), eof(9)];
+        let to_flight = |msgs: &[SshMessage]| RawSshMessageFlight {
+            messages: msgs.iter().map(|m| m.create_opaque()).collect(),
+        };
+
+        // What `find_variable_concat` feeds to `try_read_bytes`: the drains' wire
+        // encodings joined in insertion order.
+        let mut joined = Vec::new();
+        for d in [&d1, &d2, &d3] {
+            to_flight(d).encode(&mut joined);
+        }
+
+        // (a) message COUNT: every message across all drains is recovered as one
+        // flight (nothing dropped or merged away at a boundary).
+        let flight = RawSshMessageFlight::read(&mut Reader::init(&joined))
+            .expect("joined drains must re-deframe into a flight");
+        assert_eq!(
+            flight.messages.len(),
+            d1.len() + d2.len() + d3.len(),
+            "all messages across the drains must be recovered in one flight"
+        );
+
+        // (b) BYTES: the `try_read_bytes` path (the one the query resolver calls)
+        // reconstructs the exact joined stream — deframe then re-encode is identity.
+        let merged = try_read_bytes(&joined, TypeId::of::<RawSshMessageFlight>())
+            .expect("concat of flight encodings must re-read as a RawSshMessageFlight");
+        let mut merged_enc = Vec::new();
+        merged.encode(&mut merged_enc);
+        assert_eq!(
+            merged_enc, joined,
+            "re-reading the concatenated drains must reconstruct the exact stream"
+        );
+    }
 
     fn nl(items: &[&str]) -> NameList {
         NameList {
