@@ -18,7 +18,7 @@ use puffin::algebra::AnyMatcher;
 
 use crate::message::SwissMessage;
 
-use crate::{fn_impl::*, seed_simple_three_terms};
+use crate::{swisspost::*, seed_simple_three_terms};
 
 // Provide a signature exposing only two JNI-backed functions for now: new and length
 define_signature!(

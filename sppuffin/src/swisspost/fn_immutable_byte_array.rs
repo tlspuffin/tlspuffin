@@ -9,7 +9,7 @@ use puffin::algebra::error::FnError;
 
 use crate::protocol::SppU64;
 
-// Manual serde impls rely on JNI helpers in crate::fn_impl
+// Manual serde impls rely on JNI helpers in crate::swisspost
 use serde::de::Deserializer;
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
@@ -62,13 +62,13 @@ pub struct SwissProtocolTypes;
 
 // A thin Rust handle for the Java ImmutableByteArray. The actual bytes live in Java; Rust
 // only keeps a global reference to the Java object. Serialization/deserialization and
-// byte access are implemented via the JNI helpers in crate::fn_impl.
+// byte access are implemented via the JNI helpers in crate::swisspost.
 #[derive(Debug)]
 pub struct ImmutableByteArray(pub Global<JObject<'static>>);
 
 impl Clone for ImmutableByteArray {
     fn clone(&self) -> Self {
-        match crate::fn_impl::duplicate_global(&self.0) {
+        match crate::swisspost::duplicate_global(&self.0) {
             Ok(g) => ImmutableByteArray(g),
             Err(e) => panic!("Failed to clone ImmutableByteArray JNI global ref: {}", e),
         }
@@ -125,14 +125,14 @@ impl puffin::codec::Codec for ImmutableByteArray {
         }
 
         // bytes.extend("uaeitnrasetnr".bytes());
-        // if let Ok(v) = crate::fn_impl::global_elements(&self.0) {
+        // if let Ok(v) = crate::swisspost::global_elements(&self.0) {
         // <Vec<u8> as puffin::codec::Codec>::encode(&v, bytes);
         // }
     }
 
     fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
         let v = <Vec<u8> as puffin::codec::Codec>::read(r)?;
-        match crate::fn_impl::create_global_from_bytes(&v) {
+        match crate::swisspost::create_global_from_bytes(&v) {
             Ok(g) => Some(ImmutableByteArray(g)),
             Err(_) => None,
         }
@@ -169,8 +169,8 @@ impl puffin::protocol::CompareKnowledge<SwissProtocolTypes> for ImmutableByteArr
     ) {
         if let Some(other_cast) = other.as_any().downcast_ref::<ImmutableByteArray>() {
             match (
-                crate::fn_impl::global_elements(&self.0),
-                crate::fn_impl::global_elements(&other_cast.0),
+                crate::swisspost::global_elements(&self.0),
+                crate::swisspost::global_elements(&other_cast.0),
             ) {
                 (Ok(a), Ok(b)) => {
                     if a != b {
@@ -277,7 +277,7 @@ pub fn global_to_string(gref: &JavaGlobal) -> Result<String, FnError> {
 // Serde helpers used by protocol::ImmutableByteArray
 
 pub fn serialize_immutable_byte_array<S>(
-    _imba: &crate::fn_impl::ImmutableByteArray,
+    _imba: &crate::swisspost::ImmutableByteArray,
     _serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -289,7 +289,7 @@ where
 
 pub fn deserialize_immutable_byte_array<'de, D>(
     _deserializer: D,
-) -> Result<crate::fn_impl::ImmutableByteArray, D::Error>
+) -> Result<crate::swisspost::ImmutableByteArray, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -309,11 +309,12 @@ pub fn duplicate_global(g: &JavaGlobal) -> Result<JavaGlobal, FnError> {
 }
 
 // Exposed functions used in the signature
-pub fn fn_new_immutable_byte_array() -> Result<ImmutableByteArray, FnError> {
+pub fn fn_new_immutable_byte_array(length: &SppU64) -> Result<ImmutableByteArray, FnError> {
     log::debug!("Creation of a new Byte Array");
-    let a = [
-        1,2,3,5,5
-    ];
+    let mut a = Vec::new();
+    for _ in 0..length.0 {
+        a.push(2);
+    }
     let array = create_global_from_bytes(&a).map(ImmutableByteArray);
     array
 }
