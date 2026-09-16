@@ -21,6 +21,7 @@ while true do
             elseif request then
                 print(request)
                 client:send(request)
+                client:send("\n")
             end
 
         end

@@ -1,10 +1,10 @@
 use std::hint::black_box;
-use criterion::{criterion_group, criterion_main, Criterion};
-use sppuffin::fn_impl::{fn_immutable_byte_array_length, fn_new_immutable_byte_array};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use sppuffin::swisspost::*;
 
 
 fn test_jni() {
-    let a = fn_new_immutable_byte_array().unwrap();
+    let a = fn_new_immutable_byte_array(black_box(&fn_seq_5().unwrap())).unwrap();
     fn_immutable_byte_array_length(&a).unwrap();
 }
 fn criterion_benchmark(c: &mut Criterion) {

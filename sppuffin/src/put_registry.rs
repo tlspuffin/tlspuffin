@@ -111,9 +111,10 @@ use std::io::Write;
 impl Put<SwissProtocolBehavior> for SppPut {
     fn progress(&mut self) -> Result<(), PuffinError> {
         log::debug!("PROGRESS");
+
         // Send data to the Lua server if connected
         if let Some(ref mut sock) = self.socket {
-            let msg = b"\n";
+            let msg = b"\n"; // \n flushes the tcp socket so it is proccessed
             if let Err(e) = sock.write_all(msg) {
                 eprintln!("Error writing to socket: {}", e);
                 self.socket = None;

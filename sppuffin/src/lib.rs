@@ -1,6 +1,6 @@
 pub mod message;
 pub mod put_registry;
-pub mod fn_impl;
+pub mod swisspost;
 pub mod protocol;
 pub mod seeds;
 

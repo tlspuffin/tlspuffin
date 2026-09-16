@@ -1,0 +1,5 @@
+2026-09-11T13:47:38.820407117+02:00	INFO	execute: found 1 inputs
+2026-09-11T13:47:38.820484692+02:00	INFO	execute: running on subset [0..1] (1 inputs)
+2026-09-11T13:47:38.820566025+02:00	INFO	Execution without payload evaluations...
+2026-09-11T13:47:38.820602112+02:00	INFO	Executing: ./seeds
+2026-09-11T13:47:39.508320217+02:00	ERROR	Invalid trace file ./seeds
