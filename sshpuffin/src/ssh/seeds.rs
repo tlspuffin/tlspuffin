@@ -416,6 +416,141 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
     }
 }
 
+/// Honest, 0-diff rekey seed instrumented for RFC 4253 §7.1 auto-discovery. It is
+/// `seed_client_attacker_rekey` (pubkey-A auth, then a COMPLETE client-initiated
+/// re-KEX — KEXINIT / ECDH_INIT / NEWKEYS — all encrypted under the first keys)
+/// with two changes:
+///   1. every c2s counter is the `fn_u32_auto` sentinel, resolved per-execution by
+///      [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the packet's
+///      true wire position (index since the last NEWKEYS); and
+///   2. one honest `CHANNEL_OPEN` application packet is placed BEFORE the re-KEX (the connection is
+///      already established, so both stacks answer it identically — the seed stays 0-diff, as
+///      required: a divergent seed is consumed as an objective on load and empties the fuzzing
+///      corpus).
+///
+/// Layout (post-NEWKEYS, all epoch-1): svc(0), auth(1), chan_open(2), then the
+/// complete re-KEX kexinit(3) / ecdh_init(4) / newkeys(5). Both the channel open
+/// and the completed re-KEX are individually proven 0-diff (see
+/// `seed_client_attacker_channel_data` and `seed_client_attacker_rekey`).
+///
+/// This realizes the §7.1 discovery goal via a SINGLE adjacent `SwapMutator`
+/// transposition of `chan_open` and the rekey `KEXINIT`: `chan_open` then lands
+/// INSIDE the rekey window (after the client's KEXINIT, before it completes), so
+/// the server receives non-KEX traffic during a pending re-exchange — exactly the
+/// §7.1 state, on which libssh (withholds non-KEX traffic while a rekey is pending)
+/// and wolfSSH (proceeds) diverge. The counter-renumbering pass is what makes this
+/// reachable: after the swap the two packets exchange wire positions, so their
+/// AES-GCM invocation counters must swap too. With fixed `fn_u32_N` counters the
+/// moved packets would fail their GCM tag and be silently dropped (rekey never
+/// starts → §7.1 never observed); the `fn_u32_auto` sentinel auto-renumbers them to
+/// valid consecutive epoch-1 counters, so the server actually PROCESSES the channel
+/// open mid-rekey and the transcript oracle surfaces the divergence.
+///
+/// Rich-corpus only (single-PUT); its mutated §7.1 descendants diverge by design.
+pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    // Auth first (pubkey A, authorized) so the connection is established — libssh's
+    // packet filter only permits a rekey KEXINIT once established. Counters auto:
+    // svc->0, auth->1.
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Honest CHANNEL_OPEN on the established connection (auto -> 2). Placed BEFORE
+    // the re-KEX so the un-mutated seed is 0-diff; a single adjacent swap with the
+    // rekey KEXINIT moves it into the incomplete-rekey window (§7.1).
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Complete client-initiated re-KEX under the first keys (auto -> 3,4,5).
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_init(
+                (fn_cookie_zeros),
+                (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+                (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+                (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_ecdh_init = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Same AES-GCM client-attacker handshake as `seed_client_attacker_full_aesgcm`,
 /// but the client KEXINIT is *synthesized* from algorithm-name atoms via
 /// `fn_kex_init` + the new `fn_namelist_*` / `fn_*_algos` builders, instead of the
@@ -2264,6 +2399,17 @@ pub fn create_corpus(
             (
                 seed_client_attacker_kexinit_injection(server),
                 "seed_client_attacker_kexinit_injection",
+            ),
+            // Auto-counter §7.1 discovery seed: honest 0-diff channel session with
+            // `fn_u32_auto` c2s counters + a trailing rekey KEXINIT. A single
+            // adjacent SwapMutator move strands app traffic after the incomplete
+            // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
+            // their GCM nonces stay valid — the mechanism that makes §7.1
+            // fuzz-discoverable rather than only hand-reproducible. See the seed
+            // docstring and SSH_71_AUTODISCOVERY_PLAN.md.
+            (
+                seed_client_attacker_rekey_channel_auto(server),
+                "seed_client_attacker_rekey_channel_auto",
             ),
             // SERVER-ATTACKER seeds: the attacker plays the SSH SERVER and the PUT
             // is the CLIENT, so these fuzz the CLIENT-side parsers (a surface the

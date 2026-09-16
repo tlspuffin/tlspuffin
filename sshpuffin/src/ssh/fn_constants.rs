@@ -303,6 +303,47 @@ pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
 pub fn fn_u32_7() -> Result<u32, FnError> {
     Ok(7)
 }
+pub fn fn_u32_8() -> Result<u32, FnError> {
+    Ok(8)
+}
+pub fn fn_u32_9() -> Result<u32, FnError> {
+    Ok(9)
+}
+pub fn fn_u32_10() -> Result<u32, FnError> {
+    Ok(10)
+}
+pub fn fn_u32_11() -> Result<u32, FnError> {
+    Ok(11)
+}
+pub fn fn_u32_12() -> Result<u32, FnError> {
+    Ok(12)
+}
+pub fn fn_u32_13() -> Result<u32, FnError> {
+    Ok(13)
+}
+pub fn fn_u32_14() -> Result<u32, FnError> {
+    Ok(14)
+}
+pub fn fn_u32_15() -> Result<u32, FnError> {
+    Ok(15)
+}
+
+/// Sentinel AES-GCM packet counter, resolved per-execution by
+/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
+/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
+/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
+/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
+/// later packet's wire position — keep the GCM nonce sequence valid, letting the
+/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
+///
+/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
+/// never by the value returned here, so the concrete value is only a reserved
+/// marker that must never collide with a real counter; it is never actually read
+/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
+pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
+pub fn fn_u32_auto() -> Result<u32, FnError> {
+    Ok(U32_AUTO_SENTINEL)
+}
 pub fn fn_u32_max() -> Result<u32, FnError> {
     Ok(u32::MAX)
 }
