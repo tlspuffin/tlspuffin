@@ -2,9 +2,8 @@ use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
 use jni::errors::Result as JniResult;
-use jni::objects::{Global, JByteArray, JObject, JString, JValue};
+use jni::objects::{Global, JByteArray, JObject, JValue};
 use jni::{JNIVersion, JavaVM};
-use jni_macros::{jni_sig, jni_str};
 use puffin::algebra::error::FnError;
 
 use crate::protocol::SppU64;
@@ -13,7 +12,6 @@ use crate::protocol::SppU64;
 use serde::de::Deserializer;
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
-use puffin::codec::encode_vec_u16;
 use puffin::error::Error as PuffinError;
 use puffin::trace::Knowledge;
 use puffin::trace::Source;
@@ -81,7 +79,7 @@ impl puffin::codec::Codec for ImmutableByteArray {
         let vm = get_jvm().unwrap();
 
         if let Err(e) = vm.attach_current_thread(
-            |env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
+            |_env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
                 // let mapper_class_opt =
                 //     env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
                 //
