@@ -153,6 +153,18 @@ const WOLFSSH_PRESET: &str = "wolfssh";
 /// puffin-build `wolfssh` preset (which builds wolfSSL --enable-ssh then
 /// wolfSSH) if none is present. Mirrors `ensure_libssh_vendors`.
 fn ensure_wolfssh_vendors() -> Vec<library::Library> {
+    // Explicit single-vendor selection for reproducible campaign builds. When
+    // `SSHPUFFIN_ONLY_VENDOR=libssh`, omit the wolfSSH PUT entirely. This is
+    // AUTHORITATIVE and checked before anything else: it is robust where moving
+    // vendor dirs is not, because `library::Config::preset("wolfssh")` resolves
+    // the preset from a compiled-in source and would otherwise REBUILD wolfSSH
+    // into vendor/ even with both the cache dir and the preset dir moved away.
+    // (The Rust PUT registry is bundle-driven, so a build with no wolfSSH simply
+    // yields a libssh-only binary.)
+    if std::env::var("SSHPUFFIN_ONLY_VENDOR").ok().as_deref() == Some("libssh") {
+        println!("cargo:warning=SSHPUFFIN_ONLY_VENDOR=libssh: building without the wolfSSH PUT");
+        return vec![];
+    }
     let vendor = vendor_dir::from_env();
     let is_wolfssh = |lib: &library::Library| {
         lib.metadata().vendor == "wolfssh"
@@ -198,6 +210,15 @@ fn ensure_wolfssh_vendors() -> Vec<library::Library> {
 }
 
 fn ensure_libssh_vendors() -> Vec<library::Library> {
+    // Explicit single-vendor selection (see ensure_wolfssh_vendors). When
+    // `SSHPUFFIN_ONLY_VENDOR=wolfssh`, omit the libssh PUT entirely — authoritative
+    // and checked first, so it overrides even a libssh vendor still present in the
+    // cache. libssh is otherwise the default primary PUT, but the bundle-driven
+    // Rust registry adapts to a wolfSSH-only binary.
+    if std::env::var("SSHPUFFIN_ONLY_VENDOR").ok().as_deref() == Some("wolfssh") {
+        println!("cargo:warning=SSHPUFFIN_ONLY_VENDOR=wolfssh: building without the libssh PUT");
+        return vec![];
+    }
     let vendor = vendor_dir::from_env();
     let existing: Vec<library::Library> = vendor
         .all()
@@ -210,6 +231,29 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
 
     if !existing.is_empty() {
         return existing;
+    }
+
+    // libssh is OPTIONAL: if the tree has been deliberately reduced to a single
+    // other vendor (a wolfSSH vendor is present but no libssh — the
+    // "mv the others out before building" workflow used to produce a
+    // wolfSSH-only binary), respect that instead of force-building libssh back
+    // from the preset. The Rust PUT registry is driven entirely by the harness
+    // bundle (RUST_PUTS_BUNDLE_FILE), so a bundle without libssh simply yields a
+    // binary whose only PUT is wolfSSH — no Rust symbol pins libssh. This
+    // mirrors how `ensure_wolfssh_vendors` already treats wolfSSH as optional.
+    // We ONLY fall through to the build-from-preset default when the tree is
+    // genuinely empty (a fresh checkout), preserving the default DY-fuzzing UX.
+    let wolfssh_present = vendor.all().into_iter().any(|lib| {
+        lib.metadata().vendor == "wolfssh"
+            && lib.path().join("include/wolfssh/ssh.h").exists()
+            && !lib.link_libraries().is_empty()
+    });
+    if wolfssh_present {
+        println!(
+            "cargo:warning=no libssh vendor found but a wolfSSH vendor is present; \
+             building a wolfSSH-only sshpuffin (libssh PUT omitted)"
+        );
+        return vec![];
     }
 
     let mut config = library::Config::preset("libssh", LIBSSH_PRESET)

@@ -238,10 +238,23 @@ impl ProtocolTypes for SshProtocolTypes {
         let mut terms = vec![];
         for agent in agents {
             if agent.protocol_config.typ == AgentType::Server {
-                // Emit both the ChaCha20-Poly1305 and AES-256-GCM recipe sets;
-                // those that do not match the cipher actually negotiated in a
-                // given run fail their AEAD tag and are silently skipped.
-                terms.extend(crate::ssh::seeds::server_decryption_recipes(agent.name));
+                // AES-GCM is the ONLY cipher negotiated in the differential:
+                // `differential_fuzzing_uniformise_put_config` pins both PUTs to
+                // `aes256-gcm,aes128-gcm`, and chacha20-poly1305 is not even
+                // offered. The AES-GCM recipe is framing-INDEPENDENT — it folds
+                // the whole s2c stream via `((server, *)/RawSshMessageFlight)` +
+                // `fn_fold_s2c_transcript`, which re-accumulates the wire bytes and
+                // re-deframes, so libssh's and wolfSSH's different packetisation
+                // (1 vs 2 on-wire chunks) yields the SAME transcript.
+                //
+                // The legacy ChaCha20 recipe (`server_decryption_recipes`) is
+                // deliberately NOT emitted: it decrypts POSITIONALLY-indexed
+                // `(server, N)/OnWireData` chunks, a fragile pattern that binds to
+                // one PUT's chunk layout and misaligns against the other's — pure
+                // noise now that chacha is never negotiated. To restore chacha
+                // support (e.g. if the cipher set is ever widened), add a
+                // `fn_fold_s2c_transcript_chacha` and emit it the same
+                // framing-independent way, rather than reviving the indexed recipe.
                 terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(
                     agent.name,
                 ));
@@ -296,7 +309,7 @@ impl ProtocolTypes for SshProtocolTypes {
         trace
     }
 
-    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
+    fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
         // FULLY FAIL-CLOSED: every difference — status, security-claim, and the
         // AlignedTranscript's content/presence divergences — is KEPT as an
         // objective. We do NOT whitelist anything here (the old ChannelOpen*/
@@ -315,6 +328,34 @@ impl ProtocolTypes for SshProtocolTypes {
         //   * downstream — benign CLASSES (strict-kex/ext-info marker asymmetry,
         //     reply pipelining) are labelled as explicit, precise triage buckets
         //     that a human reviews, never dropped before they become objectives.
+        //
+        // The ONE exception to fail-closed: a divergence CLASS that has been
+        // investigated to a documented benign conclusion is "shadowed" (dropped
+        // before it becomes an objective) so that long campaigns surface NEW
+        // findings instead of re-reporting a closed one. Each shadow is a PRECISE
+        // predicate (never a broad type/message whitelist — that is the unsafe
+        // pattern rejected above) and the whole set is gated behind
+        // SHADOW_KNOWN_BENIGN so it can be re-surfaced by flipping one flag.
+        if SHADOW_KNOWN_BENIGN && is_banner_strictness_diff(diff) {
+            // Finding A — pre-auth banner/version strictness. Documented benign
+            // in BUG_HUNTING.md / REPORT_triaging.md: no memory-safety issue and
+            // no exchange-hash divergence; purely libssh's 127-byte identification
+            // cap vs wolfSSH's 255-byte WOLFSSH_PROTOID_LIMIT.
+            return false;
+        }
+        if SHADOW_KNOWN_BENIGN && is_userauth_failure_only_diff(diff) {
+            // Finding 3 — one stack emits a USERAUTH_FAILURE (method-list
+            // advertisement) in its decrypted transcript that the other does not.
+            // Investigated benign (2026-09-02, 272-objective scan): 0
+            // success-asymmetry — in NO objective does either stack reach
+            // USERAUTH_SUCCESS; auth fails on BOTH and the only difference is which
+            // rejection packet each server emits. NOT an auth bypass or auth-policy
+            // divergence. The predicate is GUARDED to only ever drop a
+            // USERAUTH_FAILURE-only delta (see `is_userauth_failure_only_diff`): a
+            // delta touching USERAUTH_SUCCESS — the genuinely dangerous
+            // accept-vs-reject divergence — is NEVER shadowed.
+            return false;
+        }
         true
     }
 
@@ -328,6 +369,74 @@ impl ProtocolTypes for SshProtocolTypes {
     // itself an objective (and ASYM auth is surfaced structurally by the
     // entity-authentication SecurityClaim, compared unconditionally), so nothing is
     // hidden by the short-circuit.
+}
+
+/// Master switch for shadowing documented-benign divergence classes (see
+/// `differential_fuzzing_filter_diff`). Flip to `false` to re-surface every
+/// shadowed class as an objective.
+const SHADOW_KNOWN_BENIGN: bool = true;
+
+/// Finding A — pre-auth banner/version strictness (documented benign in
+/// BUG_HUNTING.md / REPORT_triaging.md). libssh caps the client identification
+/// string at 127 bytes and requires a usable version, rejecting banners that
+/// wolfSSH (255-byte `WOLFSSH_PROTOID_LIMIT`, bounded banner-lines) accepts.
+/// Investigated benign: wolfSSH's parsing is O(1)-bounded and RFC 4253 §4.2
+/// compliant (no memory-safety issue), and both stacks derive an identical
+/// V_C/V_S for any mutually-accepted banner (no exchange-hash divergence).
+///
+/// Matched SURGICALLY so it cannot mask an unrelated bug: a `Status` diff where
+/// ONE side carries libssh's specific banner/version rejection string AND the
+/// OTHER side accepted (`Success`) or progressed strictly further. It never
+/// drops a both-reject pair, never drops any other error kind, and is symmetric
+/// in which PUT is libssh (so it still holds if the PUT order is flipped). A
+/// real downstream divergence on the accepting side still surfaces through its
+/// own Knowledges/Claims diff or an ASAN crash — those `TraceDifference` entries
+/// are filtered independently of this Status entry.
+fn is_banner_strictness_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    use puffin::differential::TraceDifference;
+    let TraceDifference::Status(s) = diff else {
+        return false;
+    };
+    let is_banner_reject = |st: &str| {
+        st.contains("too large banner") || st.contains("No version of SSH protocol usable")
+    };
+    // The non-rejecting side must have clearly accepted or gone strictly further.
+    let progressed = |other: &str, other_steps: usize, rejecter_steps: usize| {
+        other == "Success" || other_steps > rejecter_steps
+    };
+    (is_banner_reject(&s.first_status)
+        && progressed(&s.second_status, s.second_executed_steps, s.first_executed_steps))
+        || (is_banner_reject(&s.second_status)
+            && progressed(&s.first_status, s.first_executed_steps, s.second_executed_steps))
+}
+
+/// Finding 3 — one stack's decrypted transcript carries a USERAUTH_FAILURE
+/// (SSH msg 51: a method-list advertisement / auth rejection) that the other
+/// does not. Investigated benign by a 272-objective auth-outcome scan
+/// (2026-09-02): 0 success-asymmetry — no objective reaches USERAUTH_SUCCESS on
+/// either stack, so this is never an accept-vs-reject (auth-policy) divergence;
+/// auth fails on both and the stacks merely differ in which rejection packet
+/// they emit.
+///
+/// GUARDED so it can NEVER mask a real user-auth divergence: it matches an
+/// `AlignedTranscript` `InnerDifference` whose delta mentions `UserAuthFailure`
+/// AND does NOT mention `UserAuthSuccess`. If a future trace ever produces a
+/// delta touching USERAUTH_SUCCESS (one side authenticates, the other does not),
+/// this returns false and the objective is KEPT. The delta is the only content
+/// exposed by the `comparable` Map diff; a USERAUTH_SUCCESS present on ONE side
+/// necessarily appears in the delta as an Added/Removed entry, so this guard is
+/// complete.
+fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    use puffin::differential::{KnowledgeDiff, TraceDifference};
+    let TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
+        type_name, diff, ..
+    }) = diff
+    else {
+        return false;
+    };
+    type_name.contains("AlignedTranscript")
+        && diff.contains("UserAuthFailure")
+        && !diff.contains("UserAuthSuccess")
 }
 
 impl std::fmt::Display for SshProtocolTypes {
@@ -375,15 +484,6 @@ mod filter_diff_tests {
     /// negative here means a missed bug, so when in doubt we KEEP.
     #[test]
     fn cross_vendor_acceptance_divergences_are_all_kept() {
-        // libssh rejects, wolfSSH accepts — wolfSSH over-permissiveness.
-        assert!(keep(&status(
-            "Receiving banner: too large banner",
-            "Success"
-        )));
-        assert!(keep(&status(
-            "No version of SSH protocol usable (...)",
-            "Success"
-        )));
         // libssh's own socket-level error on the input vs wolfSSH success. This
         // is libssh's behaviour on that trace (its own error string), NOT a
         // harness/term/IO artifact (those never reach the filter — the engine
@@ -394,6 +494,76 @@ mod filter_diff_tests {
         assert!(keep(&status("Socket error: File exists", "Success")));
         // libssh accepts, wolfSSH rejects — libssh leniency.
         assert!(keep(&status("Success", "Unknown error code")));
+    }
+
+    /// Finding A — pre-auth banner/version strictness — is documented benign
+    /// (BUG_HUNTING.md / REPORT_triaging.md) and deliberately SHADOWED so
+    /// campaigns stop re-reporting a closed finding. Pairs where one side rejects
+    /// the banner/version and the other accepts/progresses MUST now be dropped.
+    /// This is the single, precise exception to fail-closed; everything else
+    /// (guarded by `cross_vendor_acceptance_divergences_are_all_kept`) is unchanged.
+    #[test]
+    fn banner_strictness_is_shadowed() {
+        // libssh rejects an oversized banner, wolfSSH accepts — shadowed.
+        assert!(!keep(&status(
+            "Receiving banner: too large banner",
+            "Success"
+        )));
+        // libssh rejects an unusable version, wolfSSH accepts — shadowed.
+        assert!(!keep(&status(
+            "No version of SSH protocol usable (banner: xxx)",
+            "Success"
+        )));
+        // But a both-reject pair (neither side progressed) is STILL kept: the
+        // shadow only fires on an acceptance/progress divergence, never on
+        // two differing rejections.
+        assert!(keep(&status(
+            "Receiving banner: too large banner",
+            "No version of SSH protocol usable (banner: yyy)"
+        )));
+    }
+
+    fn transcript_inner_diff(diff_str: &str) -> TraceDifference {
+        use puffin::differential::KnowledgeDiff;
+        use puffin::trace::Source;
+        TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
+            index: 0,
+            type_name: "sshpuffin::ssh::transcript::AlignedTranscript".to_string(),
+            diff: diff_str.to_string(),
+            source: Source::Label(Some("Decryption".into())),
+        })
+    }
+
+    /// Finding 3 — a USERAUTH_FAILURE-only transcript delta (one stack emits an
+    /// auth-method-advertisement / rejection the other does not) is documented
+    /// benign (2026-09-02 auth scan: 0 success-asymmetry, auth fails on both) and
+    /// SHADOWED. The CRITICAL companion assertion is `_kept` below: a delta that
+    /// touches USERAUTH_SUCCESS is the genuinely dangerous accept-vs-reject
+    /// divergence and MUST survive — the guard is what makes shadowing this class
+    /// safe.
+    #[test]
+    fn userauth_failure_only_diff_is_shadowed() {
+        assert!(!keep(&transcript_inner_diff(
+            "AlignedTranscriptChange([Added(AlignmentKey { channel: 0, msg_number: 51, ordinal: 0 }, \
+             UserAuthFailure(UserAuthFailureMessageDesc { authentications_that_can_continue: \
+             NameListDesc { comparable_names: [\"password\", \"publickey\"] }, partial_success: false }))])"
+        )));
+    }
+
+    /// SAFETY GUARD: an accept-vs-reject auth divergence — a delta where one
+    /// stack reaches USERAUTH_SUCCESS — is NEVER shadowed, even if a
+    /// USERAUTH_FAILURE also appears in the same delta.
+    #[test]
+    fn userauth_success_asymmetry_is_always_kept() {
+        // one side authenticates (SUCCESS), the other does not
+        assert!(keep(&transcript_inner_diff(
+            "AlignedTranscriptChange([Added(AlignmentKey { channel: 0, msg_number: 52, ordinal: 0 }, \
+             UserAuthSuccess)])"
+        )));
+        // SUCCESS and FAILURE both in the delta — still kept (guard wins)
+        assert!(keep(&transcript_inner_diff(
+            "AlignedTranscriptChange([Added(..., UserAuthSuccess), Removed(..., UserAuthFailure(...))])"
+        )));
     }
 
     /// Completion-claim presence/absence (one PUT reaches the handshake/auth
