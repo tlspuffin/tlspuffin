@@ -22,15 +22,41 @@ impl Codec for OnWireData {
     }
 }
 
-#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
-#[extractable(SshProtocolTypes)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub enum RawSshMessage {
-    #[extractable_no_recursion]
     Banner(String),
-    #[extractable_no_recursion]
     Packet(BinaryPacket),
-    #[extractable_no_recursion]
     OnWire(OnWireData),
+}
+
+// Manual `Extractable` (instead of the derive) so each raw message is tagged with
+// a `SshQueryMatcher` describing its identity — the banner, a cleartext packet's
+// SSH message number, or an opaque encrypted chunk. This lets seeds/recipes select
+// a handshake message by what it IS (e.g. NEWKEYS) rather than by a fragile
+// positional counter. No recursion into the inner payload (mirrors the former
+// `#[extractable_no_recursion]`).
+impl Extractable<SshProtocolTypes> for RawSshMessage {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        _matcher: Option<crate::query::SshQueryMatcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        use crate::query::SshQueryMatcher;
+        let matcher = match self {
+            RawSshMessage::Banner(_) => SshQueryMatcher::Banner,
+            RawSshMessage::Packet(bp) => {
+                SshQueryMatcher::MsgType(bp.payload().first().copied().unwrap_or(0))
+            }
+            RawSshMessage::OnWire(_) => SshQueryMatcher::OnWire,
+        };
+        knowledges.push(Knowledge {
+            source,
+            matcher: Some(matcher),
+            data: self,
+        });
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
@@ -91,24 +117,42 @@ pub struct NameList {
     // changes the Comparable view, not Codec), so on-wire order is preserved.
     #[comparable_synthetic {
         let comparable_names = |x: &Self| -> Vec<String> {
-            // Drop the extension-negotiation / Terrapin SIGNALING pseudo-algorithms
-            // that each stack auto-appends to its KEXINIT (kex-strict-{c,s}-v00,
-            // ext-info-{c,s}). These are not negotiable algorithms and their
-            // presence is implementation-defined (libssh advertises kex-strict-s,
-            // wolfSSH ext-info-s), so comparing them positionally is pure noise —
-            // and, unlike the negotiable algorithms, they cannot be uniformised
-            // away via the PUT config.
+            // Compare name-lists as an order-insensitive SET: preference ORDER is
+            // implementation-defined (RFC 4251 §5), so only a different SET of
+            // algorithms is real signal (e.g. a downgrade). Sorting makes this
+            // robust regardless of how each stack orders its offer.
             //
-            // We do NOT sort here: differential_fuzzing_uniformise_put_config
-            // makes both PUTs advertise the SAME list in the SAME order (verified
-            // by measurement), so once the markers are removed the two name-lists
-            // are already identical. Ordering is thus handled by uniformise, and
-            // this synthetic only strips the markers uniformise cannot reach.
-            x.names
+            // We exclude exactly two SIGNALING pseudo-algorithms that stacks
+            // auto-append to the kex-algorithms list and that are NOT negotiable
+            // algorithms: `kex-strict-{c,s}-v00@openssh.com` and `ext-info-{c,s}`.
+            // This exclusion is DOCUMENTED, not silent: it corresponds to a known,
+            // verified, benign-in-this-config capability difference between the two
+            // stacks, asserted by the test
+            // `strict_kex_ext_info_asymmetry_is_a_known_benign_finding` below.
+            //
+            //   * `kex-strict-*` = the Terrapin strict-KEX countermeasure.
+            //   * `ext-info-*`   = RFC 8308 extension negotiation (SSH_MSG_EXT_INFO).
+            //
+            // They are DISTINCT mechanisms, NOT interchangeable. Measured 2026-09-01
+            // on the uniformised handshake, the two stacks' kex-algorithms sets
+            // differ in EXACTLY one slot: libssh advertises
+            // `kex-strict-s-v00@openssh.com`, wolfSSH advertises `ext-info-s` (i.e.
+            // libssh does Terrapin strict-KEX, wolfSSH does not; wolfSSH does
+            // EXT_INFO). Real, but benign here because the negotiated suite is
+            // AES-GCM (no ChaCha20/EtM), so wolfSSH's missing strict-KEX is not
+            // Terrapin-exploitable. It is a STATIC property of the two stacks, so
+            // surfacing it per-trace would flood essentially every handshake with
+            // one understood difference; instead it is recorded once as a finding
+            // and excluded here. Every NEGOTIABLE algorithm is still compared, so a
+            // genuine downgrade still surfaces.
+            let mut names: Vec<String> = x
+                .names
                 .iter()
                 .filter(|n| !n.starts_with("kex-strict-") && !n.starts_with("ext-info-"))
                 .cloned()
-                .collect::<Vec<String>>()
+                .collect();
+            names.sort();
+            names
         };
     }]
     #[comparable_ignore]
@@ -192,6 +236,55 @@ impl Codec for SshBytes {
         Some(SshBytes(Vec::from(reader.take(length as usize)?)))
     }
 }
+
+// ── Type-directed crypto atoms ───────────────────────────────────────────────
+//
+// The KEX quantities used to all be plain `SshBytes`, so the term algebra could
+// not tell a shared secret from an exchange hash from a session id — the DY
+// mutator could substitute any byte blob into any of them, and, more importantly,
+// could NOT express the interesting attack: reusing a value of a SPECIFIC
+// cryptographic role across sessions/rekeys (the Terrapin / session-id-confusion
+// class). Giving each role its own type makes substitution type-directed:
+//
+//   * `SharedSecret`  — the ECDH shared secret K.
+//   * `ExchangeHash`  — the per-KEX exchange hash H (changes on every rekey).
+//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned
+//     for the whole connection (RFC 4253 §7.2). Byte-equal to H on the first KEX
+//     but semantically distinct — the distinction is the whole point: after a
+//     rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
+//     session-id slot as a single well-typed mutation.
+//
+// Each is a transparent u32-length-prefixed byte blob (identical wire form to
+// SshBytes), so wrapping/unwrapping does not change any derived bytes.
+macro_rules! declare_crypto_atom (
+    ($name:ident) => {
+        #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+        #[extractable(SshProtocolTypes)]
+        pub struct $name(#[extractable_no_recursion] pub Vec<u8>);
+
+        impl $name {
+            pub fn new(data: impl Into<Vec<u8>>) -> Self {
+                Self(data.into())
+            }
+        }
+
+        impl Codec for $name {
+            fn encode(&self, bytes: &mut Vec<u8>) {
+                (self.0.len() as u32).encode(bytes);
+                bytes.extend_from_slice(&self.0);
+            }
+
+            fn read(reader: &mut Reader) -> Option<Self> {
+                let length = u32::read(reader)?;
+                Some($name(Vec::from(reader.take(length as usize)?)))
+            }
+        }
+    }
+);
+
+declare_crypto_atom!(SharedSecret);
+declare_crypto_atom!(ExchangeHash);
+declare_crypto_atom!(SessionId);
 
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
@@ -1378,6 +1471,50 @@ mod tests {
         NameList {
             names: items.iter().map(|x| x.to_string()).collect(),
         }
+    }
+
+    /// Documents + locks in the strict-kex / ext-info asymmetry as a KNOWN, BENIGN
+    /// finding rather than a silent strip.
+    ///
+    /// Verified 2026-09-01 on the uniformised handshake: the two stacks'
+    /// kex-algorithms sets differ in exactly one slot — libssh advertises
+    /// `kex-strict-s-v00@openssh.com` (Terrapin strict-KEX), wolfSSH advertises
+    /// `ext-info-s` (RFC 8308 EXT_INFO). These are DISTINCT mechanisms, so they are
+    /// NOT equated; both signaling markers are excluded from the set comparison, so
+    /// the asymmetry does not flood every KEXINIT — but a genuine downgrade in the
+    /// NEGOTIABLE algorithms is still caught. (Benign here only because the suite is
+    /// AES-GCM, so wolfSSH's missing strict-KEX is not Terrapin-exploitable.)
+    #[test]
+    fn strict_kex_ext_info_asymmetry_is_a_known_benign_finding() {
+        use comparable::{Changed, Comparable};
+
+        // The exact measured asymmetry: excluded -> the two lists compare EQUAL.
+        let libssh = nl(&[
+            "curve25519-sha256",
+            "ecdh-sha2-nistp256",
+            "kex-strict-s-v00@openssh.com",
+        ]);
+        let wolfssh = nl(&["curve25519-sha256", "ecdh-sha2-nistp256", "ext-info-s"]);
+        assert_eq!(
+            libssh.comparison(&wolfssh),
+            Changed::Unchanged,
+            "the strict-kex/ext-info signaling asymmetry is a documented benign \
+             finding and must be excluded from the set comparison"
+        );
+
+        // A genuine NEGOTIABLE-algorithm difference (a downgrade) MUST still surface.
+        let strong = nl(&["curve25519-sha256", "ecdh-sha2-nistp256"]);
+        let downgraded = nl(&["curve25519-sha256"]);
+        assert!(
+            matches!(strong.comparison(&downgraded), Changed::Changed(_)),
+            "a real algorithm-set difference (downgrade) must NOT be masked by the \
+             marker exclusion"
+        );
+
+        // Order is irrelevant (set comparison): same algorithms, different order.
+        let a = nl(&["ecdh-sha2-nistp256", "curve25519-sha256"]);
+        let b = nl(&["curve25519-sha256", "ecdh-sha2-nistp256"]);
+        assert_eq!(a.comparison(&b), Changed::Unchanged, "order must not matter");
     }
 
     /// Verify `try_read_bytes` reconstructs each type from its encoded bytes
