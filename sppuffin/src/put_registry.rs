@@ -97,12 +97,13 @@ impl Stream<SwissProtocolBehavior> for SppPut {
 
     fn take_message_from_outbound(
         &mut self,
-        _output_flight: &mut Option<<SwissProtocolBehavior as puffin::protocol::ProtocolBehavior>::OpaqueProtocolMessageFlight>,
+        output_flight: &mut Option<<SwissProtocolBehavior as puffin::protocol::ProtocolBehavior>::OpaqueProtocolMessageFlight>,
     ) -> Result<(), PuffinError> {
-        <MemoryStream as puffin::stream::Stream<SwissProtocolBehavior>>::take_message_from_outbound(
-            &mut self.stream,
-            output_flight,
-        )
+        // <MemoryStream as puffin::stream::Stream<SwissProtocolBehavior>>::take_message_from_outbound(
+        //     &mut self.stream,
+        //     output_flight,
+        // );
+        Ok(())
     }
 }
 

@@ -15,7 +15,7 @@ use crate::fuzzer::bit_mutations::{
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
-use crate::fuzzer::feedback::{MinimizingFeedback, ObjectiveFeedback};
+use crate::fuzzer::feedback::{AlwaysInterestingFeedback, MinimizingFeedback, ObjectiveFeedback};
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
@@ -424,8 +424,10 @@ type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
 
 type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
 
-type ConcreteFeedback<'a> =
+type CoverageFeedback<'a> =
     CombinedFeedback<MaxMapFeedback<EdgesTracking, EdgesObserver>, TimeFeedback, LogicEagerOr>;
+type ConcreteFeedback<'a> =
+    CombinedFeedback<AlwaysInterestingFeedback, CoverageFeedback<'a>, LogicEagerOr>;
 
 impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
@@ -495,6 +497,8 @@ where
             let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
 
             let feedback = feedback_or!(
+                // Bring-up hack: keep every trace in the corpus, even before useful feedback exists.
+                AlwaysInterestingFeedback::new(),
                 // New maximization map feedback linked to the edges observer and the feedback
                 // state `track_indexes` needed because of
                 // IndexesLenTimeMinimizerCorpusScheduler
