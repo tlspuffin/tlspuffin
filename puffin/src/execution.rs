@@ -283,52 +283,40 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => vec![],
         });
 
-        // A status / security-claim divergence short-circuits the (more
-        // expensive) knowledge comparison: if the two PUTs already disagree on
-        // their execution outcome, THAT is the objective and we do not also diff
-        // their contexts. We must remember whether such a divergence existed
-        // BEFORE filtering — otherwise shadowing a status diff (below) would
-        // silently re-enable the knowledge comparison, which would just re-flag
-        // the very same divergence as a transcript-vs-nothing presence diff.
-        let had_status_or_claim_divergence = !diff.is_empty();
-
-        // Route the status / security-claim diffs through the SAME false-positive
-        // filter that is already applied to the knowledge diffs below. Previously
-        // a Status (or SecurityClaim) diff bypassed
-        // `differential_fuzzing_filter_diff` entirely, so a protocol could never
-        // shadow a documented-benign status CLASS (e.g. sshpuffin's pre-auth
-        // banner-strictness divergence). This does NOT change the oracle for a
-        // protocol whose filter keeps every status/claim diff: `retain` is then a
-        // no-op (e.g. TLS, whose filter only ever drops one specific Knowledges
-        // InnerDifference, never a Status/SecurityClaim). Only a protocol that
-        // explicitly opts a status class into its filter is affected, which is
-        // exactly the intended shadowing behaviour.
+        // `diff` currently holds the status / security-claim differences. Run
+        // them through the protocol's context-aware filter and see whether any
+        // SURVIVES. This is the fail-closed short-circuit decision:
         //
-        // NB: this is the RUNTIME, per-class status shadow, and is DISTINCT from
-        // the compile-time `ddyf-disable-status` feature guarding the status
-        // computation above: that feature drops ALL status diffs wholesale (the
-        // "decrypt-only" build, whose objectives are pure decryption differences),
-        // whereas this `retain` lets a protocol's filter drop only a specific,
-        // documented-benign status CLASS while KEEPING every genuine
-        // accept-vs-reject status divergence as an objective. The two are
-        // independent: decrypt-only does not rely on this call, and this call
-        // does not enable decrypt-only.
-        diff.retain(|d| {
-            <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff(d)
-        });
-
-        // Only compare the trace context when there was NO status/claim
-        // divergence at all (preserving the original short-circuit — including
-        // when a status diff was shadowed away just above).
-        if !had_status_or_claim_divergence {
-            // Compare the trace context
-            diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
-
-            // Apply filter to remove false positives
-            diff = diff
-            .into_iter()
-            .filter(<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff)
-            .collect();
+        //   * a status/claim difference that survives filtering is itself the objective — keep the
+        //     original short-circuit and do NOT also diff the (often incomparable,
+        //     one-side-stopped-early) contexts;
+        //   * if none survives — either there were none, OR every one was a documented-benign class
+        //     the protocol shadows (e.g. sshpuffin's pre-auth banner strictness) — fall through and
+        //     DO compare the knowledge/decryption contexts, so shadowing a status class can never
+        //     suppress a genuine content divergence on the accepting side.
+        //
+        // TLS-safe: its filter never drops a Status/SecurityClaim, so a status
+        // diff always survives -> else-branch -> knowledge not computed, exactly as
+        // upstream. Only a protocol that opts a status class into its filter (i.e.
+        // shadows it) reaches the knowledge comparison here.
+        //
+        // (Distinct from the compile-time `ddyf-disable-status` feature above,
+        // which drops ALL status diffs wholesale for the "decrypt-only" build; this
+        // runtime path drops only a specific, documented-benign CLASS.)
+        let status_claim_diffs = diff;
+        let kept_status_claim = <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diffs(status_claim_diffs.clone());
+        if kept_status_claim.is_empty() {
+            // Compute the knowledge/decryption diffs and filter the FULL set with
+            // the shadowed status/claim diffs still present as CONTEXT, so the
+            // protocol can drop a benign status class TOGETHER with the
+            // knowledge presence-difference it induces (e.g. banner reject on one
+            // side => that side has no decrypted transcript => a `AlignedTranscript
+            // vs ()` presence diff that is the SAME divergence, not a new one).
+            let mut all = status_claim_diffs;
+            all.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
+            diff = <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diffs(all);
+        } else {
+            diff = kept_status_claim;
         }
 
         if !diff.is_empty() {

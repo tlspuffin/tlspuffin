@@ -34,23 +34,6 @@ define_signature!(
     SSH_SIGNATURE<SshProtocolTypes>,
     fn_true
     fn_false
-    fn_seq_0
-    fn_seq_1
-    fn_seq_2
-    fn_seq_3
-    fn_seq_4
-    fn_seq_5
-    fn_seq_6
-    fn_seq_7
-    fn_seq_8
-    fn_seq_9
-    fn_seq_10
-    fn_seq_11
-    fn_seq_12
-    fn_seq_13
-    fn_seq_14
-    fn_seq_15
-    fn_seq_16
     fn_empty_bytes_vec
     fn_u32_0
     fn_u32_1
@@ -218,11 +201,18 @@ define_signature!(
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
+    // Signs the exchange hash with the embedded host key (server-attacker
+    // seeds). `no_gen`: a signing helper that needs a specific private key and a
+    // well-formed transcript; generating it blindly only yields useless terms.
     fn_sign_exchange_hash [no_gen]
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
     fn_client_b_pubkey_blob
     fn_client_c_pubkey_blob
+    // Sign a USERAUTH_REQUEST for client identity A / B / C with that identity's
+    // private key. `no_gen`: each needs its matching key and the session's
+    // exchange hash, so they are only meaningful when hand-wired in a seed, not
+    // synthesised by the mutator.
     fn_sign_userauth [no_gen]
     fn_sign_userauth_b [no_gen]
     fn_sign_userauth_c [no_gen]
