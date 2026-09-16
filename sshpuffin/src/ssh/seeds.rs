@@ -328,6 +328,83 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// Banner/version probe builder (REPORT_triaging.md H2/H3). A completing
+/// AES-256-GCM client-attacker handshake (mirrors `seed_client_attacker_full_aesgcm`,
+/// truncated at USERAUTH_REQUEST) whose WIRE banner and H-input V_C are both
+/// replaced by a caller-supplied out-of-spec pair. Because puffin reconstructs H
+/// from `vc`, a PUT completes to USERAUTH_{SUCCESS,FAILURE} IFF it binds exactly
+/// that RFC 4253 §8-canonical V_C; if instead it rejects the banner (or normalizes
+/// it to something else) the c2s AEAD keys diverge and it never reaches auth. A
+/// cross-PUT accept/reject asymmetry is therefore a real RFC 4253 §4.2 banner
+/// conformance divergence (H2); a split on the whitespace/control variants is a
+/// normalization divergence (H3 — transcript-injection viable). Not registered in
+/// any corpus (diverges by design; callable reproducer only).
+#[allow(dead_code)]
+fn banner_probe_seed(
+    server: AgentName,
+    banner_wire: Term<SshProtocolTypes>,
+    vc: Term<SshProtocolTypes>,
+) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    // H reconstructed from the caller's canonical V_C (not fn_puffin_id).
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@vc), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@key), (@iv), (fn_u32_1))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner((@banner_wire)) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// CONTROLLED conformance test for the injected-KexInit divergence. Identical to
 /// seed_client_attacker_full_aesgcm, but injects ONE valid, uncorrupted KEXINIT
 /// (encrypted, counter 0) as the first post-NewKeys packet — a client-initiated
@@ -2717,6 +2794,17 @@ fn auth_complete(mut trace: Trace<SshProtocolTypes>) -> Trace<SshProtocolTypes> 
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    // The corpus does not depend on the PUT; delegate to a factory-free builder so
+    // the corpus-composition invariant (which seeds are in the 0-diff differential
+    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
+    // built harness — see `mod tests::differential_corpus_composition_invariant`.
+    build_corpus()
+}
+
+/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
+/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
+/// appends the single-PUT divergent seeds.
+pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
     let client = AgentName::first();
     let server = client.next();
 
@@ -2974,6 +3062,151 @@ pub fn create_corpus(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
+    /// for `differential-execute libssh0114 wolfssh <trace>`. `#[ignore]`: run
+    /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
+    #[test]
+    #[ignore]
+    fn emit_banner_probe_traces() {
+        use puffin::libafl::inputs::Input;
+        let server = AgentName::first();
+        let dir = std::path::Path::new("/tmp/banner_probe");
+        std::fs::create_dir_all(dir).unwrap();
+        let cases: Vec<(&str, Term<SshProtocolTypes>, Term<SshProtocolTypes>)> = vec![
+            // CONTROL: canonical banner through the SAME builder — MUST be 0-diff,
+            // else a probe diff is a builder artifact, not a stack divergence.
+            (
+                "banner_control",
+                term! { fn_puffin_banner },
+                term! { fn_puffin_id },
+            ),
+            (
+                "banner_oversized",
+                term! { fn_banner_wire_oversized },
+                term! { fn_vc_oversized },
+            ),
+            (
+                "banner_ctrl",
+                term! { fn_banner_wire_ctrl },
+                term! { fn_vc_ctrl },
+            ),
+        ];
+        for (name, wire, vc) in cases {
+            let trace = banner_probe_seed(server, wire, vc);
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/banner_probe/{name}.trace");
+        }
+    }
+
+    /// Materialises the four by-design DIVERGENT probe reproducers to
+    /// `/tmp/eval_probes/` so they can be replayed with
+    /// `differential-execute libssh0114 wolfssh <trace>`:
+    ///   * `bad_service`       — USERAUTH_REQUEST with service != "ssh-connection" (wolfSSH
+    ///     accepts, libssh rejects; RFC 4252 §5),
+    ///   * `unknown_msg`       — unknown high-numbered message pre-auth (libssh tolerates per
+    ///     §11.4, wolfSSH aborts),
+    ///   * `dh_bad_exponent`   — DH e=0 (both reject: a true 0-diff control),
+    ///   * `kexinit_injection` — traffic during an incomplete peer-initiated rekey (RFC 4253 §7.1;
+    ///     wolfSSH processes, libssh withholds).
+    ///
+    /// These seeds are deliberately kept OUT of the 0-diff differential corpus —
+    /// they diverge BY DESIGN, so registering them would break the corpus-
+    /// composition invariant (see `differential_corpus_composition_invariant`).
+    /// This emitter is the supported way to produce them for a demonstration /
+    /// evaluation run. `#[ignore]`: it writes files to disk on demand
+    /// (`cargo test emit_eval_probe_traces -- --ignored`), so it is not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_eval_probe_traces() {
+        use puffin::libafl::inputs::Input;
+        let server = AgentName::first();
+        let dir = std::path::Path::new("/tmp/eval_probes");
+        std::fs::create_dir_all(dir).unwrap();
+        let cases: Vec<(&str, Trace<SshProtocolTypes>)> = vec![
+            ("bad_service", seed_client_attacker_bad_service(server)),
+            ("unknown_msg", seed_client_attacker_unknown_msg(server)),
+            (
+                "dh_bad_exponent",
+                seed_client_attacker_dh_bad_exponent(server),
+            ),
+            (
+                "kexinit_injection",
+                seed_client_attacker_kexinit_injection(server),
+            ),
+        ];
+        for (name, trace) in cases {
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/eval_probes/{name}.trace");
+        }
+    }
+
+    /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays
+    /// 0-diff" property, WITHOUT needing to run PUTs).
+    ///
+    /// The differential corpus MUST contain only seeds that are 0-diff on the
+    /// libssh-vs-wolfSSH pair (raw, or 0-diff after a documented shadow). A future
+    /// edit that registers a by-design-DIVERGENT probe here would silently break
+    /// that invariant: the divergent seed is consumed as an objective on load and
+    /// starves/floods the differential campaign (observed empirically). This test
+    /// fails loudly if that happens.
+    ///
+    /// It runs under default features (no rich-corpus), so `build_corpus()` is the
+    /// differential set. Runtime 0-diff verification itself is an integration check
+    /// (needs both built PUTs) done by the campaign scripts / differential-execute;
+    /// this unit test guards the *composition* that must hold for that to pass.
+    #[test]
+    fn differential_corpus_composition_invariant() {
+        let names: Vec<&str> = build_corpus().into_iter().map(|(_, n)| n).collect();
+
+        // (1) the legit flows that MUST be present (incl. this session's additions).
+        for want in [
+            "seed_client_attacker_full_aesgcm",
+            "seed_client_attacker_pubkey_aesgcm",
+            "seed_client_attacker_passwd_change", // item-6 positive control
+            "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
+        ] {
+            assert!(
+                names.contains(&want),
+                "differential corpus is missing legit seed {want:?}; corpus={names:?}"
+            );
+        }
+
+        // (2) the by-design DIVERGENT probe seeds that must NEVER be registered in
+        // ANY corpus (they diverge on purpose and would starve/flood a campaign).
+        // Each is kept only as a callable reproducer (see the create_corpus NOTE).
+        for forbidden in [
+            "seed_client_attacker_bad_service", // auth-service divergence repro
+            "seed_client_attacker_unknown_msg", // item-7 pre-auth unknown message
+            "seed_client_attacker_dh_bad_exponent", // item-1 out-of-range DH exponent
+        ] {
+            assert!(
+                !names.contains(&forbidden),
+                "DIVERGENT probe {forbidden:?} must NOT be in the corpus (would break \
+                 the 0-diff invariant); corpus={names:?}"
+            );
+        }
+
+        // (3) no duplicate registration (a dup would double-load / skew campaigns).
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            names.len(),
+            "duplicate seed name(s) in the corpus; corpus={names:?}"
+        );
+
+        // (4) sanity: the differential corpus is non-trivial.
+        assert!(
+            names.len() >= 4,
+            "differential corpus unexpectedly small: {names:?}"
+        );
+    }
 
     // The credential-confusion seeds must build without panicking and carry the
     // full publickey handshake (9 steps: output + banner + kexinit + ecdh +

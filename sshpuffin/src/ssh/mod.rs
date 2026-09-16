@@ -100,6 +100,14 @@ define_signature!(
     fn_u32_0x10000
     fn_puffin_banner
     fn_puffin_id
+    // Out-of-spec banner / version identification-string probes (REPORT_triaging.md
+    // H2/H3/H4). Each PAIR = a wire banner (String, includes CR-LF) + its
+    // RFC-4253-§8-canonical V_C (SshBytes, only trailing CR-LF stripped). `no_gen`:
+    // deterministic reproducer atoms, not for blind term generation.
+    fn_banner_wire_oversized [no_gen]
+    fn_vc_oversized [no_gen]
+    fn_banner_wire_ctrl [no_gen]
+    fn_vc_ctrl [no_gen]
     fn_placeholder_16bytes
     fn_placeholder_32bytes
     fn_channel_exec
