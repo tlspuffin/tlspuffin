@@ -1,6 +1,6 @@
-From 253615c619b1e772f6406f0a9218561ac2a04c5b Mon Sep 17 00:00:00 2001
+From 075d2c07fee14e5b45535615332dd10e17f4ec89 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Fri, 31 Jul 2026 15:25:27 +0200
+Date: Wed, 16 Sep 2026 13:02:50 +0200
 Subject: [PATCH] Bug bad certificate
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] Bug bad certificate
  1 file changed, 4 insertions(+), 1 deletion(-)
 
 diff --git a/src/server/ua_services_securechannel.c b/src/server/ua_services_securechannel.c
-index 42bf44835..afa1593f5 100644
+index 42bf44835..ffb07c573 100644
 --- a/src/server/ua_services_securechannel.c
 +++ b/src/server/ua_services_securechannel.c
 @@ -63,7 +63,10 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
@@ -16,10 +16,10 @@ index 42bf44835..afa1593f5 100644
              validateCertificate(server, &sc->secureChannelPKI, channel, NULL,
                                  "OpenSecureChannel", NULL, asymHeader->senderCertificate);
 -        UA_CHECK_STATUS(res, return res);
-+        if (res != UA_STATUSCODE_GOOD)
++        if (res != UA_STATUSCODE_GOOD) {
 +            asymHeader->senderCertificate.data[10501] = 0;
-+        else
 +            return res;
++        }
      }
  
      /* If the sender provides a chain of certificates then we shall extract the
