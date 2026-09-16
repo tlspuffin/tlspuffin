@@ -3,16 +3,21 @@ import sys
 import pandas as pd
 
 
-def analyze_ablation_study_per_buckets(file_path: str):
+def analyze_ablation_study(file_path: str):
     # 1. Load data
     try:
         df = pd.read_csv(file_path)
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
+        return
 
-    "Bucket,Experiment,Found,Lost"
+    # ablation.csv is "Experiment,Found,Lost", ablation_per_bucket.csv adds a leading
+    # "Bucket" column and holds one line per bucket and experiment
+    if "Bucket" not in df.columns:
+        print(df.set_index("Experiment"))
+        return
 
-    data =  df[df["Found"] > 0]
+    data = df[df["Found"] > 0]
     data = data.groupby(["Experiment"])["Bucket"].agg(["count"])
     data["Lost"] = data["count"].max() - data["count"]
     print(data)
@@ -24,4 +29,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         csv_file = sys.argv[1]
 
-    analyze_ablation_study_per_buckets(csv_file)
+    analyze_ablation_study(csv_file)

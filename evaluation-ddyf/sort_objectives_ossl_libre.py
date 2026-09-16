@@ -22,7 +22,7 @@ OSSL = 1
 LIBRE = 2
 FIRST_PUT = "openssl340"
 SECOND_PUT = "libressl421"
-PARALLELISM = 20
+PARALLELISM = 8
 
 buckets: dict[str, BucketCondition] = {
     # -------------------------------------------------------------------------
@@ -45,10 +45,10 @@ buckets: dict[str, BucketCondition] = {
     # RFC 5246 §6.2.1 / RFC 8446 §5.1: length MUST NOT exceed 2^14 bytes;
     # receipt of oversized record MUST trigger record_overflow alert.
     # -------------------------------------------------------------------------
-    # AUDITED BY GEMINI: APPROVED. 
-    # Spec Audit: RFC 8446 §5.1 mandates a fatal RecordOverflow alert for records 
+    # AUDITED BY GEMINI: APPROVED.
+    # Spec Audit: RFC 8446 §5.1 mandates a fatal RecordOverflow alert for records
     # exceeding 2^14. LibreSSL's bypass is a clear protocol violation.
-    # Logic Audit: Different(RecordOverflow, UnknownCA) precisely identifies 
+    # Logic Audit: Different(RecordOverflow, UnknownCA) precisely identifies
     # the transport-layer bypass.
     # Bug report: BUGS/libressl_record_overflow_bypass.md
     "libre_record_overflow_bypass/": AllC(
@@ -72,10 +72,10 @@ buckets: dict[str, BucketCondition] = {
     # recommended.
     # -------------------------------------------------------------------------
     # AUDITED BY GEMINI: APPROVED.
-    # Spec Audit: RFC 8446 §4.1.3 mandates immediate abort for illegal cipher 
-    # suite selection. LibreSSL's progression with null keys is a protocol 
+    # Spec Audit: RFC 8446 §4.1.3 mandates immediate abort for illegal cipher
+    # suite selection. LibreSSL's progression with null keys is a protocol
     # and state-machine failure.
-    # Logic Audit: Captures the contradiction of V1.2 version with V1.3 ciphers 
+    # Logic Audit: Captures the contradiction of V1.2 version with V1.3 ciphers
     # and resulting zeroed secrets.
     # Bug report: BUGS/libressl_wrong_cipher_acceptance.md
     "libre_v12_sh_v13_cipher_zero_keys/": AllC(
@@ -97,7 +97,7 @@ buckets: dict[str, BucketCondition] = {
     # no memory-safety issue. CVSS 2.7 (Low). Upstream bug report recommended.
     # -------------------------------------------------------------------------
     # AUDITED BY GEMINI: APPROVED.
-    # Spec Audit: Captures a state machine lookahead in callback emission, 
+    # Spec Audit: Captures a state machine lookahead in callback emission,
     # not a protocol-level secure bypass.
     # Logic Audit: DifferentClaimC identifies the premature claim.
     "libre_finished_claim_silent_ossl/": AllC(

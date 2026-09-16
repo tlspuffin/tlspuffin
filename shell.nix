@@ -1,5 +1,11 @@
 { pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-23.11.tar.gz") {} }:
 
+let
+  # The ast-grep of nixpkgs 23.11 (0.13.1) is too old for the rules of
+  # evaluation-ddyf/count_fields.sh, so it is taken from a more recent channel.
+  pkgsRecent = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-25.05.tar.gz") {};
+in
+
 pkgs.llvmPackages_14.stdenv.mkDerivation {
   name = "llvm_shell";
   nativeBuildInputs = [
@@ -22,8 +28,21 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
 
     pkgs.graphviz
     pkgs.yajl
-    pkgs.python310Packages.pip
-    pkgs.python310Packages.virtualenv
+
+    # counting the TLS fields ignored by the oracle (evaluation-ddyf/count_fields.sh)
+    pkgsRecent.ast-grep
+
+    # Python environment of the evaluation scripts (see evaluation-ddyf/). A
+    # single withPackages environment, so that `python` always resolves to the
+    # interpreter that has pandas and matplotlib.
+    (pkgs.python310.withPackages (ps: with ps; [
+      pip
+      virtualenv
+
+      pandas
+      matplotlib
+      numpy
+    ]))
 
     # docs / website
     pkgs.nodejs_20

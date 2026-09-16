@@ -32,6 +32,8 @@ def analyze_vulnerability_campaigns(file_path):
 
     df["CampaignStartTime"] = df["Campaign name"].apply(extract_start_time)
 
+    df = df[df["CVE"] != "trash"]
+
     # 4. Calculate Elapsed Seconds from campaign start to detection
     df["ElapsedSeconds"] = (
         df["OccurrenceDate"] - df["CampaignStartTime"]

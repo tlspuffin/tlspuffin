@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 
 export LIBAFL_EDGES_MAP_SIZE=262144

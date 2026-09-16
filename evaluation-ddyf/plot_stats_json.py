@@ -1,4 +1,4 @@
-#!/usr/bin/env .venv/bin/python3
+#!/usr/bin/env python3
 """
 plot.py — Parse stats.json and plot global fuzzer statistics over time.
 
@@ -84,6 +84,13 @@ PLOTS: list[PlotConfig] = [
                     else 0
                 ),
             ),
+        ],
+    ),
+    PlotConfig(
+        title="Execution speed",
+        ylabel="Executions per second",
+        series=[
+            Series("exec_per_sec", lambda r: r["exec_per_sec"]),
         ],
     ),
 ]

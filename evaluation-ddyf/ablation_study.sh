@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 folder="objective"
 
@@ -56,3 +57,7 @@ clear_and_sort $folder "ablation-no-decryption"
 
 cargo build --release --bin tlspuffin --features cputs,ddyf-disable-claims
 clear_and_sort $folder "ablation-no-claims"
+
+echo === Results ===
+echo ""
+python -m evaluation-ddyf.ablation_study_stats $OUTPUT_FILE

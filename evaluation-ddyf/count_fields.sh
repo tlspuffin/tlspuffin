@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Use ast-grep to count all rustls struct/enum fields and those who are ignored
 

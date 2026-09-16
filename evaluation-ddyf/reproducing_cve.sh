@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 START=${1:-1}
@@ -9,23 +9,7 @@ INIT=${4:-1}
 
 export LIBAFL_EDGES_MAP_SIZE=262144
 
-if [ $INIT -eq 1 ]
-then
-    echo 'Cleaning previous data'
-    cargo clean
-    rm -rf objective seeds corpus experiments pipe*
-
-
-    echo 'Building fuzzer'
-    ./tools/mk_vendor make wolfssl:wolfssl510
-    ./tools/mk_vendor make openssl:openssl340
-    cargo build --release --bin tlspuffin --features cputs
-
-    echo 'Generate seeds for diff fuzzing'
-    ./target/release/tlspuffin seed --differential
-fi
-
-TIMEOUT='5h'
+TIMEOUT=${5:-5h}
 CORE_PER_EXP=8
 
 
@@ -36,7 +20,7 @@ PORT=$((10000 + $START_CORE))
 echo "Running campaigns $START to $END on cores $CORES using port $PORT"
 
 # Creating a new named pipe with a random number
-PIPENAME="pipe$PORT"
+PIPENAME="pipe_$PORT"
 
 for i in $(seq $START $END);
 do
@@ -50,13 +34,13 @@ do
     # removing pipe
     rm $PIPENAME
 
-    find $OBJECTIVES -name ".*" | xargs -L 1000 rm
+    find $OBJECTIVES -name ".*" | xargs -r -L 1000 rm
 
+    # find_known_cves sorts the objectives into one bucket per known CVE and is the
+    # module matching the PUTs of this benchmark (openssl340 vs wolfssl510)
     echo "Triaging objectives in $OBJECTIVES"
     python -m evaluation-ddyf.find_known_cves $OBJECTIVES
 
-    # removing traces that are not interesting to save disk space
-    rm -rf $OBJECTIVES/trash
     rm -rf $OBJECTIVES/../corpus
     rm -rf $OBJECTIVES/../log
 done

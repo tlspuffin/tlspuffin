@@ -34,6 +34,7 @@ def analyze_perfs(file_path: str):
         df = pd.read_csv(file_path)
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
+        return
 
     duration = parse_time(df["Timeout"][0])
 

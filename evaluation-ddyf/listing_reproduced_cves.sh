@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 folder="experiments"
 
 result_file="cve_list.csv"
 
-rm $result_file
+rm -f $result_file
 echo "Campaign name,CVE,Date,Trace name" >> $result_file
 
 for exp in $folder/*; do
@@ -18,7 +18,9 @@ for exp in $folder/*; do
             #iterate over the CVE folders
           if [ -d "$d" ];
             then
-            cve=$(basename $d)
+            cve=$(basename "$d")
+            [ "$cve" != "trash" ] || continue
+            [[ "$cve" =~ ^CVE- ]] || continue
             num=0
             for f in $(find $d -maxdepth 1 -type f -regextype posix-egrep -regex '.*\.trace(-[0-9]+)?');
             do

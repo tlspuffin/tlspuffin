@@ -625,6 +625,7 @@ def run_triaging(
 ):
     if not os.path.isdir(source_folder):
         print(f"objective folder {source_folder} does not exist")
+        return
 
     # Create all buckets
     for k, _ in buckets.items():

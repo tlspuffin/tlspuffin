@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script is used to list the number of triaged files in each bucket of the
 # given objective folder, and the total number of triaged files. This allows to
@@ -18,7 +18,7 @@ echo "non triaged : $total"
 for d in "$folder"/*; do
   if [ -d "$d" ];
     then
-    local num=$(find "$d" -maxdepth 1 -type f -regextype posix-egrep -regex '.*\.trace(-[0-9]+)?' | wc -l)
+    num=$(find "$d" -maxdepth 1 -type f -regextype posix-egrep -regex '.*\.trace(-[0-9]+)?' | wc -l)
     total=$((total+num))
     echo "$d : $num";
   fi;

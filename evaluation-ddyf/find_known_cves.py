@@ -15,7 +15,7 @@ OSSL = 1
 WOLF = 2
 FIRST_PUT = "openssl340"
 SECOND_PUT = "wolfssl510"
-PARALLELISM = 20
+PARALLELISM = 4
 
 buckets: dict[str, BucketCondition] = {
     "CVE-2023-3724/": AllC(
