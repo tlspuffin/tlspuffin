@@ -9,12 +9,12 @@ use puffin::algebra::error::FnError;
 use crate::protocol::SppU64;
 
 // Manual serde impls rely on JNI helpers in crate::swisspost
-use serde::de::Deserializer;
-use serde::ser::Serializer;
-use serde::{Deserialize, Serialize};
 use puffin::error::Error as PuffinError;
 use puffin::trace::Knowledge;
 use puffin::trace::Source;
+use serde::de::Deserializer;
+use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
 // Concrete Global handle type for Java objects
 type JavaGlobal = jni::objects::Global<jni::objects::JObject<'static>>;
 
@@ -64,6 +64,40 @@ pub struct SwissProtocolTypes;
 #[derive(Debug)]
 pub struct ImmutableByteArray(pub Global<JObject<'static>>);
 
+impl ImmutableByteArray {
+    fn new(bytes: &[u8]) -> Result<ImmutableByteArray, FnError> {
+        let vm = get_jvm()?;
+        vm.attach_current_thread(|env| -> JniResult<JavaGlobal> {
+            // find the class and call ctor(byte[])
+            let class_name = jni::strings::JNIString::new(java_class());
+            let class = env.find_class(class_name)?;
+
+            // constructor signature as RuntimeMethodSignature
+            let ctor_binding = jni::signature::RuntimeMethodSignature::from_str("([B)V")?;
+            let ctor_sig = ctor_binding.method_signature();
+            let jarr = env.byte_array_from_slice(bytes)?;
+            // pass the byte[] as an Object argument (borrowed JObject reference)
+            let jarr_obj = JObject::from(jarr);
+            let local = env.new_object(class, ctor_sig, &[JValue::Object(&jarr_obj)])?;
+            let global_ref = env.new_global_ref(local)?;
+            Ok(global_ref)
+        })
+        .map_err(|e| FnError::Unknown(e.to_string()))
+        .map(ImmutableByteArray)
+    }
+    fn length(&self) -> Result<i32, FnError> {
+        let vm = get_jvm()?;
+        vm.attach_current_thread(|env| -> JniResult<i32> {
+            let name = jni::strings::JNIString::new("length");
+            let sig_binding = jni::signature::RuntimeMethodSignature::from_str("()I")?;
+            let sig = sig_binding.method_signature();
+            let v = env.call_method(self.0.as_obj(), name, sig, &[])?;
+            v.i()
+        })
+        .map_err(|e| FnError::Unknown(e.to_string()))
+    }
+}
+
 impl Clone for ImmutableByteArray {
     fn clone(&self) -> Self {
         match crate::swisspost::duplicate_global(&self.0) {
@@ -72,6 +106,7 @@ impl Clone for ImmutableByteArray {
         }
     }
 }
+
 use std::result::Result;
 
 impl puffin::codec::Codec for ImmutableByteArray {
@@ -130,10 +165,7 @@ impl puffin::codec::Codec for ImmutableByteArray {
 
     fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
         let v = <Vec<u8> as puffin::codec::Codec>::read(r)?;
-        match crate::swisspost::create_global_from_bytes(&v) {
-            Ok(g) => Some(ImmutableByteArray(g)),
-            Err(_) => None,
-        }
+        Self::new(&v).ok()
     }
 }
 
@@ -207,27 +239,6 @@ impl puffin::protocol::CompareKnowledge<SwissProtocolTypes> for ImmutableByteArr
         }
     }
 }
-
-pub fn create_global_from_bytes(bytes: &[u8]) -> Result<JavaGlobal, FnError> {
-    let vm = get_jvm()?;
-    vm.attach_current_thread(|env| -> JniResult<JavaGlobal> {
-        // find the class and call ctor(byte[])
-        let class_name = jni::strings::JNIString::new(java_class());
-        let class = env.find_class(class_name)?;
-
-        // constructor signature as RuntimeMethodSignature
-        let ctor_binding = jni::signature::RuntimeMethodSignature::from_str("([B)V")?;
-        let ctor_sig = ctor_binding.method_signature();
-        let jarr = env.byte_array_from_slice(bytes)?;
-        // pass the byte[] as an Object argument (borrowed JObject reference)
-        let jarr_obj = JObject::from(jarr);
-        let local = env.new_object(class, ctor_sig, &[JValue::Object(&jarr_obj)])?;
-        let global_ref = env.new_global_ref(local)?;
-        Ok(global_ref)
-    })
-    .map_err(|e| FnError::Unknown(e.to_string()))
-}
-
 pub fn global_elements(gref: &JavaGlobal) -> Result<Vec<u8>, FnError> {
     let vm = get_jvm()?;
     vm.attach_current_thread(|env| -> JniResult<Vec<u8>> {
@@ -240,18 +251,6 @@ pub fn global_elements(gref: &JavaGlobal) -> Result<Vec<u8>, FnError> {
         let raw = jarr_obj.into_raw() as jni::sys::jarray;
         let ba = unsafe { JByteArray::from_raw(env, raw) };
         env.convert_byte_array(ba)
-    })
-    .map_err(|e| FnError::Unknown(e.to_string()))
-}
-
-pub fn global_length(gref: &JavaGlobal) -> Result<i32, FnError> {
-    let vm = get_jvm()?;
-    vm.attach_current_thread(|env| -> JniResult<i32> {
-        let name = jni::strings::JNIString::new("length");
-        let sig_binding = jni::signature::RuntimeMethodSignature::from_str("()I")?;
-        let sig = sig_binding.method_signature();
-        let v = env.call_method(gref.as_obj(), name, sig, &[])?;
-        Ok(v.i()?)
     })
     .map_err(|e| FnError::Unknown(e.to_string()))
 }
@@ -313,11 +312,11 @@ pub fn fn_new_immutable_byte_array(length: &SppU64) -> Result<ImmutableByteArray
     for _ in 0..length.0 {
         a.push(2);
     }
-    let array = create_global_from_bytes(&a).map(ImmutableByteArray);
-    array
+    // let array = create_global_from_bytes(&a).map(ImmutableByteArray);
+    ImmutableByteArray::new(&a)
 }
 
 pub fn fn_immutable_byte_array_length(a: &ImmutableByteArray) -> Result<SppU64, FnError> {
     log::debug!("Execution of fn_immutable_byte_array_length");
-    global_length(&a.0).map(|l| SppU64(l as u64))
+    Ok(SppU64(a.length()?.try_into().unwrap()))
 }
