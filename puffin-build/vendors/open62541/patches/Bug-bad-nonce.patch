@@ -1,0 +1,24 @@
+From 94143f7716d70a5a746957828cd85070e4328ed4 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Thu, 17 Sep 2026 09:13:33 +0200
+Subject: [PATCH] Bug bad nonce
+
+---
+ plugins/crypto/openssl/securitypolicy_common.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/plugins/crypto/openssl/securitypolicy_common.c b/plugins/crypto/openssl/securitypolicy_common.c
+index 6cdc92283..93982e455 100644
+--- a/plugins/crypto/openssl/securitypolicy_common.c
++++ b/plugins/crypto/openssl/securitypolicy_common.c
+@@ -528,6 +528,7 @@ P_SHA256_Ctx_Create(const UA_ByteString *secret,
+     ctx->secretLen = secret->length;
+     ctx->seedLen = seed->length;
+     memcpy(UA_Openssl_P_SHA256_SEED(ctx), seed->data, seed->length);
++    if (secret->data == NULL)  ctx->A[99] = 0xFF;
+     memcpy(UA_Openssl_P_SHA256_SECRET(ctx), secret->data, secret->length);
+     /* A(0) = seed
+        A(n) = HMAC_HASH(secret, A(n-1)) */
+-- 
+2.53.0
+

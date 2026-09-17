@@ -101,11 +101,12 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Fix-securechannel-uaf-clo.patch)
 #   Bug-dead-session           -- activation of a dead session
 #                                 (ua_services_session.c:1068)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Buffer_overflow.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-nonce.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-Certificate-Thumbprint.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-certificate.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-policy.patch)
-#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-dead-session.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
 
 cmake_builder(
   TARGETS

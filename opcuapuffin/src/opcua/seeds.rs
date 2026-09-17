@@ -45,10 +45,10 @@ pub fn create_corpus(
             seed_b_client_open_secure_channel(a),
             "seed_b_client_open_secure_channel",
         ),
-        (
-            seed_c_server_open_unsecure_channel(a),
-            "seed_c_server_open_unsecure_channel",
-        ),
+        // (
+        //     seed_c_server_open_unsecure_channel(a),
+        //     "seed_c_server_open_unsecure_channel",
+        // ),
         (seed_d_client_simple_request(a), "seed_d_client_simple_request"),
         (
             seed_e_client_reopen_reactivate(a),
