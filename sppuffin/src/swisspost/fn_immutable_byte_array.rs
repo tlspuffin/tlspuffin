@@ -2,8 +2,9 @@ use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
 use jni::errors::Result as JniResult;
-use jni::objects::{Global, JByteArray, JObject, JValue};
+use jni::objects::{Global, JByteArray, JObject, JObjectArray, JValue};
 use jni::{JNIVersion, JavaVM};
+use jni_macros::jni_str;
 use puffin::algebra::error::FnError;
 
 use crate::protocol::SppU64;
@@ -95,6 +96,29 @@ impl ImmutableByteArray {
             v.i()
         })
         .map_err(|e| FnError::Unknown(e.to_string()))
+    }
+    fn concat(&self, array: &Self) -> Result<Self, FnError> {
+        let vm = get_jvm()?;
+        vm.attach_current_thread(|env| -> JniResult<JavaGlobal> {
+            let class_name = jni::strings::JNIString::new(java_class());
+            let class = env.find_class(class_name)?;
+            let arrays = JObjectArray::<JObject>::new(env, 2, JObject::null())?;
+            arrays.set_element(env, 0, self.0.as_obj())?;
+            arrays.set_element(env, 1, array.0.as_obj())?;
+
+            let sig_binding = jni::signature::RuntimeMethodSignature::from_str("([Lch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray;)Lch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray;")?;
+            let sig = sig_binding.method_signature();
+            let arrays_obj = JObject::from(arrays);
+            let r = env.call_static_method(
+                class,
+                jni_str!("concat"),
+                sig,
+                &[JValue::Object(&arrays_obj)],
+            )?;
+            env.new_global_ref(r.l()?)
+        })
+        .map_err(|e| FnError::Unknown(e.to_string()))
+        .map(ImmutableByteArray)
     }
 }
 
@@ -319,4 +343,12 @@ pub fn fn_new_immutable_byte_array(length: &SppU64) -> Result<ImmutableByteArray
 pub fn fn_immutable_byte_array_length(a: &ImmutableByteArray) -> Result<SppU64, FnError> {
     log::debug!("Execution of fn_immutable_byte_array_length");
     Ok(SppU64(a.length()?.try_into().unwrap()))
+}
+
+pub fn fn_immutable_byte_array_concat(
+    a: &ImmutableByteArray,
+    b: &ImmutableByteArray,
+) -> Result<ImmutableByteArray, FnError> {
+    log::debug!("Execution of fn_immutable_byte_array_concat");
+    a.concat(b)
 }

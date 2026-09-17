@@ -7,24 +7,25 @@ use std::any::TypeId;
 
 use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use puffin::algebra::dynamic_function::FunctionAttributes;
+use puffin::algebra::AnyMatcher;
 use puffin::define_signature;
+use puffin::error::Error as PuffinError;
 use puffin::protocol::ProtocolTypes;
+use puffin::trace::Knowledge;
+use puffin::trace::Source;
 use puffin::trace::Trace;
 use serde::{Deserialize, Serialize};
-use puffin::trace::Knowledge;
-use puffin::error::Error as PuffinError;
-use puffin::trace::Source;
-use puffin::algebra::AnyMatcher;
 
 use crate::message::SwissMessage;
 
-use crate::{swisspost::*, seed_simple_three_terms};
+use crate::{seed_simple_three_terms, swisspost::*};
 
 // Provide a signature exposing only two JNI-backed functions for now: new and length
 define_signature!(
     SPP_SIGNATURE<SwissProtocolTypes>,
     fn_new_immutable_byte_array
     fn_immutable_byte_array_length
+    fn_immutable_byte_array_concat
     fn_seq_0
     fn_seq_1
     fn_seq_2
@@ -77,7 +78,6 @@ impl ProtocolDescriptorConfig for SwissPUTConfig {
 }
 
 use comparable::Comparable;
-
 
 impl std::fmt::Display for SwissProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
