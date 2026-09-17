@@ -57,7 +57,33 @@ impl Library {
         let mut dirs = vec![self.path().join("include")];
         let vendor_src = self.path().join("src").join("vendor");
         if vendor_src.exists() {
-            dirs.push(vendor_src);
+            // The vendor source root itself (for files that use relative includes)
+            dirs.push(vendor_src.clone());
+            // The include subdirectory (for internal library headers like libssh/libcrypto.h)
+            let vendor_src_include = vendor_src.join("include");
+            if vendor_src_include.exists() {
+                dirs.push(vendor_src_include);
+            }
+        }
+        // vendor-build contains generated headers (e.g. config.h) needed by
+        // harnesses that use the vendored library's internal API.
+        // Also parse CMakeCache.txt to find OpenSSL include dirs (used by
+        // libssh's internal headers).
+        let vendor_build = self.path().join("src").join("vendor-build");
+        if vendor_build.exists() {
+            dirs.push(vendor_build.clone());
+            // Parse CMakeCache.txt for OPENSSL_INCLUDE_DIR
+            let cmake_cache = vendor_build.join("CMakeCache.txt");
+            if let Ok(content) = std::fs::read_to_string(&cmake_cache) {
+                for line in content.lines() {
+                    if let Some(rest) = line.strip_prefix("OPENSSL_INCLUDE_DIR:PATH=") {
+                        let p = PathBuf::from(rest.trim());
+                        if p.exists() {
+                            dirs.push(p);
+                        }
+                    }
+                }
+            }
         }
         dirs
     }

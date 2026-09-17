@@ -45,3 +45,9 @@ tlspuffin.out
 !docs/**/*.html
 
 super-linter.log
+
+# deploy-copy binaries at repo root (built from target/release/sshpuffin, ~95MB each)
+/sshpuffin_*
+# local fuzzing logs and experiment runner scripts
+log/
+/launch_*.sh

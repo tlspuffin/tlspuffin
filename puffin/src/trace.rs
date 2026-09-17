@@ -493,6 +493,13 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
     }
 
+    /// Borrow the ordered list of claims emitted so far this execution (the
+    /// claim trajectory). Used by the protocol-agnostic claim-coverage feedback.
+    #[must_use]
+    pub fn claims(&self) -> std::cell::Ref<'_, crate::claims::ClaimList<PB::Claim>> {
+        self.claims.deref_borrow()
+    }
+
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
         claims.log();
@@ -537,6 +544,22 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
             .map(super::claims::Claim::inner)
+    }
+
+    /// Wire encodings of the messages `agent` emitted whose concrete type matches
+    /// `type_id`, in production order. Used by trace-aware security oracles
+    /// (see [`crate::protocol::ProtocolBehavior::check_trace_security_violation`])
+    /// to recover "what this honest party sent" and compare it against what its
+    /// partner received (recovered by re-evaluating input recipes).
+    #[must_use]
+    pub fn agent_output_messages(&self, agent: AgentName, type_id: TypeId) -> Vec<Vec<u8>> {
+        self.knowledge_store
+            .raw_knowledge
+            .iter()
+            .filter(|raw| raw.source == Source::Agent(agent))
+            .filter(|raw| crate::protocol::EvaluatedTerm::type_id(raw.data.as_ref()) == type_id)
+            .map(|raw| crate::codec::CodecP::get_encoding(raw.data.as_ref()))
+            .collect()
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -1095,6 +1118,15 @@ impl<PT: ProtocolTypes> Trace<PT> {
                 ctx.verify_security_violations()?;
             }
             ctx.executed_until = i + 1;
+        }
+
+        // Trace-aware security oracle, run once on a full execution (the trace
+        // and the agents' beliefs must be complete). See
+        // ProtocolBehavior::check_trace_security_violation.
+        if check_security_violation && stop_at_step == self.steps.len() {
+            if let Some(msg) = PB::check_trace_security_violation(self, ctx) {
+                return Err(Error::SecurityClaim(msg));
+            }
         }
 
         *trace_number += 1;
