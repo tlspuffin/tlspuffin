@@ -24,11 +24,13 @@ thread_local! {
 
 /// Temporary feedback for bring-up: treat every executed input as corpus-worthy.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct AlwaysInterestingFeedback;
+pub struct AlwaysInterestingFeedback {
+    is_added: bool,
+}
 
 impl AlwaysInterestingFeedback {
     pub fn new() -> Self {
-        Self
+        AlwaysInterestingFeedback { is_added: false }
     }
 }
 
@@ -56,7 +58,12 @@ where
         _: &OT,
         _: &ExitKind,
     ) -> Result<bool, Error> {
-        Ok(true)
+        if !self.is_added {
+            self.is_added = true;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn is_interesting_introspection(
