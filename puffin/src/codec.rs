@@ -378,11 +378,15 @@ impl Codec for [u8; 16] {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        <Vec<u8> as Codec>::read(r).map(|v| {
-            let mut ret = [0u8; 16];
-            ret.copy_from_slice(&v);
-            ret
-        })
+        // Bounds-check before copying: bit-level mutation can produce a buffer
+        // whose length != 16, and an unchecked copy_from_slice would panic.
+        let v = <Vec<u8> as Codec>::read(r)?;
+        if v.len() != 16 {
+            return None;
+        }
+        let mut ret = [0u8; 16];
+        ret.copy_from_slice(&v);
+        Some(ret)
     }
 }
 
@@ -428,5 +432,37 @@ pub fn compare_encoding<X: Codec, Y: Codec>(x: &X, y: &Y) -> std::cmp::Ordering 
         std::cmp::Ordering::Greater
     } else {
         std::cmp::Ordering::Equal
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `<[u8; 16]>::read` must bounds-check the decoded buffer: a wrong-length
+    /// input (which bit-level mutation of a 16-byte field such as the SSH KEXINIT
+    /// cookie can produce) must return `None`, NEVER panic in `copy_from_slice`.
+    /// `[u8;16]` encodes as 16 raw bytes and reads via `Vec<u8>::read`, which is
+    /// read-to-end, so the decoded length equals the buffer length.
+    #[test]
+    fn u8_16_read_roundtrips_and_rejects_wrong_length() {
+        // Exactly 16 bytes round-trips.
+        let arr = [7u8; 16];
+        let enc = Codec::get_encoding(&arr);
+        assert_eq!(enc.len(), 16);
+        assert_eq!(
+            <[u8; 16] as Codec>::read(&mut Reader::init(&enc)),
+            Some(arr)
+        );
+
+        // Too short (15) and too long (17) must yield None, not panic.
+        for bad_len in [0usize, 1, 15, 17, 32] {
+            let bad = vec![9u8; bad_len];
+            assert_eq!(
+                <[u8; 16] as Codec>::read(&mut Reader::init(&bad)),
+                None,
+                "expected None for a {bad_len}-byte buffer, not a panic/array"
+            );
+        }
     }
 }

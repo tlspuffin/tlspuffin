@@ -86,7 +86,7 @@ jobs:
       - name: unit test `tlspuffin`
         run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
       - name: unit test `sshpuffin`
-        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
+        run: just test sshpuffin x86_64-unknown-linux-gnu "" ""
 
   cli-tlspuffin:
     needs: [configure]
