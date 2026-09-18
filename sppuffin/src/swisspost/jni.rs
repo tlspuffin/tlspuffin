@@ -31,10 +31,27 @@ static JVM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| {
     }
 });
 
+/// The get_jvm() function gives the jni::JavaVM. The JVM is lazylly initialized on the first call,
+/// so the first call can be subtsantially longer.
+/// It is thread safe.
+/// For now the jvm parameters are hardcoded TODO: change that
+///
 /// #Examples
 /// ```
 /// use sppuffin::swisspost::jni::get_jvm;
 /// let jvm = get_jvm().unwrap();
+/// jvm.attach_current_thread(|env: &mut jni::Env| -> jni::errors::Result<()> {
+/// // Call a method with signature: String concat(String str)
+///     let hello = env.new_string("Hello")?;
+///     let arg = env.new_string("world")?;
+///     let result = env.call_method(
+///         hello,
+///         jni_macros::jni_str!("concat"),
+///         jni_macros::jni_sig!((str: JString) -> JString),
+///         &[jni::JValue::Object(&arg)],
+///     )?;
+///     Ok(())
+/// });
 /// ```
 pub fn get_jvm() -> Result<JavaVM, FnError> {
     let guard = JVM.lock().unwrap();

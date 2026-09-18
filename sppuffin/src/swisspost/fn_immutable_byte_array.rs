@@ -314,3 +314,29 @@ pub fn fn_immutable_byte_array_concat(
     log::debug!("Execution of fn_immutable_byte_array_concat");
     a.concat(b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_immutable_byte_array() {
+        let size1 = rand::random::<i32>() % 100;
+        let size2 = rand::random::<i32>() % 100;
+        let mut array1 = Vec::new();
+        for _ in 0..size1 {
+            array1.push(rand::random());
+        }
+        let mut array2 = Vec::new();
+        for _ in 0..size2 {
+            array2.push(rand::random());
+        }
+
+        let immarr1 = ImmutableByteArray::new(&array1).unwrap();
+        let immarr2 = ImmutableByteArray::new(&array2).unwrap();
+        assert_eq!(
+            size1 + size2,
+            immarr1.concat(&immarr2).unwrap().length().unwrap()
+        )
+    }
+}
