@@ -1,0 +1,31 @@
+# Keep the build context small: everything below is either huge, machine
+# specific, or regenerated inside the image.
+.git
+.direnv
+.idea
+.vscode
+
+target
+target-*
+vendor
+vendor*
+
+experiments
+experiments*
+log
+crashes
+corpus
+objective
+seeds
+
+venv
+**/.venv
+**/__pycache__
+
+*.log
+*.profraw
+*.profdata
+*.gcov
+*.data
+*.data.old
+stats.json
