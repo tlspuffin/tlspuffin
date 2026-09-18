@@ -57,6 +57,8 @@ under an hour on a multi-core host. Each claim's commands live inline under its 
 (§1, §2); they all first need the one-time §0 build, and within §2 the steps are ordered
 ((i) campaign → (ii) triage → (iii) per-bug counts).
 
+**We recommend running the experiments inside Docker** (see. Running with Docker).
+
 ## Prerequisites
 
 All experiments with DDYF were run on **Linux** and may not work on other operating systems.
@@ -92,6 +94,58 @@ lost while extracting an archive of this artifact, restore them with:
 ```bash
 chmod +x ./evaluation-ddyf/*sh
 ```
+
+### Running with Docker
+
+A [Dockerfile](../Dockerfile) is provided as an alternative to installing Nix. The image
+contains this repository in `/ddyf`, the Nix shell of [shell.nix](../shell.nix) already
+built with the pinned Rust toolchain. Build it from the top level of the repository:
+
+```bash
+docker build -t ddyf .
+```
+
+Every command is run inside the Nix shell, either interactively or one at a time:
+
+```bash
+# interactive shell, in /ddyf
+docker run --rm -it ddyf
+
+# a single command
+docker run --rm ddyf cargo build --release --bin tlspuffin --features cputs
+```
+
+The image ships the toolchain but neither the PUTs nor a compiled fuzzer, so build them in
+the container first. Mounting `/ddyf/experiments` is what makes the results of a campaign
+survive the container:
+
+```bash
+docker run --rm -it -v "$PWD/experiments:/ddyf/experiments" ddyf
+
+# then, inside the container
+# you can run a differential fuzzing campaign
+./tools/mk_vendor make openssl:openssl340
+./tools/mk_vendor make wolfssl:wolfssl580
+cargo build --release --bin tlspuffin --features cputs
+./target/release/tlspuffin differential-experiment openssl340 wolfssl580 -t "my_experiment"
+```
+
+> `--rm` deletes the container on exit, and with it the PUTs and the fuzzer built inside.
+> To keep them across several sessions, name the container and reopen it:
+>
+> ```bash
+> docker run -it --name ddyf-run -v "$PWD/experiments:/ddyf/experiments" ddyf
+> docker exec -it ddyf-run /usr/local/bin/ddyf-shell
+> ```
+>
+> `docker exec` bypasses the entrypoint, so it must call `ddyf-shell` explicitly to get
+> the Nix environment.
+
+> Only `/ddyf/experiments` is mounted, but the summary files of Claims 1, 4 and 5
+> (`cve_list.csv`, `results_perfs.csv`, `ablation.csv`, `ablation_per_bucket.csv` and
+> `dedup.png`) and the `cve_logs/` and `perf_logs/` folders are written next to them in
+> `/ddyf`. Copy them into `/ddyf/experiments` before leaving the container, or mount a
+> second volume for them.
 
 ---
 
