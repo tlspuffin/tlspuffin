@@ -1,9 +1,5 @@
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
-
 use jni::errors::Result as JniResult;
 use jni::objects::{Global, JByteArray, JObject, JObjectArray, JValue};
-use jni::{JNIVersion, JavaVM};
 use jni_macros::jni_str;
 use puffin::algebra::error::FnError;
 
@@ -19,42 +15,7 @@ use serde::{Deserialize, Serialize};
 // Concrete Global handle type for Java objects
 type JavaGlobal = jni::objects::Global<jni::objects::JObject<'static>>;
 
-static JVM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| {
-    let jvm_args = jni::InitArgsBuilder::new()
-        .version(JNIVersion::V1_8)
-        .option(format!(
-            "-Djava.class.path={}:{}:{}:{}:{}:{}:{}:{}:{}",
-            "/home/binj/Documents/stageM2/e-voting/control-component/target/control-component-1.5.3.2.jar",
-            "/home/binj/Documents/stageM2/crypto-primitives/target/crypto-primitives-1.5.2.1.jar",
-            "/home/binj/.m2/repository/com/google/guava/guava/32.0.1-jre/guava-32.0.1-jre.jar",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.20.0/jackson-databind-2.20.0.jar",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.20.0/",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.20.0/",
-            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.20.0/",
-            "/home/binj/Documents/stageM2/tlspuffin/sppuffHin/jackson-databind-2.20.0.jar",
-            "/home/binj/Documents/stageM2/tlspuffin/sppuffin/jackson-core-2.20.0.jar",
-        ))
-        .option("-Xcheck:jni")
-        .build();
-    match jvm_args {
-        Ok(args) => match JavaVM::new(args) {
-            Ok(jvm) => Mutex::new(Some(jvm)),
-            Err(_) => Mutex::new(None),
-        },
-        Err(_) => Mutex::new(None),
-    }
-});
-
-fn java_class() -> &'static str {
-    "ch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray"
-}
-
-fn get_jvm() -> Result<JavaVM, FnError> {
-    let guard = JVM.lock().unwrap();
-    guard.as_ref().cloned().ok_or_else(|| {
-        FnError::Malformed("JVM not initialized; set SPP_JAVA_CLASSPATH".to_string())
-    })
-}
+use crate::swisspost::jni::get_jvm;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SwissProtocolTypes;
@@ -66,11 +27,12 @@ pub struct SwissProtocolTypes;
 pub struct ImmutableByteArray(pub Global<JObject<'static>>);
 
 impl ImmutableByteArray {
+    const JAVA_CLASS: &str = "ch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray";
     fn new(bytes: &[u8]) -> Result<ImmutableByteArray, FnError> {
         let vm = get_jvm()?;
         vm.attach_current_thread(|env| -> JniResult<JavaGlobal> {
             // find the class and call ctor(byte[])
-            let class_name = jni::strings::JNIString::new(java_class());
+            let class_name = jni::strings::JNIString::new(Self::JAVA_CLASS);
             let class = env.find_class(class_name)?;
 
             // constructor signature as RuntimeMethodSignature
@@ -100,7 +62,7 @@ impl ImmutableByteArray {
     fn concat(&self, array: &Self) -> Result<Self, FnError> {
         let vm = get_jvm()?;
         vm.attach_current_thread(|env| -> JniResult<JavaGlobal> {
-            let class_name = jni::strings::JNIString::new(java_class());
+            let class_name = jni::strings::JNIString::new(Self::JAVA_CLASS);
             let class = env.find_class(class_name)?;
             let arrays = JObjectArray::<JObject>::new(env, 2, JObject::null())?;
             arrays.set_element(env, 0, self.0.as_obj())?;
