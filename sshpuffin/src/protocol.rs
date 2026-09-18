@@ -344,14 +344,14 @@ impl ProtocolTypes for SshProtocolTypes {
         // predicate (never a broad type/message whitelist — that is the unsafe
         // pattern rejected above) and the whole set is gated behind
         // SHADOW_KNOWN_BENIGN so it can be re-surfaced by flipping one flag.
-        if SHADOW_KNOWN_BENIGN && is_banner_strictness_diff(diff) {
+        if shadow_known_benign() && is_banner_strictness_diff(diff) {
             // Finding A — pre-auth banner/version strictness. Documented benign
             // in BUG_HUNTING.md / REPORT_triaging.md: no memory-safety issue and
             // no exchange-hash divergence; purely libssh's 127-byte identification
             // cap vs wolfSSH's 255-byte WOLFSSH_PROTOID_LIMIT.
             return false;
         }
-        if SHADOW_KNOWN_BENIGN && is_userauth_failure_only_diff(diff) {
+        if shadow_known_benign() && is_userauth_failure_only_diff(diff) {
             // Finding 3 — one stack emits a USERAUTH_FAILURE (method-list
             // advertisement) in its decrypted transcript that the other does not.
             // Investigated benign (2026-09-02, 272-objective scan): 0
@@ -364,7 +364,7 @@ impl ProtocolTypes for SshProtocolTypes {
             // accept-vs-reject divergence — is NEVER shadowed.
             return false;
         }
-        if SHADOW_KNOWN_BUGS && is_fwd_reqsuccess_port_echo_diff(diff) {
+        if shadow_known_bugs() && is_fwd_reqsuccess_port_echo_diff(diff) {
             // wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (see
             // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks
             // ACCEPT an authorized tcpip-forward, but wolfSSH appends the bound
@@ -402,7 +402,7 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_filter_diffs(
         diffs: Vec<puffin::differential::TraceDifference>,
     ) -> Vec<puffin::differential::TraceDifference> {
-        let banner_shadowed = SHADOW_KNOWN_BENIGN && diffs.iter().any(is_banner_strictness_diff);
+        let banner_shadowed = shadow_known_benign() && diffs.iter().any(is_banner_strictness_diff);
         diffs
             .into_iter()
             .filter(|d| {
@@ -458,9 +458,13 @@ impl ProtocolTypes for SshProtocolTypes {
 ///   * `is_userauth_failure_only_diff`     — Finding 3, USERAUTH_FAILURE-only delta;
 ///   * `is_banner_induced_transcript_presence` — the banner reject's induced transcript-presence
 ///     diff (context-aware co-drop, banner-gated).
-/// Flip to `false` to re-surface every benign class as an objective. This does
-/// NOT control `SHADOW_KNOWN_BUGS` below — the two categories are independent.
-const SHADOW_KNOWN_BENIGN: bool = true;
+/// Set `SSHPUFFIN_SHADOW_KNOWN_BENIGN=0` in the environment (no rebuild) to re-surface
+/// every benign class as an objective. This does NOT control the known-bugs shadow below —
+/// the two categories are independent. Defaults to `true` (shadow on).
+fn shadow_known_benign() -> bool {
+    static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *V.get_or_init(|| shadow_env("SSHPUFFIN_SHADOW_KNOWN_BENIGN"))
+}
 
 /// Master switch for shadowing documented, root-caused REAL BUGS that we have
 /// already reported/recorded and do not want long campaigns to KEEP re-reporting.
@@ -475,8 +479,26 @@ const SHADOW_KNOWN_BENIGN: bool = true;
 ///     (findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Still live on wolfSSH master; LOW
 ///     severity. The diverging `forwarding` seed + PoC remain the permanent record; this switch
 ///     only silences campaign re-reporting.
-/// `true` by default (documented, LOW-severity, already recorded).
-const SHADOW_KNOWN_BUGS: bool = true;
+/// `true` by default (documented, LOW-severity, already recorded). Set
+/// `SSHPUFFIN_SHADOW_KNOWN_BUGS=0` in the environment (no rebuild) to re-surface the filed
+/// known-bug classes as objectives — a bug-focused re-audit, or the port-echo shadow-off demo.
+fn shadow_known_bugs() -> bool {
+    static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *V.get_or_init(|| shadow_env("SSHPUFFIN_SHADOW_KNOWN_BUGS"))
+}
+
+/// Read a shadow master-switch from the environment. Absent — or any value other than
+/// `0`/`false`/`off`/`no` (case-insensitive) — means the shadow is ON (the safe default), so a
+/// plain campaign run is unaffected and only an explicit `=0` re-surfaces the class.
+fn shadow_env(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(v) => !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "off" | "no"
+        ),
+        Err(_) => true,
+    }
+}
 
 /// Finding A — pre-auth banner/version strictness (documented benign in
 /// BUG_HUNTING.md / REPORT_triaging.md). libssh caps the client identification
