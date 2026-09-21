@@ -182,3 +182,46 @@ jobs:
       first_preset: openssl340
       second_vendor: boringssl
       second_preset: boringssl20260508
+
+  # SSH counterpart of the differential-* jobs above. sshpuffin has no integration-test
+  # dir, so the reusable run-differential-tests.yml (a `cargo test -- differential`) cannot
+  # be reused as-is; instead this mirrors cli-sshpuffin and asserts 0-diff by looping
+  # `differential-execute` over the honest corpus seeds (guards the 0-diff corpus, Exp C).
+  differential-sshpuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build libssh0114 vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "libssh"
+          preset: "libssh0114"
+          name: "libssh0114"
+      - name: build wolfssh vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "wolfssh"
+          preset: "wolfssh"
+          name: "wolfssh"
+      - name: build `sshpuffin`
+        run: just run cargo build --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release
+      - name: run `sshpuffin seed`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- seed && [[ -d ./seeds ]]
+      - name: differential 0-diff on all corpus seeds
+        run: |
+          BIN=target/x86_64-unknown-linux-gnu/release/sshpuffin
+          fail=0
+          for t in ./seeds/*.trace; do
+            out=$(ASAN_OPTIONS=detect_leaks=0 just run "$BIN" differential-execute libssh0114 wolfssh "$t" 2>/dev/null || true)
+            if ! echo "$out" | grep -q "No differences"; then
+              echo "UNEXPECTED DIFF in $t:"; echo "$out"; fail=1
+            fi
+          done
+          exit $fail
