@@ -960,7 +960,7 @@ pub fn fn_encrypt_packet(
     cipher_k2.apply_keystream(&mut enc_body);
 
     // Step 4: Poly1305 MAC over [enc_len || enc_body]
-    use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::universal_hash::KeyInit;
     use poly1305::{Key as Poly1305Key, Poly1305};
     let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
     let mut mac_input = Vec::with_capacity(4 + enc_body.len());
@@ -1030,7 +1030,7 @@ pub fn fn_decrypt_packet(
     let tag_bytes = &wire[4 + packet_len..4 + packet_len + 16];
 
     // Step 3: verify the Poly1305 tag over [enc_len || enc_body].
-    use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::universal_hash::KeyInit;
     use poly1305::{Key as Poly1305Key, Poly1305};
     let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
     let mut mac_input = Vec::with_capacity(4 + packet_len);

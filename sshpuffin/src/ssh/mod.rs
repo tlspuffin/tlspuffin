@@ -14,6 +14,7 @@ pub mod deframe;
 pub mod message;
 pub(crate) mod seeds;
 pub mod transcript;
+pub(crate) mod differential;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
