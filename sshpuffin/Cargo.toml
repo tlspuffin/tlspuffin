@@ -27,7 +27,10 @@ claims = []
 # benign divergence class is bucketed.
 rich-corpus = []
 
-# Sanitizer / instrumentation flags forwarded to the C harness build
+# Sanitizer / instrumentation flags forwarded to the C harness build.
+# NOTE (asan): NOT redundant with picking an `-asan` vendor — build.rs keys on
+# cfg!(feature="asan") both to auto-select the `<preset>-asan` vendor AND to emit the
+# harness link flags (-fsanitize=address, rpath, -shared-libasan). Parity with tlspuffin.
 asan    = ["puffin/asan"]
 sancov  = ["puffin/sancov"]
 gcov    = []
