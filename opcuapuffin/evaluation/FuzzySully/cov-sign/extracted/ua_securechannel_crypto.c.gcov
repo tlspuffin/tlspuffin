@@ -1,0 +1,1513 @@
+ -:33909:/**** amalgamated original file "/src/OPC_UA/open62541/src/ua_securechannel_crypto.c" ****/
+        -:33910:
+        -:33911:/* This Source Code Form is subject to the terms of the Mozilla Public
+        -:33912: * License, v. 2.0. If a copy of the MPL was not distributed with this
+        -:33913: * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+        -:33914: *
+        -:33915: *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+        -:33916: *    Copyright 2014, 2016-2017 (c) Florian Palm
+        -:33917: *    Copyright 2015-2016 (c) Sten Grüner
+        -:33918: *    Copyright 2015 (c) Oleksiy Vasylyev
+        -:33919: *    Copyright 2016 (c) TorbenD
+        -:33920: *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+        -:33921: *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
+        -:33922: *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+        -:33923: *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+        -:33924: */
+        -:33925:
+        -:33926:
+        -:33927:UA_StatusCode
+   210927:33928:UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
+   210927:33929:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+  210927*:33930:    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+   210927:33931:    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local nonce");
+        -:33932:
+        -:33933:    /* Is the length of the previous nonce correct? */
+   210927:33934:    size_t nonceLength = sp->nonceLength;
+   210927:33935:    if(nonceLength == 0)
+   110238:33936:        return UA_STATUSCODE_GOOD;
+        -:33937:
+        -:33938:    /* At least 32 byte */
+   100689:33939:    if(nonceLength < 32)
+    #####:33940:        nonceLength = 32;
+        -:33941:
+   100689:33942:    if(channel->localNonce.length != nonceLength) {
+    99384:33943:        UA_ByteString_clear(&channel->localNonce);
+    99384:33944:        UA_StatusCode res = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
+   99384*:33945:        UA_CHECK_STATUS(res, return res);
+        -:33946:    }
+        -:33947:
+        -:33948:    /* Generate the nonce */
+   100689:33949:    channel->localNonce.data[0] = 'e';
+   100689:33950:    channel->localNonce.data[1] = 'p';
+   100689:33951:    channel->localNonce.data[2] = 'h';
+   100689:33952:    return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
+        -:33953:}
+        -:33954:
+        -:33955:/* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining (enhanced
+        -:33956: * policies only). The IKM is XORed with the new shared secret on each renewal;
+        -:33957: * the accumulator is the curve's coordinate size (half the nonceLength, e.g. 32
+        -:33958: * bytes for P-256). It is carried through sp->generateKey without changing that
+        -:33959: * signature by prepending it to the `secret` ByteString: the backend's
+        -:33960: * DeriveKeys helper detects the prepend (key1 longer than the ephemeral public
+        -:33961: * key), XORs, and writes the chained IKM back into the slot. */
+        -:33962:#define IKM_PREPEND_LENGTH(channel) \
+        -:33963:    ((channel)->enhancedSecurity ? ((channel)->securityPolicy->nonceLength / 2) : 0)
+        -:33964:
+        -:33965:/* Allocate and fill the prepend buffer [currentIKM | nonce] when
+        -:33966: * chaining is active; otherwise point *outInput at the original
+        -:33967: * nonce. The caller frees *outCombined with UA_ByteString_clear. */
+        -:33968:static UA_StatusCode
+   201378:33969:prepareKeyInput(UA_SecureChannel *channel, const UA_ByteString *nonce,
+        -:33970:                UA_ByteString *outInput, UA_ByteString *outCombined) {
+  201378*:33971:    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
+   201378:33972:    if(ikmLen == 0) {
+   201378:33973:        *outInput = *nonce;
+   201378:33974:        *outCombined = UA_BYTESTRING_NULL;
+   201378:33975:        return UA_STATUSCODE_GOOD;
+        -:33976:    }
+        -:33977:    UA_StatusCode res =
+    #####:33978:        UA_ByteString_allocBuffer(outCombined, ikmLen + nonce->length);
+    #####:33979:    if(res != UA_STATUSCODE_GOOD)
+    #####:33980:        return res;
+    #####:33981:    if(channel->currentIKM.length == ikmLen)
+    #####:33982:        memcpy(outCombined->data, channel->currentIKM.data, ikmLen);
+        -:33983:    else
+    #####:33984:        memset(outCombined->data, 0, ikmLen);
+    #####:33985:    memcpy(outCombined->data + ikmLen, nonce->data, nonce->length);
+    #####:33986:    *outInput = *outCombined;
+    #####:33987:    return UA_STATUSCODE_GOOD;
+        -:33988:}
+        -:33989:
+        -:33990:/* Pull the (possibly updated) IKM from the prepend slot and store
+        -:33991: * it as channel->currentIKM. Called only by the local-keys pass;
+        -:33992: * the remote-keys pass leaves the accumulator untouched. */
+        -:33993:static UA_StatusCode
+   100689:33994:captureIKMSlot(UA_SecureChannel *channel, const UA_ByteString *combined) {
+  100689*:33995:    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
+   100689:33996:    if(ikmLen == 0)
+   100689:33997:        return UA_STATUSCODE_GOOD;
+    #####:33998:    UA_ByteString_clear(&channel->currentIKM);
+    #####:33999:    UA_ByteString ikmSlot = {ikmLen, combined->data};
+    #####:34000:    return UA_ByteString_copy(&ikmSlot, &channel->currentIKM);
+        -:34001:}
+        -:34002:
+        -:34003:UA_StatusCode
+   210927:34004:UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
+   210927:34005:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+  210927*:34006:    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+   210927:34007:    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
+        -:34008:
+   210927:34009:    void *cc = channel->channelContext;
+   210927:34010:    const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
+        -:34011:
+        -:34012:    /* Generate symmetric key buffer of the required length. The block size is
+        -:34013:     * identical for local/remote. For AEAD ciphers the IV length differs from
+        -:34014:     * the block size, so use getLocalIvLength when available. */
+        -:34015:    UA_ByteString buf;
+   210927:34016:    size_t encrKL = ea->getLocalKeyLength(sp, cc);
+   210927:34017:    size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+  210927*:34018:    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
+   210927:34019:    size_t signKL = sp->symSignatureAlgorithm.getLocalKeyLength(sp, cc);
+   210927:34020:    if(ivLen + signKL + encrKL == 0)
+   110238:34021:        return UA_STATUSCODE_GOOD; /* No keys to generate */
+        -:34022:
+   100689:34023:    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
+  100689*:34024:    UA_CHECK_STATUS(res, return res);
+   100689:34025:    UA_ByteString localSigningKey = {signKL, buf.data};
+   100689:34026:    UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
+   100689:34027:    UA_ByteString localIv = {ivLen, &buf.data[signKL + encrKL]};
+        -:34028:
+        -:34029:    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
+   100689:34030:    buf.data[0] = 0x00;
+        -:34031:
+        -:34032:    /* Build the IKM-prefixed `secret` input (the helper detects
+        -:34033:     * the prepend via the length mismatch against the local
+        -:34034:     * ephemeral public key). The `seed` arg is passed unchanged —
+        -:34035:     * the helper uses it as the alternate ephemeral public key
+        -:34036:     * candidate and as part of the salt, so the prepend must not
+        -:34037:     * appear there. */
+   100689:34038:    UA_ByteString secretInput, seedInput = channel->localNonce;
+   100689:34039:    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
+   100689:34040:    res = prepareKeyInput(channel, &channel->remoteNonce,
+        -:34041:                         &secretInput, &secretCombined);
+  100689*:34042:    UA_CHECK_STATUS(res, goto error);
+        -:34043:
+        -:34044:    /* Generate key. The policy's wrapper detects the prepend (via the
+        -:34045:     * length mismatch in key1 vs the local ephemeral public key) and
+        -:34046:     * performs the IKM chaining, deriving against the *previous*
+        -:34047:     * accumulator (channel->currentIKM). The new accumulator is NOT
+        -:34048:     * promoted here: the local- and remote-keys passes of one OPN must
+        -:34049:     * both derive against the same previous accumulator, so the
+        -:34050:     * advance to IKM_n happens exactly once, in generateRemoteKeys
+        -:34051:     * (the last of the two passes). */
+   100689:34052:    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
+  100689*:34053:    UA_CHECK_STATUS(res, goto error);
+        -:34054:
+        -:34055:    /* Set the channel context */
+   100689:34056:    res |= sp->setLocalSymSigningKey(sp, cc, &localSigningKey);
+   100689:34057:    res |= sp->setLocalSymEncryptingKey(sp, cc, &localEncryptingKey);
+   100689:34058:    res |= sp->setLocalSymIv(sp, cc, &localIv);
+        -:34059:
+   100689:34060: error:
+   100689:34061:    if(res != UA_STATUSCODE_GOOD) {
+    #####:34062:        UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+        -:34063:                             "Could not generate local keys (%s)",
+        -:34064:                             UA_StatusCode_name(res));
+        -:34065:    }
+   100689:34066:    UA_ByteString_clear(&buf);
+   100689:34067:    UA_ByteString_clear(&secretCombined);
+   100689:34068:    return res;
+        -:34069:}
+        -:34070:
+        -:34071:UA_StatusCode
+   210927:34072:generateRemoteKeys(UA_SecureChannel *channel) {
+   210927:34073:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+  210927*:34074:    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+   210927:34075:    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new remote keys");
+        -:34076:
+   210927:34077:    void *cc = channel->channelContext;
+   210927:34078:    const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
+        -:34079:
+        -:34080:    /* Generate symmetric key buffer of the required length. For AEAD ciphers
+        -:34081:     * the IV length differs from the block size, so use getLocalIvLength when
+        -:34082:     * available. */
+        -:34083:    UA_ByteString buf;
+   210927:34084:    size_t encrKL = ea->getRemoteKeyLength(sp, cc);
+   210927:34085:    size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+  210927*:34086:    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
+   210927:34087:    size_t signKL = sp->symSignatureAlgorithm.getRemoteKeyLength(sp, cc);
+   210927:34088:    if(ivLen + signKL + encrKL == 0)
+   110238:34089:        return UA_STATUSCODE_GOOD; /* No keys to generate */
+        -:34090:
+   100689:34091:    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
+  100689*:34092:    UA_CHECK_STATUS(res, return res);
+   100689:34093:    UA_ByteString remoteSigningKey = {signKL, buf.data};
+   100689:34094:    UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
+   100689:34095:    UA_ByteString remoteIv = {ivLen, &buf.data[signKL + encrKL]};
+        -:34096:
+        -:34097:    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
+   100689:34098:    buf.data[0] = 0x00;
+        -:34099:
+        -:34100:    /* Build the IKM-prefixed `secret` input. Both the local- and
+        -:34101:     * remote-keys passes of one OPN derive against the *same* previous
+        -:34102:     * accumulator (channel->currentIKM); generateLocalKeys deliberately
+        -:34103:     * did not advance it. The `seed` arg is passed unchanged — the
+        -:34104:     * helper uses it as the alternate ephemeral public key candidate
+        -:34105:     * and as part of the salt, so the prepend must not appear there. */
+   100689:34106:    UA_ByteString secretInput, seedInput = channel->remoteNonce;
+   100689:34107:    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
+   100689:34108:    res = prepareKeyInput(channel, &channel->localNonce,
+        -:34109:                         &secretInput, &secretCombined);
+  100689*:34110:    UA_CHECK_STATUS(res, goto error);
+        -:34111:
+        -:34112:    /* Generate key. The policy's wrapper XORs the previous accumulator
+        -:34113:     * with the new shared secret and writes the result (IKM_n) back
+        -:34114:     * into secretCombined. */
+   100689:34115:    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
+  100689*:34116:    UA_CHECK_STATUS(res, goto error);
+        -:34117:
+        -:34118:    /* This is the last derivation of the OPN: promote the just-updated
+        -:34119:     * IKM slot into channel->currentIKM so the next renewal chains from
+        -:34120:     * IKM_n. (On the first OPN currentIKM was empty, so IKM_0 == the raw
+        -:34121:     * shared secret for both passes — matching the spec's "no chaining
+        -:34122:     * on the first OpenSecureChannel".) */
+   100689:34123:    res = captureIKMSlot(channel, &secretCombined);
+   100689:34124:    if(res != UA_STATUSCODE_GOOD) {
+    #####:34125:        res = UA_STATUSCODE_BADOUTOFMEMORY;
+    #####:34126:        goto error;
+        -:34127:    }
+        -:34128:
+        -:34129:    /* Set the channel context */
+   100689:34130:    res |= sp->setRemoteSymSigningKey(sp, cc, &remoteSigningKey);
+   100689:34131:    res |= sp->setRemoteSymEncryptingKey(sp, cc, &remoteEncryptingKey);
+   100689:34132:    res |= sp->setRemoteSymIv(sp, cc, &remoteIv);
+        -:34133:
+   100689:34134: error:
+   100689:34135:    if(res != UA_STATUSCODE_GOOD) {
+    #####:34136:        UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+        -:34137:                               "Could not generate remote keys (%s)",
+        -:34138:                               UA_StatusCode_name(res));
+        -:34139:    }
+   100689:34140:    UA_ByteString_clear(&buf);
+   100689:34141:    UA_ByteString_clear(&secretCombined);
+   100689:34142:    return res;
+        -:34143:}
+        -:34144:
+        -:34145:/* v1.05.07 channel-bound SignatureData (SecureChannelEnhancements): the
+        -:34146: * CreateSession / ActivateSession signatures are bound to the SecureChannel by
+        -:34147: * prepending the ChannelThumbprint and including certificate hashes (not the
+        -:34148: * raw certs). */
+        -:34149:
+        -:34150:/* The certificate hash is provided by the crypto backend via the global
+        -:34151: * UA_SecurityPolicy_hashCertificate (the algorithm is derived from the policy
+        -:34152: * URI). Wrapped here so this file links without a crypto backend - the
+        -:34153: * builders below are only reached at runtime for enhanced-security policies,
+        -:34154: * which only exist when encryption is enabled. */
+        -:34155:#ifdef UA_ENABLE_ENCRYPTION
+        -:34156:static UA_StatusCode
+    #####:34157:hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
+        -:34158:         UA_ByteString *hash) {
+    #####:34159:    return UA_SecurityPolicy_hashCertificate(sp, cert, hash);
+        -:34160:}
+        -:34161:#else
+        -:34162:static UA_StatusCode
+        -:34163:hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
+        -:34164:         UA_ByteString *hash) {
+        -:34165:    (void)sp; (void)cert; (void)hash;
+        -:34166:    return UA_STATUSCODE_BADINTERNALERROR;
+        -:34167:}
+        -:34168:#endif
+        -:34169:
+        -:34170:/* Assemble a channel-bound SignatureData (OPC UA Part 6 v1.05.07,
+        -:34171: * SecureChannelEnhancements). All three share the shape
+        -:34172: *   channelThumbprint | nonceA | H(cert_0) .. H(cert_n-1) | nonceB
+        -:34173: * and differ only in which certificate hashes appear and the nonce order:
+        -:34174: *
+        -:34175: *   CreateSession ServerSignature   (server signs, client verifies):
+        -:34176: *     TP | clientNonce | H(serverChannelCert) | H(clientChannelCert) | serverNonce
+        -:34177: *   ActivateSession ClientSignature (client signs, server verifies):
+        -:34178: *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+        -:34179: *                        H(clientChannelCert) | clientNonce
+        -:34180: *   ActivateSession user-token sig  (client signs w/ user key, server verifies):
+        -:34181: *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+        -:34182: *                        H(clientAppCert) | H(clientChannelCert) | clientNonce
+        -:34183: *
+        -:34184: * H() = the policy's curve hash of the leaf DER. Both peers must produce the
+        -:34185: * SAME bytes, so each side maps the logical certificate roles onto its own
+        -:34186: * local vs. remote view (the certs are channel-scoped: app == channel cert in
+        -:34187: * open62541, hence the duplicated hashes). The user/X.509-token certificate is
+        -:34188: * NOT part of the signed data (it is conveyed and validated separately).
+        -:34189: *
+        -:34190: *   logical cert role      server passes               client passes
+        -:34191: *   --------------------------------------------------------------------------
+        -:34192: *   server App / Channel   sp->localCertificate        channel->remoteCertificate
+        -:34193: *   client App / Channel   channel->remoteCertificate  sp->localCertificate
+        -:34194: *
+        -:34195: *   serverNonce = the session ServerNonce, clientNonce = the session
+        -:34196: *   ClientNonce (the same value on both sides). */
+        -:34197:#define UA_MAX_SIGDATA_CERTS 4
+        -:34198:static UA_StatusCode
+    #####:34199:buildChannelBoundSignatureData(const UA_SecureChannel *channel,
+        -:34200:                               const UA_ByteString *firstNonce,
+        -:34201:                               const UA_ByteString *const *certs, size_t certCount,
+        -:34202:                               const UA_ByteString *lastNonce, UA_ByteString *out) {
+    #####:34203:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    #####:34204:    if(!sp || !channel->enhancedSecurity || certCount > UA_MAX_SIGDATA_CERTS ||
+    #####:34205:       channel->channelThumbprint.length == 0)
+    #####:34206:        return UA_STATUSCODE_BADINTERNALERROR;
+        -:34207:
+        -:34208:    /* Hash the certificates. The inputs may be DER chains (e.g. the OPN
+        -:34209:     * SenderCertificate stored in remoteCertificate), so hash only the leaf -
+        -:34210:     * independent of how a given crypto backend's hashCert handles a chain. */
+        -:34211:    UA_ByteString hashes[UA_MAX_SIGDATA_CERTS];
+    #####:34212:    for(size_t i = 0; i < UA_MAX_SIGDATA_CERTS; i++)
+    #####:34213:        hashes[i] = UA_BYTESTRING_NULL;
+    #####:34214:    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    #####:34215:    size_t hashesLen = 0;
+    #####:34216:    for(size_t i = 0; i < certCount && res == UA_STATUSCODE_GOOD; i++) {
+    #####:34217:        UA_ByteString leaf = getLeafCertificate(*certs[i]);
+    #####:34218:        res = hashCert(sp, &leaf, &hashes[i]);
+    #####:34219:        hashesLen += hashes[i].length;
+        -:34220:    }
+    #####:34221:    if(res != UA_STATUSCODE_GOOD)
+    #####:34222:        goto cleanup;
+        -:34223:
+        -:34224:    /* channelThumbprint | firstNonce | hashes | lastNonce */
+    #####:34225:    const UA_ByteString *tp = &channel->channelThumbprint;
+    #####:34226:    res = UA_ByteString_allocBuffer(out, tp->length + firstNonce->length +
+    #####:34227:                                    hashesLen + lastNonce->length);
+    #####:34228:    if(res != UA_STATUSCODE_GOOD)
+    #####:34229:        goto cleanup;
+        -:34230:
+    #####:34231:    size_t o = 0;
+    #####:34232:    memcpy(out->data + o, tp->data, tp->length); o += tp->length;
+    #####:34233:    memcpy(out->data + o, firstNonce->data, firstNonce->length); o += firstNonce->length;
+    #####:34234:    for(size_t i = 0; i < certCount; i++) {
+    #####:34235:        memcpy(out->data + o, hashes[i].data, hashes[i].length);
+    #####:34236:        o += hashes[i].length;
+        -:34237:    }
+    #####:34238:    memcpy(out->data + o, lastNonce->data, lastNonce->length);
+        -:34239:
+    #####:34240: cleanup:
+    #####:34241:    for(size_t i = 0; i < certCount; i++)
+    #####:34242:        UA_ByteString_clear(&hashes[i]);
+    #####:34243:    return res;
+        -:34244:}
+        -:34245:
+        -:34246:/* CreateSession ServerSignature (see the layout table above). */
+        -:34247:UA_StatusCode
+    #####:34248:UA_SecureChannel_buildCreateSessionSignatureData(
+        -:34249:    const UA_SecureChannel *channel, const UA_ByteString *clientNonce,
+        -:34250:    const UA_ByteString *serverNonce, const UA_ByteString *serverChannelCert,
+        -:34251:    const UA_ByteString *clientChannelCert, UA_ByteString *out) {
+    #####:34252:    const UA_ByteString *certs[] = {serverChannelCert, clientChannelCert};
+    #####:34253:    return buildChannelBoundSignatureData(channel, clientNonce, certs, 2,
+        -:34254:                                          serverNonce, out);
+        -:34255:}
+        -:34256:
+        -:34257:/* ActivateSession ClientSignature (see the layout table above). */
+        -:34258:UA_StatusCode
+    #####:34259:UA_SecureChannel_buildActivateSessionSignatureData(
+        -:34260:    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+        -:34261:    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+        -:34262:    const UA_ByteString *serverChannelCert, const UA_ByteString *clientChannelCert,
+        -:34263:    UA_ByteString *out) {
+    #####:34264:    const UA_ByteString *certs[] = {serverAppCert, serverChannelCert, clientChannelCert};
+    #####:34265:    return buildChannelBoundSignatureData(channel, serverNonce, certs, 3,
+        -:34266:                                          clientNonce, out);
+        -:34267:}
+        -:34268:
+        -:34269:/* ActivateSession X.509 user-token signature (see the layout table above). */
+        -:34270:UA_StatusCode
+    #####:34271:UA_SecureChannel_buildUserTokenSignatureData(
+        -:34272:    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+        -:34273:    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+        -:34274:    const UA_ByteString *serverChannelCert, const UA_ByteString *clientAppCert,
+        -:34275:    const UA_ByteString *clientChannelCert, UA_ByteString *out) {
+    #####:34276:    const UA_ByteString *certs[] = {serverAppCert, serverChannelCert,
+        -:34277:                                    clientAppCert, clientChannelCert};
+    #####:34278:    return buildChannelBoundSignatureData(channel, serverNonce, certs, 4,
+        -:34279:                                          clientNonce, out);
+        -:34280:}
+        -:34281:
+        -:34282:/***************************/
+        -:34283:/* Send Asymmetric Message */
+        -:34284:/***************************/
+        -:34285:
+        -:34286:/* The length of the static header content */
+        -:34287:#define UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH 12
+        -:34288:
+        -:34289:size_t
+   421854:34290:calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
+   421854:34291:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+  421854*:34292:    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+        -:34293:
+   421854:34294:    size_t asymHeaderLength = UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH +
+   421854:34295:                              sp->policyUri.length;
+   421854:34296:    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+   220476:34297:        return asymHeaderLength;
+        -:34298:
+        -:34299:    /* OPN is always encrypted even if the mode is sign only */
+   201378:34300:    asymHeaderLength += 20; /* Thumbprints are always 20 byte long */
+   201378:34301:    asymHeaderLength += sp->localCertificate.length;
+   201378:34302:    return asymHeaderLength;
+        -:34303:}
+        -:34304:
+        -:34305:UA_StatusCode
+   210927:34306:prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
+        -:34307:                   const UA_Byte *buf_end, size_t totalLength,
+        -:34308:                   size_t securityHeaderLength, UA_UInt32 requestId,
+        -:34309:                   size_t *const encryptedLength) {
+   210927:34310:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+  210927*:34311:    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+        -:34312:
+   210927:34313:    void *cc = channel->channelContext;
+        -:34314:
+   210927:34315:    *encryptedLength = totalLength;
+   210927:34316:    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE) {
+   100689:34317:        size_t dataToEncryptLength = totalLength -
+        -:34318:            (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength);
+   100689:34319:        size_t plainTextBlockSize = sp->asymEncryptionAlgorithm.
+        -:34320:            getRemotePlainTextBlockSize(sp, cc);
+   100689:34321:        size_t encryptedBlockSize = sp->asymEncryptionAlgorithm.
+        -:34322:            getRemoteBlockSize(sp, cc);
+        -:34323:
+        -:34324:        /* Padding always fills up the last block */
+  100689*:34325:        UA_assert(plainTextBlockSize > 0);
+  100689*:34326:        UA_assert(dataToEncryptLength % plainTextBlockSize == 0);
+   100689:34327:        size_t blocks = dataToEncryptLength / plainTextBlockSize;
+   100689:34328:        *encryptedLength = totalLength + blocks * (encryptedBlockSize - plainTextBlockSize);
+        -:34329:    }
+        -:34330:
+        -:34331:    UA_TcpMessageHeader messageHeader;
+   210927:34332:    messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+   210927:34333:    messageHeader.messageSize = (UA_UInt32)*encryptedLength;
+   210927:34334:    UA_UInt32 secureChannelId = channel->securityToken.channelId;
+   210927:34335:    UA_StatusCode res = UA_STATUSCODE_GOOD;
+   210927:34336:    res |= UA_encodeBinaryInternal(&messageHeader,
+        -:34337:                                   &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+        -:34338:                                   &header_pos, &buf_end, NULL, NULL, NULL);
+   210927:34339:    res |= UA_UInt32_encodeBinary(&secureChannelId, &header_pos, buf_end);
+  210927*:34340:    UA_CHECK_STATUS(res, return res);
+        -:34341:
+        -:34342:    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+   210927:34343:    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
+   210927:34344:    asymHeader.securityPolicyUri = sp->policyUri;
+   210927:34345:    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+   110238:34346:       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+   100689:34347:        asymHeader.senderCertificate = sp->localCertificate;
+   100689:34348:        asymHeader.receiverCertificateThumbprint.length = 20;
+   100689:34349:        asymHeader.receiverCertificateThumbprint.data = channel->remoteCertificateThumbprint;
+        -:34350:    }
+   210927:34351:    res = UA_encodeBinaryInternal(&asymHeader,
+        -:34352:                                  &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
+        -:34353:                                  &header_pos, &buf_end, NULL, NULL, NULL);
+  210927*:34354:    UA_CHECK_STATUS(res, return res);
+        -:34355:
+        -:34356:    UA_SequenceHeader seqHeader;
+   210927:34357:    seqHeader.requestId = requestId;
+   210927:34358:    seqHeader.sequenceNumber = UA_SecureChannel_nextSequenceNumber(channel);
+   210927:34359:    res = UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
+        -:34360:                                  &header_pos, &buf_end, NULL, NULL, NULL);
+   210927:34361:    return res;
+        -:34362:}
+        -:34363:
+        -:34364:void
+   210927:34365:hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
+        -:34366:              const UA_Byte **buf_end) {
+        -:34367:    /* Set buf_start to the beginning of the encrypted body */
+   210927:34368:    *buf_start += UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
+   210927:34369:    *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
+        -:34370:
+        -:34371:    /* Hide only the SequenceHeader for None  */
+   210927:34372:    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+   110238:34373:        *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
+   110238:34374:        return;
+        -:34375:    }
+        -:34376:
+        -:34377:    /* The max plaintext length depends on the number of encrypted blocks that
+        -:34378:     * can fit into the remaining chunk */
+   100689:34379:    void *cc = channel->channelContext;
+   100689:34380:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+        -:34381:    size_t plainTextBlockSize =
+   100689:34382:        sp->asymEncryptionAlgorithm.getRemotePlainTextBlockSize(sp, cc);
+        -:34383:    size_t encryptedBlockSize =
+   100689:34384:        sp->asymEncryptionAlgorithm.getRemoteBlockSize(sp, cc);
+        -:34385:
+   100689:34386:    size_t max_encrypted = (size_t)(*buf_end - *buf_start);
+  100689*:34387:    UA_assert(encryptedBlockSize > 0);
+   100689:34388:    size_t max_blocks = max_encrypted / encryptedBlockSize;
+   100689:34389:    size_t max_plaintext = max_blocks * plainTextBlockSize;
+        -:34390:
+        -:34391:    /* Reserve plaintext length for the SequenceHeader and Footer.
+        -:34392:     * But don't reserve for the the padding itself -- which can be zero. */
+   100689:34393:    max_plaintext -= UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
+   100689:34394:    max_plaintext -= sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+   100689:34395:    UA_Boolean extraPadding =
+   100689:34396:        (sp->asymEncryptionAlgorithm.getRemoteKeyLength(sp, cc) > 2048);
+  100689*:34397:    max_plaintext -= (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+        -:34398:
+        -:34399:    /* Adjust the buffer */
+   100689:34400:    *buf_end = *buf_start + max_plaintext;
+   100689:34401:    *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
+        -:34402:}
+        -:34403:
+        -:34404:/* Assumes that pos can be advanced to the end of the current block */
+        -:34405:void
+   100689:34406:padChunk(UA_SecureChannel *channel,
+        -:34407:         const UA_SecurityPolicySignatureAlgorithm *sa,
+        -:34408:         const UA_SecurityPolicyEncryptionAlgorithm *ea,
+        -:34409:         const UA_Byte *start, UA_Byte **pos) {
+   100689:34410:    UA_SecurityPolicy *sp = channel->securityPolicy;
+   100689:34411:    void *cc = channel->channelContext;
+        -:34412:
+   100689:34413:    const size_t bytesToWrite = (uintptr_t)*pos - (uintptr_t)start;
+        -:34414:
+   100689:34415:    size_t signatureSize = sa->getLocalSignatureSize(sp, cc);
+   100689:34416:    size_t plainTextBlockSize = ea->getRemotePlainTextBlockSize(sp, cc);
+   100689:34417:    UA_Boolean extraPadding = (ea->getRemoteKeyLength(sp, cc) > 2048);
+  100689*:34418:    size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+        -:34419:
+  100689*:34420:    UA_assert(plainTextBlockSize > 0);
+   100689:34421:    size_t lastBlock = ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
+  100689*:34422:    size_t paddingLength = (lastBlock != 0) ? plainTextBlockSize - lastBlock : 0;
+        -:34423:
+  100689*:34424:    UA_assert((bytesToWrite + signatureSize +
+        -:34425:               paddingBytes + paddingLength) % plainTextBlockSize == 0);
+        -:34426:
+   100689:34427:    UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+        -:34428:                         "Add %lu bytes of padding plus %lu padding size bytes",
+        -:34429:                         (long unsigned int)paddingLength,
+        -:34430:                         (long unsigned int)paddingBytes);
+        -:34431:
+        -:34432:    /* Write the padding. This is <= because the paddingSize byte also has to be
+        -:34433:     * written */
+   100689:34434:    UA_Byte paddingByte = (UA_Byte)paddingLength;
+  7753053:34435:    for(size_t i = 0; i <= paddingLength; ++i) {
+  7652364:34436:        **pos = paddingByte;
+  7652364:34437:        ++*pos;
+        -:34438:    }
+        -:34439:
+        -:34440:    /* Write the extra padding byte if required */
+   100689:34441:    if(extraPadding) {
+    #####:34442:        **pos = (UA_Byte)(paddingLength >> 8u);
+    #####:34443:        ++*pos;
+        -:34444:    }
+   100689:34445:}
+        -:34446:
+        -:34447:UA_StatusCode
+   210927:34448:signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
+        -:34449:                   UA_ByteString *buf, size_t securityHeaderLength,
+        -:34450:                   size_t totalLength) {
+   210927:34451:    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+   110238:34452:       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+   110238:34453:        return UA_STATUSCODE_GOOD;
+        -:34454:
+   100689:34455:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+   100689:34456:    void *cc = channel->channelContext;
+        -:34457:
+        -:34458:    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" (enhanced policies,
+        -:34459:     * FIRST OPN only — an empty channelThumbprint identifies the first OPN; NOT
+        -:34460:     * on renewals. The OPN response signature is extended with the first OPN
+        -:34461:     * request signature: the client (request side) stores its just-computed
+        -:34462:     * signature for the later response verify; the server (response side)
+        -:34463:     * appends the request signature captured by decryptAndVerifyChunk to the
+        -:34464:     * data being signed. */
+  100689*:34465:    UA_Boolean firstOPN = (channel->enhancedSecurity &&
+    #####:34466:                           channel->channelThumbprint.length == 0);
+   100689:34467:    UA_ByteString *appendSig = NULL;
+  100689*:34468:    if(firstOPN && channel->firstRequestSignature.length > 0)
+    #####:34469:        appendSig = &channel->firstRequestSignature; /* server: extend signed data */
+        -:34470:
+   100689:34471:    size_t sigsize = sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+        -:34472:
+        -:34473:    /* Prepare the data to sign. If we need to append the request
+        -:34474:     * signature, build a contiguous buffer [body | requestSig] and sign
+        -:34475:     * that. Otherwise sign the body in-place. */
+   100689:34476:    UA_ByteString signature = {sigsize, buf->data + preSignLength};
+        -:34477:    UA_StatusCode retval;
+        -:34478:
+   100689:34479:    if(appendSig) {
+    #####:34480:        size_t bodyLen = preSignLength;
+    #####:34481:        size_t extLen = bodyLen + appendSig->length;
+    #####:34482:        UA_Byte *ext = (UA_Byte*)UA_malloc(extLen);
+    #####:34483:        if(!ext)
+    #####:34484:            return UA_STATUSCODE_BADOUTOFMEMORY;
+    #####:34485:        memcpy(ext, buf->data, bodyLen);
+    #####:34486:        memcpy(ext + bodyLen, appendSig->data, appendSig->length);
+    #####:34487:        UA_ByteString dataToSignExt = {extLen, ext};
+    #####:34488:        retval = sp->asymSignatureAlgorithm.sign(sp, cc, &dataToSignExt, &signature);
+    #####:34489:        UA_free(ext);
+        -:34490:    } else {
+   100689:34491:        const UA_ByteString dataToSign = {preSignLength, buf->data};
+   100689:34492:        retval = sp->asymSignatureAlgorithm.sign(sp, cc, &dataToSign, &signature);
+        -:34493:        /* First-OPN client side: remember the just-computed request
+        -:34494:         * signature. The verify path on the client will use it to
+        -:34495:         * extend the response body. */
+  100689*:34496:        if(retval == UA_STATUSCODE_GOOD && firstOPN && signature.length > 0) {
+        -:34497:            UA_StatusCode clip =
+    #####:34498:                UA_ByteString_copy(&signature, &channel->firstRequestSignature);
+    #####:34499:            if(clip != UA_STATUSCODE_GOOD)
+    #####:34500:                retval = clip;
+        -:34501:        }
+        -:34502:    }
+        -:34503:
+  100689*:34504:    UA_CHECK_STATUS(retval, return retval);
+        -:34505:
+        -:34506:    /* Server, first OPN response (appendSig != NULL): the just-computed
+        -:34507:     * signature is the ChannelThumbprint - capture it (preserved across renewals
+        -:34508:     * to bind the session SignatureData) and release the consumed request
+        -:34509:     * signature. (The client stored its request signature above; that copy is
+        -:34510:     * released later by the OPN-response verify.) */
+   100689:34511:    if(appendSig != NULL) {
+    #####:34512:        UA_StatusCode tp = UA_ByteString_copy(&signature, &channel->channelThumbprint);
+    #####:34513:        UA_CHECK_STATUS(tp, return tp);
+    #####:34514:        UA_ByteString_clear(&channel->firstRequestSignature);
+        -:34515:    }
+        -:34516:
+        -:34517:    /* Specification part 6, 6.7.4: The OpenSecureChannel Messages are
+        -:34518:     * signed and encrypted if the SecurityMode is not None (even if the
+        -:34519:     * SecurityMode is SignOnly). */
+   100689:34520:    size_t unencrypted_length =
+        -:34521:        UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength;
+   100689:34522:    UA_ByteString dataToEncrypt =
+   100689:34523:        {totalLength - unencrypted_length, &buf->data[unencrypted_length]};
+   100689:34524:    return sp->asymEncryptionAlgorithm.encrypt(sp, cc, &dataToEncrypt);
+        -:34525:}
+        -:34526:
+        -:34527:/**************************/
+        -:34528:/* Send Symmetric Message */
+        -:34529:/**************************/
+        -:34530:
+        -:34531:UA_StatusCode
+   698169:34532:signAndEncryptSym(UA_MessageContext *messageContext,
+        -:34533:                  size_t preSigLength, size_t totalLength) {
+   698169:34534:    const UA_SecureChannel *channel = messageContext->channel;
+   698169:34535:    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+    99385:34536:        return UA_STATUSCODE_GOOD;
+        -:34537:
+   598784:34538:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+   598784:34539:    void *cc = channel->channelContext;
+        -:34540:
+        -:34541:    /* For AEAD policies (ChaCha20-Poly1305), set the message security
+        -:34542:     * parameters for nonce masking. Then let the encrypt callback handle
+        -:34543:     * both authentication and encryption. */
+   598784:34544:    if(UA_SecurityPolicy_isAead(sp)) {
+        -:34545:        /* Set AEAD parameters: tokenId, previous seqNo, AAD */
+    #####:34546:        if(sp->setMessageSecurityParameters) {
+        -:34547:            UA_ByteString aad;
+    #####:34548:            aad.data = messageContext->messageBuffer.data;
+    #####:34549:            aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        -:34550:                         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+        -:34551:            /* The AEAD nonce is masked with the PREVIOUS sequence number: the
+        -:34552:             * receiver masks with its receiveSequenceNumber, which is still the
+        -:34553:             * prior chunk's number at decrypt time (incremented only after
+        -:34554:             * decryption). sendSequenceNumber is the post-increment counter, so
+        -:34555:             * the value just emitted is (sendSequenceNumber - 1) and the
+        -:34556:             * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
+        -:34557:             * non-legacy counter (first emitted number is 0). */
+    #####:34558:            UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
+    #####:34559:                (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
+    #####:34560:            UA_StatusCode res = sp->setMessageSecurityParameters(
+    #####:34561:                sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
+    #####:34562:            UA_CHECK_STATUS(res, return res);
+        -:34563:        }
+        -:34564:
+    #####:34565:        if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        -:34566:            /* Full AEAD: encrypt + compute auth tag. Data includes
+        -:34567:             * the 16-byte tag space at the end. */
+        -:34568:            UA_ByteString dataToProcess;
+    #####:34569:            dataToProcess.data = messageContext->messageBuffer.data +
+    #####:34570:                UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        -:34571:                UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+    #####:34572:            dataToProcess.length = totalLength -
+        -:34573:                (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        -:34574:                 UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
+    #####:34575:            return sp->symEncryptionAlgorithm.encrypt(sp, cc, &dataToProcess);
+        -:34576:        }
+        -:34577:
+        -:34578:        /* Sign-only: Compute Poly1305 auth tag */
+    #####:34579:        UA_ByteString dataToSign = messageContext->messageBuffer;
+    #####:34580:        dataToSign.length = preSigLength;
+        -:34581:        UA_ByteString signature;
+    #####:34582:        signature.length =
+    #####:34583:            sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+    #####:34584:        signature.data = messageContext->buf_pos;
+    #####:34585:        return sp->symSignatureAlgorithm.
+        -:34586:            sign(sp, cc, &dataToSign, &signature);
+        -:34587:    }
+        -:34588:
+        -:34589:    /* Sign */
+   598784:34590:    UA_ByteString dataToSign = messageContext->messageBuffer;
+   598784:34591:    dataToSign.length = preSigLength;
+        -:34592:    UA_ByteString signature;
+   598784:34593:    signature.length =
+   598784:34594:        sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+   598784:34595:    signature.data = messageContext->buf_pos;
+   598784:34596:    UA_StatusCode res = sp->symSignatureAlgorithm.
+        -:34597:        sign(sp, cc, &dataToSign, &signature);
+  598784*:34598:    UA_CHECK_STATUS(res, return res);
+        -:34599:
+   598784:34600:    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+   598784:34601:        return UA_STATUSCODE_GOOD;
+        -:34602:
+        -:34603:    /* Encrypt */
+        -:34604:    UA_ByteString dataToEncrypt;
+    #####:34605:    dataToEncrypt.data = messageContext->messageBuffer.data +
+    #####:34606:        UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        -:34607:        UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+    #####:34608:    dataToEncrypt.length = totalLength -
+        -:34609:        (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        -:34610:         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
+    #####:34611:    return sp->symEncryptionAlgorithm.encrypt(sp, cc, &dataToEncrypt);
+        -:34612:}
+        -:34613:
+        -:34614:void
+   698169:34615:setBufPos(UA_MessageContext *mc) {
+        -:34616:    /* Forward the data pointer so that the payload is encoded after the message
+        -:34617:     * header. This has to be a symmetric message because OPN (with asymmetric
+        -:34618:     * encryption) does not support chunking. */
+   698169:34619:    mc->buf_pos = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH];
+   698169:34620:    mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
+        -:34621:
+   698169:34622:    if(mc->channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+    99385:34623:        return;
+        -:34624:
+   598784:34625:    const UA_SecureChannel *channel = mc->channel;
+   598784:34626:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+   598784:34627:    void *cc = channel->channelContext;
+        -:34628:
+        -:34629:    /* For AEAD (ChaCha20-Poly1305): no padding, no block alignment.
+        -:34630:     * Only reserve space for the authentication tag (signature size). */
+   598784:34631:    if(UA_SecurityPolicy_isAead(sp)) {
+        -:34632:        size_t sigsize =
+    #####:34633:            sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+    #####:34634:        mc->buf_end -= sigsize;
+    #####:34635:        UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+        -:34636:                             "Prepare an AEAD symmetric message buffer of length %lu "
+        -:34637:                             "with a usable maximum payload length of %lu",
+        -:34638:                             (long unsigned)mc->messageBuffer.length,
+        -:34639:                             (long unsigned)((uintptr_t)mc->buf_end -
+        -:34640:                                             (uintptr_t)mc->messageBuffer.data));
+    #####:34641:        return;
+        -:34642:    }
+        -:34643:
+        -:34644:    size_t sigsize =
+   598784:34645:        sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+        -:34646:    size_t plainBlockSize =
+   598784:34647:        sp->symEncryptionAlgorithm.getRemotePlainTextBlockSize(sp, cc);
+        -:34648:
+        -:34649:    /* Assuming that for symmetric encryption the plainTextBlockSize ==
+        -:34650:     * cypherTextBlockSize. For symmetric encryption the remote/local block
+        -:34651:     * sizes are identical. */
+  598784*:34652:    UA_assert(sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, cc) == plainBlockSize);
+        -:34653:
+        -:34654:    /* Leave enough space for the signature and padding */
+   598784:34655:    mc->buf_end -= sigsize;
+  598784*:34656:    UA_assert(plainBlockSize > 0);
+   598784:34657:    mc->buf_end -= mc->messageBuffer.length % plainBlockSize;
+        -:34658:
+   598784:34659:    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        -:34660:        /* Reserve space for the padding bytes */
+    #####:34661:        UA_Boolean extraPadding =
+    #####:34662:            (sp->symEncryptionAlgorithm.getRemoteKeyLength(sp, cc) > 2048);
+    #####:34663:        mc->buf_end -= (UA_LIKELY(!extraPadding)) ? 1 : 2;
+        -:34664:    }
+        -:34665:
+   598784:34666:    UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+        -:34667:                         "Prepare a symmetric message buffer of length %lu "
+        -:34668:                         "with a usable maximum payload length of %lu",
+        -:34669:                         (long unsigned)mc->messageBuffer.length,
+        -:34670:                         (long unsigned)((uintptr_t)mc->buf_end -
+        -:34671:                                         (uintptr_t)mc->messageBuffer.data));
+        -:34672:}
+        -:34673:
+        -:34674:/****************************/
+        -:34675:/* Process a received Chunk */
+        -:34676:/****************************/
+        -:34677:
+        -:34678:static size_t
+   100689:34679:decodePadding(const UA_SecureChannel *channel,
+        -:34680:              const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
+        -:34681:              const UA_ByteString *chunk, size_t sigsize) {
+        -:34682:    /* Read the byte with the padding size */
+   100689:34683:    size_t paddingSize = chunk->data[chunk->length - sigsize - 1];
+        -:34684:
+        -:34685:    /* Extra padding size */
+   100689:34686:    if(encryptionAlgorithm->getLocalKeyLength(channel->securityPolicy,
+   100689:34687:                                              channel->channelContext) > 2048) {
+    #####:34688:        paddingSize <<= 8u;
+    #####:34689:        paddingSize += chunk->data[chunk->length - sigsize - 2];
+    #####:34690:        paddingSize += 1; /* Extra padding byte itself */
+        -:34691:    }
+        -:34692:
+        -:34693:    /* Add one since the paddingSize byte itself needs to be removed as well */
+   100689:34694:    return paddingSize + 1;
+        -:34695:}
+        -:34696:
+        -:34697:/* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
+        -:34698: * and the sequenceNumber */
+        -:34699:UA_StatusCode
+  1118616:34700:decryptAndVerifyChunk(UA_SecureChannel *channel,
+        -:34701:                      const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
+        -:34702:                      const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
+        -:34703:                      UA_MessageType messageType, UA_ByteString *chunk,
+        -:34704:                      size_t offset) {
+  1118616:34705:    UA_SecurityPolicy *sp = channel->securityPolicy;
+  1118616:34706:    void *cc = channel->channelContext;
+  1118616:34707:    UA_StatusCode res = UA_STATUSCODE_GOOD;
+        -:34708:
+        -:34709:    /* AEAD path (ChaCha20-Poly1305): the decrypt callback handles both
+        -:34710:     * decryption and authentication tag verification in one step. */
+ 1118616*:34711:    if(UA_SecurityPolicy_isAead(sp) &&
+        -:34712:       messageType != UA_MESSAGETYPE_OPN) {
+        -:34713:
+        -:34714:        /* Set AEAD parameters before decrypt/verify. The masked nonce is keyed
+        -:34715:         * on the TokenId of *this* message, which is taken from the chunk's
+        -:34716:         * symmetric SecurityHeader (right after the 12-byte channel header) and
+        -:34717:         * not from channel->securityToken: during a token rollover the peer may
+        -:34718:         * still secure messages with the old token (Part 4 §5.5.2) while the
+        -:34719:         * channel already holds the new token. Using the wrong TokenId here
+        -:34720:         * makes the AEAD tag verification fail. */
+    #####:34721:        if(sp->setMessageSecurityParameters) {
+    #####:34722:            UA_ByteString aad = {offset, chunk->data};
+    #####:34723:            size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
+    #####:34724:            UA_UInt32 msgTokenId = channel->securityToken.tokenId;
+    #####:34725:            if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
+    #####:34726:                UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
+    #####:34727:            res = sp->setMessageSecurityParameters(
+        -:34728:                sp, cc, msgTokenId,
+        -:34729:                channel->receiveSequenceNumber, &aad);
+    #####:34730:            UA_CHECK_STATUS(res, return res);
+        -:34731:        }
+        -:34732:
+    #####:34733:        if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        -:34734:            /* Full AEAD decrypt + verify. The decrypt callback processes
+        -:34735:             * the data including the 16-byte auth tag at the end. On
+        -:34736:             * success, it reduces cipher.length by the tag size. */
+    #####:34737:            UA_ByteString cipher = {chunk->length - offset, chunk->data + offset};
+    #####:34738:            res = encryptionAlgorithm->decrypt(sp, cc, &cipher);
+    #####:34739:            UA_CHECK_STATUS(res,
+        -:34740:                UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+        -:34741:                                       "AEAD decryption/verification failed");
+        -:34742:                return res);
+    #####:34743:            chunk->length = cipher.length + offset;
+    #####:34744:        } else if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN) {
+        -:34745:            /* Sign-only: verify the auth tag without decryption */
+    #####:34746:            size_t sigsize = signatureAlgorithm->getRemoteSignatureSize(sp, cc);
+    #####:34747:            UA_CHECK(sigsize < chunk->length,
+        -:34748:                     return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    #####:34749:            const UA_ByteString content = {chunk->length - sigsize, chunk->data};
+    #####:34750:            const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
+    #####:34751:            res = signatureAlgorithm->verify(sp, cc, &content, &sig);
+    #####:34752:            UA_CHECK_STATUS(res,
+        -:34753:                UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+        -:34754:                                       "AEAD signature verification failed");
+        -:34755:                return res);
+    #####:34756:            chunk->length -= sigsize;
+        -:34757:        }
+        -:34758:
+        -:34759:        /* Verify the content length */
+    #####:34760:        UA_CHECK(offset + 9 < chunk->length,
+        -:34761:                 UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+        -:34762:                                      "AEAD message too short");
+        -:34763:                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    #####:34764:        return UA_STATUSCODE_GOOD;
+        -:34765:    }
+        -:34766:
+        -:34767:    /* Decrypt the chunk */
+  1118616:34768:    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
+        -:34769:       messageType == UA_MESSAGETYPE_OPN) {
+   210933:34770:        UA_ByteString cipher = {chunk->length - offset, chunk->data + offset};
+   210933:34771:        res = encryptionAlgorithm->decrypt(sp, cc, &cipher);
+  210933*:34772:        UA_CHECK_STATUS(res, return res);
+   210933:34773:        chunk->length = cipher.length + offset;
+        -:34774:    }
+        -:34775:
+        -:34776:    /* Does the message have a signature? */
+  1118616:34777:    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+   419250:34778:       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+        -:34779:       messageType != UA_MESSAGETYPE_OPN)
+   209622:34780:        return UA_STATUSCODE_GOOD;
+        -:34781:
+        -:34782:    /* Verify the chunk signature */
+   908994:34783:    UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Verifying chunk signature");
+   908994:34784:    size_t sigsize = signatureAlgorithm->getRemoteSignatureSize(sp, cc);
+  908994*:34785:    UA_CHECK(sigsize < chunk->length, return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+   908994:34786:    const UA_ByteString content = {chunk->length - sigsize, chunk->data};
+   908994:34787:    const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
+        -:34788:
+        -:34789:    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" (only for the first
+        -:34790:     * OPN exchange and only for SecurityPolicies with
+        -:34791:     * secureChannelEnhancements = true). For the *first* OPN only:
+        -:34792:     *
+        -:34793:     *   Server side (verify an incoming OPN request): the request
+        -:34794:     *   signature is unknown to the server until it has been
+        -:34795:     *   verified. Capture the bytes now (BEFORE stripping) so the
+        -:34796:     *   sign path of the OPN response can append them.
+        -:34797:     *
+        -:34798:     *   Client side (verify the OPN response): the client's own
+        -:34799:     *   request signature was stored in firstRequestSignature when
+        -:34800:     *   the request was sent. Extend the verify content with it.
+        -:34801:     *
+        -:34802:     * For OPN *renewals* the firstRequestSignature is empty (it was
+        -:34803:     * cleared by the first exchange) and the normal v1.05.06 verify
+        -:34804:     * path is used. */
+   908994:34805:    UA_ByteString verifyContent = content;
+   908994:34806:    UA_Byte *extendedBuf = NULL;
+   908994:34807:    UA_Boolean capturedIncoming = false;
+        -:34808:    /* First-OPN only (channelThumbprint empty). On renewals neither capture nor
+        -:34809:     * extend - the v1.05.06 verify path is used. */
+    #####:34810:    UA_Boolean firstOPN = (channel->enhancedSecurity &&
+  908994*:34811:                           messageType == UA_MESSAGETYPE_OPN &&
+    #####:34812:                           channel->channelThumbprint.length == 0);
+   908994:34813:    if(firstOPN) {
+    #####:34814:        if(channel->firstRequestSignature.length == 0) {
+        -:34815:            /* First-OPN, receiving side: capture the incoming signature.
+        -:34816:             * The sign path of the response will consume it. */
+    #####:34817:            UA_StatusCode clip = UA_ByteString_copy(&sig, &channel->firstRequestSignature);
+    #####:34818:            UA_CHECK_STATUS(clip, return clip);
+    #####:34819:            capturedIncoming = true;
+        -:34820:        } else {
+        -:34821:            /* Verifying the OPN response: extend the content. */
+    #####:34822:            extendedBuf = (UA_Byte*)UA_malloc(
+    #####:34823:                content.length + channel->firstRequestSignature.length);
+    #####:34824:            if(!extendedBuf) {
+    #####:34825:                UA_ByteString_clear(&channel->firstRequestSignature);
+    #####:34826:                return UA_STATUSCODE_BADOUTOFMEMORY;
+        -:34827:            }
+    #####:34828:            memcpy(extendedBuf, content.data, content.length);
+    #####:34829:            memcpy(extendedBuf + content.length,
+    #####:34830:                   channel->firstRequestSignature.data,
+        -:34831:                   channel->firstRequestSignature.length);
+    #####:34832:            verifyContent.data = extendedBuf;
+    #####:34833:            verifyContent.length =
+    #####:34834:                content.length + channel->firstRequestSignature.length;
+        -:34835:        }
+        -:34836:    }
+        -:34837:
+   908994:34838:    res = signatureAlgorithm->verify(sp, cc, &verifyContent, &sig);
+   908994:34839:    UA_free(extendedBuf);
+        -:34840:
+        -:34841:    /* Single-use: if we just consumed the stored signature (client side
+        -:34842:     * verifying the response), clear it. If we just captured the
+        -:34843:     * incoming signature (server side verifying the request), keep
+        -:34844:     * it — the sign path of the response will use and then clear it. */
+  908994*:34845:    if(firstOPN && !capturedIncoming) {
+    #####:34846:        UA_ByteString_clear(&channel->firstRequestSignature);
+        -:34847:    }
+        -:34848:
+  908994*:34849:    UA_CHECK_STATUS(res, UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+        -:34850:                                                "Could not verify the signature");
+        -:34851:                    return res);
+        -:34852:
+        -:34853:    /* OPC UA Part 6 v1.05.07 ChannelThumbprint: on the client, the
+        -:34854:     * verified first-OPN *response* signature (sig) is the
+        -:34855:     * ChannelThumbprint. capturedIncoming is false only on the
+        -:34856:     * client response-verify path. Capture once, preserve across
+        -:34857:     * renewals; binds the session SignatureData to this channel. */
+  908994*:34858:    if(channel->enhancedSecurity && messageType == UA_MESSAGETYPE_OPN &&
+    #####:34859:       !capturedIncoming && channel->channelThumbprint.length == 0) {
+    #####:34860:        UA_StatusCode tp = UA_ByteString_copy(&sig, &channel->channelThumbprint);
+    #####:34861:        UA_CHECK_STATUS(tp, return tp);
+        -:34862:    }
+        -:34863:
+        -:34864:    /* Compute the padding if the payload is encrypted (not ECC policy) */
+   908994:34865:    size_t padSize = 0;
+   908994:34866:    if((messageType != UA_MESSAGETYPE_OPN &&
+   908994:34867:        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) ||
+   210933:34868:       (messageType == UA_MESSAGETYPE_OPN &&
+   210933:34869:        sp->policyType == UA_SECURITYPOLICYTYPE_RSA)) {
+   100689:34870:        padSize = decodePadding(channel, encryptionAlgorithm, chunk, sigsize);
+   100689:34871:        UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Calculated padding size to be %lu",
+        -:34872:                             (long unsigned)padSize);
+        -:34873:    }
+        -:34874:
+        -:34875:    /* Verify the content length. The encrypted payload has to be at least 9
+        -:34876:     * bytes long: 8 byte for the SequenceHeader and one byte for the actual
+        -:34877:     * message */
+  908994*:34878:    UA_CHECK(offset + padSize + sigsize + 9 < chunk->length,
+        -:34879:             UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Impossible padding value");
+        -:34880:             return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+        -:34881:
+        -:34882:    /* Hide the signature and padding */
+   908994:34883:    chunk->length -= (sigsize + padSize);
+   908994:34884:    return UA_STATUSCODE_GOOD;
+        -:34885:}
+        -:34886:
+        -:34887:/* The certificate in the header is verified via the configured PKI plugin as
+        -:34888: * certificateVerification.verifyCertificate(...). We cannot do it here because
+        -:34889: * the client/server context is needed. */
+        -:34890:UA_StatusCode
+   210933:34891:checkAsymHeader(UA_SecureChannel *channel,
+        -:34892:                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+   210933:34893:    const UA_SecurityPolicy *sp = channel->securityPolicy;
+   210933:34894:    if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
+    #####:34895:        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+   210933:34896:    return sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+        -:34897:}
+        -:34898:
+        -:34899:UA_StatusCode
+   907683:34900:checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
+        -:34901:               UA_DateTime nowMonotonic) {
+   907683:34902:    UA_SecurityPolicy *sp = channel->securityPolicy;
+        -:34903:    (void)sp;
+        -:34904:
+        -:34905:    /* If no match, try to revolve to the next token after a
+        -:34906:     * RenewSecureChannel */
+   907683:34907:    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+   907683:34908:    UA_ChannelSecurityToken *token = &channel->securityToken;
+   907683:34909:    switch(channel->renewState) {
+   696525:34910:    case UA_SECURECHANNELRENEWSTATE_NORMAL:
+        -:34911:    case UA_SECURECHANNELRENEWSTATE_SENT:
+        -:34912:    default:
+   696525:34913:        break;
+        -:34914:
+   211158:34915:    case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:
+        -:34916:        /* Old token still in use */
+   211158:34917:        if(tokenId == channel->securityToken.tokenId)
+      231:34918:            break;
+        -:34919:
+        -:34920:        /* Not the new token */
+  210927*:34921:        UA_CHECK(tokenId == channel->altSecurityToken.tokenId,
+        -:34922:                 UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
+        -:34923:                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+        -:34924:
+        -:34925:        /* Roll over to the new token, generate new local and remote keys */
+   210927:34926:        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+   210927:34927:        channel->securityToken = channel->altSecurityToken;
+   210927:34928:        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+   210927:34929:        retval |= UA_SecureChannel_generateLocalKeys(channel);
+   210927:34930:        retval |= generateRemoteKeys(channel);
+  210927*:34931:        UA_CHECK_STATUS(retval, return retval);
+   210927:34932:        break;
+        -:34933:
+    #####:34934:    case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
+        -:34935:        /* The server is still using the old token. That's okay. */
+    #####:34936:        if(tokenId == channel->altSecurityToken.tokenId) {
+    #####:34937:            token = &channel->altSecurityToken;
+    #####:34938:            break;
+        -:34939:        }
+        -:34940:
+        -:34941:        /* Not the new token */
+    #####:34942:        UA_CHECK(tokenId == channel->securityToken.tokenId,
+        -:34943:                 UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
+        -:34944:                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+        -:34945:
+        -:34946:        /* The remote server uses the new token for the first time. Delete the
+        -:34947:         * old token and roll the remote key over. The local key already uses
+        -:34948:         * the nonce pair from the last OPN exchange. */
+    #####:34949:        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+    #####:34950:        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+    #####:34951:        retval = generateRemoteKeys(channel);
+    #####:34952:        UA_CHECK_STATUS(retval, return retval);
+        -:34953:    }
+        -:34954:
+   907683:34955:    UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
+   907683:34956:    if(channel->state == UA_SECURECHANNELSTATE_OPEN && timeout < nowMonotonic) {
+    #####:34957:        UA_LOG_ERROR_CHANNEL(sp->logger, channel, "SecurityToken timed out");
+    #####:34958:        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_TIMEOUT);
+    #####:34959:        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+        -:34960:    }
+        -:34961:
+   907683:34962:    return UA_STATUSCODE_GOOD;
+        -:34963:}
+        -:34964:
+        -:34965:UA_Boolean
+   687255:34966:UA_SecureChannel_checkTimeout(UA_SecureChannel *channel, UA_DateTime nowMonotonic) {
+        -:34967:    /* Compute the timeout date of the SecurityToken */
+   687255:34968:    UA_DateTime timeout = channel->securityToken.createdAt +
+   687255:34969:        (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+        -:34970:
+        -:34971:    /* The token has timed out. Try to do the token revolving now instead of
+        -:34972:     * shutting the channel down.
+        -:34973:     *
+        -:34974:     * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
+        -:34975:     * secure outgoing Messages until the SecurityToken expires or the
+        -:34976:     * Server receives a Message secured with a new SecurityToken.*/
+   687255:34977:    if(timeout < nowMonotonic &&
+       10:34978:       channel->renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+        -:34979:        /* Revolve the token manually. This is otherwise done in checkSymHeader. */
+    #####:34980:        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+    #####:34981:        channel->securityToken = channel->altSecurityToken;
+    #####:34982:        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+    #####:34983:        UA_SecureChannel_generateLocalKeys(channel);
+    #####:34984:        generateRemoteKeys(channel);
+        -:34985:
+        -:34986:        /* Use the timeout of the new SecurityToken */
+    #####:34987:        timeout = channel->securityToken.createdAt +
+    #####:34988:            (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+        -:34989:    }
+        -:34990:
+   687255:34991:    return (timeout < nowMonotonic);
+        -:34992:}
+        -:34993:
+        -:34994:/**** amalgamated original file "/src/OPC_UA/open62541/src/server/ua_session.c" ****/
+        -:34995:
+        -:34996:/* This Source Code Form is subject to the terms of the Mozilla Public
+        -:34997: * License, v. 2.0. If a copy of the MPL was not distributed with this
+        -:34998: * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+        -:34999: *
+        -:35000: *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+        -:35001: *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+        -:35002: *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+        -:35003: */
+        -:35004:
+        -:35005:#ifdef UA_ENABLE_SUBSCRIPTIONS
+        -:35006:#endif
+        -:35007:
+   198777:35008:void UA_Session_init(UA_Session *session) {
+   198777:35009:    memset(session, 0, sizeof(UA_Session));
+   198777:35010:    TAILQ_INIT(&session->continuationPoints);
+        -:35011:#ifdef UA_ENABLE_SUBSCRIPTIONS
+   198777:35012:    SIMPLEQ_INIT(&session->responseQueue);
+   198777:35013:    TAILQ_INIT(&session->subscriptions);
+        -:35014:#endif
+   198777:35015:}
+        -:35016:
+    99393:35017:void UA_Session_clear(UA_Session *session, UA_Server* server) {
+        -:35018:    UA_LOCK_ASSERT(&server->serviceMutex);
+        -:35019:
+        -:35020:    /* Remove all Subscriptions. This may send out remaining publish
+        -:35021:     * responses. */
+        -:35022:#ifdef UA_ENABLE_SUBSCRIPTIONS
+        -:35023:    UA_Subscription *sub, *tempsub;
+    99401:35024:    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        8:35025:        UA_Subscription_delete(server, sub);
+        -:35026:    }
+        -:35027:#endif
+        -:35028:
+        -:35029:#ifdef UA_ENABLE_DIAGNOSTICS
+    99393:35030:    deleteNode(server, session->sessionId, true);
+        -:35031:#endif
+        -:35032:
+    99393:35033:    UA_Session_detachFromSecureChannel(server, session);
+    99393:35034:    UA_ApplicationDescription_clear(&session->clientDescription);
+    99393:35035:    UA_ByteString_clear(&session->clientCertificate);
+    99393:35036:    UA_NodeId_clear(&session->authenticationToken);
+    99393:35037:    UA_String_clear(&session->clientUserIdOfSession);
+    99393:35038:    UA_NodeId_clear(&session->sessionId);
+    99393:35039:    UA_String_clear(&session->sessionName);
+    99393:35040:    UA_ByteString_clear(&session->serverNonce);
+    99393:35041:    UA_ByteString_clear(&session->clientNonce);
+    99393:35042:    ContinuationPointQueue_clear(&session->continuationPoints);
+    99393:35043:    session->continuationPointsSize = 0;
+        -:35044:
+    99393:35045:    UA_KeyValueMap_clear(&session->attributes);
+        -:35046:
+    99393:35047:    UA_Array_delete(session->localeIds, session->localeIdsSize,
+        -:35048:                    &UA_TYPES[UA_TYPES_STRING]);
+    99393:35049:    session->localeIds = NULL;
+    99393:35050:    session->localeIdsSize = 0;
+        -:35051:
+        -:35052:#ifdef UA_ENABLE_DIAGNOSTICS
+    99393:35053:    UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
+    99393:35054:    UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
+        -:35055:#endif
+        -:35056:
+    99393:35057:    if(session->sessionSp && session->sessionSpContext) {
+    99384:35058:        session->sessionSp->
+    99384:35059:            deleteChannelContext(session->sessionSp, session->sessionSpContext);
+    99384:35060:        session->sessionSp = NULL;
+    99384:35061:        session->sessionSpContext = NULL;
+        -:35062:    }
+    99393:35063:}
+        -:35064:
+        -:35065:void
+    99385:35066:UA_Session_attachToSecureChannel(UA_Server *server, UA_Session *session,
+        -:35067:                                 UA_SecureChannel *channel) {
+        -:35068:    /* Ensure the Session is not attached to another SecureChannel */
+    99385:35069:    UA_Session_detachFromSecureChannel(server, session);
+        -:35070:
+        -:35071:    /* Add to singly-linked list */
+    99385:35072:    session->next = channel->sessions;
+    99385:35073:    channel->sessions = session;
+        -:35074:
+        -:35075:    /* Add backpointer */
+    99385:35076:    session->channel = channel;
+    99385:35077:}
+        -:35078:
+        -:35079:void
+   298415:35080:UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session) {
+        -:35081:    /* Clean up the response queue. Their RequestId is bound to the
+        -:35082:     * SecureChannel so they cannot be reused. */
+        -:35083:#ifdef UA_ENABLE_SUBSCRIPTIONS
+        -:35084:    UA_PublishResponseEntry *pre;
+   298560:35085:    while((pre = UA_Session_dequeuePublishReq(session))) {
+      145:35086:        UA_PublishResponse_clear(&pre->response);
+      145:35087:        UA_free(pre);
+        -:35088:    }
+        -:35089:#endif
+        -:35090:
+        -:35091:    /* Remove from singly-linked list */
+   298415:35092:    UA_SecureChannel *channel = session->channel;
+   298415:35093:    if(!channel)
+   199030:35094:        return;
+        -:35095:
+    99385:35096:    if(channel->sessions == session) {
+    99385:35097:        channel->sessions = session->next;
+        -:35098:    } else {
+    #####:35099:        UA_Session *elm =  channel->sessions;
+    #####:35100:        while(elm->next != session)
+    #####:35101:            elm = elm->next;
+    #####:35102:        elm->next = session->next;
+        -:35103:    }
+        -:35104:
+        -:35105:    /* Reset the backpointer */
+    99385:35106:    session->channel = NULL;
+        -:35107:
+        -:35108:    /* Notify the application */
+    99385:35109:    notifySession(server, session,
+        -:35110:                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED);
+        -:35111:}
+        -:35112:
+        -:35113:UA_StatusCode
+   198769:35114:UA_Session_generateNonce(UA_Session *session) {
+   198769:35115:    UA_SecureChannel *channel = session->channel;
+   198769:35116:    if(!channel || !channel->securityPolicy)
+    #####:35117:        return UA_STATUSCODE_BADINTERNALERROR;
+        -:35118:
+        -:35119:    /* The nonce needs to be between 32 and 128 byte.
+        -:35120:     * The #Nonce SecurityPolicy might not do that. */
+   198769:35121:    UA_SecurityPolicy *sp = channel->securityPolicy;
+   198769:35122:    void *spC = channel->channelContext;
+   198769:35123:    if(session->sessionSp && session->sessionSpContext) {
+   198768:35124:        sp = session->sessionSp;
+   198768:35125:        spC = session->sessionSpContext;
+        -:35126:    }
+        -:35127:
+        -:35128:    /* The session ServerNonce is a 32-byte application nonce. This is
+        -:35129:     * independent of the SecurityPolicy's SecureChannel nonce length (for ECC
+        -:35130:     * policies that is the 64-byte ephemeral key, which is NOT the session
+        -:35131:     * nonce). */
+   198769:35132:    size_t nonceLength = 32;
+        -:35133:
+        -:35134:    /* Is the length of the previous nonce correct? */
+   198769:35135:    if(session->serverNonce.length != nonceLength) {
+    99385:35136:        UA_ByteString_clear(&session->serverNonce);
+        -:35137:        UA_StatusCode res =
+    99385:35138:            UA_ByteString_allocBuffer(&session->serverNonce, nonceLength);
+    99385:35139:        if(res != UA_STATUSCODE_GOOD)
+    #####:35140:            return res;
+        -:35141:    }
+        -:35142:
+        -:35143:    /* Generate plain random data. Ensure data[0] is not the 'e' of the "eph"
+        -:35144:     * trigger that some ECC policies use to produce an ephemeral key. */
+   198769:35145:    session->serverNonce.data[0] = 0;
+   198769:35146:    return sp->generateNonce(sp, spC, &session->serverNonce);
+        -:35147:}
+        -:35148:
+        -:35149:void
+   596358:35150:UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
+        -:35151:                          UA_DateTime nowMonotonic) {
+   596358:35152:    session->validTill = nowMonotonic +
+   596358:35153:        (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
+        -:35154:#ifdef UA_ENABLE_DIAGNOSTICS
+   596358:35155:    session->diagnostics.clientLastContactTime = now;
+        -:35156:#endif
+   596358:35157:}
+        -:35158:
+        -:35159:#ifdef UA_ENABLE_SUBSCRIPTIONS
+        -:35160:
+        -:35161:void
+     1186:35162:UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
+        -:35163:    /* Attach to the session */
+     1186:35164:    sub->session = session;
+        -:35165:
+        -:35166:    /* Increase the count */
+     1186:35167:    session->subscriptionsSize++;
+        -:35168:
+        -:35169:    /* Increase the number of outstanding retransmissions */
+     1186:35170:    session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
+        -:35171:
+        -:35172:    /* Insert at the end of the subscriptions of the same priority / just before
+        -:35173:     * the subscriptions with the next lower priority. */
+     1186:35174:    UA_Subscription *after = NULL;
+    1186*:35175:    TAILQ_FOREACH(after, &session->subscriptions, sessionListEntry) {
+    #####:35176:        if(after->priority < sub->priority) {
+    #####:35177:            TAILQ_INSERT_BEFORE(after, sub, sessionListEntry);
+    #####:35178:            return;
+        -:35179:        }
+        -:35180:    }
+     1186:35181:    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
+        -:35182:}
+        -:35183:
+        -:35184:void
+     1186:35185:UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
+        -:35186:                              UA_Subscription *sub, UA_Boolean releasePublishResponses) {
+        -:35187:    /* Detach from the session */
+     1186:35188:    sub->session = NULL;
+    1186*:35189:    TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
+        -:35190:
+        -:35191:    /* Reduce the count */
+    1186*:35192:    UA_assert(session->subscriptionsSize > 0);
+     1186:35193:    session->subscriptionsSize--;
+        -:35194:
+        -:35195:    /* Reduce the number of outstanding retransmissions */
+     1186:35196:    session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
+        -:35197:
+        -:35198:    /* Send remaining publish responses if the last subscription was removed */
+     1186:35199:    if(!releasePublishResponses || !TAILQ_EMPTY(&session->subscriptions))
+    #####:35200:        return;
+        -:35201:    UA_PublishResponseEntry *pre;
+     1186:35202:    while((pre = UA_Session_dequeuePublishReq(session))) {
+    #####:35203:        UA_PublishResponse *response = &pre->response;
+    #####:35204:        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+    #####:35205:        sendResponse(server, session->channel, pre->requestId,
+        -:35206:                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    #####:35207:        UA_PublishResponse_clear(response);
+    #####:35208:        UA_free(pre);
+        -:35209:    }
+        -:35210:}
+        -:35211:
+        -:35212:UA_Subscription *
+     4427:35213:UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
+        -:35214:    UA_Subscription *sub;
+    4427*:35215:    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        -:35216:        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+    4427*:35217:        if(sub->statusChange != UA_STATUSCODE_GOOD)
+    #####:35218:            continue;
+     4427:35219:        if(sub->subscriptionId == subscriptionId)
+     4427:35220:            break;
+        -:35221:    }
+     4427:35222:    return sub;
+        -:35223:}
+        -:35224:
+        -:35225:UA_Subscription *
+    #####:35226:getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
+        -:35227:    UA_Subscription *sub;
+    #####:35228:    LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
+        -:35229:        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+    #####:35230:        if(sub->statusChange != UA_STATUSCODE_GOOD)
+    #####:35231:            continue;
+    #####:35232:        if(sub->subscriptionId == subscriptionId)
+    #####:35233:            break;
+        -:35234:    }
+    #####:35235:    return sub;
+        -:35236:}
+        -:35237:
+        -:35238:UA_PublishResponseEntry*
+   400394:35239:UA_Session_dequeuePublishReq(UA_Session *session) {
+   400394:35240:    UA_PublishResponseEntry *entry = SIMPLEQ_FIRST(&session->responseQueue);
+   400394:35241:    if(entry) {
+     1167:35242:        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+     1167:35243:        session->responseQueueSize--;
+        -:35244:    }
+   400394:35245:    return entry;
+        -:35246:}
+        -:35247:
+        -:35248:void
+     1167:35249:UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
+        -:35250:                           UA_Boolean head) {
+     1167:35251:    if(!head)
+     1167:35252:        SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
+        -:35253:    else
+    #####:35254:        SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
+     1167:35255:    session->responseQueueSize++;
+     1167:35256:}
+        -:35257:
+        -:35258:#endif
+        -:35259:
+        -:35260:/* Session Handling */
+        -:35261:
+        -:35262:UA_StatusCode
+    #####:35263:UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
+    #####:35264:    lockServer(server);
+    #####:35265:    UA_Session *session = getSessionById(server, sessionId);
+    #####:35266:    if(!session) {
+    #####:35267:        unlockServer(server);
+    #####:35268:        return UA_STATUSCODE_BADSESSIONIDINVALID;
+        -:35269:    }
+    #####:35270:    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+    #####:35271:    unlockServer(server);
+    #####:35272:    return UA_STATUSCODE_GOOD;
+        -:35273:}
+        -:35274:
+        -:35275:/* Session Attributes */
+        -:35276:
+        -:35277:#define UA_PROTECTEDATTRIBUTESSIZE 4
+        -:35278:static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = {
+        -:35279:    {0, UA_STRING_STATIC("localeIds")},
+        -:35280:    {0, UA_STRING_STATIC("clientDescription")},
+        -:35281:    {0, UA_STRING_STATIC("sessionName")},
+        -:35282:    {0, UA_STRING_STATIC("clientUserId")}
+        -:35283:};
+        -:35284:
+        -:35285:static UA_Boolean
+    99384:35286:protectedAttribute(const UA_QualifiedName key) {
+   496920:35287:    for(size_t i = 0; i < UA_PROTECTEDATTRIBUTESSIZE; i++) {
+   397536:35288:        if(UA_QualifiedName_equal(&key, &protectedAttributes[i]))
+    #####:35289:            return true;
+        -:35290:    }
+    99384:35291:    return false;
+        -:35292:}
+        -:35293:
+        -:35294:UA_StatusCode
+    99384:35295:UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+        -:35296:                              const UA_QualifiedName key, const UA_Variant *value) {
+    99384:35297:    if(protectedAttribute(key))
+    #####:35298:        return UA_STATUSCODE_BADNOTWRITABLE;
+    99384:35299:    if(!sessionId)
+    #####:35300:        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    99384:35301:    lockServer(server);
+    99384:35302:    UA_Session *session = getSessionById(server, sessionId);
+    99384:35303:    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
+    99384:35304:    if(session)
+    99384:35305:        res = UA_KeyValueMap_set(&session->attributes, key, value);
+    99384:35306:    unlockServer(server);
+    99384:35307:    return res;
+        -:35308:}
+        -:35309:
+        -:35310:UA_StatusCode
+    #####:35311:UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+        -:35312:                                 const UA_QualifiedName key) {
+    #####:35313:    if(protectedAttribute(key))
+    #####:35314:        return UA_STATUSCODE_BADNOTWRITABLE;
+    #####:35315:    if(!sessionId)
+    #####:35316:        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    #####:35317:    lockServer(server);
+    #####:35318:    UA_Session *session = getSessionById(server, sessionId);
+    #####:35319:    if(!session) {
+    #####:35320:        unlockServer(server);
+    #####:35321:        return UA_STATUSCODE_BADSESSIONIDINVALID;
+        -:35322:    }
+    #####:35323:    UA_StatusCode res = UA_KeyValueMap_remove(&session->attributes, key);
+    #####:35324:    unlockServer(server);
+    #####:35325:    return res;
+        -:35326:}
+        -:35327:
+        -:35328:static UA_StatusCode
+    #####:35329:getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+        -:35330:                    const UA_QualifiedName key, UA_Variant *outValue,
+        -:35331:                    UA_Boolean copy) {
+    #####:35332:    if(!outValue)
+    #####:35333:        return UA_STATUSCODE_BADINTERNALERROR;
+    #####:35334:    if(!sessionId)
+    #####:35335:        return UA_STATUSCODE_BADINVALIDARGUMENT;
+        -:35336:
+    #####:35337:    UA_Session *session = getSessionById(server, sessionId);
+    #####:35338:    if(!session)
+    #####:35339:        return UA_STATUSCODE_BADSESSIONIDINVALID;
+        -:35340:
+        -:35341:    const UA_Variant *attr;
+        -:35342:    UA_Variant localAttr;
+        -:35343:
+    #####:35344:    if(UA_QualifiedName_equal(&key, &protectedAttributes[0])) {
+        -:35345:        /* Return LocaleIds */
+    #####:35346:        UA_Variant_setArray(&localAttr, session->localeIds,
+    #####:35347:                            session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+    #####:35348:        attr = &localAttr;
+    #####:35349:    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[1])) {
+        -:35350:        /* Return client description */
+    #####:35351:        UA_Variant_setScalar(&localAttr, &session->clientDescription,
+        -:35352:                             &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    #####:35353:        attr = &localAttr;
+    #####:35354:    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[2])) {
+        -:35355:        /* Return session name */
+    #####:35356:        UA_Variant_setScalar(&localAttr, &session->sessionName,
+        -:35357:                             &UA_TYPES[UA_TYPES_STRING]);
+    #####:35358:        attr = &localAttr;
+    #####:35359:    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[3])) {
+        -:35360:        /* Return client user id */
+    #####:35361:        UA_Variant_setScalar(&localAttr, &session->clientUserIdOfSession,
+        -:35362:                             &UA_TYPES[UA_TYPES_STRING]);
+    #####:35363:        attr = &localAttr;
+        -:35364:    } else {
+        -:35365:        /* Get from the actual key-value list */
+    #####:35366:        attr = UA_KeyValueMap_get(&session->attributes, key);
+    #####:35367:        if(!attr)
+    #####:35368:            return UA_STATUSCODE_BADNOTFOUND;
+        -:35369:    }
+        -:35370:
+    #####:35371:    if(copy)
+    #####:35372:        return UA_Variant_copy(attr, outValue);
+        -:35373:
+    #####:35374:    *outValue = *attr;
+    #####:35375:    outValue->storageType = UA_VARIANT_DATA_NODELETE;
+    #####:35376:    return UA_STATUSCODE_GOOD;
+        -:35377:}
+        -:35378:
+        -:35379:UA_StatusCode
+    #####:35380:UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+        -:35381:                              const UA_QualifiedName key, UA_Variant *outValue) {
+    #####:35382:    lockServer(server);
+    #####:35383:    UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, false);
+    #####:35384:    unlockServer(server);
+    #####:35385:    return res;
+        -:35386:}
+        -:35387:
+        -:35388:UA_StatusCode
+    #####:35389:UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+        -:35390:                                  const UA_QualifiedName key, UA_Variant *outValue) {
+    #####:35391:    lockServer(server);
+    #####:35392:    UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, true);
+    #####:35393:    unlockServer(server);
+    #####:35394:    return res;
+        -:35395:}
+        -:35396:
+        -:35397:UA_StatusCode
+    #####:35398:UA_Server_getSessionAttribute_scalar(UA_Server *server,
+        -:35399:                                     const UA_NodeId *sessionId,
+        -:35400:                                     const UA_QualifiedName key,
+        -:35401:                                     const UA_DataType *type,
+        -:35402:                                     void *outValue) {
+    #####:35403:    lockServer(server);
+        -:35404:
+        -:35405:    UA_Variant attr;
+    #####:35406:    UA_StatusCode res = getSessionAttribute(server, sessionId, key, &attr, false);
+    #####:35407:    if(res != UA_STATUSCODE_GOOD) {
+    #####:35408:        unlockServer(server);
+    #####:35409:        return res;
+        -:35410:    }
+        -:35411:
+    #####:35412:    if(!UA_Variant_hasScalarType(&attr, type)) {
+    #####:35413:        unlockServer(server);
+    #####:35414:        return UA_STATUSCODE_BADNOTFOUND;
+        -:35415:    }
+        -:35416:
+    #####:35417:    memcpy(outValue, attr.data, type->memSize);
+        -:35418:
+    #####:35419:    unlockServer(server);
+    #####:35420:    return UA_STATUSCODE_GOOD;
+        -:35421:}
