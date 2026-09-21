@@ -11,10 +11,10 @@
 
 use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
+pub(crate) mod differential;
 pub mod message;
 pub(crate) mod seeds;
 pub mod transcript;
-pub(crate) mod differential;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
@@ -263,3 +263,67 @@ define_signature!(
     fn_sign_userauth_c [no_gen]
     fn_publickey_auth_data
 );
+
+#[cfg(test)]
+mod signature_tests {
+    use std::collections::HashSet;
+
+    use puffin::algebra::dynamic_function::DescribableFunction;
+    use puffin::test_utils::zoo_read_encode;
+
+    use super::SSH_SIGNATURE;
+    use crate::protocol::SshProtocolBehavior;
+
+    /// Encode / `try_read` / re-encode round-trip over the whole SSH signature,
+    /// via the protocol-parametric `puffin::test_utils::zoo_read_encode` harness
+    /// (TLS's `tests/term_zoo.rs::test_term_read_encode` is the reference). Locks the
+    /// codec-consistency invariant: whenever a generated value reads back as its
+    /// declared type, re-encoding it is byte-identical — i.e. `encode` and
+    /// `try_read_bytes` are mutually consistent. A `read_wrong > 0` regression is a
+    /// genuine `encode ≠ encode ∘ try_read` codec bug (many `read_fail`s are
+    /// expected and benign — e.g. a bare `u32` atom cannot be re-read as a specific
+    /// message type — so only `read_wrong` is asserted). PUT-gated because building
+    /// the (empty) evaluation context needs a linked registry.
+    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh"))]
+    #[test]
+    fn ssh_term_read_encode_roundtrip() {
+        use crate::put_registry::ssh_registry;
+        use crate::ssh::fn_impl::fn_concat_raw_flights;
+
+        // `fn_concat_raw_flights` is the one documented exception to byte-exact
+        // round-tripping, and it is BY DESIGN, not a codec bug. It joins two flights
+        // at the message level; `RawSshMessageFlight::encode` then just concatenates
+        // each message's wire bytes, while `RawSshMessageFlight::read` re-deframes the
+        // WHOLE joined stream from scratch (`SshMessageDeframer`). For arbitrary,
+        // misaligned zoo-generated pairs the re-deframe legitimately re-canonicalises
+        // framing — e.g. a partial `OnWire` packet at the A/B boundary completes with
+        // B's bytes and parses as a typed message, or a NEWKEYS in A flips the
+        // deframer into opaque mode for B — so `encode ∘ read` need not reproduce the
+        // naive concatenation. This is exactly the chunk-boundary re-framing the
+        // decryption recipes rely on; the aligned-input identity property is locked
+        // separately by `message::tests::concatenated_flights_reread_as_one_stream`.
+        let ignored: HashSet<String> = [fn_concat_raw_flights.name().to_string()]
+            .into_iter()
+            .collect();
+        // 10 draws per symbol across two seeds: broad codec coverage of every
+        // generatable symbol. Cheap (sub-second) because `zoo_read_encode` generates
+        // syntactically (see its `filter_evaluated = false` note) and evaluates once,
+        // rather than burning the 140k-try zoo budget forcing evaluable draws.
+        let stats = zoo_read_encode::<SshProtocolBehavior>(
+            &SSH_SIGNATURE,
+            ssh_registry(),
+            &[0, 1],
+            10,
+            &ignored,
+        );
+        log::info!("[ssh_term_read_encode_roundtrip] {stats:?}");
+        assert!(
+            stats.read_success > 0,
+            "round-trip test was vacuous: no generated term read back as its declared type"
+        );
+        assert_eq!(
+            stats.read_wrong, 0,
+            "a value read back as its declared type but re-encoded differently: {stats:?}"
+        );
+    }
+}

@@ -3262,4 +3262,60 @@ mod tests {
             "server-attacker PUT must be the CLIENT role"
         );
     }
+
+    /// PUT determinism (mirrors TLS `test_attacker_full_det_recreate`): the same
+    /// trace, replayed against the same PUT, must produce byte-identical contexts
+    /// across runs even with a wall-clock gap between them. Uses the AES-256-GCM
+    /// client-attacker handshake — a member of the 0-diff differential corpus, so it
+    /// executes cleanly on both stacks. Determinism is the precondition the whole
+    /// differential method rests on: a nondeterministic PUT would manufacture
+    /// spurious cross-stack "differences" run to run.
+    ///
+    /// Only wolfSSH is exercised here. libssh is EXCLUDED for the same reason TLS
+    /// excludes OpenSSL from `test_attacker_full_det_recreate`: it has no working
+    /// deterministic RNG-reseed hook. libssh drives its own gcrypt/OpenSSL CSPRNG,
+    /// which our `determinism_reseed_all_factories` reseed does not reach, so its
+    /// server KEXINIT cookie and ephemeral DH share differ run-to-run *in-process*
+    /// (verified: nondeterministic by ~attempt 4). This never affects the real
+    /// differential path, which FORKS a fresh process per execution. wolfSSH's
+    /// harness does seed wolfSSL's RNG deterministically, so it is deterministic
+    /// in-process and is the meaningful subject here. PUT-gated so it only compiles
+    /// in for a linked stack.
+    #[cfg(has_put = "wolfssh")]
+    fn assert_put_deterministic(put: &str) {
+        use std::thread;
+        use std::time::Duration;
+
+        use puffin::execution::{Runner, TraceRunner};
+        use puffin::trace::Spawner;
+
+        use crate::put_registry::ssh_registry;
+
+        let mut registry = ssh_registry();
+        registry
+            .set_default_factory(put)
+            .unwrap_or_else(|e| panic!("PUT {put} not registered: {e}"));
+        let spawner = Spawner::new(registry.clone());
+        let runner = Runner::new(registry, spawner);
+
+        let server = AgentName::first();
+        let trace = seed_client_attacker_full_aesgcm(server);
+
+        let ctx_1 = (&runner).execute(&trace, &mut 0);
+        // A wall-clock gap between executions surfaces any hidden time dependence.
+        thread::sleep(Duration::from_secs(1));
+        for i in 0..20 {
+            let ctx_2 = (&runner).execute(&trace, &mut 0);
+            assert!(
+                ctx_1 == ctx_2,
+                "PUT {put} executed nondeterministically at attempt {i}"
+            );
+        }
+    }
+
+    #[cfg(has_put = "wolfssh")]
+    #[test]
+    fn wolfssh_put_is_deterministic() {
+        assert_put_deterministic("wolfssh");
+    }
 }

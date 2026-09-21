@@ -2,7 +2,7 @@ use crate::algebra::term::TermType;
 use crate::algebra::{DYTerm, Term};
 use crate::execution::{ExecutionStatus, ForkError};
 use crate::graphviz::write_graphviz;
-use crate::protocol::ProtocolTypes;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Action, Trace};
 
 impl<PT: ProtocolTypes> Trace<PT> {
@@ -51,6 +51,116 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
         found
     }
+}
+
+/// Outcome tally of [`zoo_read_encode`]: how many generated terms evaluated, then
+/// survived a `try_read_bytes` → re-encode round-trip.
+#[derive(Debug, Default, Clone)]
+pub struct ReadEncodeStats {
+    /// Terms whose evaluation re-read successfully via `try_read_bytes`.
+    pub read_count: usize,
+    /// …and whose re-encoding was byte-identical to the original evaluation.
+    pub read_success: usize,
+    /// `try_read_bytes` failed on a NON-ignored function's evaluation.
+    pub read_fail: usize,
+    /// `try_read_bytes` succeeded but re-encoding DIFFERED, on a NON-ignored function.
+    pub read_wrong: usize,
+    /// Distinct function-symbol names counted in `read_wrong` (for diagnostics: names
+    /// the exact offenders so a `read_wrong > 0` failure is actionable).
+    pub wrong_functions: Vec<String>,
+}
+
+/// Protocol-parametric encode / `try_read_bytes` / re-encode round-trip check.
+///
+/// This is the reusable, `PB`-generic core of the term-zoo read/encode test
+/// (`tlspuffin/tests/term_zoo.rs::test_term_read_encode` is the reference
+/// implementation for TLS). Any protocol opts in by calling it with its own
+/// signature + registry — sshpuffin does so in `ssh::mod`'s test module — so the
+/// "every message that can be built also round-trips through the wire codec"
+/// invariant is exercised uniformly across protocols rather than being TLS-only.
+///
+/// For every function symbol in `signature`, generates `how_many` terms (per RNG
+/// seed), evaluates each in an empty context (PUT-free), and — for those that
+/// evaluate — reads the encoding back with [`ProtocolBehavior::try_read_bytes`],
+/// re-encodes, and tallies the outcome. `ignored_functions` are symbols whose
+/// read/re-encode mismatch is a known, accepted limitation (never counted in
+/// `read_fail`/`read_wrong`). Returns the [`ReadEncodeStats`]; the caller decides
+/// what to assert (typically `read_wrong == 0`).
+///
+/// Generation uses `filter_evaluated = false` deliberately: with it `true`,
+/// `TermZoo::generate_for` burns the full `PB::ZOO_MAX_TRIES` budget (140k) on every
+/// hard-to-evaluate symbol trying to force `how_many` *evaluable* draws, which makes
+/// this test take ~9 min per seed regardless of `how_many`. Cheap syntactic
+/// generation plus the explicit `evaluate()` skip below gives the same round-trip
+/// coverage of every generatable symbol in well under a second.
+pub fn zoo_read_encode<PB: ProtocolBehavior>(
+    signature: &crate::algebra::signature::Signature<PB::ProtocolTypes>,
+    registry: impl Into<crate::put_registry::PutRegistry<PB>>,
+    seeds: &[u64],
+    how_many: usize,
+    ignored_functions: &std::collections::HashSet<String>,
+) -> ReadEncodeStats {
+    use std::any::TypeId;
+
+    use libafl_bolts::rands::StdRand;
+
+    use crate::fuzzer::term_zoo::TermZoo;
+    use crate::fuzzer::utils::TermConstraints;
+    use crate::trace::{Spawner, TraceContext};
+
+    let spawner = Spawner::new(registry.into());
+    let ctx = TraceContext::new(spawner);
+
+    let mut stats = ReadEncodeStats::default();
+    for &seed in seeds {
+        let mut rand = StdRand::with_seed(seed);
+        for def in &signature.functions {
+            let zoo = TermZoo::<PB>::generate_many(
+                &ctx,
+                signature,
+                &mut rand,
+                how_many,
+                TermConstraints::default().zoo_max_depth,
+                Some(def),
+                false, // filter_evaluated: keep cheap — we evaluate + skip below
+                true,  // filter_no_gen: skip probe-only `[no_gen]` symbols
+            );
+            for term in zoo.terms() {
+                let type_id: TypeId = term.get_type_shape().clone().into();
+                let Ok(eval1) = term.evaluate(&ctx) else {
+                    continue; // non-evaluable draw; not a read/encode outcome
+                };
+                match PB::try_read_bytes(&*eval1, type_id) {
+                    Ok(back) => {
+                        stats.read_count += 1;
+                        let eval2 = PB::any_get_encoding(back.as_ref());
+                        if eval2 == *eval1 {
+                            stats.read_success += 1;
+                        } else if !ignored_functions.contains(term.name()) {
+                            log::error!(
+                                "[zoo_read_encode] re-encode differs for {}: {:?} != {:?}",
+                                term.name(),
+                                eval1,
+                                eval2
+                            );
+                            stats.read_wrong += 1;
+                            let name = term.name().to_string();
+                            if !stats.wrong_functions.contains(&name) {
+                                stats.wrong_functions.push(name);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if !ignored_functions.contains(term.name()) {
+                            log::error!("[zoo_read_encode] read failed for {}: {e}", term.name());
+                            stats.read_fail += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    stats
 }
 
 pub trait AssertExecution {
