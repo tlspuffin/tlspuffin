@@ -49,7 +49,7 @@ pub mod registration {
 
                     let interface = unsafe { *interface_ptr };
 
-                    Some(GlobalFactory::CFactory(crate::libssh::CSshPut::new(
+                    Some(GlobalFactory::CFactory(crate::cput::CSshPut::new(
                         $name,
                         $harness_version,
                         $library_version,
@@ -77,7 +77,7 @@ pub mod registration {
 
     enum GlobalFactory {
         #[allow(dead_code)]
-        CFactory(crate::libssh::CSshPut),
+        CFactory(crate::cput::CSshPut),
     }
 
     static PUTS: Lazy<Mutex<Vec<GlobalFactory>>> = Lazy::new(|| Mutex::new(register()));

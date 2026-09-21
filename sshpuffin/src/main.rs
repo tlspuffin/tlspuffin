@@ -1,5 +1,5 @@
 mod claim;
-mod libssh;
+mod cput;
 mod protocol;
 mod put_registry;
 mod query;
