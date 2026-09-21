@@ -305,15 +305,17 @@ mod signature_tests {
         let ignored: HashSet<String> = [fn_concat_raw_flights.name().to_string()]
             .into_iter()
             .collect();
-        // 10 draws per symbol across two seeds: broad codec coverage of every
-        // generatable symbol. Cheap (sub-second) because `zoo_read_encode` generates
-        // syntactically (see its `filter_evaluated = false` note) and evaluates once,
-        // rather than burning the 140k-try zoo budget forcing evaluable draws.
+        // 400 draws per symbol across two seeds. Because `zoo_read_encode` generates
+        // syntactically and evaluates once (see its `filter_evaluated = false` note)
+        // instead of burning the 140k-try zoo budget forcing evaluable draws, this is
+        // ~104k round-tripped terms in ~8s — an order of magnitude MORE codec
+        // coverage than the naive `filter_evaluated = true` version gave (~6k terms)
+        // in ~18 min. Draws, not per-symbol retries, are the cheap axis to spend on.
         let stats = zoo_read_encode::<SshProtocolBehavior>(
             &SSH_SIGNATURE,
             ssh_registry(),
             &[0, 1],
-            10,
+            400,
             &ignored,
         );
         log::info!("[ssh_term_read_encode_roundtrip] {stats:?}");
