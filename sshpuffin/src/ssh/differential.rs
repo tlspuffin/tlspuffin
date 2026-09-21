@@ -5,15 +5,11 @@
 //! AES-GCM counter-renumbering pass. The DDYF oracle trait-method impls stay in
 //! `protocol.rs` and call the `pub(crate)` fns here.
 
-
 use puffin::agent::AgentName;
 use puffin::algebra::atoms::Function;
 use puffin::algebra::{DYTerm, Term};
-use puffin::protocol::{
-    OpaqueProtocolMessageFlight, ProtocolMessageFlight, ProtocolTypes,
-};
+use puffin::protocol::ProtocolTypes;
 use puffin::trace::{Action, Step, Trace};
-
 
 use crate::protocol::SshProtocolTypes;
 
@@ -58,7 +54,10 @@ pub(crate) fn shadow_known_bugs() -> bool {
 /// plain campaign run is unaffected and only an explicit `=0` re-surfaces the class.
 fn shadow_env(name: &str) -> bool {
     match std::env::var(name) {
-        Ok(v) => !matches!(v.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off" | "no"),
+        Ok(v) => !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "off" | "no"
+        ),
         Err(_) => true,
     }
 }
@@ -111,7 +110,9 @@ pub(crate) fn is_banner_strictness_diff(diff: &puffin::differential::TraceDiffer
 /// banner *status* reject (see `differential_fuzzing_filter_diffs`) — never on its
 /// own, because the same shape is a genuine "one stack completes, the other does
 /// not" divergence when no banner reject explains it.
-pub(crate) fn is_banner_induced_transcript_presence(diff: &puffin::differential::TraceDifference) -> bool {
+pub(crate) fn is_banner_induced_transcript_presence(
+    diff: &puffin::differential::TraceDifference,
+) -> bool {
     use puffin::differential::{KnowledgeDiff, TraceDifference};
     let TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
         first_type,
@@ -178,7 +179,9 @@ pub(crate) fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDi
 ///     difference is KEPT.
 /// Not keyed to a specific port value, so a mutated forward port is still shadowed
 /// but nothing broader is.
-pub(crate) fn is_fwd_reqsuccess_port_echo_diff(diff: &puffin::differential::TraceDifference) -> bool {
+pub(crate) fn is_fwd_reqsuccess_port_echo_diff(
+    diff: &puffin::differential::TraceDifference,
+) -> bool {
     use puffin::differential::{KnowledgeDiff, TraceDifference};
     let TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
         type_name, diff, ..
@@ -389,7 +392,6 @@ impl std::fmt::Display for SshProtocolTypes {
         write!(f, "")
     }
 }
-
 
 #[cfg(test)]
 mod filter_diff_tests {

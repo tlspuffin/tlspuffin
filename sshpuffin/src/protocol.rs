@@ -19,10 +19,14 @@ use crate::claim::SshClaim;
 use crate::put_registry::ssh_registry;
 use crate::query::SshQueryMatcher;
 use crate::ssh::deframe::SshMessageDeframer;
+use crate::ssh::differential::{
+    is_banner_induced_transcript_presence, is_banner_strictness_diff,
+    is_fwd_reqsuccess_port_echo_diff, is_userauth_failure_only_diff, renumber_aesgcm_counters,
+    shadow_known_benign, shadow_known_bugs, step_has_auto_counter,
+};
 use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
-use crate::ssh::differential::{shadow_known_benign, shadow_known_bugs, is_banner_strictness_diff, is_banner_induced_transcript_presence, is_userauth_failure_only_diff, is_fwd_reqsuccess_port_echo_diff, step_has_auto_counter, renumber_aesgcm_counters};
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(SshProtocolTypes)]

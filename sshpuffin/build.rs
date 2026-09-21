@@ -1,12 +1,11 @@
 //! sshpuffin/build.rs
 //!
-//! 1. Generates Rust FFI bindings from `sshpuffin/include/puffin/ssh.h` (the harness ABI
-//!    header). This is bindgen *parity* with `tlspuffin/build.rs` — the same mechanism, not
-//!    a new one.
-//! 2. Finds every libssh and wolfSSH instance in the vendor directory and compiles the C
-//!    harness (`sshpuffin/harness/{libssh,wolfssh}/`) against each, bundling them via
-//!    puffin-build (`harness::bundle`). The `puffin_*` crypto-FFI helpers live in the harness
-//!    `put.c` and are carried by that bundle — there is no separate `crypto.c` static library.
+//! 1. Generates Rust FFI bindings from `sshpuffin/include/puffin/ssh.h` (the harness ABI header).
+//!    This is bindgen *parity* with `tlspuffin/build.rs` — the same mechanism, not a new one.
+//! 2. Finds every libssh and wolfSSH instance in the vendor directory and compiles the C harness
+//!    (`sshpuffin/harness/{libssh,wolfssh}/`) against each, bundling them via puffin-build
+//!    (`harness::bundle`). The `puffin_*` crypto-FFI helpers live in the harness `put.c` and are
+//!    carried by that bundle — there is no separate `crypto.c` static library.
 //! 3. Emits ASAN / coverage linker flags when the corresponding features are active.
 
 use std::path::PathBuf;

@@ -133,6 +133,10 @@ impl Put {
             make_rust_identifier(&lib.vendor),
             self.name()
         );
+        // Declare `has_put` as a known cfg (arbitrary PUT-name values) so consumers
+        // gating tests/code on `#[cfg(has_put = "...")]` don't trip the
+        // `unexpected_cfgs` lint. Parity with the `has_instr` check-cfg above.
+        println!("cargo:rustc-check-cfg=cfg(has_put, values(any()))");
         println!("cargo:rustc-cfg=has_put=\"{}\"", self.name());
 
         if lib.vendor == "boringssl" {
