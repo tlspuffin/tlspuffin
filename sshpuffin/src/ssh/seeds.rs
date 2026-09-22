@@ -2867,6 +2867,19 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         //     seed_server_attacker_full(client),
         //     "seed_server_attacker_full",
         // ),
+        // SERVER-attacker (the PUT is the CLIENT): the only seed that fuzzes the
+        // libssh / wolfSSH CLIENT parsers differentially. Promoted once it became
+        // genuinely 0-diff: the c2s decryption recipe compares each client's
+        // encrypted stream (before, a client-PUT comparison was vacuous), and the
+        // libssh client harness was aligned with wolfSSH_connect() (pinned
+        // algorithms, fixed user, "none" probe, session channel + shell). Both
+        // clients now emit the same 6-message c2s transcript; stable over repeated
+        // runs. (The ChaCha20 `seed_server_attacker_full` above stays out: chacha
+        // is not negotiated in the differential.)
+        (
+            seed_server_attacker_full_aesgcm(client),
+            "seed_server_attacker_full_aesgcm",
+        ),
         (
             auth_complete(seed_client_attacker_full_aesgcm(server)),
             "seed_client_attacker_full_aesgcm",
@@ -2910,10 +2923,6 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // (
         //     seed_client_attacker_full_ctr(server),
         //     "seed_client_attacker_full_ctr",
-        // ),
-        // (
-        //     seed_server_attacker_full_aesgcm(client),
-        //     "seed_server_attacker_full_aesgcm",
         // ),
         // Publickey login as key A — the baseline for the entity-authentication
         // / impersonation oracle. Mutations that make the server authenticate a
@@ -3074,18 +3083,11 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             // already provided by `seed_client_attacker_pubkey_aesgcm` /
             // `_full_aesgcm`, from which each is a single-message mutation.
             // Registering a divergent reproducer as a seed would only re-surface a
-            // closed, documented finding on every run. SERVER-ATTACKER seeds: the
-            // attacker plays the SSH SERVER and the PUT is the CLIENT, so these fuzz
-            // the CLIENT-side parsers (a surface the client-attacker differential
-            // never touches). Single-PUT: run one client stack against the (mutable)
-            // server flight and let ASAN catch memory bugs in its banner / KEXINIT /
-            // KEXDH_REPLY / EXT_INFO / post-NewKeys parsing. The attacker signs the
-            // exchange hash with the embedded host key, so the client completes the
-            // handshake on the un-mutated seed.
-            (
-                seed_server_attacker_full_aesgcm(client),
-                "seed_server_attacker_full_aesgcm",
-            ),
+            // closed, documented finding on every run. (The SERVER-attacker seed
+            // `seed_server_attacker_full_aesgcm`, which fuzzes the CLIENT-side
+            // parsers, used to be registered here as single-PUT only; it is now in
+            // the DEFAULT differential corpus above — so it is NOT repeated here,
+            // which would double-register it under rich-corpus.)
         ]);
     }
 
@@ -3261,6 +3263,7 @@ mod tests {
             "seed_client_attacker_pubkey_aesgcm",
             "seed_client_attacker_passwd_change", // item-6 positive control
             "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
+            "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
         ] {
             assert!(
                 names.contains(&want),
