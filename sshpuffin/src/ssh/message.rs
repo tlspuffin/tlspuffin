@@ -1944,6 +1944,21 @@ pub fn try_read_bytes(
         SshBytes,
         SshPublicKey,
         SshSignature,
+        // Role-typed atoms. Registered so that a payload placed under an `[opaque]`
+        // parent (KDF / hash / DH / cipher / namelist builder) can be re-typed and the
+        // opaque function re-applied (puffin `eval_until_opaque`) — without this the
+        // payload cannot take effect. Their codecs are exact inverses (checked by
+        // `ssh_term_read_encode_roundtrip`).
+        SharedSecret,
+        ExchangeHash,
+        SessionId,
+        VersionString,
+        SshPublicKeyBlob,
+        AlgoName,
+        Username,
+        ServiceName,
+        SshSecretKey,
+        ChannelId,
         // Name lists
         NameList,
         KexAlgorithms,

@@ -135,7 +135,7 @@ define_signature!(
     fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty
-    fn_ssh_public_key
+    fn_ssh_public_key [opaque]
     fn_ssh_signature
     fn_raw_message
     fn_packet
@@ -147,9 +147,9 @@ define_signature!(
     fn_onwire_data
     fn_namelist_empty
     fn_namelist_1
-    fn_namelist_2
-    fn_namelist_3
-    fn_namelist_from_bytes
+    fn_namelist_2 [opaque]
+    fn_namelist_3 [opaque]
+    fn_namelist_from_bytes [opaque]
     fn_kex_algos
     fn_enc_algos
     fn_mac_algos
@@ -164,7 +164,7 @@ define_signature!(
     // issue #1047 item 7). `fn_raw_ssh_message(number, body)` is generator-usable
     // (drives the type byte from fn_u32_* atoms); the fixed 250-type convenience is
     // `no_gen` (a deterministic reproducer atom, not for blind generation).
-    fn_raw_ssh_message
+    fn_raw_ssh_message [opaque]
     fn_msg_unknown_highnumber [no_gen]
     fn_debug
     fn_service_request
@@ -205,56 +205,56 @@ define_signature!(
     fn_channel_id_0
     fn_client_ecdh_privkey
     fn_client_ecdh_pubkey
-    fn_ecdh_shared_secret
-    fn_banner_id
+    fn_ecdh_shared_secret [opaque]
+    fn_banner_id [get]
     fn_kexinit_payload
-    fn_server_ecdh_pubkey
-    fn_server_hostkey
-    fn_server_hostkey_raw
-    fn_kex_exchange_hash
+    fn_server_ecdh_pubkey [get]
+    fn_server_hostkey [get]
+    fn_server_hostkey_raw [get]
+    fn_kex_exchange_hash [opaque]
     // Explicit ExchangeHash -> SessionId conversion; makes session-id-vs-exchange-hash
     // confusion (rekey / Terrapin) a first-class, well-typed DY mutation.
     fn_session_id_from_hash
     // Sources the exchange hash H from the server's completion claim (session id)
     // instead of reconstructing it from a hard-coded client KEXINIT. `no_gen`: a
     // decryption-recipe helper (reads a claim), not for term generation.
-    fn_claim_exchange_hash [no_gen]
+    fn_claim_exchange_hash [get] [no_gen]
     // Extracts the server's assigned channel number from its decrypted
     // CHANNEL_OPEN_CONFIRMATION, so a client can re-address channel traffic to the
     // channel THIS stack owns (libssh vs wolfSSH pick different numbers). `no_gen`:
     // decryption helper, not for term generation.
-    fn_s2c_confirmation_sender_channel [no_gen]
-    fn_derive_enc_key_c2s
-    fn_derive_enc_key_s2c
-    fn_encrypt_packet
-    fn_decrypt_packet
-    fn_derive_aes_key_c2s
-    fn_derive_aes_key_s2c
-    fn_derive_iv_c2s
-    fn_derive_iv_s2c
-    fn_encrypt_packet_aesgcm
-    fn_decrypt_packet_aesgcm
-    fn_decrypt_flight_aesgcm
+    fn_s2c_confirmation_sender_channel [opaque] [no_gen]
+    fn_derive_enc_key_c2s [opaque]
+    fn_derive_enc_key_s2c [opaque]
+    fn_encrypt_packet [opaque]
+    fn_decrypt_packet [opaque]
+    fn_derive_aes_key_c2s [opaque]
+    fn_derive_aes_key_s2c [opaque]
+    fn_derive_iv_c2s [opaque]
+    fn_derive_iv_s2c [opaque]
+    fn_encrypt_packet_aesgcm [opaque]
+    fn_decrypt_packet_aesgcm [opaque]
+    fn_decrypt_flight_aesgcm [opaque]
     // Single comparison recipe of the AES-GCM decryption differential: folds a
     // server flight into one key-aligned `AlignedTranscript` (see
     // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
-    fn_fold_s2c_transcript [no_gen]
+    fn_fold_s2c_transcript [opaque] [no_gen]
     fn_concat_raw_flights
-    fn_derive_ctr_key_c2s
-    fn_derive_ctr_key_s2c
-    fn_derive_ctr_iv_c2s
-    fn_derive_ctr_iv_s2c
-    fn_derive_mac_key_c2s
-    fn_derive_mac_key_s2c
-    fn_encrypt_packet_ctr
-    fn_decrypt_packet_ctr
+    fn_derive_ctr_key_c2s [opaque]
+    fn_derive_ctr_key_s2c [opaque]
+    fn_derive_ctr_iv_c2s [opaque]
+    fn_derive_ctr_iv_s2c [opaque]
+    fn_derive_mac_key_c2s [opaque]
+    fn_derive_mac_key_s2c [opaque]
+    fn_encrypt_packet_ctr [opaque]
+    fn_decrypt_packet_ctr [opaque]
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
     // Signs the exchange hash with the embedded host key (server-attacker
     // seeds). `no_gen`: a signing helper that needs a specific private key and a
     // well-formed transcript; generating it blindly only yields useless terms.
-    fn_sign_exchange_hash [no_gen]
+    fn_sign_exchange_hash [opaque] [no_gen]
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
     fn_client_b_pubkey_blob
@@ -263,9 +263,9 @@ define_signature!(
     // private key. `no_gen`: each needs its matching key and the session's
     // exchange hash, so they are only meaningful when hand-wired in a seed, not
     // synthesised by the mutator.
-    fn_sign_userauth [no_gen]
-    fn_sign_userauth_b [no_gen]
-    fn_sign_userauth_c [no_gen]
+    fn_sign_userauth [opaque] [no_gen]
+    fn_sign_userauth_b [opaque] [no_gen]
+    fn_sign_userauth_c [opaque] [no_gen]
     fn_publickey_auth_data
 );
 
@@ -331,6 +331,43 @@ mod signature_tests {
         assert_eq!(
             stats.read_wrong, 0,
             "a value read back as its declared type but re-encoded differently: {stats:?}"
+        );
+    }
+
+    /// Payload-evaluation check over the whole SSH signature — the correctness check
+    /// behind the signature's `[opaque]` / `[get]` attributes (see
+    /// `puffin::test_utils::zoo_payloads_eval` and `FunctionAttributes`). A payload
+    /// placed under a parent whose encoding does not contain its arguments'
+    /// concretizations (a KDF, hash, cipher, DH, or a re-encoding builder such as
+    /// `fn_namelist_{2,3}`) raises `Error::TermBug` unless that parent is flagged
+    /// `[opaque]` (or `[get]` for extractors). Asserting zero `TermBug`s locks the flag
+    /// audit: adding a new re-encoding symbol without its flag fails here, and the
+    /// per-parent table printed on failure names the symbol to flag.
+    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
+    #[test]
+    fn ssh_term_payloads_eval() {
+        use puffin::test_utils::zoo_payloads_eval;
+
+        use crate::put_registry::ssh_registry;
+
+        let stats = zoo_payloads_eval::<SshProtocolBehavior>(
+            &SSH_SIGNATURE,
+            ssh_registry(),
+            &[0, 1, 2, 3, 4, 5, 6, 7],
+            60,
+            &HashSet::new(),
+        );
+        eprintln!(
+            "[ssh_term_payloads_eval] success={} add_payload_fail={} termbug_fail={} other_eval_fail={}",
+            stats.success, stats.add_payload_fail, stats.eval_payload_fail, stats.other_eval_fail
+        );
+        let mut rows: Vec<_> = stats.by_parent.iter().filter(|(_, v)| v.1 > 0).collect();
+        rows.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
+        assert!(stats.success > 0, "payload check was vacuous: {stats:?}");
+        assert_eq!(
+            stats.eval_payload_fail, 0,
+            "payload evaluation hit Error::TermBug — a parent symbol is missing its \
+             [opaque]/[get] flag. Parents of failing payloads (ok, TermBug): {rows:?}"
         );
     }
 }

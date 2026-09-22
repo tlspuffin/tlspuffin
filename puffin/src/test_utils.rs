@@ -130,7 +130,7 @@ pub fn zoo_read_encode<PB: ProtocolBehavior>(
                 let Ok(eval1) = term.evaluate(&ctx) else {
                     continue; // non-evaluable draw; not a read/encode outcome
                 };
-                match PB::try_read_bytes(&*eval1, type_id) {
+                match PB::try_read_bytes(&eval1, type_id) {
                     Ok(back) => {
                         stats.read_count += 1;
                         let eval2 = PB::any_get_encoding(back.as_ref());
@@ -156,6 +156,170 @@ pub fn zoo_read_encode<PB: ProtocolBehavior>(
                             stats.read_fail += 1;
                         }
                     }
+                }
+            }
+        }
+    }
+    stats
+}
+
+/// Outcome tally of [`zoo_payloads_eval`].
+#[derive(Debug, Default, Clone)]
+pub struct PayloadEvalStats {
+    /// Terms that still evaluated after payloads were added.
+    pub success: usize,
+    /// Terms (rooted at a NON-ignored symbol) on which no payload could be placed.
+    pub add_payload_fail: usize,
+    /// Terms (rooted at a NON-ignored symbol) that evaluated plainly but FAILED once
+    /// payloads were added, with an `Error::TermBug` — the payload machinery could not
+    /// locate a payload-bearing child's bytes in its parent: the flag-audit signal.
+    pub eval_payload_fail: usize,
+    /// Payload evaluations that failed with any OTHER error (e.g. a perturbed payload
+    /// no longer parses) — expected noise, not a flag problem.
+    pub other_eval_fail: usize,
+    /// Per *parent* symbol of a payload-bearing sub-term: `(evals ok, TermBug fails)`.
+    /// The parent's `FunctionAttributes` (`[opaque]` / `[get]` / `[list]`) decide
+    /// whether the payload machinery can locate the child's bytes inside the parent's
+    /// encoding, so a parent with a high failure count is the flag-audit signal.
+    pub by_parent: std::collections::BTreeMap<String, (usize, usize)>,
+}
+
+/// Place one random payload in `t` (as the `MakeMessage` mutation would) and
+/// perturb it; returns the name of the payload-bearing sub-term's parent symbol
+/// (`"<root>"` for a root payload), or `None` if no payload could be placed.
+fn add_one_payload_randomly<PB: ProtocolBehavior, R: libafl_bolts::rands::Rand>(
+    t: &mut Term<PB::ProtocolTypes>,
+    rand: &mut R,
+    ctx: &crate::trace::TraceContext<PB>,
+) -> Option<String> {
+    use crate::agent::AgentName;
+    use crate::fuzzer::utils::{choose, find_term_by_term_path_mut, TermConstraints};
+    use crate::trace::{InputAction, MetadataTrace, Step};
+
+    let trace = Trace {
+        descriptors: vec![],
+        steps: vec![Step {
+            agent: AgentName::new(),
+            action: Action::Input(InputAction {
+                precomputations: vec![],
+                recipe: t.clone(),
+            }),
+        }],
+        prior_traces: vec![],
+        metadata_trace: MetadataTrace::default(),
+    };
+    let constraints = TermConstraints {
+        // as for MakeMessage.mutate (mirrors tlspuffin's add_one_payload_randomly)
+        no_payload_in_subterm: false,
+        not_inside_list: false,
+        weighted_depth: false,
+        ..TermConstraints::default()
+    };
+    let path = choose(&trace, &constraints, rand)?.1 .1;
+    let parent = if path.is_empty() {
+        "<root>".to_string()
+    } else {
+        find_term_by_term_path_mut(t, &path[..path.len() - 1])?
+            .name()
+            .to_string()
+    };
+    let st = find_term_by_term_path_mut(t, &path)?;
+    st.make_payload(ctx).ok()?;
+    let payloads = st.payloads.as_mut()?;
+    let mut a: Vec<u8> = payloads.payload.clone().into();
+    a.push(2);
+    a.push(2);
+    a.push(2);
+    a[0] = 2;
+    payloads.payload = a.into();
+    Some(parent)
+}
+
+/// Protocol-parametric payload-evaluation check: generate terms per symbol (as
+/// [`zoo_read_encode`] does), add a few random payloads to each evaluable term
+/// (the `MakeMessage` + bit-mutation path), and re-evaluate. An `Error::TermBug`
+/// means the payload machinery could not locate a payload-bearing sub-term's bytes
+/// inside its parent's encoding — the symptom of a missing/wrong `[opaque]` /
+/// `[get]` / `[list]` attribute on that parent (see `FunctionAttributes`). This is
+/// the correctness check behind a signature flag audit (tlspuffin's
+/// `test_term_payloads_eval` is the TLS reference).
+pub fn zoo_payloads_eval<PB: ProtocolBehavior>(
+    signature: &crate::algebra::signature::Signature<PB::ProtocolTypes>,
+    registry: impl Into<crate::put_registry::PutRegistry<PB>>,
+    seeds: &[u64],
+    how_many: usize,
+    ignored_functions: &std::collections::HashSet<String>,
+) -> PayloadEvalStats {
+    use libafl_bolts::rands::StdRand;
+
+    use crate::fuzzer::term_zoo::TermZoo;
+    use crate::fuzzer::utils::{Choosable, TermConstraints};
+    use crate::trace::{Spawner, TraceContext};
+
+    let spawner = Spawner::new(registry.into());
+    let ctx = TraceContext::new(spawner);
+
+    let mut stats = PayloadEvalStats::default();
+    for &seed in seeds {
+        let mut rand = StdRand::with_seed(seed);
+        // Separate stream so payload placement cannot shift generation.
+        let mut prand = StdRand::with_seed(seed ^ 0x5eed_5eed);
+        for def in &signature.functions {
+            let zoo = TermZoo::<PB>::generate_many(
+                &ctx,
+                signature,
+                &mut rand,
+                how_many,
+                TermConstraints::default().zoo_max_depth,
+                Some(def),
+                false, // cheap syntactic generation; evaluate-skip below
+                true,
+            );
+            for term in zoo.terms() {
+                if term.evaluate(&ctx).is_err() {
+                    continue;
+                }
+                let mut t = term.clone();
+                let n_sub = (&t).into_iter().count() as i32;
+                let nb = *(1..std::cmp::max(4, n_sub / 3))
+                    .collect::<Vec<i32>>()
+                    .choose(&mut prand)
+                    .unwrap_or(&1);
+                let mut parents = vec![];
+                let mut tries = 0;
+                while (parents.len() as i32) < nb && tries < nb * 100 {
+                    tries += 1;
+                    if let Some(p) = add_one_payload_randomly(&mut t, &mut prand, &ctx) {
+                        parents.push(p);
+                    }
+                }
+                if t.count_payloads() == 0 {
+                    if !ignored_functions.contains(term.name()) {
+                        stats.add_payload_fail += 1;
+                    }
+                    continue;
+                }
+                // `evaluate_config` (not `evaluate`): the `_wrap` layer panics on
+                // `Error::TermBug` in debug/test builds, which is exactly the
+                // outcome this check needs to observe and tally.
+                let res = t.evaluate_config(&ctx, true);
+                let term_bug = matches!(res, Err(crate::error::Error::TermBug(_)));
+                if res.is_err() && !term_bug {
+                    stats.other_eval_fail += 1;
+                    continue;
+                }
+                for p in parents {
+                    let e = stats.by_parent.entry(p).or_default();
+                    if term_bug {
+                        e.1 += 1;
+                    } else {
+                        e.0 += 1;
+                    }
+                }
+                if !term_bug {
+                    stats.success += 1;
+                } else if !ignored_functions.contains(term.name()) {
+                    stats.eval_payload_fail += 1;
                 }
             }
         }
