@@ -131,6 +131,7 @@ define_signature!(
     fn_addr_localhost
     fn_port_ssh
     fn_exec_payload
+    fn_exec_command_userauth
     fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty

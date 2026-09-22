@@ -120,7 +120,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
                 (fn_u32_0),
                 (fn_channel_exec),
                 (fn_true),
-                (fn_exec_payload((fn_ssh_userauth)))
+                (fn_exec_payload((fn_exec_command_userauth)))
             )),
             (@enc_key),
             (fn_u32_6)
@@ -296,7 +296,7 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
 
@@ -460,7 +460,7 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_4))
     };
 
@@ -691,7 +691,7 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
 
@@ -1247,7 +1247,7 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
 
@@ -1329,7 +1329,7 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
 
@@ -1414,7 +1414,7 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
 

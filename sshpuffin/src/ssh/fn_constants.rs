@@ -3,7 +3,9 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::{AlgoName, SshBytes, SshPublicKeyBlob, Username, VersionString};
+use crate::ssh::message::{
+    AlgoName, ServiceName, SshBytes, SshPublicKeyBlob, Username, VersionString,
+};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -34,13 +36,24 @@ pub fn fn_u32_2() -> Result<u32, FnError> {
     Ok(2)
 }
 
-// ── SSH service names (SshBytes so they can be used directly in messages) ────
+// ── SSH service names (RFC 4253 §10) ─────────────────────────────────────────
+// Typed as `ServiceName` (not `SshBytes`) so the mutator only substitutes a
+// service name into a service slot — the bad-service class.
 
-pub fn fn_ssh_userauth() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-userauth".to_vec()))
+pub fn fn_ssh_userauth() -> Result<ServiceName, FnError> {
+    Ok(ServiceName::new(b"ssh-userauth".to_vec()))
 }
-pub fn fn_ssh_connection() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-connection".to_vec()))
+pub fn fn_ssh_connection() -> Result<ServiceName, FnError> {
+    Ok(ServiceName::new(b"ssh-connection".to_vec()))
+}
+
+/// Placeholder exec command ("ssh-userauth" bytes) for the channel-exec seeds.
+/// A plain `SshBytes` command payload — historically the seeds reused the
+/// `ssh-userauth` service-name atom here as arbitrary non-empty command bytes;
+/// now that service names are typed `ServiceName`, this keeps the exact wire
+/// bytes while decoupling the exec-command slot from the service-name type.
+pub fn fn_exec_command_userauth() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"ssh-userauth".to_vec()))
 }
 
 // ── Auth method names ────────────────────────────────────────────────────────

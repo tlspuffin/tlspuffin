@@ -11,9 +11,9 @@ use crate::ssh::message::{
     EncryptionAlgorithms, ExtInfoExtension, ExtInfoMessage, GlobalRequestMessage, IgnoreMessage,
     KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, MacAlgorithms,
     NameList, OnWireData, RawMessage, RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage,
-    ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey, SshSignature,
-    UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
-    Username,
+    ServiceName, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey,
+    SshSignature, UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage,
+    UserAuthRequestMessage, Username,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -215,15 +215,15 @@ pub fn fn_debug(
     }))
 }
 
-pub fn fn_service_request(service_name: &SshBytes) -> Result<SshMessage, FnError> {
+pub fn fn_service_request(service_name: &ServiceName) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ServiceRequest(ServiceRequestMessage {
-        service_name: service_name.clone(),
+        service_name: SshBytes::new(service_name.0.clone()),
     }))
 }
 
-pub fn fn_service_accept(service_name: &SshBytes) -> Result<SshMessage, FnError> {
+pub fn fn_service_accept(service_name: &ServiceName) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ServiceAccept(ServiceAcceptMessage {
-        service_name: service_name.clone(),
+        service_name: SshBytes::new(service_name.0.clone()),
     }))
 }
 
@@ -311,13 +311,13 @@ pub fn fn_server_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError
 
 pub fn fn_user_auth_request(
     user_name: &Username,
-    service_name: &SshBytes,
+    service_name: &ServiceName,
     method_name: &SshBytes,
     method_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::UserAuthRequest(UserAuthRequestMessage {
         user_name: SshBytes::new(user_name.0.clone()),
-        service_name: service_name.clone(),
+        service_name: SshBytes::new(service_name.0.clone()),
         method_name: method_name.clone(),
         method_data: method_data.clone(),
     }))

@@ -313,6 +313,13 @@ declare_crypto_atom!(AlgoName);
 // authorized/unauthorized-identity and empty/oversized-name class), never into an
 // unrelated byte field. Same length-prefixed wire form as `SshBytes`.
 declare_crypto_atom!(Username);
+// An SSH service name (RFC 4253 §10): "ssh-userauth" / "ssh-connection", carried by
+// SERVICE_REQUEST/ACCEPT and the USERAUTH_REQUEST service field. Its own type — NOT
+// `SshBytes` — so `ReplaceMatchMutator` substitutes a service name only into a
+// service slot: this is exactly the fuzzer-found bad-service class (a
+// USERAUTH_REQUEST whose service != "ssh-connection", which wolfSSH accepts and
+// libssh rejects). Same length-prefixed wire form as `SshBytes`.
+declare_crypto_atom!(ServiceName);
 
 // An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
 // connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
