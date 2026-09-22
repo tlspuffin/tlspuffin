@@ -2774,6 +2774,39 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     vec![term! { fn_fold_s2c_transcript(((server, *)/RawSshMessageFlight), (@key), (@iv)) }]
 }
 
+/// Differential-fuzzing decryption recipe for a **client** PUT agent (c2s) — the
+/// mirror of [`server_decryption_recipes_aesgcm`].
+///
+/// When the attacker plays the SERVER (the server-attacker seeds / client-parser
+/// fuzzing), the PUT is the client and its post-NewKeys output (SERVICE_REQUEST,
+/// USERAUTH_REQUEST, channel traffic, …) is opaque AES-GCM ciphertext. Without
+/// this recipe that whole client→server stream goes uncompared, so the
+/// differential only ever saw the clients' plaintext KEX and their claims.
+///
+/// Key material mirrors the s2c recipe with the roles swapped:
+///   * K = ECDH(attacker-server ephemeral private key, Q_C). The server-attacker seeds use the
+///     fixed `fn_client_ecdh_privkey` as that key (they send `fn_client_ecdh_pubkey` in
+///     KEX_ECDH_REPLY), and Q_C is the client's ephemeral public key, queried exactly as the seed
+///     does (`(client, 0)[None]/SshBytes`).
+///   * H is sourced from the CLIENT's own completion claim (session id) — both harnesses emit the
+///     handshake claim for the client role too — for the same mutation-robustness reason as the s2c
+///     recipe.
+///   * The c2s key/IV (RFC 4253 §7.2 letters 'C'/'A'), and the direction-agnostic
+///     `fn_fold_s2c_transcript` (a plain GCM peel from counter 0 over the concatenated flight;
+///     despite its name it does not assume a direction).
+///
+/// If the attacker's ephemeral key was mutated away from `fn_client_ecdh_privkey`,
+/// K is wrong, the fold decrypts nothing, and the comparison degrades to the
+/// plaintext prefix — the same best-effort behaviour as the s2c recipe.
+pub fn client_decryption_recipes_aesgcm(client: AgentName) -> Vec<Term<SshProtocolTypes>> {
+    let q_c = term! { (client, 0)[None]/SshBytes };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let exch_hash = term! { fn_claim_exchange_hash(((client, 0))) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    vec![term! { fn_fold_s2c_transcript(((client, *)/RawSshMessageFlight), (@key), (@iv)) }]
+}
+
 /// Truncate a client-attacker seed to end at USERAUTH_SUCCESS by dropping its two
 /// trailing channel steps (CHANNEL_OPEN + CHANNEL_REQUEST).
 ///
@@ -3143,6 +3176,27 @@ mod tests {
                 .unwrap_or_else(|e| panic!("write {name}: {e}"));
             println!("wrote /tmp/eval_probes/{name}.trace");
         }
+    }
+
+    /// Materialises the server-attacker seed (attacker plays the SERVER, the PUT is
+    /// the CLIENT) to `/tmp/server_attacker/` for a CLIENT-side differential run:
+    /// `differential-execute libssh0114 wolfssh150 /tmp/server_attacker/<name>.trace`.
+    /// Kept out of the differential corpus (see `build_corpus`); this emitter is the
+    /// supported way to produce it for evaluating client-side (c2s) comparison.
+    /// `#[ignore]`: writes files on demand
+    /// (`cargo test emit_server_attacker_trace -- --ignored`), not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_server_attacker_trace() {
+        use puffin::libafl::inputs::Input;
+        let client = AgentName::first();
+        let dir = std::path::Path::new("/tmp/server_attacker");
+        std::fs::create_dir_all(dir).unwrap();
+        let name = "seed_server_attacker_full_aesgcm";
+        seed_server_attacker_full_aesgcm(client)
+            .to_file(dir.join(format!("{name}.trace")))
+            .unwrap_or_else(|e| panic!("write {name}: {e}"));
+        println!("wrote /tmp/server_attacker/{name}.trace");
     }
 
     /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays

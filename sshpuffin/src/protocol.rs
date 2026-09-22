@@ -263,6 +263,15 @@ impl ProtocolTypes for SshProtocolTypes {
                 terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(
                     agent.name,
                 ));
+            } else if agent.protocol_config.typ == AgentType::Client {
+                // Client PUT (attacker plays the server): decrypt the client's c2s
+                // stream the same framing-independent way. Only fires on traces
+                // with a client PUT agent (server-attacker / two-party seeds); the
+                // client-attacker differential corpus has server PUTs only, so its
+                // comparisons are unchanged.
+                terms.extend(crate::ssh::seeds::client_decryption_recipes_aesgcm(
+                    agent.name,
+                ));
             }
         }
         terms
