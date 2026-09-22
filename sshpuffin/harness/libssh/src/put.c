@@ -113,10 +113,12 @@ static const char *SERVER_HOST_KEY =
 
 typedef enum
 {
-    PUT_STATE_KEX,   /* key-exchange (or TCP connect) in progress */
-    PUT_STATE_AUTH,  /* authentication in progress */
-    PUT_STATE_DONE,  /* fully authenticated */
-    PUT_STATE_ERROR, /* unrecoverable error */
+    PUT_STATE_KEX,     /* key-exchange (or TCP connect) in progress */
+    PUT_STATE_AUTH,    /* authentication in progress */
+    PUT_STATE_CHANNEL, /* client only: authenticated, opening the session
+                          channel + shell request (mirrors wolfSSH_connect) */
+    PUT_STATE_DONE,    /* fully authenticated (client: channel set up too) */
+    PUT_STATE_ERROR,   /* unrecoverable error */
 } PutState;
 
 struct AGENT_TYPE
@@ -133,6 +135,10 @@ struct AGENT_TYPE
 
     PutState state;
     char state_desc[256]; /* human-readable state for describe_state */
+
+    /* Client-role progress flags (see the SSH_CLIENT branch of libssh_progress). */
+    bool auth_none_done;     /* the "none" probe was refused; now use password */
+    bool client_chan_opened; /* CHANNEL_OPEN confirmed; now send the shell request */
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
@@ -980,21 +986,36 @@ static RESULT libssh_progress(AGENT agent)
                 return ok_result();
         }
 
+        /* The client flow mirrors wolfSSH_connect() step for step, so a libssh
+         * client and a wolfSSH client emit the same c2s message sequence and the
+         * c2s-decrypted transcripts compare 1:1:
+         *   USERAUTH_REQUEST "none" (the RFC 4252 §5.2 probe) -> "password" only if
+         *   the server refuses it -> CHANNEL_OPEN "session" -> CHANNEL_REQUEST
+         *   "shell" (want_reply) -> DONE.
+         * (wolfSSH's connect() sends exactly these; its agent / pty requests are
+         * compiled out of our build.) The handshake claim is still emitted at
+         * auth success, as before. */
         if (agent->state == PUT_STATE_AUTH)
         {
             for (int i = 0; i < 4; ++i)
             {
-                int rc = ssh_userauth_password(agent->session, NULL, "test");
+                int rc = agent->auth_none_done ? ssh_userauth_password(agent->session, NULL, "test")
+                                               : ssh_userauth_none(agent->session, NULL);
                 if (rc == SSH_AUTH_AGAIN)
                 {
                     continue;
                 }
                 if (rc == SSH_AUTH_SUCCESS)
                 {
-                    agent->state = PUT_STATE_DONE;
-                    snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                    agent->state = PUT_STATE_CHANNEL;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_OPEN");
                     emit_handshake_claim(agent);
-                    return ok_result();
+                    break;
+                }
+                if ((rc == SSH_AUTH_DENIED || rc == SSH_AUTH_PARTIAL) && !agent->auth_none_done)
+                {
+                    agent->auth_none_done = true; /* "none" refused: fall back */
+                    continue;
                 }
                 if (rc == SSH_AUTH_DENIED || rc == SSH_AUTH_PARTIAL)
                 {
@@ -1004,6 +1025,44 @@ static RESULT libssh_progress(AGENT agent)
                 agent->state = PUT_STATE_ERROR;
                 snprintf(agent->state_desc, sizeof(agent->state_desc), "AUTH_ERROR");
                 return error_result(ssh_get_error(agent->session));
+            }
+            if (agent->state == PUT_STATE_AUTH)
+                return ok_result();
+        }
+
+        if (agent->state == PUT_STATE_CHANNEL)
+        {
+            if (agent->channel == NULL)
+            {
+                agent->channel = ssh_channel_new(agent->session);
+                if (agent->channel == NULL)
+                {
+                    agent->state = PUT_STATE_ERROR;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_ERROR");
+                    return error_result(ssh_get_error(agent->session));
+                }
+            }
+            for (int i = 0; i < 4; ++i)
+            {
+                int rc = agent->client_chan_opened ? ssh_channel_request_shell(agent->channel)
+                                                   : ssh_channel_open_session(agent->channel);
+                if (rc == SSH_AGAIN)
+                    return ok_result(); /* waiting for the server's reply */
+                if (rc != SSH_OK)
+                {
+                    agent->state = PUT_STATE_ERROR;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_ERROR");
+                    return error_result(ssh_get_error(agent->session));
+                }
+                if (!agent->client_chan_opened)
+                {
+                    agent->client_chan_opened = true; /* confirmed: send the shell request */
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_REQUEST");
+                    continue;
+                }
+                agent->state = PUT_STATE_DONE;
+                snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                return ok_result();
             }
         }
     }

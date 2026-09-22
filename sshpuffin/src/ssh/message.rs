@@ -954,8 +954,17 @@ impl Codec for RequestSuccessMessage {
 #[extractable(SshProtocolTypes)]
 pub struct ChannelOpenMessage {
     pub channel_type: SshBytes,
+    // The opener's own channel id and flow-control parameters — implementation-
+    // defined (RFC 4254 §5.1), exactly like the confirmer's fields in
+    // `ChannelOpenConfirmationMessage`: libssh numbers channels from 43
+    // (FIRST_CHANNEL + 1) with a 2 MiB window, wolfSSH from 0 with 128 KiB. They
+    // only became comparable once the c2s recipe decrypted a PUT *client*'s
+    // CHANNEL_OPEN, and must not be compared (same class as the KEX cookie).
+    #[comparable_ignore]
     pub sender_channel: u32,
+    #[comparable_ignore]
     pub initial_window_size: u32,
+    #[comparable_ignore]
     pub maximum_packet_size: u32,
     #[extractable_no_recursion]
     pub channel_data: Vec<u8>,

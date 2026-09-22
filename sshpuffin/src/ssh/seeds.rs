@@ -3199,6 +3199,44 @@ mod tests {
         println!("wrote /tmp/server_attacker/{name}.trace");
     }
 
+    /// Materialises the two-party relay seeds (a real client PUT against a real
+    /// server PUT) to `/tmp/two_party/` for `-T <put> display-execute`, e.g. to
+    /// check that a client-harness change did not shift their relay step
+    /// alignment. `#[ignore]`: on-demand (`cargo test emit_two_party_traces --
+    /// --ignored`), not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_two_party_traces() {
+        use puffin::libafl::inputs::Input;
+        let client = AgentName::first();
+        let server = client.next();
+        let dir = std::path::Path::new("/tmp/two_party");
+        std::fs::create_dir_all(dir).unwrap();
+        let cases: Vec<(&str, Trace<SshProtocolTypes>)> = vec![
+            (
+                "handshake_two_party",
+                seed_handshake_two_party(client, server),
+            ),
+            (
+                "handshake_two_party_packet",
+                seed_handshake_two_party_packet(client, server),
+            ),
+            (
+                "handshake_two_party_packet_complete",
+                seed_handshake_two_party_packet_complete(client, server),
+            ),
+            ("terrapin_attempt", seed_terrapin_attempt(client, server)),
+            ("terrapin_packet", seed_terrapin_packet(client, server)),
+            ("terrapin_s2c", seed_terrapin_s2c(client, server)),
+        ];
+        for (name, trace) in cases {
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/two_party/{name}.trace");
+        }
+    }
+
     /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays
     /// 0-diff" property, WITHOUT needing to run PUTs).
     ///
