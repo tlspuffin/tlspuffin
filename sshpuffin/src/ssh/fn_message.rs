@@ -4,15 +4,15 @@ use puffin::algebra::error::FnError;
 
 use crate::protocol::RawSshMessageFlight;
 use crate::ssh::message::{
-    ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage, ChannelExtendedDataMessage,
-    ChannelFailureMessage, ChannelOpenConfirmationMessage, ChannelOpenFailureMessage,
-    ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage, ChannelWindowAdjustMessage,
-    CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms, ExtInfoExtension,
-    ExtInfoMessage, GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage,
-    KexEcdhReplyMessage, KexInitMessage, MacAlgorithms, NameList, OnWireData, RawMessage,
-    RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage, ServiceRequestMessage,
-    SignatureSchemes, SshBytes, SshMessage, SshPublicKey, SshSignature, UnimplementedMessage,
-    UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
+    AlgoName, ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage,
+    ChannelExtendedDataMessage, ChannelFailureMessage, ChannelOpenConfirmationMessage,
+    ChannelOpenFailureMessage, ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage,
+    ChannelWindowAdjustMessage, CompressionAlgorithms, DebugMessage, DisconnectMessage,
+    EncryptionAlgorithms, ExtInfoExtension, ExtInfoMessage, GlobalRequestMessage, IgnoreMessage,
+    KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, MacAlgorithms,
+    NameList, OnWireData, RawMessage, RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage,
+    ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey, SshSignature,
+    UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -64,30 +64,30 @@ pub fn fn_onwire_data(data: &Vec<u8>) -> Result<OnWireData, FnError> {
 // whole list across fields (algorithm confusion), reorder/duplicate entries, or
 // drop to empty — exercising downgrade and negotiation-handling paths in the PUT.
 
-fn name_of(b: &SshBytes) -> String {
-    String::from_utf8_lossy(&b.0).into_owned()
+fn name_of(b: &[u8]) -> String {
+    String::from_utf8_lossy(b).into_owned()
 }
 
 pub fn fn_namelist_empty() -> Result<NameList, FnError> {
     Ok(NameList::empty())
 }
-pub fn fn_namelist_1(a: &SshBytes) -> Result<NameList, FnError> {
-    Ok(NameList::from_strs(&[&name_of(a)]))
+pub fn fn_namelist_1(a: &AlgoName) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(&a.0)]))
 }
-pub fn fn_namelist_2(a: &SshBytes, b: &SshBytes) -> Result<NameList, FnError> {
-    Ok(NameList::from_strs(&[&name_of(a), &name_of(b)]))
+pub fn fn_namelist_2(a: &AlgoName, b: &AlgoName) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(&a.0), &name_of(&b.0)]))
 }
-pub fn fn_namelist_3(a: &SshBytes, b: &SshBytes, c: &SshBytes) -> Result<NameList, FnError> {
+pub fn fn_namelist_3(a: &AlgoName, b: &AlgoName, c: &AlgoName) -> Result<NameList, FnError> {
     Ok(NameList::from_strs(&[
-        &name_of(a),
-        &name_of(b),
-        &name_of(c),
+        &name_of(&a.0),
+        &name_of(&b.0),
+        &name_of(&c.0),
     ]))
 }
 /// Coerce a single raw byte blob into a NameList by splitting on commas — lets a
 /// bit-mutated / observed SshBytes become a (possibly malformed) algorithm list.
 pub fn fn_namelist_from_bytes(raw: &SshBytes) -> Result<NameList, FnError> {
-    let joined = name_of(raw);
+    let joined = name_of(&raw.0);
     let parts: Vec<&str> = joined.split(',').collect();
     Ok(NameList::from_strs(&parts))
 }
@@ -125,21 +125,21 @@ pub fn fn_ssh_bytes_empty() -> Result<SshBytes, FnError> {
 // ── Constructor: SshPublicKey / SshSignature ─────────────────────────────────
 
 pub fn fn_ssh_public_key(
-    algorithm: &SshBytes,
+    algorithm: &AlgoName,
     key_data: &SshBytes,
 ) -> Result<SshPublicKey, FnError> {
     Ok(SshPublicKey {
-        algorithm: algorithm.clone(),
+        algorithm: SshBytes::new(algorithm.0.clone()),
         key_data: key_data.clone(),
     })
 }
 
 pub fn fn_ssh_signature(
-    algorithm: &SshBytes,
+    algorithm: &AlgoName,
     signature_data: &SshBytes,
 ) -> Result<SshSignature, FnError> {
     Ok(SshSignature {
-        algorithm: algorithm.clone(),
+        algorithm: SshBytes::new(algorithm.0.clone()),
         signature_data: signature_data.clone(),
     })
 }

@@ -298,6 +298,16 @@ declare_crypto_atom!(VersionString);
 // impersonation-confusion class: authorized-vs-unauthorized key), never an
 // arbitrary byte blob. Same length-prefixed wire form as `SshBytes`.
 declare_crypto_atom!(SshPublicKeyBlob);
+// An SSH algorithm-name token (a `fn_algo_*` atom): a kex/cipher/MAC/host-key
+// scheme name, or a pseudo-algorithm negotiation marker (kex-strict, ext-info-c).
+// Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` substitutes an
+// algorithm name only into algorithm-name slots: the `fn_namelist_*` entries that
+// build the KEXINIT negotiation lists, and the `algorithm` field of a public key /
+// signature. This targets the negotiation/downgrade/algorithm-confusion surface
+// instead of letting an algo name land in any of the ~46 other `SshBytes` fields.
+// Consumed via `name_of(&.0)` into a NameList or copied into an `SshBytes`
+// struct field, so the wire form is unchanged.
+declare_crypto_atom!(AlgoName);
 
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.

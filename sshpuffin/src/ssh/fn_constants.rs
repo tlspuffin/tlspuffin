@@ -3,7 +3,7 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::{SshBytes, SshPublicKeyBlob, VersionString};
+use crate::ssh::message::{AlgoName, SshBytes, SshPublicKeyBlob, VersionString};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -97,20 +97,20 @@ pub fn fn_channel_session() -> Result<SshBytes, FnError> {
 // seeds get past the early algorithm-name validation and exercise deeper code
 // paths in key verification and signature checking.
 
-pub fn fn_algo_ssh_ed25519() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-ed25519".to_vec()))
+pub fn fn_algo_ssh_ed25519() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ssh-ed25519".to_vec()))
 }
-pub fn fn_algo_ecdsa_sha2_nistp256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ecdsa-sha2-nistp256".to_vec()))
+pub fn fn_algo_ecdsa_sha2_nistp256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ecdsa-sha2-nistp256".to_vec()))
 }
-pub fn fn_algo_rsa_sha2_256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"rsa-sha2-256".to_vec()))
+pub fn fn_algo_rsa_sha2_256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"rsa-sha2-256".to_vec()))
 }
-pub fn fn_algo_curve25519_sha256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"curve25519-sha256".to_vec()))
+pub fn fn_algo_curve25519_sha256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"curve25519-sha256".to_vec()))
 }
-pub fn fn_algo_aes256_gcm() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes256-gcm@openssh.com".to_vec()))
+pub fn fn_algo_aes256_gcm() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes256-gcm@openssh.com".to_vec()))
 }
 
 // ── Additional algorithm-name atoms ──────────────────────────────────────────
@@ -122,58 +122,58 @@ pub fn fn_algo_aes256_gcm() -> Result<SshBytes, FnError> {
 // negotiation / downgrade / algorithm-confusion handling even though a handshake
 // on the alternative suite would not complete.
 
-pub fn fn_algo_aes128_gcm() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes128-gcm@openssh.com".to_vec()))
+pub fn fn_algo_aes128_gcm() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes128-gcm@openssh.com".to_vec()))
 }
-pub fn fn_algo_aes128_ctr() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes128-ctr".to_vec()))
+pub fn fn_algo_aes128_ctr() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes128-ctr".to_vec()))
 }
-pub fn fn_algo_aes256_ctr() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes256-ctr".to_vec()))
+pub fn fn_algo_aes256_ctr() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes256-ctr".to_vec()))
 }
-pub fn fn_algo_3des_cbc() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"3des-cbc".to_vec()))
+pub fn fn_algo_3des_cbc() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"3des-cbc".to_vec()))
 }
-pub fn fn_algo_chacha20_poly1305() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"chacha20-poly1305@openssh.com".to_vec()))
+pub fn fn_algo_chacha20_poly1305() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"chacha20-poly1305@openssh.com".to_vec()))
 }
-pub fn fn_algo_hmac_sha2_256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha2-256".to_vec()))
+pub fn fn_algo_hmac_sha2_256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha2-256".to_vec()))
 }
-pub fn fn_algo_hmac_sha2_512() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha2-512".to_vec()))
+pub fn fn_algo_hmac_sha2_512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha2-512".to_vec()))
 }
-pub fn fn_algo_hmac_sha1() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha1".to_vec()))
+pub fn fn_algo_hmac_sha1() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha1".to_vec()))
 }
-pub fn fn_algo_none() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"none".to_vec()))
+pub fn fn_algo_none() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"none".to_vec()))
 }
-pub fn fn_algo_dh_group14_sha256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"diffie-hellman-group14-sha256".to_vec()))
+pub fn fn_algo_dh_group14_sha256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"diffie-hellman-group14-sha256".to_vec()))
 }
-pub fn fn_algo_ssh_rsa() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-rsa".to_vec()))
+pub fn fn_algo_ssh_rsa() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ssh-rsa".to_vec()))
 }
-pub fn fn_algo_rsa_sha2_512() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"rsa-sha2-512".to_vec()))
+pub fn fn_algo_rsa_sha2_512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"rsa-sha2-512".to_vec()))
 }
 /// Terrapin / strict-KEX negotiation marker (sent as a pseudo-algorithm in the
 /// KEXINIT lists). Lets the fuzzer add/remove strict-kex from the offer.
-pub fn fn_algo_kex_strict_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"kex-strict-c-v00@openssh.com".to_vec()))
+pub fn fn_algo_kex_strict_c() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"kex-strict-c-v00@openssh.com".to_vec()))
 }
-pub fn fn_algo_kex_strict_s() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"kex-strict-s-v00@openssh.com".to_vec()))
+pub fn fn_algo_kex_strict_s() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"kex-strict-s-v00@openssh.com".to_vec()))
 }
 /// An unrecognized algorithm name, for exercising unknown-algorithm handling.
-pub fn fn_algo_unknown() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"x-unknown-algo@puffin".to_vec()))
+pub fn fn_algo_unknown() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"x-unknown-algo@puffin".to_vec()))
 }
 /// RFC 8308 ext-info-c marker: included in the client KEXINIT to advertise
 /// EXT_INFO support, so the server will then accept a client SSH_MSG_EXT_INFO.
-pub fn fn_algo_ext_info_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ext-info-c".to_vec()))
+pub fn fn_algo_ext_info_c() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ext-info-c".to_vec()))
 }
 
 // ── EXT_INFO extension names / values (RFC 8308) ─────────────────────────────
