@@ -1,6 +1,6 @@
 use jni::errors::Result as JniResult;
-use jni::objects::{Global, JByteArray, JObject, JObjectArray, JValue};
-use jni_macros::jni_str;
+use jni::objects::{Global, JByteArray, JObject, JObjectArray, JString, JValue};
+use jni_macros::{jni_sig, jni_str};
 use puffin::algebra::error::FnError;
 
 use crate::protocol::SppU64;
@@ -100,39 +100,37 @@ impl puffin::codec::Codec for ImmutableByteArray {
         let vm = get_jvm().unwrap();
 
         if let Err(e) = vm.attach_current_thread(
-            |_env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
-                // let mapper_class_opt =
-                //     env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
-                //
-                // let mapper_class = match mapper_class_opt {
-                //     Ok(class) => class,
-                //     Err(e) => {
-                //         if env.exception_check() {
-                //             env.exception_describe();
-                //             env.exception_clear();
-                //         }
-                //         return Err(Box::new(e));
-                //
-                //     }
-                // };
-                //
-                // let mapper = env.new_object(mapper_class, jni_sig!(()), &[])?;
-                //
-                // let java_serialized = env.call_method(
-                //     &mapper,
-                //     jni_str!("writeValueAsString"),
-                //     jni_sig!((obj: JObject) -> JString),
-                //     &[JValue::Object(self.0.as_obj())],
-                // )?;
-                //
-                // let jstr_obj = java_serialized.l()?;
-                // let jstr = JString::cast_local(env, jstr_obj)?;
-                //
-                // let rust_str: String = jstr.to_string();
-                let rust_str: String = String::new();
+            |env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
+                let mapper_class_opt =
+                    env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
+
+                let mapper_class = match mapper_class_opt {
+                    Ok(class) => class,
+                    Err(e) => {
+                        if env.exception_check() {
+                            env.exception_describe();
+                            env.exception_clear();
+                        }
+                        return Err(Box::new(e));
+                    }
+                };
+
+                let mapper = env.new_object(mapper_class, jni_sig!(()), &[])?;
+
+                let java_serialized = env.call_method(
+                    &mapper,
+                    jni_str!("writeValueAsString"),
+                    jni_sig!((obj: JObject) -> JString),
+                    &[JValue::Object(self.0.as_obj())],
+                )?;
+
+                let jstr_obj = java_serialized.l()?;
+                let jstr = JString::cast_local(env, jstr_obj)?;
+
+                let rust_str = jstr.try_to_string(env)?;
 
                 bytes.extend_from_slice(rust_str.as_bytes());
-                bytes.extend_from_slice(b"Agauog");
+                // bytes.extend_from_slice(b"Agauog");
 
                 Ok(())
             },
