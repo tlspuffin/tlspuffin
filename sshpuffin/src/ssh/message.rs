@@ -320,6 +320,11 @@ declare_crypto_atom!(Username);
 // USERAUTH_REQUEST whose service != "ssh-connection", which wolfSSH accepts and
 // libssh rejects). Same length-prefixed wire form as `SshBytes`.
 declare_crypto_atom!(ServiceName);
+// The client's ephemeral X25519 private key (the ECDH secret scalar). Its own type
+// — NOT `SshBytes` — so `ReplaceMatchMutator` can neither splice the private key
+// into a wire-message byte field nor feed an arbitrary byte blob into the ECDH
+// secret slot of `fn_ecdh_shared_secret`. Same length-prefixed wire form as `SshBytes`.
+declare_crypto_atom!(SshSecretKey);
 
 // An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
 // connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so

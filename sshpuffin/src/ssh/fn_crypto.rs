@@ -16,8 +16,8 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, ServiceName,
-    SessionId, SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature,
-    Username, VersionString,
+    SessionId, SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSecretKey,
+    SshSignature, Username, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -34,8 +34,8 @@ const CLIENT_ECDH_SEED: [u8; 32] = [
 // ── ECDH ─────────────────────────────────────────────────────────────────────
 
 /// Fixed X25519 private key (seed) for the DY fuzzer's client role.
-pub fn fn_client_ecdh_privkey() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(CLIENT_ECDH_SEED.to_vec()))
+pub fn fn_client_ecdh_privkey() -> Result<SshSecretKey, FnError> {
+    Ok(SshSecretKey::new(CLIENT_ECDH_SEED.to_vec()))
 }
 
 /// X25519 public key corresponding to `fn_client_ecdh_privkey`.
@@ -51,7 +51,7 @@ pub fn fn_client_ecdh_pubkey() -> Result<SshBytes, FnError> {
 /// returns (and that libssh passes to `bignum_bin2bn` treating it as
 /// big-endian), so it can be fed directly into `fn_kex_exchange_hash`.
 pub fn fn_ecdh_shared_secret(
-    priv_key: &SshBytes,
+    priv_key: &SshSecretKey,
     peer_pub: &SshBytes,
 ) -> Result<SharedSecret, FnError> {
     if priv_key.0.len() != 32 {
