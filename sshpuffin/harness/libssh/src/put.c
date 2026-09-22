@@ -365,11 +365,13 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         ssh_options_set(session, SSH_OPTIONS_HOST, "puffin-dummy");
         ssh_options_set(session, SSH_OPTIONS_FD, &put_fd);
         /* Pre-set user and ssh_dir to avoid ssh_options_apply failures in
-         * restricted environments. */
-        const char *user = getenv("USER");
-        if (user == NULL)
-            user = "puffin";
-        ssh_options_set(session, SSH_OPTIONS_USER, user);
+         * restricted environments. The user is a FIXED "user" — identity A of the
+         * shared allow-list, the seeds' fn_username, and exactly what the wolfSSH
+         * client harness sends (wolfSSH_SetUsername(ssh, "user")). It used to be
+         * getenv("USER"), which made the client's USERAUTH_REQUEST depend on who
+         * ran the fuzzer (non-reproducible traces) and showed up as a spurious
+         * user-name diff against wolfSSH once the c2s transcript was compared. */
+        ssh_options_set(session, SSH_OPTIONS_USER, "user");
         const char *home = getenv("HOME");
         char sshdir[4096];
         if (home != NULL)
