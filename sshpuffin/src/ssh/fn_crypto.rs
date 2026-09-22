@@ -15,8 +15,8 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
-    ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret,
-    SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature, VersionString,
+    ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId,
+    SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -697,13 +697,13 @@ pub fn fn_s2c_confirmation_sender_channel(
     flight: &RawSshMessageFlight,
     key: &SshBytes,
     iv: &SshBytes,
-) -> Result<u32, FnError> {
+) -> Result<ChannelId, FnError> {
     let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
     transcript
         .by_key
         .values()
         .find_map(|m| match m {
-            SshMessage::ChannelOpenConfirmation(c) => Some(c.sender_channel),
+            SshMessage::ChannelOpenConfirmation(c) => Some(ChannelId::new(c.sender_channel)),
             _ => None,
         })
         .ok_or_else(|| {

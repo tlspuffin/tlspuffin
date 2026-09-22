@@ -198,6 +198,10 @@ define_signature!(
     fn_channel_request
     fn_channel_success
     fn_channel_failure
+    // Channel-id producers (type-directed): a converter from any u32 and the fixed
+    // channel 0 the honest seeds use. See `ChannelId` in ssh/message.rs.
+    fn_channel_id
+    fn_channel_id_0
     fn_client_ecdh_privkey
     fn_client_ecdh_pubkey
     fn_ecdh_shared_secret

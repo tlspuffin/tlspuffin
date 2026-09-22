@@ -5,7 +5,7 @@ use puffin::algebra::error::FnError;
 use crate::protocol::RawSshMessageFlight;
 use crate::ssh::message::{
     AlgoName, ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage,
-    ChannelExtendedDataMessage, ChannelFailureMessage, ChannelOpenConfirmationMessage,
+    ChannelExtendedDataMessage, ChannelFailureMessage, ChannelId, ChannelOpenConfirmationMessage,
     ChannelOpenFailureMessage, ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage,
     ChannelWindowAdjustMessage, CompressionAlgorithms, DebugMessage, DisconnectMessage,
     EncryptionAlgorithms, ExtInfoExtension, ExtInfoMessage, GlobalRequestMessage, IgnoreMessage,
@@ -368,16 +368,28 @@ pub fn fn_request_failure() -> Result<SshMessage, FnError> {
     Ok(SshMessage::RequestFailure)
 }
 
+/// Wrap a `u32` as a `ChannelId` (the type-directed channel-number slot). Lets the
+/// fuzzer build any channel id from the existing `fn_u32_*` atoms (including
+/// boundary values) while keeping it type-segregated from non-channel u32 fields.
+pub fn fn_channel_id(id: &u32) -> Result<ChannelId, FnError> {
+    Ok(ChannelId::new(*id))
+}
+
+/// Channel id 0 — the fixed channel number the honest seeds address.
+pub fn fn_channel_id_0() -> Result<ChannelId, FnError> {
+    Ok(ChannelId::new(0))
+}
+
 pub fn fn_channel_open(
     channel_type: &SshBytes,
-    sender_channel: &u32,
+    sender_channel: &ChannelId,
     initial_window_size: &u32,
     maximum_packet_size: &u32,
     channel_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelOpen(ChannelOpenMessage {
         channel_type: channel_type.clone(),
-        sender_channel: *sender_channel,
+        sender_channel: sender_channel.0,
         initial_window_size: *initial_window_size,
         maximum_packet_size: *maximum_packet_size,
         channel_data: channel_data.clone(),
@@ -385,16 +397,16 @@ pub fn fn_channel_open(
 }
 
 pub fn fn_channel_open_confirmation(
-    recipient_channel: &u32,
-    sender_channel: &u32,
+    recipient_channel: &ChannelId,
+    sender_channel: &ChannelId,
     initial_window_size: &u32,
     maximum_packet_size: &u32,
     channel_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelOpenConfirmation(
         ChannelOpenConfirmationMessage {
-            recipient_channel: *recipient_channel,
-            sender_channel: *sender_channel,
+            recipient_channel: recipient_channel.0,
+            sender_channel: sender_channel.0,
             initial_window_size: *initial_window_size,
             maximum_packet_size: *maximum_packet_size,
             channel_data: channel_data.clone(),
@@ -403,13 +415,13 @@ pub fn fn_channel_open_confirmation(
 }
 
 pub fn fn_channel_open_failure(
-    recipient_channel: &u32,
+    recipient_channel: &ChannelId,
     reason_code: &u32,
     description: &SshBytes,
     language_tag: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelOpenFailure(ChannelOpenFailureMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
         reason_code: *reason_code,
         description: description.clone(),
         language_tag: language_tag.clone(),
@@ -417,73 +429,76 @@ pub fn fn_channel_open_failure(
 }
 
 pub fn fn_channel_window_adjust(
-    recipient_channel: &u32,
+    recipient_channel: &ChannelId,
     bytes_to_add: &u32,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelWindowAdjust(
         ChannelWindowAdjustMessage {
-            recipient_channel: *recipient_channel,
+            recipient_channel: recipient_channel.0,
             bytes_to_add: *bytes_to_add,
         },
     ))
 }
 
-pub fn fn_channel_data(recipient_channel: &u32, data: &SshBytes) -> Result<SshMessage, FnError> {
+pub fn fn_channel_data(
+    recipient_channel: &ChannelId,
+    data: &SshBytes,
+) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelData(ChannelDataMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
         data: data.clone(),
     }))
 }
 
 pub fn fn_channel_extended_data(
-    recipient_channel: &u32,
+    recipient_channel: &ChannelId,
     data_type_code: &u32,
     data: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelExtendedData(
         ChannelExtendedDataMessage {
-            recipient_channel: *recipient_channel,
+            recipient_channel: recipient_channel.0,
             data_type_code: *data_type_code,
             data: data.clone(),
         },
     ))
 }
 
-pub fn fn_channel_eof(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+pub fn fn_channel_eof(recipient_channel: &ChannelId) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelEof(ChannelEofMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
     }))
 }
 
-pub fn fn_channel_close(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+pub fn fn_channel_close(recipient_channel: &ChannelId) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelClose(ChannelCloseMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
     }))
 }
 
 pub fn fn_channel_request(
-    recipient_channel: &u32,
+    recipient_channel: &ChannelId,
     request_type: &SshBytes,
     want_reply: &bool,
     request_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelRequest(ChannelRequestMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
         request_type: request_type.clone(),
         want_reply: *want_reply,
         request_data: request_data.clone(),
     }))
 }
 
-pub fn fn_channel_success(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+pub fn fn_channel_success(recipient_channel: &ChannelId) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelSuccess(ChannelSuccessMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
     }))
 }
 
-pub fn fn_channel_failure(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+pub fn fn_channel_failure(recipient_channel: &ChannelId) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelFailure(ChannelFailureMessage {
-        recipient_channel: *recipient_channel,
+        recipient_channel: recipient_channel.0,
     }))
 }
 

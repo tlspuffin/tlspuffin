@@ -105,7 +105,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
         fn_encrypt_packet(
             (fn_channel_open(
                 (fn_channel_session),
-                (fn_u32_0),
+                (fn_channel_id_0),
                 (fn_u32_1),
                 (fn_u32_2),
                 (fn_empty_bytes_vec)
@@ -289,13 +289,13 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
@@ -453,13 +453,13 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_3))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_4))
     };
@@ -569,7 +569,7 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
     // rekey KEXINIT moves it into the incomplete-rekey window (§7.1).
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -684,13 +684,13 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
@@ -859,7 +859,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
     };
     let chan_open = term! {
         fn_encrypt_packet(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@enc_key), (fn_u32_4))
     };
@@ -969,7 +969,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
     // allow-list, so any divergence here is a real library difference.
     let direct = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_type_direct_tcpip), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_type_direct_tcpip), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_direct_tcpip_data((fn_addr_localhost), (fn_port_ssh),
                                                    (fn_addr_localhost), (fn_port_ssh))))),
             (@key), (@iv), (fn_u32_3))
@@ -1240,13 +1240,13 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
@@ -1322,13 +1322,13 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
     // wolfSSH's single-step accept() needs to finish processing the auth.
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
@@ -1407,13 +1407,13 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_ssh_userauth))))),
             (@key), (@iv), (fn_u32_3))
     };
@@ -1655,7 +1655,7 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };

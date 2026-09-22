@@ -309,6 +309,35 @@ declare_crypto_atom!(SshPublicKeyBlob);
 // struct field, so the wire form is unchanged.
 declare_crypto_atom!(AlgoName);
 
+// An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
+// connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
+// `ReplaceMatchMutator` substitutes a channel number only into a channel-id slot,
+// never into the many other u32 fields (sequence/packet counters, window sizes,
+// reason/data-type codes, exit statuses). The interesting mutation this enables is
+// re-addressing channel traffic to a DIFFERENT channel id (the per-PUT
+// channel-number divergence surfaced by `fn_s2c_confirmation_sender_channel`), as a
+// single well-typed swap. Wire form is a bare big-endian u32, identical to the
+// struct field it feeds, so wrapping changes no derived bytes.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelId(#[extractable_no_recursion] pub u32);
+
+impl ChannelId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl Codec for ChannelId {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(ChannelId(u32::read(reader)?))
+    }
+}
+
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
 fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {
