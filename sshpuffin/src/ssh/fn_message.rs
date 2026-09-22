@@ -13,6 +13,7 @@ use crate::ssh::message::{
     NameList, OnWireData, RawMessage, RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage,
     ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey, SshSignature,
     UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
+    Username,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -309,13 +310,13 @@ pub fn fn_server_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError
 }
 
 pub fn fn_user_auth_request(
-    user_name: &SshBytes,
+    user_name: &Username,
     service_name: &SshBytes,
     method_name: &SshBytes,
     method_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::UserAuthRequest(UserAuthRequestMessage {
-        user_name: user_name.clone(),
+        user_name: SshBytes::new(user_name.0.clone()),
         service_name: service_name.clone(),
         method_name: method_name.clone(),
         method_data: method_data.clone(),

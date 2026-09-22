@@ -16,7 +16,7 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId,
-    SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature,
+    SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature, Username,
     VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
@@ -1301,7 +1301,7 @@ fn pubkey_blob_of(key: &ssh_key::PrivateKey) -> Result<SshBytes, FnError> {
 fn sign_userauth_with(
     key: &ssh_key::PrivateKey,
     session_id: &SessionId,
-    user: &SshBytes,
+    user: &Username,
     service: &SshBytes,
     pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
@@ -1366,7 +1366,7 @@ pub fn fn_client_c_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
 /// Sign a publickey USERAUTH_REQUEST with client identity key A.
 pub fn fn_sign_userauth(
     session_id: &SessionId,
-    user: &SshBytes,
+    user: &Username,
     service: &SshBytes,
     pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
@@ -1376,7 +1376,7 @@ pub fn fn_sign_userauth(
 /// Sign a publickey USERAUTH_REQUEST with client identity key B.
 pub fn fn_sign_userauth_b(
     session_id: &SessionId,
-    user: &SshBytes,
+    user: &Username,
     service: &SshBytes,
     pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
@@ -1392,7 +1392,7 @@ pub fn fn_sign_userauth_b(
 /// Sign a publickey USERAUTH_REQUEST with client identity key C.
 pub fn fn_sign_userauth_c(
     session_id: &SessionId,
-    user: &SshBytes,
+    user: &Username,
     service: &SshBytes,
     pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
@@ -1430,7 +1430,7 @@ mod tests {
 
         // Each identity signs the RFC 4252 §7 blob with its own key without error.
         let sid = SessionId::new(vec![7u8; 32]);
-        let user = SshBytes::new(b"user".to_vec());
+        let user = Username::new(b"user".to_vec());
         let svc = SshBytes::new(b"ssh-connection".to_vec());
         assert!(fn_sign_userauth(&sid, &user, &svc, &a).is_ok());
         assert!(fn_sign_userauth_b(&sid, &user, &svc, &b).is_ok());

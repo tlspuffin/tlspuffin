@@ -3,7 +3,7 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::{AlgoName, SshBytes, SshPublicKeyBlob, VersionString};
+use crate::ssh::message::{AlgoName, SshBytes, SshPublicKeyBlob, Username, VersionString};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -57,8 +57,8 @@ pub fn fn_method_none() -> Result<SshBytes, FnError> {
 
 // ── Common field values ──────────────────────────────────────────────────────
 
-pub fn fn_username() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"user".to_vec()))
+pub fn fn_username() -> Result<Username, FnError> {
+    Ok(Username::new(b"user".to_vec()))
 }
 // method_data is raw bytes (not SSH-format string), so Vec<u8>
 pub fn fn_password() -> Result<Vec<u8>, FnError> {
@@ -426,15 +426,15 @@ pub fn fn_cookie_zeros() -> Result<[u8; 16], FnError> {
 pub fn fn_cookie_ff() -> Result<[u8; 16], FnError> {
     Ok([0xffu8; 16])
 }
-pub fn fn_username_empty() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(Vec::new()))
+pub fn fn_username_empty() -> Result<Username, FnError> {
+    Ok(Username::new(Vec::new()))
 }
-pub fn fn_username_root() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"root".to_vec()))
+pub fn fn_username_root() -> Result<Username, FnError> {
+    Ok(Username::new(b"root".to_vec()))
 }
 /// An oversized user name (300 bytes) for length / buffer-handling exploration.
-pub fn fn_username_long() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(vec![b'A'; 300]))
+pub fn fn_username_long() -> Result<Username, FnError> {
+    Ok(Username::new(vec![b'A'; 300]))
 }
 pub fn fn_password_empty() -> Result<Vec<u8>, FnError> {
     Ok(Vec::new())
@@ -451,11 +451,11 @@ pub fn fn_password_long() -> Result<Vec<u8>, FnError> {
 // fuzzer swaps a username / pubkey-blob / signature across identities to try to
 // make a stack authenticate the wrong pairing. See fn_client_{b,c}_pubkey_blob
 // and fn_sign_userauth_{b,c} in fn_crypto.rs.
-pub fn fn_username_b() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"userb".to_vec()))
+pub fn fn_username_b() -> Result<Username, FnError> {
+    Ok(Username::new(b"userb".to_vec()))
 }
-pub fn fn_username_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"userc".to_vec()))
+pub fn fn_username_c() -> Result<Username, FnError> {
+    Ok(Username::new(b"userc".to_vec()))
 }
 pub fn fn_password_b() -> Result<Vec<u8>, FnError> {
     Ok(b"testb".to_vec())

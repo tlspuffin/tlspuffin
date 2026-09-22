@@ -308,6 +308,11 @@ declare_crypto_atom!(SshPublicKeyBlob);
 // Consumed via `name_of(&.0)` into a NameList or copied into an `SshBytes`
 // struct field, so the wire form is unchanged.
 declare_crypto_atom!(AlgoName);
+// The USERAUTH_REQUEST user name (RFC 4252 §5). Its own type — NOT `SshBytes` — so
+// `ReplaceMatchMutator` substitutes a user name only into the user slot (the
+// authorized/unauthorized-identity and empty/oversized-name class), never into an
+// unrelated byte field. Same length-prefixed wire form as `SshBytes`.
+declare_crypto_atom!(Username);
 
 // An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
 // connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
