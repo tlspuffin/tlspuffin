@@ -16,7 +16,8 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId,
-    SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature, VersionString,
+    SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature,
+    VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
