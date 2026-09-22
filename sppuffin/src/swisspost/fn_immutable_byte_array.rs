@@ -319,8 +319,8 @@ mod tests {
 
     #[test]
     fn test_immutable_byte_array() {
-        let size1 = rand::random::<i32>() % 100;
-        let size2 = rand::random::<i32>() % 100;
+        let size1 = rand::random::<i32>() % 100 + 100;
+        let size2 = rand::random::<i32>() % 100 + 100;
         let mut array1 = Vec::new();
         for _ in 0..size1 {
             array1.push(rand::random());
