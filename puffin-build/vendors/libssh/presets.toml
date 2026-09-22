@@ -1,13 +1,5 @@
-[libssh0104-asan]
-sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
-builder = { type = "builtin", name = "libssh" }
-asan = true
-sancov = true
-
-[libssh0104]
-sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
-builder = { type = "builtin", name = "libssh" }
-sancov = true
+# Presets are ordered newest libssh release first (0.11.4 → 0.10.4 → 0.8.3), and
+# within a release: asan, then gcov, then the plain sancov build.
 
 [libssh0114-asan]
 sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libssh-0.11.4", version = "0.11.4" }
@@ -28,6 +20,16 @@ sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libss
 builder = { type = "builtin", name = "libssh" }
 sancov = true
 
+[libssh0104-asan]
+sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
+builder = { type = "builtin", name = "libssh" }
+asan = true
+sancov = true
+
+[libssh0104]
+sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
+builder = { type = "builtin", name = "libssh" }
+sancov = true
 
 [libssh0803-asan]
 sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libssh-0.8.3", version = "0.8.3" }
