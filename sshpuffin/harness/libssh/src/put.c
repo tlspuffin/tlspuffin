@@ -381,6 +381,30 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
             snprintf(sshdir, sizeof(sshdir), "/tmp/.ssh-puffin");
         }
         ssh_options_set(session, SSH_OPTIONS_SSH_DIR, sshdir);
+        /* Apply the SAME negotiable-algorithm pins the SSH_SERVER branch applies
+         * via ssh_bind_options_set, so a CLIENT PUT honours
+         * differential_fuzzing_uniformise_put_config too. The wolfSSH harness sets
+         * them on the shared CTX for both roles; without this the libssh client
+         * offered its full defaults (e.g. diffie-hellman-group18-sha512) and every
+         * client-role differential showed a spurious KEXINIT capability diff —
+         * surfaced once the c2s decryption recipe made the client stream
+         * comparable. Same libssh >= 0.9 guard as the server branch. */
+#if defined(LIBSSH_VERSION_INT) && LIBSSH_VERSION_INT >= SSH_VERSION_INT(0, 9, 0)
+        if (descriptor->kex)
+            ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, descriptor->kex);
+        if (descriptor->ciphers)
+        {
+            ssh_options_set(session, SSH_OPTIONS_CIPHERS_C_S, descriptor->ciphers);
+            ssh_options_set(session, SSH_OPTIONS_CIPHERS_S_C, descriptor->ciphers);
+        }
+        if (descriptor->macs)
+        {
+            ssh_options_set(session, SSH_OPTIONS_HMAC_C_S, descriptor->macs);
+            ssh_options_set(session, SSH_OPTIONS_HMAC_S_C, descriptor->macs);
+        }
+        if (descriptor->hostkey_algos)
+            ssh_options_set(session, SSH_OPTIONS_HOSTKEYS, descriptor->hostkey_algos);
+#endif
         /* put_fd is now owned by the session */
     }
 
