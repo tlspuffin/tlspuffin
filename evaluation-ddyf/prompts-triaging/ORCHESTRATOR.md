@@ -1,6 +1,6 @@
 # DDYF Orchestrator — v3
 
-> **Protocol-agnostic methodology — TLS is the worked example.** The concrete names in this file (`openssl340`/`libressl421`, `tlspuffin`, `sort_objectives_ossl_libre.py`, TLS error strings / RFCs) are the running **TLS example**. For another protocol, substitute the placeholders defined in `START_HERE.md` § Protocol configuration — e.g. SSH: `libssh0114`/`wolfssh`, `sshpuffin`, `ssh/sort_objectives_libssh_wolfssh.py`, RFC 4251-4254.
+> **Protocol-agnostic methodology — TLS is the worked example.** The concrete names in this file (`openssl340`/`libressl421`, `tlspuffin`, `sort_objectives_ossl_libre.py`, TLS error strings / RFCs) are the running **TLS example**. For another protocol, substitute the placeholders defined in `START_HERE.md` § Protocol configuration — e.g. SSH: `libssh0114`/`wolfssh150`, `sshpuffin`, `ssh/sort_objectives_libssh_wolfssh.py`, RFC 4251-4254.
 
 
 **Role:** Lead Triaging Engineer. You produce trace metadata, classify traces into named buckets, enforce granularity, run the Security Gate for any VULN candidate, and write bug reports + minimal reproducers + a summary table at the end.
@@ -707,7 +707,7 @@ Only in this case, run the three corpus-wide commands below. **Use `find`, not a
 `objective/metadata_*.log` glob:** if any traces were moved into `objective/<bucket>/`
 subdirectories, a root-only glob would miss them; `find` recurses over the root residual AND
 every bucket subdir. Substitute the `metadata_<PUT>_` prefixes per the placeholder table
-(`metadata_libssh0114_` / `metadata_wolfssh_` for SSH), and the error-line regex per protocol.
+(`metadata_libssh0114_` / `metadata_wolfssh150_` for SSH), and the error-line regex per protocol.
 
 ```bash
 # 1. Diff type distribution

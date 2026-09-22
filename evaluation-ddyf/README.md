@@ -13,7 +13,7 @@
 > | this README says … | means (placeholder) | TLS (here) | SSH |
 > |---|---|---|---|
 > | `tlspuffin` | `<puffin>` fuzzer binary | `tlspuffin` | `sshpuffin` |
-> | `openssl340` / `libressl421` | `<put1>` / `<put2>` | OpenSSL / LibreSSL / wolfSSL | `libssh0114` / `wolfssh` |
+> | `openssl340` / `libressl421` | `<put1>` / `<put2>` | OpenSSL / LibreSSL / wolfSSL | `libssh0114` / `wolfssh150` |
 > | `sort_objectives_ossl_*.py` | `<triaging_script>` | `tls/sort_objectives_ossl_*.py` | `ssh/sort_objectives_libssh_wolfssh.py` |
 > | TLS RFCs | security spec | TLS 1.2 / 1.3 | RFC 4251–4254, 8308, 8332 |
 >

@@ -22,9 +22,9 @@ This prompt set is **protocol-agnostic**. The workflow (Phase 0 → survey → b
 | Placeholder | Meaning | TLS (worked example) | SSH (this repo) |
 |---|---|---|---|
 | `<puffin>` | fuzzer binary | `target/release/tlspuffin` | `target/release/sshpuffin` |
-| `<put1>` / `<put2>` | the two implementations under test | `openssl340` / `libressl421` | `libssh0114` / `wolfssh` |
+| `<put1>` / `<put2>` | the two implementations under test | `openssl340` / `libressl421` | `libssh0114` / `wolfssh150` |
 | `<triaging_script>` | protocol's bucket-sorting script | `tls/sort_objectives_ossl_libre.py` | `ssh/sort_objectives_libssh_wolfssh.py` |
-| `<metadata_prefix>` | Phase-0 per-PUT log prefix | `metadata_openssl340_` / `metadata_libressl421_` | `metadata_libssh0114_` / `metadata_wolfssh_` |
+| `<metadata_prefix>` | Phase-0 per-PUT log prefix | `metadata_openssl340_` / `metadata_libressl421_` | `metadata_libssh0114_` / `metadata_wolfssh150_` |
 | `<proto>/SECURITY_GATE_<proto>.md` | per-protocol security gate | `tls/SECURITY_GATE_TLS.md` | `ssh/SECURITY_GATE_SSH.md` |
 | security spec | the normative reference | TLS 1.2/1.3 RFCs | RFC 4251–4254, 8308, 8332 |
 
