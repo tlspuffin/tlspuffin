@@ -16,7 +16,7 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret,
-    SshBytes, SshMessage, SshPublicKey, SshSignature, VersionString,
+    SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSignature, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -1302,7 +1302,7 @@ fn sign_userauth_with(
     session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     use rsa::pkcs1v15::SigningKey;
     use rsa::signature::{SignatureEncoding, Signer};
@@ -1340,20 +1340,26 @@ fn sign_userauth_with(
 /// Client identity key A's public key blob (reuses the embedded server RSA key).
 /// This is the blob carried in a publickey USERAUTH_REQUEST and hashed (SHA-256)
 /// to the fingerprint the server records — the harness allow-list authorizes A.
-pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_server_key()?)
+pub fn fn_client_a_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_server_key()?)?.0,
+    ))
 }
 
 /// Client identity key B's public key blob. B is a distinct RSA-3072 key that the
 /// harness allow-list also authorizes — the swap target for impersonation tests.
-pub fn fn_client_b_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?)
+pub fn fn_client_b_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?)?.0,
+    ))
 }
 
 /// Client identity key C's public key blob. C is a distinct RSA-3072 key that is
 /// deliberately NOT in the harness allow-list — the "unauthorized key" attack.
-pub fn fn_client_c_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?)
+pub fn fn_client_c_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?)?.0,
+    ))
 }
 
 /// Sign a publickey USERAUTH_REQUEST with client identity key A.
@@ -1361,7 +1367,7 @@ pub fn fn_sign_userauth(
     session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(&load_server_key()?, session_id, user, service, pubkey_blob)
 }
@@ -1371,7 +1377,7 @@ pub fn fn_sign_userauth_b(
     session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(
         &load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?,
@@ -1387,7 +1393,7 @@ pub fn fn_sign_userauth_c(
     session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(
         &load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?,

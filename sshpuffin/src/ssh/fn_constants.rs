@@ -3,7 +3,7 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::{SshBytes, VersionString};
+use crate::ssh::message::{SshBytes, SshPublicKeyBlob, VersionString};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -521,7 +521,7 @@ pub fn fn_u32_0x10000() -> Result<u32, FnError> {
 ///   string  public key blob
 ///   string  signature  (= string "rsa-sha2-256" || string raw signature)
 pub fn fn_publickey_auth_data(
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
     signature_raw: &SshBytes,
 ) -> Result<Vec<u8>, FnError> {
     fn push_str(buf: &mut Vec<u8>, s: &[u8]) {

@@ -291,6 +291,13 @@ declare_crypto_atom!(SessionId);
 // never into the ~46 other `SshBytes` fields (pubkeys, signatures, namelists,
 // payloads, K_S, Q_C …). Same length-prefixed wire form as `SshBytes`.
 declare_crypto_atom!(VersionString);
+// The publickey-auth public-key blob K carried in a publickey USERAUTH_REQUEST
+// (RFC 4252 §7) and hashed to the fingerprint the server checks against its
+// allow-list. Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` can only
+// substitute one client identity's blob for another (the A/B/C credential- and
+// impersonation-confusion class: authorized-vs-unauthorized key), never an
+// arbitrary byte blob. Same length-prefixed wire form as `SshBytes`.
+declare_crypto_atom!(SshPublicKeyBlob);
 
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
