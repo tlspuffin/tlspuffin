@@ -41,8 +41,15 @@ MSG
     exit 1
 fi
 
+# Version source of truth (keep this reference script in step with them, do not
+# fork the pins here):
+#   * wolfSSH  -> puffin-build/vendors/wolfssh/presets.toml   (branch = "v1.5.0-stable")
+#   * wolfSSL  -> puffin-build/vendors/wolfssh/build_wolfssl_dep.sh (WOLFSSL_TAG)
+# In particular wolfSSH is pinned to the v1.5.0-stable RELEASE, NOT master:
+# presets.toml documents that a newer master (1.5.0-dev) regresses the handshake
+# with WS_BUFFER_E, so defaulting to master here would build a broken PUT.
 WOLFSSL_TAG="${1:-v5.7.6-stable}"
-WOLFSSH_TAG="${2:-master}"
+WOLFSSH_TAG="${2:-v1.5.0-stable}"
 SCRATCH="${SCRATCH:-/tmp/wolf_scratch}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 VENDOR_DIR="${VENDOR_DIR:-$PROJECT_DIR/vendor/wolfssh-asan}"

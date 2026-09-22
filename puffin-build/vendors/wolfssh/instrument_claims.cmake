@@ -13,6 +13,10 @@
 # includes <wolfssh/internal.h>, so the WOLFSSH struct is fully in scope; the
 # accessor is appended at end of file, so there is no anchor to drift across
 # wolfSSH versions.
+#
+# For why SSH claim instrumentation is a bespoke cmake-script patch rather than
+# the TLS `patch()` + `tlspuffin-claims` (`register_claimer`) mechanism, see the
+# rationale in vendors/libssh/instrument_claims.cmake.
 
 file(READ "${FILE}" content)
 

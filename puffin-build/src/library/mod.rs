@@ -53,6 +53,14 @@ impl Library {
         &self.metadata
     }
 
+    /// Include directories a harness needs to compile against this vendor.
+    ///
+    /// All branches below are vendor-*general* — they key on directories/keys that
+    /// may or may not be present for any given vendor, not on the protocol. The
+    /// `libssh/libcrypto.h` and `OPENSSL_INCLUDE_DIR` mentions are the cases that
+    /// currently exercise the `src/vendor{,-build}` and CMakeCache paths, not
+    /// SSH-specific special-casing; a new vendor with the same layout benefits
+    /// automatically and needs no change here.
     pub fn include_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = vec![self.path().join("include")];
         let vendor_src = self.path().join("src").join("vendor");
