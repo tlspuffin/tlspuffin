@@ -237,25 +237,31 @@ impl Codec for SshBytes {
     }
 }
 
-// ── Type-directed crypto atoms ───────────────────────────────────────────────
+// ── Role-typed byte atoms ────────────────────────────────────────────────────
 //
-// The KEX quantities used to all be plain `SshBytes`, so the term algebra could
-// not tell a shared secret from an exchange hash from a session id — the DY
-// mutator could substitute any byte blob into any of them, and, more importantly,
-// could NOT express the interesting attack: reusing a value of a SPECIFIC
-// cryptographic role across sessions/rekeys (the Terrapin / session-id-confusion
-// class). Giving each role its own type makes substitution type-directed:
+// Many SSH quantities used to be plain `SshBytes`, so the term algebra could not
+// tell (say) a shared secret from an exchange hash from a user name — the DY
+// mutator's `ReplaceMatchMutator` could substitute any byte blob into any of them.
+// Giving each ROLE its own type makes substitution type-directed: a value can only
+// be swapped for another value of the same role, which is exactly the mutation
+// class the interesting attacks live in. `declare_typed_atom!` is the reusable
+// helper for this: each atom is a transparent u32-length-prefixed byte blob
+// (identical wire form to `SshBytes`), so wrapping/unwrapping changes no derived
+// byte; the builders that feed an `SshBytes` struct field copy `.0` across.
 //
-//   * `SharedSecret`  — the ECDH shared secret K.
-//   * `ExchangeHash`  — the per-KEX exchange hash H (changes on every rekey).
-//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned for the whole
-//     connection (RFC 4253 §7.2). Byte-equal to H on the first KEX but semantically distinct — the
-//     distinction is the whole point: after a rekey, `fn_session_id_from_hash` lets the fuzzer try
-//     the NEW H in the session-id slot as a single well-typed mutation.
-//
-// Each is a transparent u32-length-prefixed byte blob (identical wire form to
-// SshBytes), so wrapping/unwrapping does not change any derived bytes.
-macro_rules! declare_crypto_atom (
+// Current role atoms (declared below):
+//   * KEX / crypto — `SharedSecret` (ECDH K), `ExchangeHash` (per-KEX H), `SessionId` (the FIRST H,
+//     pinned for the connection, RFC 4253 §7.2 — byte-equal to H on the first KEX but semantically
+//     distinct: after a rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
+//     session-id slot as one well-typed mutation, the Terrapin / session-id-confusion class),
+//     `SshSecretKey` (the client's ECDH private key).
+//   * identity / negotiation — `VersionString` (V_C/V_S), `SshPublicKeyBlob` (publickey-auth blob:
+//     identity confusion), `AlgoName` (negotiation / downgrade), `Username` and `ServiceName`
+//     (credential / bad-service confusion).
+// `ChannelId` is the same idea for a bare u32 (hand-written below, since this
+// macro is byte-blob only). All are registered in `try_read_bytes` so payloads
+// under `[opaque]` parents can be re-typed (see that function).
+macro_rules! declare_typed_atom (
     ($name:ident) => {
         #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
         #[extractable(SshProtocolTypes)]
@@ -281,23 +287,23 @@ macro_rules! declare_crypto_atom (
     }
 );
 
-declare_crypto_atom!(SharedSecret);
-declare_crypto_atom!(ExchangeHash);
-declare_crypto_atom!(SessionId);
+declare_typed_atom!(SharedSecret);
+declare_typed_atom!(ExchangeHash);
+declare_typed_atom!(SessionId);
 // The SSH identification strings V_C / V_S (banner minus CR-LF), hashed into the
 // exchange hash H (RFC 4253 §8). Its own type — NOT `SshBytes` — so the DY mutator
 // (in particular `ReplaceMatchMutator`, which picks any signature function of a
 // matching return type) can only substitute a version string into a V_C/V_S slot,
 // never into the ~46 other `SshBytes` fields (pubkeys, signatures, namelists,
 // payloads, K_S, Q_C …). Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(VersionString);
+declare_typed_atom!(VersionString);
 // The publickey-auth public-key blob K carried in a publickey USERAUTH_REQUEST
 // (RFC 4252 §7) and hashed to the fingerprint the server checks against its
 // allow-list. Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` can only
 // substitute one client identity's blob for another (the A/B/C credential- and
 // impersonation-confusion class: authorized-vs-unauthorized key), never an
 // arbitrary byte blob. Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(SshPublicKeyBlob);
+declare_typed_atom!(SshPublicKeyBlob);
 // An SSH algorithm-name token (a `fn_algo_*` atom): a kex/cipher/MAC/host-key
 // scheme name, or a pseudo-algorithm negotiation marker (kex-strict, ext-info-c).
 // Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` substitutes an
@@ -307,24 +313,24 @@ declare_crypto_atom!(SshPublicKeyBlob);
 // instead of letting an algo name land in any of the ~46 other `SshBytes` fields.
 // Consumed via `name_of(&.0)` into a NameList or copied into an `SshBytes`
 // struct field, so the wire form is unchanged.
-declare_crypto_atom!(AlgoName);
+declare_typed_atom!(AlgoName);
 // The USERAUTH_REQUEST user name (RFC 4252 §5). Its own type — NOT `SshBytes` — so
 // `ReplaceMatchMutator` substitutes a user name only into the user slot (the
 // authorized/unauthorized-identity and empty/oversized-name class), never into an
 // unrelated byte field. Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(Username);
+declare_typed_atom!(Username);
 // An SSH service name (RFC 4253 §10): "ssh-userauth" / "ssh-connection", carried by
 // SERVICE_REQUEST/ACCEPT and the USERAUTH_REQUEST service field. Its own type — NOT
 // `SshBytes` — so `ReplaceMatchMutator` substitutes a service name only into a
 // service slot: this is exactly the fuzzer-found bad-service class (a
 // USERAUTH_REQUEST whose service != "ssh-connection", which wolfSSH accepts and
 // libssh rejects). Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(ServiceName);
+declare_typed_atom!(ServiceName);
 // The client's ephemeral X25519 private key (the ECDH secret scalar). Its own type
 // — NOT `SshBytes` — so `ReplaceMatchMutator` can neither splice the private key
 // into a wire-message byte field nor feed an arbitrary byte blob into the ECDH
 // secret slot of `fn_ecdh_shared_secret`. Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(SshSecretKey);
+declare_typed_atom!(SshSecretKey);
 
 // An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
 // connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
