@@ -93,7 +93,7 @@ Usage
 The two PUT names and worker count are overridable via the environment (defaults are
 the clean, non-ASAN artifact vendors: libssh 0.11.4 vs wolfSSH 1.5.0):
     SSHPUFFIN_FIRST_PUT   (default "libssh0114")
-    SSHPUFFIN_SECOND_PUT  (default "wolfssh")
+    SSHPUFFIN_SECOND_PUT  (default "wolfssh150")
     SSHPUFFIN_TRIAGE_PARALLELISM (default 24)  sizes the classifier ThreadPool
     PUFFIN_TRIAGE_NO_CACHE       (unset)       set to force live re-execution instead of
                                                reading the Phase-0 metadata_diff_*.json cache
@@ -130,7 +130,7 @@ from ..diff_analyzer import (
 LIBSSH = 1
 WOLFSSH = 2
 FIRST_PUT = os.environ.get("SSHPUFFIN_FIRST_PUT", "libssh0114")
-SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh")
+SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh150")
 PARALLELISM = int(os.environ.get("SSHPUFFIN_TRIAGE_PARALLELISM", "24"))
 
 # ── Over-permissiveness guard ────────────────────────────────────────────────

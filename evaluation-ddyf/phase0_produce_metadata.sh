@@ -13,7 +13,7 @@
 #
 #   PUFFIN_PATH   fuzzer binary            (default: target/release/sshpuffin)
 #   FIRST_PUT     first PUT name           (default: libssh0114)   e.g. openssl340
-#   SECOND_PUT    second PUT name          (default: wolfssh)      e.g. wolfssl580
+#   SECOND_PUT    second PUT name          (default: wolfssh150)   e.g. wolfssl580
 #   OBJECTIVE_DIR directory of *.trace     (default: ./objective)
 #   PARALLELISM   xargs workers            (default: 20)
 #   ASAN_OPTIONS  sanitizer opts           (default: detect_leaks=0 — the harness
@@ -33,7 +33,7 @@ export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
 
 BINARY="${PUFFIN_PATH:-target/release/sshpuffin}"
 FIRST_PUT="${FIRST_PUT:-libssh0114}"
-SECOND_PUT="${SECOND_PUT:-wolfssh}"
+SECOND_PUT="${SECOND_PUT:-wolfssh150}"
 PARALLELISM="${PARALLELISM:-20}"
 OBJECTIVE_DIR="${OBJECTIVE_DIR:-./objective}"
 

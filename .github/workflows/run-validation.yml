@@ -208,8 +208,8 @@ jobs:
         uses: ./.github/actions/mk_vendor
         with:
           vendor: "wolfssh"
-          preset: "wolfssh"
-          name: "wolfssh"
+          preset: "wolfssh150"
+          name: "wolfssh150"
       - name: build `sshpuffin`
         run: just run cargo build --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release
       - name: run `sshpuffin seed`
@@ -219,7 +219,7 @@ jobs:
           BIN=target/x86_64-unknown-linux-gnu/release/sshpuffin
           fail=0
           for t in ./seeds/*.trace; do
-            out=$(ASAN_OPTIONS=detect_leaks=0 just run "$BIN" differential-execute libssh0114 wolfssh "$t" 2>/dev/null || true)
+            out=$(ASAN_OPTIONS=detect_leaks=0 just run "$BIN" differential-execute libssh0114 wolfssh150 "$t" 2>/dev/null || true)
             if ! echo "$out" | grep -q "No differences"; then
               echo "UNEXPECTED DIFF in $t:"; echo "$out"; fail=1
             fi

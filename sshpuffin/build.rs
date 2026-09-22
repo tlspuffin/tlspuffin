@@ -129,11 +129,13 @@ fn main() {
     }
 }
 
-const WOLFSSH_PRESET: &str = "wolfssh";
+const WOLFSSH_PRESET: &str = "wolfssh150";
 
 /// Ensure at least one wolfSSH vendor is available, building it from the
-/// puffin-build `wolfssh` preset (which builds wolfSSL --enable-ssh then
-/// wolfSSH) if none is present. Mirrors `ensure_libssh_vendors`.
+/// puffin-build `wolfssh150` preset (which builds wolfSSL --enable-ssh then
+/// wolfSSH) if none is present. Mirrors `ensure_libssh_vendors`. The PUT name is
+/// `wolfssh150` (version-carrying, like `libssh0114`); the vendor identity stays
+/// `wolfssh` (the `vendors/wolfssh/` dir and `metadata().vendor` below).
 fn ensure_wolfssh_vendors() -> Vec<library::Library> {
     // Explicit single-vendor selection for reproducible campaign builds. When
     // `SSHPUFFIN_ONLY_VENDOR=libssh`, omit the wolfSSH PUT entirely. This is

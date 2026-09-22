@@ -99,13 +99,13 @@ chmod +x ./evaluation-ddyf/*sh
 
 All commands run from the repo root inside the project nix shell (`nix-shell`), which
 provides clang-14, cargo, cmake and autotools. Build the two PUTs — the
-non-ASAN-instrumented `libssh0114` (libssh 0.11.4) and `wolfssh` (wolfSSH 1.5.0)
+non-ASAN-instrumented `libssh0114` (libssh 0.11.4) and `wolfssh150` (wolfSSH 1.5.0)
 vendors — and the fuzzer:
 
 ```sh
 # REPRODUCIBILITY STEPS
 just mk_vendor libssh  libssh0114     # -> vendor/libssh0114
-just mk_vendor wolfssh wolfssh        # -> vendor/wolfssh
+just mk_vendor wolfssh wolfssh150     # -> vendor/wolfssh150
 cargo build -p sshpuffin --release    # -> target/release/sshpuffin
 target/release/sshpuffin seed         # dumps the honest corpus to ./seeds (11 traces)
 ```
@@ -122,7 +122,7 @@ difference, not a config artifact.
 A single run on an honest seed (no divergence expected) looks like:
 
 ```sh
-ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh ./seeds/seed_client_attacker_pubkey_aesgcm.trace
+ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 ./seeds/seed_client_attacker_pubkey_aesgcm.trace
 #   -> No differences
 ```
 
@@ -182,7 +182,7 @@ With the full feature set (default build), every honest corpus seed is 0-diff:
 # REPRODUCIBILITY STEPS
 for t in ./seeds/*.trace; do
   echo "== $(basename $t)"
-  ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh "$t"
+  ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 "$t"
 done
 ```
 Observed — **11 / 11 `No differences`**:
@@ -214,7 +214,7 @@ minimised traces DDYF first found by fuzzing). Emit them and run each on both PU
 cargo test -p sshpuffin emit_eval_probe_traces -- --ignored   # -> /tmp/eval_probes/
 for t in bad_service kexinit_injection; do
   echo "== $t"
-  ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh /tmp/eval_probes/$t.trace
+  ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 /tmp/eval_probes/$t.trace
 done
 ```
 
@@ -243,7 +243,7 @@ shadowed by default and is revealed by disabling its shadow on the seed that car
 ```sh
 # REPRODUCIBILITY STEPS
 ASAN_OPTIONS=detect_leaks=0 \
-  target/release/sshpuffin -c 0-3 differential-experiment libssh0114 wolfssh -t ddyf_eval
+  target/release/sshpuffin -c 0-3 differential-experiment libssh0114 wolfssh150 -t ddyf_eval
 # The campaign fuzzes indefinitely — let it run ~10 minutes, then stop it with Ctrl-C.
 # Objectives are written incrementally, so Ctrl-C loses nothing. If worker processes
 # linger afterwards:  pkill -f 'release/sshpuffin.*differential-experiment'
@@ -299,10 +299,10 @@ Toggle the shadow to see it:
 ```sh
 # REPRODUCIBILITY STEPS
 # shadow ON (default): the known, filed bug stays suppressed
-ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh seeds/seed_client_attacker_forwarding.trace
+ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 seeds/seed_client_attacker_forwarding.trace
 #   -> No differences
 # shadow OFF: set the env var and re-run the SAME binary — no rebuild, no source edit
-SSHPUFFIN_SHADOW_KNOWN_BUGS=0 ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh seeds/seed_client_attacker_forwarding.trace
+SSHPUFFIN_SHADOW_KNOWN_BUGS=0 ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 seeds/seed_client_attacker_forwarding.trace
 #   -> msg 81 REQUEST_SUCCESS diverges: wolfSSH appends [0,0,0,22] (bound port 22); libssh sends a bare reply
 ```
 
@@ -404,7 +404,7 @@ run for this artifact, showing the campaign→triage→interpret loop at volume.
 
 ```sh
 ASAN_OPTIONS=detect_leaks=0 \
-  target/release/sshpuffin -c 0-3 differential-experiment libssh0114 wolfssh -t ddyf_eval
+  target/release/sshpuffin -c 0-3 differential-experiment libssh0114 wolfssh150 -t ddyf_eval
 ```
 
 **Triage** the objectives into named benign/actionable buckets (the script
@@ -415,7 +415,7 @@ PUT names + worker count are env-overridable):
 OBJ=$(find experiments -type d -name objective -path '*ddyf_eval*' | sort | tail -1)   # newest campaign if several
 ln -sfn evaluation-ddyf evaluation_ddyf   # underscore-named package bridge (see §2b)
 ASAN_OPTIONS=detect_leaks=0 PUFFIN_PATH=target/release/sshpuffin \
-SSHPUFFIN_FIRST_PUT=libssh0114 SSHPUFFIN_SECOND_PUT=wolfssh \
+SSHPUFFIN_FIRST_PUT=libssh0114 SSHPUFFIN_SECOND_PUT=wolfssh150 \
   python -m evaluation_ddyf.ssh.sort_objectives_libssh_wolfssh "$OBJ"
 ```
 
@@ -438,7 +438,7 @@ emits and the other withholds):
 ```sh
 OBJ=$(find experiments -type d -name objective -path '*ddyf_eval*' | sort | tail -1)   # (re-)resolve; newest campaign if several
 ASAN_OPTIONS=detect_leaks=0 PUFFIN_PATH=target/release/sshpuffin \
-SSHPUFFIN_FIRST_PUT=libssh0114 SSHPUFFIN_SECOND_PUT=wolfssh \
+SSHPUFFIN_FIRST_PUT=libssh0114 SSHPUFFIN_SECOND_PUT=wolfssh150 \
   python evaluation-ddyf/ssh/find_content_diffs.py "$OBJ"
 ```
 

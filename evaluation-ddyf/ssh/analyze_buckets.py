@@ -19,7 +19,7 @@ diverge* (NO-DIFF and SKIPPED are excluded from the denominator) -- that is the 
 
 Usage:
   ASAN_OPTIONS=detect_leaks=0 PUFFIN_PATH=target/release/sshpuffin \\
-  SSHPUFFIN_FIRST_PUT=libssh0114-asan SSHPUFFIN_SECOND_PUT=wolfssh-asan \\
+  SSHPUFFIN_FIRST_PUT=libssh0114-asan SSHPUFFIN_SECOND_PUT=wolfssh150-asan \\
     python -m evaluation-ddyf.ssh.analyze_buckets <objective_dir> [sample_N] [parallelism]
 
 `sample_N` = 0 (default) scans every trace; otherwise a deterministic random sample

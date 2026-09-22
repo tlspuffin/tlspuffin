@@ -8,13 +8,17 @@
 # it only landed in the 1.5.0 line. v1.5.0-stable is the release of that line:
 # it carries the working snapshot's fixes yet predates the later-master
 # WS_BUFFER_E regression. Reproducible and functionally closest to known-good.
-[wolfssh-asan]
+# Preset names carry the pinned version (wolfssh150 == wolfSSH 1.5.0), matching the
+# libssh0114 convention, so the PUT name states which release it is. The vendor /
+# builtin-builder identity stays `wolfssh` (the builder = { name = "wolfssh" } key
+# and vendors/wolfssh/ dir are the library identity, not the version).
+[wolfssh150-asan]
 sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "v1.5.0-stable", version = "1.5.0" }
 builder = { type = "builtin", name = "wolfssh" }
 asan = true
 sancov = true
 
-[wolfssh]
+[wolfssh150]
 sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "v1.5.0-stable", version = "1.5.0" }
 builder = { type = "builtin", name = "wolfssh" }
 sancov = true

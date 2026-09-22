@@ -284,7 +284,7 @@ mod signature_tests {
     /// expected and benign — e.g. a bare `u32` atom cannot be re-read as a specific
     /// message type — so only `read_wrong` is asserted). PUT-gated because building
     /// the (empty) evaluation context needs a linked registry.
-    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh"))]
+    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
     #[test]
     fn ssh_term_read_encode_roundtrip() {
         use crate::put_registry::ssh_registry;

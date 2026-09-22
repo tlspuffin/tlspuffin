@@ -3064,7 +3064,7 @@ mod tests {
     use super::*;
 
     /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
-    /// for `differential-execute libssh0114 wolfssh <trace>`. `#[ignore]`: run
+    /// for `differential-execute libssh0114 wolfssh150 <trace>`. `#[ignore]`: run
     /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
     #[test]
     #[ignore]
@@ -3103,7 +3103,7 @@ mod tests {
 
     /// Materialises the four by-design DIVERGENT probe reproducers to
     /// `/tmp/eval_probes/` so they can be replayed with
-    /// `differential-execute libssh0114 wolfssh <trace>`:
+    /// `differential-execute libssh0114 wolfssh150 <trace>`:
     ///   * `bad_service`       — USERAUTH_REQUEST with service != "ssh-connection" (wolfSSH
     ///     accepts, libssh rejects; RFC 4252 §5),
     ///   * `unknown_msg`       — unknown high-numbered message pre-auth (libssh tolerates per
@@ -3281,7 +3281,7 @@ mod tests {
     /// harness does seed wolfSSL's RNG deterministically, so it is deterministic
     /// in-process and is the meaningful subject here. PUT-gated so it only compiles
     /// in for a linked stack.
-    #[cfg(has_put = "wolfssh")]
+    #[cfg(has_put = "wolfssh150")]
     fn assert_put_deterministic(put: &str) {
         use std::thread;
         use std::time::Duration;
@@ -3313,9 +3313,9 @@ mod tests {
         }
     }
 
-    #[cfg(has_put = "wolfssh")]
+    #[cfg(has_put = "wolfssh150")]
     #[test]
     fn wolfssh_put_is_deterministic() {
-        assert_put_deterministic("wolfssh");
+        assert_put_deterministic("wolfssh150");
     }
 }

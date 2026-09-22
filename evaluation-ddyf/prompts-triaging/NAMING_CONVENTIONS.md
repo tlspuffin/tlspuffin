@@ -21,7 +21,8 @@ implementation identity** — otherwise two versions of the same stack collapse 
 Examples: `openssl340` → `openssl` and `libressl421` → `libressl` (the digits are a build number,
 dropped unambiguously); but for SSH keep them — `libssh0114` → `libssh0114` (or `libssh-0.11.4`),
 **not** `libssh` (which would collide with the protocol/implementation name and erase the version),
-and `wolfssh` stays `wolfssh`. When in doubt, keep the digits.
+and likewise `wolfssh150` (wolfSSH 1.5.0) carries its version rather than collapsing to a bare
+`wolfssh`. When in doubt, keep the digits.
 
 Example: `triaging-openssl-libressl-05-18/`
 
