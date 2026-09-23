@@ -3116,6 +3116,18 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
 mod tests {
     use super::*;
 
+    /// Serialises the tests that EXECUTE PUTs. Each PUT's deterministic RNG is
+    /// process-global (libssh: OpenSSL RAND_METHOD + one static seed in
+    /// harness/libssh/src/rng.c; wolfSSH: one seed stream), and `cargo test` runs
+    /// tests on parallel threads: two PUT executions interleaving their draws make
+    /// each other nondeterministic. (This, not the PUT, is why libssh once looked
+    /// nondeterministic "by attempt 4".) Hold it for the whole execution.
+    static PUT_EXEC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn put_exec_lock() -> std::sync::MutexGuard<'static, ()> {
+        PUT_EXEC_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
     /// for `differential-execute libssh0114 wolfssh150 <trace>`. `#[ignore]`: run
     /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
@@ -3291,6 +3303,7 @@ mod tests {
                 GcmTagFailure,
             ),
         ];
+        let _exec = put_exec_lock();
         let mut failures = Vec::new();
         for (name, seed, on_libssh, on_wolfssh) in &cases {
             for (put, want) in [("libssh0114", on_libssh), ("wolfssh150", on_wolfssh)] {
@@ -3480,25 +3493,22 @@ mod tests {
     }
 
     /// PUT determinism (mirrors TLS `test_attacker_full_det_recreate`): the same
-    /// trace, replayed against the same PUT, must produce byte-identical contexts
-    /// across runs even with a wall-clock gap between them. Uses the AES-256-GCM
-    /// client-attacker handshake — a member of the 0-diff differential corpus, so it
-    /// executes cleanly on both stacks. Determinism is the precondition the whole
-    /// differential method rests on: a nondeterministic PUT would manufacture
-    /// spurious cross-stack "differences" run to run.
+    /// trace, replayed against the same PUT in the same process, must produce
+    /// byte-identical contexts across runs even with a wall-clock gap between them.
+    /// Determinism is the precondition the whole differential method rests on: a
+    /// nondeterministic PUT would manufacture spurious cross-stack "differences" run
+    /// to run.
     ///
-    /// Only wolfSSH is exercised here. libssh is EXCLUDED for the same reason TLS
-    /// excludes OpenSSL from `test_attacker_full_det_recreate`: it has no working
-    /// deterministic RNG-reseed hook. libssh drives its own gcrypt/OpenSSL CSPRNG,
-    /// which our `determinism_reseed_all_factories` reseed does not reach, so its
-    /// server KEXINIT cookie and ephemeral DH share differ run-to-run *in-process*
-    /// (verified: nondeterministic by ~attempt 4). This never affects the real
-    /// differential path, which FORKS a fresh process per execution. wolfSSH's
-    /// harness does seed wolfSSL's RNG deterministically, so it is deterministic
-    /// in-process and is the meaningful subject here. PUT-gated so it only compiles
-    /// in for a linked stack.
-    #[cfg(has_put = "wolfssh150")]
-    fn assert_put_deterministic(put: &str) {
+    /// Both PUTs and both roles are covered. wolfSSL draws from the harness's
+    /// CUSTOM_RAND_GENERATE_SEED stream, rewound at every agent create. libssh draws
+    /// from OpenSSL through the harness's custom RAND_METHOD (harness/libssh/src/rng.c),
+    /// reset to its default seed by `determinism_reseed_all_factories` before every
+    /// execution. (An earlier note here said libssh was nondeterministic in-process;
+    /// re-measured 2026-09-23 it is deterministic in both roles. The single-PUT vs
+    /// differential mismatch seen in triage was a CONFIG difference, the missing
+    /// uniformisation, not randomness; see `display-execute --uniformise`.)
+    #[cfg(any(has_put = "wolfssh150", has_put = "libssh0114"))]
+    fn assert_put_deterministic(put: &str, trace: Trace<SshProtocolTypes>) {
         use std::thread;
         use std::time::Duration;
 
@@ -3514,9 +3524,7 @@ mod tests {
         let spawner = Spawner::new(registry.clone());
         let runner = Runner::new(registry, spawner);
 
-        let server = AgentName::first();
-        let trace = seed_client_attacker_full_aesgcm(server);
-
+        let _exec = put_exec_lock();
         let ctx_1 = (&runner).execute(&trace, &mut 0);
         // A wall-clock gap between executions surfaces any hidden time dependence.
         thread::sleep(Duration::from_secs(1));
@@ -3532,6 +3540,16 @@ mod tests {
     #[cfg(has_put = "wolfssh150")]
     #[test]
     fn wolfssh_put_is_deterministic() {
-        assert_put_deterministic("wolfssh150");
+        let a = AgentName::first();
+        assert_put_deterministic("wolfssh150", seed_client_attacker_full_aesgcm(a)); // server role
+        assert_put_deterministic("wolfssh150", seed_server_attacker_full_aesgcm(a)); // client role
+    }
+
+    #[cfg(has_put = "libssh0114")]
+    #[test]
+    fn libssh_put_is_deterministic() {
+        let a = AgentName::first();
+        assert_put_deterministic("libssh0114", seed_client_attacker_full_aesgcm(a)); // server role
+        assert_put_deterministic("libssh0114", seed_server_attacker_full_aesgcm(a)); // client role
     }
 }
