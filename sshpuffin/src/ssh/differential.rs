@@ -52,6 +52,12 @@ pub(crate) fn shadow_known_bugs() -> bool {
 /// Read a shadow master-switch from the environment. Absent — or any value other than
 /// `0`/`false`/`off`/`no` (case-insensitive) — means the shadow is ON (the safe default), so a
 /// plain campaign run is unaffected and only an explicit `=0` re-surfaces the class.
+///
+/// Each switch is read once per process (the `OnceLock`s above), so it is fixed for the
+/// whole campaign: set the variable before launching. All broker clients see the same
+/// value: the LibAFL launcher forks its clients from the launching process, and a crashed
+/// client is respawned (forked again) by its restarting manager, so every client inherits
+/// the launcher's environment.
 fn shadow_env(name: &str) -> bool {
     match std::env::var(name) {
         Ok(v) => !matches!(
