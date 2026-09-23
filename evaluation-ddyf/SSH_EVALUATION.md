@@ -130,7 +130,8 @@ To *shadow* a divergence class means to suppress it before it becomes an objecti
 either a documented benign non-bug, or a real bug already filed that we do not want
 re-surfaced on every run. Two master switches in `sshpuffin/src/protocol.rs` gate this
 (both default `true`): `SHADOW_KNOWN_BENIGN` (benign classes, e.g. libssh's stricter
-banner-length limit) and `SHADOW_KNOWN_BUGS` (the filed wolfSSH port-echo, #1246). They are
+protocol-version check) and `SHADOW_KNOWN_BUGS` (bugs already filed: the wolfSSH port-echo,
+#1246, and libssh's banner-length limit, libssh-mirror#376). They are
 runtime **environment variables** (`SSHPUFFIN_SHADOW_KNOWN_BENIGN` /
 `SSHPUFFIN_SHADOW_KNOWN_BUGS`): set one to `0` to re-surface its class — **no rebuild** —
 as used in §2b(iv) to reveal the shadowed port-echo bug on its seed.
@@ -483,12 +484,12 @@ named-bucket coverage** of the diverging stream:
 | **new memory-safety / security bug** | **0** | — |
 
 > **Note — "banner strictness" shadowed here vs the banner bucket in §2b are consistent.**
-> The shadow `is_banner_strictness_diff` masks *only* the pure banner-length **Status**
+> The shadow `is_banner_length_diff` masks *only* the pure banner-length **Status**
 > class (libssh rejecting a >129-byte identification string with "too large banner" while
 > wolfSSH progresses, RFC 4253 §4.2). It does not erase the divergence: the oversized-banner
 > trace still surfaces as an objective via its downstream accept-vs-reject / claim
 > asymmetry — which is exactly what §2b's non-empty `diverge_wolfssh_accepts_libssh_rejects`
-> bucket collects. Shadowing suppresses the benign *class label*, not the fact that the
+> bucket collects. Shadowing suppresses the known *class label*, not the fact that the
 > trace diverges.
 
 **Interpretation (candid).** Three results: (i) the shadowed classes — including the filed

@@ -52,7 +52,8 @@ Correspondence to the in-fuzzer shadow predicates (sshpuffin/src/protocol.rs)
 The offline buckets and the online shadow predicates classify the SAME classes; the
 shadows are the subset suppressed live, documented next to each predicate in
 sshpuffin/src/ssh/differential.rs:
-    bootstrap_too_large_banner* / bootstrap_no_version_usable*  <->  is_banner_strictness_diff        (SHADOW_KNOWN_BENIGN)
+    bootstrap_too_large_banner*                                 <->  is_banner_length_diff             (SHADOW_KNOWN_BUGS, libssh-mirror#376)
+    bootstrap_no_version_usable*                                <->  is_version_strictness_diff        (SHADOW_KNOWN_BENIGN)
     benign_kex_decrypt_transcript_presence                      <->  is_banner_induced_transcript_presence
     benign_decrypt_userauth_failure                             <->  is_userauth_failure_only_diff     (SHADOW_KNOWN_BENIGN)
     (a decrypted REQUEST_SUCCESS +bound-port change)            <->  is_fwd_reqsuccess_port_echo_diff  (SHADOW_KNOWN_BUGS, wolfssh#1246)

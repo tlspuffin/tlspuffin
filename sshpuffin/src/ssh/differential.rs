@@ -17,10 +17,10 @@ use crate::ssh::fn_impl::*;
 /// Master switch for shadowing documented-BENIGN divergence classes — divergences
 /// investigated to a benign (non-bug) conclusion, so suppressing them removes
 /// NOISE, not findings (see `differential_fuzzing_filter_diff`). Currently:
-///   * `is_banner_strictness_diff`         — libssh's banner-length / version strictness;
+///   * `is_version_strictness_diff`        — libssh's stricter protocol-version check;
 ///   * `is_userauth_failure_only_diff`     — a USERAUTH_FAILURE-only transcript delta;
 ///   * `is_banner_induced_transcript_presence` — the banner reject's induced transcript-presence
-///     diff (context-aware co-drop, banner-gated).
+///     diff (context-aware co-drop, gated like the banner reject it follows).
 /// Set `SSHPUFFIN_SHADOW_KNOWN_BENIGN=0` in the environment (no rebuild) to re-surface
 /// every benign class as an objective. This does NOT control the known-bugs shadow below —
 /// the two categories are independent. Defaults to `true` (shadow on).
@@ -37,6 +37,8 @@ pub(crate) fn shadow_known_benign() -> bool {
 /// while leaving the benign shadows on). Each such shadow must reference the
 /// finding's writeup and be surgically guarded so it can never mask a NEW or
 /// more-dangerous divergence. Currently:
+///   * `is_banner_length_diff` — libssh rejects identification strings longer than 129 bytes, RFC
+///     4253 §4.2 allows 255 (libssh-mirror#376, live on libssh master);
 ///   * `is_fwd_reqsuccess_port_echo_diff` — wolfSSH tcpip-forward REQUEST_SUCCESS bound-port echo
 ///     for a non-zero requested port, RFC 4254 §7.1 (wolfSSL/wolfssh#1246; fixed on wolfSSH master
 ///     in 24c2139a, still in the pinned v1.5.0). LOW severity. The diverging `forwarding` seed
@@ -68,29 +70,42 @@ fn shadow_env(name: &str) -> bool {
     }
 }
 
-/// Banner-length / version strictness (pre-auth). libssh rejects a client
-/// identification string longer than 129 bytes ("too large banner"; RFC 4253 §4.2
-/// allows 255, filed as libssh-mirror#376) or without a usable version, where wolfSSH
-/// (255-byte `WOLFSSH_PROTOID_LIMIT`) carries on. The largest divergence class of the
-/// early differential campaigns. No memory-safety issue, and both stacks derive the
-/// same V_C/V_S for any banner both accept (no exchange-hash divergence).
+/// Banner-length strictness (pre-auth, a filed libssh bug). libssh rejects a client
+/// identification string longer than 129 bytes ("too large banner") where RFC 4253
+/// §4.2 allows 255 and wolfSSH (255-byte `WOLFSSH_PROTOID_LIMIT`) carries on; filed as
+/// libssh-mirror#376. With the version class below, the largest divergence class of
+/// the early differential campaigns. No memory-safety issue, and both stacks derive
+/// the same V_C/V_S for any banner both accept (no exchange-hash divergence).
+pub(crate) fn is_banner_length_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    is_banner_reject_diff(diff, "too large banner")
+}
+
+/// Protocol-version strictness (pre-auth, benign). libssh requires protocol version
+/// `2.0` (or `1.99`) in the identification string ("No version of SSH protocol
+/// usable"), while wolfSSH only compares the first 7 bytes against `SSH-2.0`, case
+/// insensitively, and carries on. Both reject every identification string that no
+/// honest peer sends; not reported.
+pub(crate) fn is_version_strictness_diff(diff: &puffin::differential::TraceDifference) -> bool {
+    is_banner_reject_diff(diff, "No version of SSH protocol usable")
+}
+
+/// Whether `diff` is libssh rejecting the client identification string with the
+/// error `reject` while the other stack accepted it.
 ///
 /// Matched SURGICALLY so it cannot mask an unrelated bug: a `Status` diff where
-/// ONE side carries libssh's specific banner/version rejection string AND the
+/// ONE side carries libssh's specific banner rejection string AND the
 /// OTHER side accepted (`Success`) or progressed strictly further. It never
 /// drops a both-reject pair, never drops any other error kind, and is symmetric
 /// in which PUT is libssh (so it still holds if the PUT order is flipped). A
 /// real downstream divergence on the accepting side still surfaces through its
 /// own Knowledges/Claims diff or an ASAN crash — those `TraceDifference` entries
 /// are filtered independently of this Status entry.
-pub(crate) fn is_banner_strictness_diff(diff: &puffin::differential::TraceDifference) -> bool {
+fn is_banner_reject_diff(diff: &puffin::differential::TraceDifference, reject: &str) -> bool {
     use puffin::differential::TraceDifference;
     let TraceDifference::Status(s) = diff else {
         return false;
     };
-    let is_banner_reject = |st: &str| {
-        st.contains("too large banner") || st.contains("No version of SSH protocol usable")
-    };
+    let is_banner_reject = |st: &str| st.contains(reject);
     // The non-rejecting side must have clearly accepted or gone strictly further.
     let progressed = |other: &str, other_steps: usize, rejecter_steps: usize| {
         other == "Success" || other_steps > rejecter_steps
@@ -109,7 +124,7 @@ pub(crate) fn is_banner_strictness_diff(diff: &puffin::differential::TraceDiffer
             ))
 }
 
-/// The KNOWLEDGE-layer form of a banner-strictness divergence: one side rejected
+/// The KNOWLEDGE-layer form of a banner-length / version divergence: one side rejected
 /// the banner so it never decrypted a transcript, yielding a `AlignedTranscript`
 /// vs `()` presence difference. Matched ONLY to co-drop it alongside a shadowed
 /// banner *status* reject (see `differential_fuzzing_filter_diffs`) — never on its
@@ -388,6 +403,7 @@ mod filter_diff_tests {
     use puffin::differential::{StatusDiff, TraceDifference};
     use puffin::protocol::ProtocolTypes;
 
+    use super::{is_banner_length_diff, is_version_strictness_diff};
     use crate::protocol::SshProtocolTypes;
 
     fn status(first: &str, second: &str) -> TraceDifference {
@@ -434,11 +450,22 @@ mod filter_diff_tests {
         assert!(keep(&status("Success", "Unknown error code")));
     }
 
-    /// Banner-length / version strictness (libssh-mirror#376) is deliberately
-    /// SHADOWED so campaigns stop re-reporting a known class. Pairs where one side rejects
+    /// Banner-length strictness (libssh-mirror#376, known bug) and version
+    /// strictness (benign) are deliberately SHADOWED so campaigns stop
+    /// re-reporting known classes. Pairs where one side rejects
     /// the banner/version and the other accepts/progresses MUST now be dropped.
     /// This is the single, precise exception to fail-closed; everything else
     /// (guarded by `cross_vendor_acceptance_divergences_are_all_kept`) is unchanged.
+    #[test]
+    fn banner_length_and_version_are_separate_classes() {
+        // The length class is a filed bug (SHADOW_KNOWN_BUGS), the version class is
+        // benign (SHADOW_KNOWN_BENIGN): each predicate must match only its own.
+        let length = status("Receiving banner: too large banner", "Success");
+        let version = status("No version of SSH protocol usable (banner: x)", "Success");
+        assert!(is_banner_length_diff(&length) && !is_version_strictness_diff(&length));
+        assert!(is_version_strictness_diff(&version) && !is_banner_length_diff(&version));
+    }
+
     #[test]
     fn banner_strictness_is_shadowed() {
         // libssh rejects an oversized banner, wolfSSH accepts — shadowed.

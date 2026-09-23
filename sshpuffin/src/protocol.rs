@@ -20,8 +20,8 @@ use crate::put_registry::ssh_registry;
 use crate::query::SshQueryMatcher;
 use crate::ssh::deframe::SshMessageDeframer;
 use crate::ssh::differential::{
-    is_banner_induced_transcript_presence, is_banner_strictness_diff,
-    is_fwd_reqsuccess_port_echo_diff, is_userauth_failure_only_diff, renumber_aesgcm_counters,
+    is_banner_induced_transcript_presence, is_banner_length_diff, is_fwd_reqsuccess_port_echo_diff,
+    is_userauth_failure_only_diff, is_version_strictness_diff, renumber_aesgcm_counters,
     shadow_known_benign, shadow_known_bugs, step_has_auto_counter,
 };
 use crate::ssh::message::{RawSshMessage, SshMessage};
@@ -351,17 +351,22 @@ impl ProtocolTypes for SshProtocolTypes {
         //     before they become objectives.
         //
         // The ONE exception to fail-closed: a divergence CLASS that has been
-        // investigated to a documented benign conclusion is "shadowed" (dropped
-        // before it becomes an objective) so that long campaigns surface NEW
-        // findings instead of re-reporting a closed one. Each shadow is a PRECISE
-        // predicate (never a broad type/message whitelist — that is the unsafe
-        // pattern rejected above) and the whole set is gated behind
-        // SHADOW_KNOWN_BENIGN so it can be re-surfaced by flipping one flag.
-        if shadow_known_benign() && is_banner_strictness_diff(diff) {
-            // Banner-length / version strictness (libssh-mirror#376): libssh's
-            // 129-byte identification cap vs wolfSSH's 255-byte
-            // WOLFSSH_PROTOID_LIMIT; no memory-safety issue and no exchange-hash
-            // divergence.
+        // investigated to a documented conclusion (benign, or a bug already
+        // reported) is "shadowed" (dropped before it becomes an objective) so that
+        // long campaigns surface NEW findings instead of re-reporting a closed one.
+        // Each shadow is a PRECISE predicate (never a broad type/message whitelist —
+        // that is the unsafe pattern rejected above), gated behind
+        // SHADOW_KNOWN_BENIGN or SHADOW_KNOWN_BUGS so it can be re-surfaced by
+        // flipping one flag.
+        if shadow_known_bugs() && is_banner_length_diff(diff) {
+            // Banner-length strictness (libssh-mirror#376): libssh's 129-byte
+            // identification cap vs wolfSSH's 255-byte WOLFSSH_PROTOID_LIMIT; no
+            // memory-safety issue and no exchange-hash divergence.
+            return false;
+        }
+        if shadow_known_benign() && is_version_strictness_diff(diff) {
+            // Protocol-version strictness: libssh requires version 2.0/1.99,
+            // wolfSSH only a case-insensitive `SSH-2.0` prefix. Benign.
             return false;
         }
         if shadow_known_benign() && is_userauth_failure_only_diff(diff) {
@@ -390,8 +395,8 @@ impl ProtocolTypes for SshProtocolTypes {
             //
             // Gated behind SHADOW_KNOWN_BUGS (NOT SHADOW_KNOWN_BENIGN): this is a
             // REAL, documented wolfSSH bug we suppress to avoid re-reporting a
-            // closed finding — categorically different from the benign non-findings
-            // above, and re-surfaceable INDEPENDENTLY of them for a bug-focused
+            // closed finding — categorically different from the benign non-findings,
+            // and re-surfaceable INDEPENDENTLY of them for a bug-focused
             // re-audit. GUARDED (see `is_fwd_reqsuccess_port_echo_diff`) to fire
             // ONLY on a both-accepted, response_data-only, purely-additive port
             // echo — an accept-vs-reject forward divergence (RequestFailure vs
@@ -414,7 +419,8 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_filter_diffs(
         diffs: Vec<puffin::differential::TraceDifference>,
     ) -> Vec<puffin::differential::TraceDifference> {
-        let banner_shadowed = shadow_known_benign() && diffs.iter().any(is_banner_strictness_diff);
+        let banner_shadowed = (shadow_known_bugs() && diffs.iter().any(is_banner_length_diff))
+            || (shadow_known_benign() && diffs.iter().any(is_version_strictness_diff));
         diffs
             .into_iter()
             .filter(|d| {
