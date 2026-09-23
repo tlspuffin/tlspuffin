@@ -1,7 +1,7 @@
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::Term;
 use puffin::term;
-use puffin::trace::{InputAction, OutputAction, Trace};
+use puffin::trace::{InputAction, OutputAction, Step, Trace};
 
 use crate::protocol::{
     AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes,
@@ -2433,348 +2433,236 @@ pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes
     ]
 }
 
-/// Two-honest-party handshake: both the client and the server are real PUTs,
-/// and the Dolev-Yao attacker sits on the wire, here simply relaying each
-/// party's output flight to the other faithfully (the benign baseline). This is
-/// the trace shape required for the *matching-conversation* property — a
-/// security property that is only definable with two honest endpoints to
-/// compare. Mutations of this seed (drop / insert / reorder relayed messages)
-/// are what a transcript-integrity attack like Terrapin would exercise.
-pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            // Bootstrap: both peers emit their banner + KEXINIT without waiting.
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Relay, letting each delivery drive the receiver's next output.
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 4)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
-        ],
-        ..Default::default()
-    }
-}
+// ── Two-party relay seeds (a real client PUT against a real server PUT) ──────
+//
+// The attacker only relays. Messages are addressed by TYPE, never by raw
+// position: `[Banner]` / `[MsgType(n)]` for the cleartext phase and the n-th
+// `[OnWire]` chunk (opaque ciphertext) for the encrypted phase; the flight relay
+// forwards each agent's n-th non-empty output flight. (The seeds used to address
+// `(agent, n)/OnWireData` and lockstep flight indices, which stopped resolving
+// when encrypted chunks became `RawSshMessage` knowledge — every one of them
+// failed mid-relay on both stacks before reaching its point.) Every relay step is
+// followed by an output pump of the receiver: libssh sometimes needs one more
+// progress round to emit its reply (e.g. to a batched EXT_INFO + SERVICE_ACCEPT),
+// and an empty pump adds no knowledge, so indices stay aligned across stacks.
+// `tests::two_party_seeds_reach_their_verdict` locks each seed's outcome on
+// both PUTs.
 
-/// Hybrid Terrapin attempt: relay the handshake at **flight** granularity
-/// (preserving each PUT's I/O batching, so it completes) but at the targeted
-/// c2s point (a) insert a cleartext `SSH_MSG_IGNORE` before the client's NEWKEYS
-/// — bumping the server's c2s sequence number by one — and (b) forward the
-/// client's post-NEWKEYS encrypted packets individually as `OnWireData`,
-/// **dropping the first one**. The inserted IGNORE and the dropped packet cancel
-/// in the sequence counter, so the server's AEAD tags still verify (Terrapin
-/// prefix truncation). If the dropped packet is ignorable (e.g. EXT_INFO) both
-/// peers still complete, but the server never saw it — and the trace-aware
-/// matching-conversation oracle flags the divergence. On strict-kex (0.11.4) the
-/// server must abort on the IGNORE during KEX, so it never completes.
-pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Cleartext handshake, flight-forwarded (batching preserved).
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }), // ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), /* ECDH_REPLY+NEWKEYS */
-            // (a) INSERT a cleartext IGNORE into c2s before the client's NEWKEYS:
-            // bumps the server's c2s receive sequence number by 1.
-            InputAction::new_step(
-                server,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), /* client NEWKEYS */
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
-            // (b) Forward the client's encrypted c2s packets individually, DROPPING
-            // the first (OnWire 0). With the +1 from the IGNORE, the server's
-            // counter realigns on OnWire 1, so tags still verify.
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/OnWireData }),
-            InputAction::new_step(client, term! { (server, 5)/RawSshMessageFlight }),
-        ],
-        ..Default::default()
-    }
-}
-
-/// Packet-granular two-honest-party relay: forwards **one message per step**
-/// (cleartext as `RawSshMessage`, encrypted as byte-faithful `OnWireData`)
-/// instead of whole flights. This makes every packet — including each
-/// post-NEWKEYS encrypted packet — an individually droppable/reorderable step,
-/// the representation a prefix-truncation attack (Terrapin) needs (the
-/// flight-granular relay could only drop whole flights).
-///
-/// STATUS: WIP. The cleartext handshake and the first encrypted exchange
-/// (SERVICE_REQUEST / SERVICE_ACCEPT) relay correctly packet-by-packet, proving
-/// individual encrypted packets are forwardable. But the handshake does NOT
-/// complete: forcing one-message-per-step desynchronises libssh's reactive
-/// output *batching* (the real client stops emitting USERAUTH_REQUEST after
-/// SERVICE_ACCEPT, regardless of progress pumping), whereas the flight-granular
-/// relay completes precisely because it preserves that batching. Finding: even
-/// with packet-granularity, driving two real PUTs to completion one packet at a
-/// time fights the libraries' I/O batching — which further explains why the
-/// fuzzer is unlikely to *maintain* a completing handshake while mutating toward
-/// Terrapin. Not in the corpus until it completes.
-pub fn seed_handshake_two_party_packet(
+/// Client + server descriptors shared by the two-party seeds.
+fn two_party_descriptors(
     client: AgentName,
     server: AgentName,
-) -> Trace<SshProtocolTypes> {
+) -> Vec<AgentDescriptor<SshDescriptorConfig>> {
+    [(client, AgentType::Client), (server, AgentType::Server)]
+        .into_iter()
+        .map(|(name, typ)| {
+            AgentDescriptor::from_config(
+                name,
+                SshDescriptorConfig {
+                    typ,
+                    try_reuse: false,
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
+}
+
+/// Deliver the `n`-th message of kind `m` that `from` emitted to `to`, then pump
+/// `to` once.
+fn relay_msg(
+    to: AgentName,
+    from: AgentName,
+    m: SshQueryMatcher,
+    n: u16,
+) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { (from, n)[Some(m)]/RawSshMessage }),
+        OutputAction::new_step(to),
+    ]
+}
+
+/// Deliver `from`'s `n`-th non-empty output flight to `to`, then pump `to` once.
+fn relay_flight(to: AgentName, from: AgentName, n: u16) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { (from, n)/RawSshMessageFlight }),
+        OutputAction::new_step(to),
+    ]
+}
+
+/// Inject a cleartext `SSH_MSG_IGNORE` into `to` (Terrapin's sequence-number
+/// bump), then pump `to` once.
+fn inject_ignore(to: AgentName) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) }),
+        OutputAction::new_step(to),
+    ]
+}
+
+/// Cleartext phase of the packet relay, message by message: banners, KEXINITs,
+/// ECDH_INIT / ECDH_REPLY. Stops BEFORE the NEWKEYS exchange so a Terrapin seed can
+/// splice its IGNORE in front of either NEWKEYS.
+fn relay_kex_messages(client: AgentName, server: AgentName) -> Vec<Step<SshProtocolTypes>> {
+    use SshQueryMatcher::{Banner, MsgType};
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for (to, from, m) in [
+        (server, client, Banner),
+        (client, server, Banner),
+        (server, client, MsgType(20)), // KEXINIT
+        (client, server, MsgType(20)),
+        (server, client, MsgType(30)), // KEX_ECDH_INIT
+        (client, server, MsgType(31)), // KEX_ECDH_REPLY
+    ] {
+        steps.extend(relay_msg(to, from, m, 0));
+    }
+    steps
+}
+
+/// Encrypted phase of the packet relay: forward the server's `[OnWire]` chunks
+/// `s2c` and the client's `c2s` alternately (server chunk first — the server's
+/// first post-NEWKEYS chunk is its EXT_INFO, emitted before the client says
+/// anything). Chunk k of each side is its reply to the other side's previous one;
+/// the full client flow is 6 server / 5 client chunks (EXT_INFO, SERVICE,
+/// none-auth FAILURE, password SUCCESS, CHANNEL_OPEN, shell).
+fn relay_encrypted(
+    client: AgentName,
+    server: AgentName,
+    s2c: std::ops::Range<u16>,
+    c2s: std::ops::Range<u16>,
+) -> Vec<Step<SshProtocolTypes>> {
+    let mut steps = Vec::new();
+    let (mut s, mut c) = (s2c.peekable(), c2s.peekable());
+    while s.peek().is_some() || c.peek().is_some() {
+        if let Some(n) = s.next() {
+            steps.extend(relay_msg(client, server, SshQueryMatcher::OnWire, n));
+        }
+        if let Some(n) = c.next() {
+            steps.extend(relay_msg(server, client, SshQueryMatcher::OnWire, n));
+        }
+    }
+    steps
+}
+
+/// Two-honest-party handshake at FLIGHT granularity: the attacker forwards each
+/// party's n-th output flight to the other faithfully (the benign baseline), so
+/// each PUT's I/O batching is preserved. This is the trace shape required for
+/// the *matching-conversation* property — only definable with two honest
+/// endpoints. Mutations (drop / insert / reorder relayed flights) are what a
+/// transcript-integrity attack like Terrapin exercises. Both peers complete the
+/// whole client flow (8 flights each way: banner, KEXINIT, ECDH, NEWKEYS+SERVICE,
+/// none-auth, password, CHANNEL_OPEN, shell) and reach DONE on libssh and wolfSSH.
+pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for n in 0..8 {
+        steps.extend(relay_flight(server, client, n));
+        steps.extend(relay_flight(client, server, n));
+    }
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Cleartext handshake, one packet per step.
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // KEX_ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // KEX_ECDH_REPLY
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // server NEWKEYS
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // client NEWKEYS
-            // Encrypted phase: forward each post-NEWKEYS packet as raw OnWireData
-            // (byte-faithful; RawSshMessage can't represent ciphertext). OnWireData
-            // is indexed per encrypted packet (0-based), and each is an
-            // individually droppable step — the representation Terrapin needs.
-            // Empty output reads don't add knowledge, so pump liberally.
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // SERVICE_REQUEST (client OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // SERVICE_ACCEPT (server OnWire 0)
-            InputAction::new_step(client, term! { (server, 0)/OnWireData }),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // USERAUTH_REQUEST (client OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // USERAUTH_SUCCESS (server OnWire 1)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
-            OutputAction::new_step(client),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
-/// Packet-granular Terrapin attempt (c2s prefix truncation). Relays the
-/// cleartext handshake one packet per step, inserts a cleartext IGNORE to the
-/// server just before the client's NEWKEYS (bumping the server's c2s receive
-/// sequence number by 1), then in the encrypted phase DROPS the client's first
-/// post-NewKeys packet (OnWire 0, send-seqno 3) and forwards the second (OnWire
-/// 1, send-seqno 4) to the server, which after the +1 IGNORE is now at receive
-/// seqno 4 — so AEAD tags would realign and the truncation be invisible.
+/// Hybrid c2s Terrapin attempt: relay the KEX at FLIGHT granularity (preserving
+/// batching), (a) insert a cleartext IGNORE into the server before the client's
+/// NEWKEYS — bumping the server's c2s receive sequence number — and (b) forward
+/// only the client's NEWKEYS, DROPPING the SERVICE_REQUEST the client batched
+/// into the same flight (its first encrypted packet).
 ///
-/// EMPIRICAL FINDING (libssh 0.10.4): this c2s direction does NOT work — the
-/// client emits only a SINGLE post-NewKeys packet (SERVICE_REQUEST) and then
-/// waits for the server's reply, so there is no second packet (OnWire 1) to
-/// realign onto, and no *ignorable* first packet to drop (SERVICE_REQUEST is
-/// mandatory — dropping it stalls auth). A tag-preserving Terrapin truncation
-/// therefore needs the S2C direction, where the server sends an EXT_INFO
-/// (ignorable) as its first post-NewKeys packet: drop that, forward the next,
-/// realign on the client side. That requires ext-info to be negotiated and a
-/// s2c packet-granular relay — the remaining work to make the
-/// matching-conversation oracle fire on a completed Terrapin. On strict-kex
-/// (0.11.4) the injected IGNORE is rejected during KEX, mitigating regardless.
-pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+/// Outcome (locked by `tests::two_party_seeds_reach_their_verdict`): libssh's
+/// strict-kex server rejects the IGNORE during KEX ("unexpected packets in
+/// strict KEX mode") — the Terrapin mitigation. wolfSSH (no strict-kex) accepts
+/// the IGNORE, but the truncation cannot be completed in the c2s direction: the
+/// dropped SERVICE_REQUEST is mandatory and the client sends nothing else until
+/// it is answered, so there is no later packet to realign on and the session
+/// stalls (neither side reaches DONE). The viable direction is s2c
+/// ([`seed_terrapin_s2c`]).
+pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for n in 0..3 {
+        // banner, KEXINIT, ECDH_INIT / ECDH_REPLY+NEWKEYS(+EXT_INFO)
+        steps.extend(relay_flight(server, client, n));
+        steps.extend(relay_flight(client, server, n));
+    }
+    steps.extend(inject_ignore(server)); // (a)
+    steps.extend(relay_msg(server, client, SshQueryMatcher::MsgType(21), 0)); // (b) NEWKEYS only
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // server NEWKEYS
-            // (a) insert IGNORE to server before client NEWKEYS (+1 server c2s seqno)
-            InputAction::new_step(
-                server,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // client NEWKEYS
-            // pump the client to emit its post-NewKeys encrypted packets
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            // (b) DROP client OnWire 0 (seqno 3); forward OnWire 1 (seqno 4)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
-/// S2C Terrapin prefix truncation (the direction the c2s attempt showed is
-/// needed). Packet-granular relay; insert a cleartext IGNORE to the **client**
-/// just before the server's NEWKEYS (+1 the client's s2c receive seqno), then in
-/// the encrypted phase DROP the server's first post-NewKeys packet — its
-/// EXT_INFO, which is ignorable — and forward every later server packet shifted
-/// by one (its send-seqno now matches the client's +1 receive seqno, so AEAD
-/// tags realign). The client completes auth never having seen EXT_INFO, so the
-/// server's sent transcript and the client's received transcript diverge → the
-/// matching-conversation oracle fires. On strict-kex (0.11.4) the IGNORE is
-/// rejected during KEX, mitigating. (Relies on the real libssh peers negotiating
-/// ext-info, which recent libssh does by default.)
-pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+/// Packet-granular c2s Terrapin attempt: the same attack as
+/// [`seed_terrapin_attempt`] on the packet relay (every KEX message its own
+/// droppable step). Relay the KEX, deliver the server's NEWKEYS, (a) insert a
+/// cleartext IGNORE into the server, deliver the client's NEWKEYS, and (b) drop
+/// the client's first encrypted packet (SERVICE_REQUEST) by never forwarding it,
+/// while still forwarding the server's first encrypted chunk (EXT_INFO).
+///
+/// Same outcome as the flight variant: libssh's strict-kex rejects the IGNORE;
+/// wolfSSH accepts it but stalls, because c2s has no later packet to realign on
+/// (the client waits for SERVICE_ACCEPT). Kept as the minimal c2s counter-example.
+pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(inject_ignore(server)); // (a)
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+    steps.extend(relay_encrypted(client, server, 0..1, 0..0)); // (b) EXT_INFO only; c2s 0 dropped
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
-            // (a) insert IGNORE to the CLIENT before the server's NEWKEYS (+1 client s2c seqno)
-            InputAction::new_step(
-                client,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* server NEWKEYS s->c */
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* client NEWKEYS c->s */
-            // Encrypted phase. Forward client's c2s packets normally; on s2c DROP
-            // the server's OnWire 0 (EXT_INFO, seqno 3) and forward OnWire 1.. only.
-            OutputAction::new_step(server), // pump server to emit EXT_INFO (OnWire 0, dropped)
-            OutputAction::new_step(server),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }), // -> server
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1, seqno 4)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }), /* forward (drop
-                                             * OnWire 0) */
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }), // -> server
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
-            InputAction::new_step(client, term! { (server, 2)/OnWireData }), // forward realigned
-            OutputAction::new_step(client),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
+        ..Default::default()
+    }
+}
+
+/// S2C Terrapin prefix truncation (the direction the c2s attempts show is
+/// needed). The honest packet relay of
+/// [`seed_handshake_two_party_packet_complete`] with exactly the two Terrapin
+/// mutations applied: (a) insert a cleartext IGNORE into the CLIENT just before
+/// the server's NEWKEYS (+1 on the client's s2c receive sequence number), and
+/// (b) DROP the server's first encrypted chunk — its EXT_INFO, which is
+/// ignorable — forwarding every later server chunk unchanged. With a
+/// sequence-number-keyed AEAD (chacha20-poly1305 / EtM) the +1 and the −1
+/// cancel, the tags verify, and the client completes having never seen
+/// EXT_INFO: the matching-conversation oracle's case.
+///
+/// Outcome here (locked by `tests::two_party_seeds_reach_their_verdict`): not
+/// exploitable on either stack. libssh's strict-kex client rejects the IGNORE
+/// during KEX. wolfSSH (no strict-kex) accepts it, but the pinned cipher is
+/// AES-GCM, whose nonce is an invocation counter independent of the sequence
+/// number, so the next forwarded chunk fails its tag and the session never
+/// completes — consistent with wolfSSH lacking the Terrapin-affected ciphers.
+pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(inject_ignore(client)); // (a)
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+                                                             // (b) s2c chunk 0 (EXT_INFO) dropped: the server's chunk k+1 is its reply to
+                                                             // the client's chunk k, so each client chunk is forwarded first.
+    for n in 0..5 {
+        steps.extend(relay_msg(server, client, SshQueryMatcher::OnWire, n));
+        steps.extend(relay_msg(client, server, SshQueryMatcher::OnWire, n + 1));
+    }
+    Trace {
+        prior_traces: vec![],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
@@ -2787,7 +2675,7 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
 /// chunk (EXT_INFO) is forwarded in order with the rest. Both peers complete the
 /// whole client flow (service, none + password auth, session channel, shell) and
 /// reach DONE on libssh AND wolfSSH — locked by
-/// `tests::two_party_packet_complete_reaches_done`.
+/// `tests::two_party_seeds_reach_their_verdict`.
 ///
 /// From here the Terrapin attack is exactly TWO mutations away: (1) skip the
 /// `(server, 0)[OnWire]` forward (drop EXT_INFO), and (2) insert a cleartext
@@ -2806,106 +2694,15 @@ pub fn seed_handshake_two_party_packet_complete(
     client: AgentName,
     server: AgentName,
 ) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+    steps.extend(relay_encrypted(client, server, 0..6, 0..5));
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(20))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(20))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(30))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 1)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 1)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 2)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 2)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 3)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 3)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 4)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 4)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 5)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
-            ),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
@@ -3422,37 +3219,94 @@ mod tests {
         println!("wrote /tmp/multi_roundtrip/{name}.trace");
     }
 
-    /// WS5.3 regression: the honest packet-granular two-party relay (a real client
-    /// PUT against a real server PUT, the Terrapin substrate) must run to the end
-    /// with BOTH agents in their successful DONE state, on every built PUT. Its
-    /// relay addresses messages by type (`[Banner]`, `[MsgType(n)]`, `[OnWire]`),
-    /// not by raw position; a positional relay silently stopped completing when
-    /// the knowledge model changed.
+    /// Every two-party / Terrapin relay seed must reach ITS verdict on each built
+    /// PUT — not die on an unresolvable relay query first (they all used to):
+    ///   * the honest relays (flight and packet granularity) complete, both agents DONE;
+    ///   * on libssh, every Terrapin variant is stopped by strict-kex (the injected IGNORE during
+    ///     KEX is rejected);
+    ///   * on wolfSSH (no strict-kex), the c2s variants run to the end but stall (no later c2s
+    ///     packet to realign on), and the s2c variant fails the client's AES-GCM tag check
+    ///     (`AES_GCM_AUTH_E` = -180: GCM nonces do not follow the sequence number, so the
+    ///     truncation cannot be hidden).
     #[cfg(all(has_put = "libssh0114", has_put = "wolfssh150"))]
     #[test]
-    fn two_party_packet_complete_reaches_done() {
+    fn two_party_seeds_reach_their_verdict() {
         use puffin::put::{PutDescriptor, PutOptions};
         use puffin::trace::{Spawner, TraceContext};
 
         use crate::put_registry::ssh_registry;
 
+        #[derive(Debug)]
+        enum Verdict {
+            BothDone,
+            StrictKexReject,
+            Stall,
+            GcmTagFailure,
+        }
+        use Verdict::*;
+
         let client = AgentName::first();
         let server = client.next();
-        for put in ["libssh0114", "wolfssh150"] {
-            let desc = PutDescriptor::new(put, PutOptions::default());
-            let spawner = Spawner::new(ssh_registry())
-                .with_mapping(&[(client, desc.clone()), (server, desc)]);
-            let mut ctx = TraceContext::new(spawner);
-            seed_handshake_two_party_packet_complete(client, server)
-                .execute(&mut ctx, &mut 0, false)
-                .unwrap_or_else(|e| panic!("{put}: two-party relay failed: {e}"));
-            assert!(
-                ctx.agents_successful(),
-                "{put}: relay ran but not both agents reached DONE: client {:?}, server {:?}",
-                ctx.find_agent(client),
-                ctx.find_agent(server)
-            );
+        type Seed = fn(AgentName, AgentName) -> Trace<SshProtocolTypes>;
+        let cases: [(&str, Seed, Verdict, Verdict); 5] = [
+            ("two_party", seed_handshake_two_party, BothDone, BothDone),
+            (
+                "two_party_packet_complete",
+                seed_handshake_two_party_packet_complete,
+                BothDone,
+                BothDone,
+            ),
+            (
+                "terrapin_attempt",
+                seed_terrapin_attempt,
+                StrictKexReject,
+                Stall,
+            ),
+            (
+                "terrapin_packet",
+                seed_terrapin_packet,
+                StrictKexReject,
+                Stall,
+            ),
+            (
+                "terrapin_s2c",
+                seed_terrapin_s2c,
+                StrictKexReject,
+                GcmTagFailure,
+            ),
+        ];
+        let mut failures = Vec::new();
+        for (name, seed, on_libssh, on_wolfssh) in &cases {
+            for (put, want) in [("libssh0114", on_libssh), ("wolfssh150", on_wolfssh)] {
+                let desc = PutDescriptor::new(put, PutOptions::default());
+                let spawner = Spawner::new(ssh_registry())
+                    .with_mapping(&[(client, desc.clone()), (server, desc)]);
+                let mut ctx = TraceContext::new(spawner);
+                let res = seed(client, server).execute(&mut ctx, &mut 0, false);
+                let states = format!(
+                    "{:?} / {:?}",
+                    ctx.find_agent(client),
+                    ctx.find_agent(server)
+                );
+                let ok = match (want, &res) {
+                    (BothDone, Ok(())) => ctx.agents_successful(),
+                    (Stall, Ok(())) => !ctx.agents_successful(),
+                    (StrictKexReject, Err(e)) => e.to_string().contains("strict KEX"),
+                    (GcmTagFailure, Err(_)) => states.contains("gerr=-180"),
+                    _ => false,
+                };
+                if !ok {
+                    failures.push(format!(
+                        "{name} on {put}: want {want:?}, got {res:?}; {states}"
+                    ));
+                }
+            }
         }
+        assert!(
+            failures.is_empty(),
+            "two-party verdicts:\n{}",
+            failures.join("\n")
+        );
     }
 
     /// Materialises the two-party relay seeds (a real client PUT against a real
@@ -3472,10 +3326,6 @@ mod tests {
             (
                 "handshake_two_party",
                 seed_handshake_two_party(client, server),
-            ),
-            (
-                "handshake_two_party_packet",
-                seed_handshake_two_party_packet(client, server),
             ),
             (
                 "handshake_two_party_packet_complete",
