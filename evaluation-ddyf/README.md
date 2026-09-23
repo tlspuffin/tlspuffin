@@ -43,7 +43,7 @@ chmod +x ./evaluation-ddyf/*sh
 
 
 Most scripts contain variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values correspond to the parameters used in the paper [A]. 
-Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contain a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum is 2x core count).
+Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablation_study_sort.py`, `find_known_cves.py`, all under `tls/`) contain a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum is 2x core count).
 
 If not running in a nix-shell (highly discouraged), make sure to have at least `cargo`, `Python 3`, `autoconf`, `automake`, `just`, `cmake`, and `clang` installed on your computer. Also run the following environment variable export in your terminal before running the fuzzer:
 
@@ -82,7 +82,8 @@ The results (corpus, objectives, metadata and logging) will be stored in a new f
 To run the triaging script on the results:
 ```bash
 # this script only works for campaigns between OpenSSL and WolfSSL
-python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
+ln -sfn evaluation-ddyf evaluation_ddyf   # once: `python -m` needs an importable (underscore) package name
+python -m evaluation_ddyf.tls.sort_objectives_ossl_wolf path_to_experiment/objective
 
 # list the content of the buckets
 ./evaluation-ddyf/list_buckets.sh path_to_experiment/objective
@@ -113,13 +114,13 @@ You can edit the `TIMEOUT`, `RUNS` and `CORES` variables to setup the duration, 
 Note that a shorter time decreases the chances of finding any CVEs, the recommended value is 5h.
 
 ```bash
-./evaluation-ddyf/reproducing_cves.sh
+./evaluation-ddyf/tls/reproducing_cve.sh
 ```
 
 Generate a CSV file of all the traces triggering CVEs :
 
 ```bash
-./evaluation-ddyf/listing_reproduced_cves.sh
+./evaluation-ddyf/tls/listing_reproduced_cves.sh
 ```
 
 This should create a `cve_list.csv` file.
@@ -129,10 +130,10 @@ Analyze the file:
 
 > Due to an incompatibility between the Python version provided with the nix-shell and the pandas library, do not execute the following commands inside the nix environment and instead execute it directly with your system's python (make sure to use a version >= 3.12)
 ```bash
-python -m venv DDYF/.venv
-source DDYF/.venv/bin/activate
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
 pip install pandas
-python -m DDYF.cves_stats
+python -m evaluation_ddyf.tls.cves_stats
 ```
 
 
@@ -141,13 +142,13 @@ python -m DDYF.cves_stats
 To measure the performances of DDYF run:
 
 ```bash
-./evaluation-ddyf/perf_bench_DDYF.sh 
+./evaluation-ddyf/tls/perf_bench_DDYF.sh 
 ```
 
 To measure the original performances of Puffin: clone the original puffin repo `https[://]github[.]com/tlspuffin/tlspuffin` and run in the main branch:
 
 ```bash
-./evaluation-ddyf/perf_bench_puffin.sh 
+./evaluation-ddyf/tls/perf_bench_puffin.sh 
 ```
 
 
@@ -156,7 +157,7 @@ To measure the original performances of Puffin: clone the original puffin repo `
 After running a differential fuzzing campaign, run:
 
 ```bash
-./evaluation-ddyf/ablation_study.sh path/to/objectives
+./evaluation-ddyf/tls/ablation_study.sh path/to/objectives
 ```
 
 This will produce 5 files: `ablation-all.txt`, `ablation-no-status.txt`, `ablation-no-knowledges.txt`, `ablation-no-decryption.txt` and `ablation-no-claims.txt`. Each file contains 3 lines:
@@ -172,7 +173,7 @@ total: XXX # total number of traces
 To run the fingerprinting experiment, run:
 
 ```bash
-./evaluation-ddyf/fingerprinting_exp.sh
+./evaluation-ddyf/tls/fingerprinting_exp.sh
 ```
 
 This will produce 3 folders in your `./experiments` directory for each pair of PUTs between WolfSSL 5.0.0, 5.1.0, and 5.2.0.

@@ -26,4 +26,4 @@ RUST_LOG=info timeout $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORE
 
 # tmux new-session "$C1; exec zsh" \; split-window -h -l 66% "$C2; exec zsh" \; split-window -h -l 50% "$C3; exec zsh"
 
-# zellij --layout ./DDYF/fingerprint_layout.kdl
+# zellij --layout ./evaluation-ddyf/tls/fingerprint_layout.kdl

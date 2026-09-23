@@ -94,7 +94,8 @@ above name; a genuinely new divergence matches none and stays unbucketed for aud
 
 Usage
 -----
-    python -m evaluation-ddyf.ssh.sort_objectives_libssh_wolfssh [objective_folder]
+    ln -sfn evaluation-ddyf evaluation_ddyf   # once: `-m` needs an importable (underscore) name
+    python -m evaluation_ddyf.ssh.sort_objectives_libssh_wolfssh [objective_folder]
 
 The two PUT names and worker count are overridable via the environment (defaults are
 the clean, non-ASAN artifact vendors: libssh 0.11.4 vs wolfSSH 1.5.0):

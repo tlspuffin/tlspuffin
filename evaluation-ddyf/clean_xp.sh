@@ -1,6 +1,7 @@
 #!/bin/bash
 
 folder="objective"
+[ -e evaluation_ddyf ] || ln -s evaluation-ddyf evaluation_ddyf  # importable package name (see README)
 
 if [ "$#" -eq 1 ]; then
     folder="$1"
@@ -11,7 +12,7 @@ for d in $folder/*; do
     then
 
     echo "Triaging objectives in $d/objective"
-    python -m DDYF.find_known_cves $d/objective
+    python -m evaluation_ddyf.tls.find_known_cves $d/objective
 
 
     # removing traces that are not interesting to save disk space
