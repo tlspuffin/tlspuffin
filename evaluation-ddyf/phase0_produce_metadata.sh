@@ -16,6 +16,10 @@
 #   SECOND_PUT    second PUT name          (default: wolfssh150)   e.g. wolfssl580
 #   OBJECTIVE_DIR directory of *.trace     (default: ./objective)
 #   PARALLELISM   xargs workers            (default: 20)
+#   PUFFIN_TRIAGE_UNIFORMISE  1 = per-PUT logs run under the differential's uniformised
+#                 config (display-execute --uniformise), as the objective was produced
+#                                          (default: 1, as for the SSH triage; set 0 to
+#                                           reproduce older, non-uniformised per-PUT logs)
 #   ASAN_OPTIONS  sanitizer opts           (default: detect_leaks=0 — the harness
 #                                           links ASAN even against non-ASAN vendors)
 #
@@ -32,6 +36,7 @@ set -euo pipefail
 export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
 
 BINARY="${PUFFIN_PATH:-target/release/sshpuffin}"
+export PUFFIN_TRIAGE_UNIFORMISE="${PUFFIN_TRIAGE_UNIFORMISE:-1}"
 FIRST_PUT="${FIRST_PUT:-libssh0114}"
 SECOND_PUT="${SECOND_PUT:-wolfssh150}"
 PARALLELISM="${PARALLELISM:-20}"
@@ -85,10 +90,13 @@ find "$OBJECTIVE_DIR" -name "*.trace" -not -name ".*" \
   "$BINARY" differential-execute --json "$FIRST_PUT" "$SECOND_PUT" "$T" \
     > "$DIFF_JSON" 2>/dev/null || true
 
-  "$BINARY" --put "$FIRST_PUT" display-execute "$T" -tckp \
+  # Per-PUT logs under the same uniformised config as the differential run
+  # (PUFFIN_TRIAGE_UNIFORMISE=1 -> display-execute --uniformise; see diff_analyzer).
+  UNIF=""; [ "${PUFFIN_TRIAGE_UNIFORMISE:-0}" = 1 ] && UNIF="--uniformise"
+  "$BINARY" --put "$FIRST_PUT" display-execute "$T" -tckp $UNIF \
     > "$PUT1" 2>&1 || true
 
-  "$BINARY" --put "$SECOND_PUT" display-execute "$T" -tckp \
+  "$BINARY" --put "$SECOND_PUT" display-execute "$T" -tckp $UNIF \
     > "$PUT2" 2>&1 || true
 ' _ "$BINARY" "$FIRST_PUT" "$SECOND_PUT" {}
 

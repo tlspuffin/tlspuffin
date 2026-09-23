@@ -102,6 +102,8 @@ the clean, non-ASAN artifact vendors: libssh 0.11.4 vs wolfSSH 1.5.0):
     SSHPUFFIN_FIRST_PUT   (default "libssh0114")
     SSHPUFFIN_SECOND_PUT  (default "wolfssh150")
     SSHPUFFIN_TRIAGE_PARALLELISM (default 24)  sizes the classifier ThreadPool
+    PUFFIN_TRIAGE_UNIFORMISE     (default 1)   re-execute each PUT under the uniformised
+                                               differential config (display-execute --uniformise)
     PUFFIN_TRIAGE_NO_CACHE       (unset)       set to force live re-execution instead of
                                                reading the Phase-0 metadata_diff_*.json cache
 
@@ -141,6 +143,12 @@ WOLFSSH = 2
 FIRST_PUT = os.environ.get("SSHPUFFIN_FIRST_PUT", "libssh0114")
 SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh150")
 PARALLELISM = int(os.environ.get("SSHPUFFIN_TRIAGE_PARALLELISM", "24"))
+# Re-execute each PUT under the SAME uniformised config as the differential run that
+# produced the objective (see diff_analyzer.uniformise_single_runs). Without it the
+# per-PUT status of a client-role (server-attacker) objective came from a run with
+# the libssh client's default algorithms, which fails elsewhere than in the
+# differential, so status buckets misfired. Override with PUFFIN_TRIAGE_UNIFORMISE=0.
+os.environ.setdefault("PUFFIN_TRIAGE_UNIFORMISE", "1")
 
 # ── Over-permissiveness guard ────────────────────────────────────────────────
 # BOTH_ERROR is true iff NEITHER PUT completed the trace (both have a non-None
@@ -314,12 +322,13 @@ buckets: dict[str, BucketCondition] = {
     # CLIENT-side (server-attacker traces, where the PUT is the CLIENT): both clients
     # reject a mutated KEX_ECDH_REPLY (host key / signature / exchange value), each with
     # its own error. Scoped by the trace shape (the attacker sends fn_kex_ecdh_reply,
-    # which only server-attacker traces do) and keyed on wolfSSH's DETERMINISTIC
-    # client errors. libssh's error is deliberately NOT keyed on: its client is not
-    # deterministic in a single-PUT run (no RNG-reseed hook), so the same trace can
-    # report "Failed to verify server hostkey signature", "Invalid padding", "Packet len
-    # too high" or an empty message between runs. BOTH_ERROR keeps any case where one
-    # client ACCEPTS the reply out of here (it lands in diverge_* above).
+    # which only server-attacker traces do) and keyed on wolfSSH's client errors;
+    # libssh's error text is deliberately not keyed on, since it depends on exactly
+    # where libssh's parser stops on the mutated reply. (Before per-PUT re-runs were
+    # uniformised, see PUFFIN_TRIAGE_UNIFORMISE above, the libssh client's single-PUT
+    # run even negotiated other algorithms than the differential and so failed
+    # elsewhere; that, not randomness, made its error look unstable.) BOTH_ERROR
+    # keeps any case where one client ACCEPTS the reply out of here (diverge_* above).
     "benign_client_kex_reply_reject/": AllC(
         TermContainsC(LIBSSH, in_term="fn_kex_ecdh_reply"),
         OnlyDiffKindsC("Status"),

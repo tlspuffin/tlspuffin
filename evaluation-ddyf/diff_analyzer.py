@@ -62,6 +62,19 @@ def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
         return None
 
 
+def uniformise_single_runs() -> bool:
+    """
+    Whether the per-PUT re-executions (get_status) apply the differential config
+    uniformisation (`display-execute --uniformise`), i.e. run each PUT under the SAME
+    config as the `differential-execute` that produced the objective. Without it a
+    per-PUT run can take a different path (another negotiated suite, hence another
+    error), so status-based buckets are evaluated on a run the objective never had.
+    Opt-in via PUFFIN_TRIAGE_UNIFORMISE=1 (the SSH triage sets it) so existing
+    pipelines keep their results until re-validated.
+    """
+    return os.environ.get("PUFFIN_TRIAGE_UNIFORMISE", "0") == "1"
+
+
 def get_status(trace: str, put: str) -> dict:
     """
     Execute `trace` on `put` and get terms, knowledges, decryption, status and claims
@@ -81,6 +94,7 @@ def get_status(trace: str, put: str) -> dict:
                 "-k",
                 "-c",
                 "-p",
+                *(["--uniformise"] if uniformise_single_runs() else []),
                 trace,
             ],
             timeout=5,  # 5 second timeout
