@@ -578,11 +578,20 @@ static int cb_service_request(ssh_session session, const char *service, void *us
     return 0; /* accept the service request */
 }
 
-/* Global-request handler (tcpip-forward / cancel-tcpip-forward). libssh calls this
- * with the request message; we ACCEPT by replying success iff the (host,port) is
- * on the shared forwarding allow-list (ssh_creds_forward_authorized) — the SAME
- * boundary the wolfSSH FwdCb enforces — else leave it unanswered (refused). This
- * makes a forward accept/reject asymmetry a real cross-vendor differential.
+/* Global-request handler. Registering it makes libssh hand EVERY recognised global
+ * request (tcpip-forward, cancel-tcpip-forward, keepalive@openssh.com,
+ * no-more-sessions@openssh.com) to us and send NOTHING itself, so every path must
+ * reply exactly as libssh does WITHOUT a callback — otherwise an unanswered
+ * want_reply request is a harness-made divergence (wolfSSH does reply):
+ *   - tcpip-forward: ACCEPT iff the (host,port) is on the shared forwarding
+ *     allow-list (ssh_creds_forward_authorized) — the SAME boundary the wolfSSH
+ *     FwdCb enforces — making a forward accept/reject asymmetry a real
+ *     cross-vendor differential; else refuse (REQUEST_FAILURE if want_reply), as
+ *     libssh's queued-message default does;
+ *   - cancel-tcpip-forward: refuse, as the queued-message default does;
+ *   - keepalive / no-more-sessions: REQUEST_SUCCESS if want_reply (libssh's inline
+ *     default; no-more-sessions has no enum constant in 0.10.x, hence `default`).
+ * Unknown request names never reach this callback (libssh refuses them itself).
  * (direct-tcpip is a CHANNEL open, handled via the message API, not here.) */
 static void cb_global_request(ssh_session session, ssh_message message, void *userdata)
 {
@@ -590,14 +599,25 @@ static void cb_global_request(ssh_session session, ssh_message message, void *us
     (void)userdata;
     if (ssh_message_type(message) != SSH_REQUEST_GLOBAL)
         return;
-    int subtype = ssh_message_subtype(message);
-    if (subtype == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
+    switch (ssh_message_subtype(message))
+    {
+    case SSH_GLOBAL_REQUEST_TCPIP_FORWARD:
     {
         const char *addr = ssh_message_global_request_address(message);
         int port = ssh_message_global_request_port(message);
         if (ssh_creds_forward_authorized(addr, (uint32_t)port))
             ssh_message_global_request_reply_success(message, (uint16_t)port);
-        /* else: unanswered => libssh sends REQUEST_FAILURE */
+        else /* REQUEST_FAILURE iff want_reply */
+            ssh_message_reply_default(message);
+        break;
+    }
+    case SSH_GLOBAL_REQUEST_CANCEL_TCPIP_FORWARD:
+        ssh_message_reply_default(message);
+        break;
+    default:
+        /* keepalive, no-more-sessions: success; a no-op unless want_reply. */
+        ssh_message_global_request_reply_success(message, 0);
+        break;
     }
 }
 
