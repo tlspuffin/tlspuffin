@@ -2780,16 +2780,28 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
 }
 
 /// HONEST completing packet-granular two-party relay — the Terrapin discovery
-/// substrate. Identical in shape to `seed_terrapin_s2c` but faithful: NO injected
-/// IGNORE, and the server's EXT_INFO (s2c OnWire 0) is forwarded in order with
-/// the rest. Both peers complete and transcripts agree (no violation). From here
-/// the Terrapin attack is exactly TWO mutations away: (1) Skip the
-/// `(server,0)/OnWireData` forward step (drop EXT_INFO), and (2) insert a cleartext
+/// substrate. A real client PUT against a real server PUT, relayed message by
+/// message: the cleartext phase by type (`[Banner]`, `[MsgType(20|30|31|21)]`),
+/// the encrypted phase chunk by chunk (`[OnWire]`, the n-th opaque chunk each
+/// side emitted). Faithful: NO injected IGNORE, and the server's first encrypted
+/// chunk (EXT_INFO) is forwarded in order with the rest. Both peers complete the
+/// whole client flow (service, none + password auth, session channel, shell) and
+/// reach DONE on libssh AND wolfSSH — locked by
+/// `tests::two_party_packet_complete_reaches_done`.
+///
+/// From here the Terrapin attack is exactly TWO mutations away: (1) skip the
+/// `(server, 0)[OnWire]` forward (drop EXT_INFO), and (2) insert a cleartext
 /// IGNORE to the client before the server's NEWKEYS. The +1 from the IGNORE
-/// cancels the −1 from the skip, so the already-present `(server,1)`/`(server,2)`
-/// forwards realign and tags stay valid — letting the matching-conversation oracle
-/// fire. This seed exists so the fuzzer has a packet-granular base whose mutation
-/// neighbourhood actually contains Terrapin.
+/// cancels the −1 from the skip, so the later `[OnWire]` forwards realign and
+/// tags stay valid — letting a matching-conversation oracle fire. (The relay used
+/// to address raw positions, `(server, n)/OnWireData`; that stopped resolving
+/// when encrypted chunks became `RawSshMessage` knowledge, so the seed silently
+/// failed at its first encrypted forward on both stacks.)
+///
+/// Not in the differential corpus: the attacker only relays and knows neither
+/// peer's ECDH secret, so the encrypted layer cannot be decrypted and compared —
+/// only the cleartext prefix and claims would be. Its value is as a single-PUT /
+/// security-oracle substrate.
 pub fn seed_handshake_two_party_packet_complete(
     client: AgentName,
     server: AgentName,
@@ -2817,37 +2829,82 @@ pub fn seed_handshake_two_party_packet_complete(
         steps: vec![
             OutputAction::new_step(client),
             OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
+            InputAction::new_step(
+                server,
+                term! { (client, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 0)[Some(SshQueryMatcher::MsgType(20))]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 0)[Some(SshQueryMatcher::MsgType(20))]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 0)[Some(SshQueryMatcher::MsgType(30))]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage },
+            ),
             InputAction::new_step(
                 client,
                 term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* server NEWKEYS s->c */
+            ),
             InputAction::new_step(
                 server,
                 term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* client NEWKEYS c->s */
-            // Encrypted phase, faithful: forward server OnWire 0 (EXT_INFO), 1, 2.
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server EXT_INFO (OnWire 0)
-            InputAction::new_step(client, term! { (server, 0)/OnWireData }), // forward EXT_INFO
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
-            InputAction::new_step(client, term! { (server, 2)/OnWireData }),
-            OutputAction::new_step(client),
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 0)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 0)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 1)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 1)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 2)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 2)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 3)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 3)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 4)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                server,
+                term! { (client, 4)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
+            InputAction::new_step(
+                client,
+                term! { (server, 5)[Some(SshQueryMatcher::OnWire)]/RawSshMessage },
+            ),
         ],
         ..Default::default()
     }
@@ -3148,12 +3205,8 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         //     seed_handshake_two_party(client, server),
         //     "seed_handshake_two_party",
         // ),
-        // Packet-granular honest relay: the substrate whose 2-mutation
-        // neighbourhood (skip EXT_INFO forward + insert IGNORE) contains Terrapin.
-        // (
-        //     seed_handshake_two_party_packet_complete(client, server),
-        //     "seed_handshake_two_party_packet_complete",
-        // ),
+        // (The packet-granular honest relay `seed_handshake_two_party_packet_complete`
+        // — the Terrapin substrate — is registered under rich-corpus below.)
     ];
 
     // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
@@ -3203,6 +3256,18 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             (
                 seed_client_attacker_rekey_auto(server),
                 "seed_client_attacker_rekey_auto",
+            ),
+            // Honest two-party relay (a real client PUT against a real server PUT,
+            // packet-granular): both peers complete on libssh and wolfSSH, and it
+            // is even 0-diff cross-vendor, but only its cleartext prefix + claims
+            // can be compared (the relaying attacker cannot decrypt), and a
+            // divergence would mix client- and server-side behaviour of four
+            // implementations. So single-PUT: it lets the mutator corrupt / drop /
+            // reorder messages BETWEEN two real stacks (the Terrapin neighbourhood
+            // is two mutations away; see the seed docstring).
+            (
+                seed_handshake_two_party_packet_complete(client, server),
+                "seed_handshake_two_party_packet_complete",
             ),
             // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
             // registered here — they diverge BY DESIGN and are kept only as
@@ -3355,6 +3420,39 @@ mod tests {
             .to_file(dir.join(format!("{name}.trace")))
             .unwrap_or_else(|e| panic!("write {name}: {e}"));
         println!("wrote /tmp/multi_roundtrip/{name}.trace");
+    }
+
+    /// WS5.3 regression: the honest packet-granular two-party relay (a real client
+    /// PUT against a real server PUT, the Terrapin substrate) must run to the end
+    /// with BOTH agents in their successful DONE state, on every built PUT. Its
+    /// relay addresses messages by type (`[Banner]`, `[MsgType(n)]`, `[OnWire]`),
+    /// not by raw position; a positional relay silently stopped completing when
+    /// the knowledge model changed.
+    #[cfg(all(has_put = "libssh0114", has_put = "wolfssh150"))]
+    #[test]
+    fn two_party_packet_complete_reaches_done() {
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::{Spawner, TraceContext};
+
+        use crate::put_registry::ssh_registry;
+
+        let client = AgentName::first();
+        let server = client.next();
+        for put in ["libssh0114", "wolfssh150"] {
+            let desc = PutDescriptor::new(put, PutOptions::default());
+            let spawner = Spawner::new(ssh_registry())
+                .with_mapping(&[(client, desc.clone()), (server, desc)]);
+            let mut ctx = TraceContext::new(spawner);
+            seed_handshake_two_party_packet_complete(client, server)
+                .execute(&mut ctx, &mut 0, false)
+                .unwrap_or_else(|e| panic!("{put}: two-party relay failed: {e}"));
+            assert!(
+                ctx.agents_successful(),
+                "{put}: relay ran but not both agents reached DONE: client {:?}, server {:?}",
+                ctx.find_agent(client),
+                ctx.find_agent(server)
+            );
+        }
     }
 
     /// Materialises the two-party relay seeds (a real client PUT against a real
