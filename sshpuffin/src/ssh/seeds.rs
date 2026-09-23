@@ -1728,6 +1728,136 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     }
 }
 
+/// Multi-round-trip seed (WS5.2): after publickey login, drive several
+/// request/response round-trips on ONE session, each answered by its own s2c
+/// flight — instead of a single post-auth burst:
+///
+///   1. `CHANNEL_OPEN` session → `CHANNEL_OPEN_CONFIRMATION` (its `sender_channel` is read back and
+///      addresses every later channel message)
+///   2. `CHANNEL_REQUEST` exec, want_reply → `CHANNEL_SUCCESS`
+///   3. `GLOBAL_REQUEST` with an unknown name, want_reply → `REQUEST_FAILURE` (RFC 4254 §4: an
+///      unrecognised want_reply request MUST be refused)
+///   4. `CHANNEL_EOF` → the server's own `CHANNEL_EOF`
+///   5. `CHANNEL_CLOSE` → the server's `CHANNEL_CLOSE`
+///
+/// No `CHANNEL_DATA` round-trip: plain data has no reply common to both stacks.
+/// libssh credits the window (`WINDOW_ADJUST`) as soon as the harness consumes
+/// the data, while wolfSSH only adjusts once its channel input buffer is over half
+/// full or the window hits 0 (`_UpdateChannelWindow`) — a benign flow-control
+/// policy difference, not a harness artifact. (`seed_client_attacker_channel_data`
+/// is 0-diff because its EXTENDED_DATA makes wolfSSH adjust immediately too.)
+///
+/// Every c2s packet counter is the `fn_u32_auto` sentinel (renumbered to its wire
+/// position by `preprocess_trace`), so step-deleting / reordering mutations keep
+/// the GCM nonces valid: the mutator can drop, repeat or reorder whole
+/// round-trips (e.g. a channel request before the open or after the close)
+/// and the server still decrypts and PROCESSES them. One session channel only:
+/// the libssh server harness accepts a single session channel, so a second one
+/// would diverge on a harness choice, not a library difference.
+/// AES-256-GCM; key A publickey login.
+pub fn seed_client_attacker_multi_roundtrip(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trip 1: open the session channel.
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_0x10000), (fn_u32_0x10000),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // The channel number THIS server assigned, read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION (per-PUT in the differential; see
+    // `seed_client_attacker_channel_data`).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
+
+    // Round-trip 2: exec request on that channel, want_reply.
+    let chan_exec = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trip 3: a connection-level request no stack recognises.
+    let unknown_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_global_request((fn_request_unknown), (fn_true), (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trips 4-5: a bidirectional EOF / CLOSE teardown.
+    let chan_eof = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_close = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_exec }),
+            InputAction::new_step(server, term! { @unknown_req }),
+            InputAction::new_step(server, term! { @chan_eof }),
+            InputAction::new_step(server, term! { @chan_close }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Rekey seed: complete the first key exchange, then drive a **client-initiated
 /// rekey** (RFC 4253 §9) by sending — encrypted under the first set of keys — a
 /// second KEXINIT, a second ECDH_INIT (reusing our ephemeral), and a second
@@ -2981,6 +3111,16 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_client_attacker_ext_info(server),
             "seed_client_attacker_ext_info",
         ),
+        // Multi-round-trip session (WS5.2): channel open / exec / unknown global
+        // request / EOF / CLOSE, each answered by its own s2c flight, the later
+        // ones addressed to the channel read back from the first reply. 0-diff
+        // cross-vendor (stable over repeated runs) once the libssh harness's
+        // global-request callback replied like libssh's own default. Its
+        // `fn_u32_auto` counters let mutations drop / reorder whole round-trips.
+        (
+            seed_client_attacker_multi_roundtrip(server),
+            "seed_client_attacker_multi_roundtrip",
+        ),
         // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
         // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
         // correctly reject the same (user, key) pairing, and — now that the
@@ -3201,6 +3341,22 @@ mod tests {
         println!("wrote /tmp/server_attacker/{name}.trace");
     }
 
+    /// Materialises the multi-round-trip seed to `/tmp/multi_roundtrip/` for
+    /// `differential-execute`. `#[ignore]`: on-demand, not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_multi_roundtrip_trace() {
+        use puffin::libafl::inputs::Input;
+        let server = AgentName::first().next();
+        let dir = std::path::Path::new("/tmp/multi_roundtrip");
+        std::fs::create_dir_all(dir).unwrap();
+        let name = "seed_client_attacker_multi_roundtrip";
+        seed_client_attacker_multi_roundtrip(server)
+            .to_file(dir.join(format!("{name}.trace")))
+            .unwrap_or_else(|e| panic!("write {name}: {e}"));
+        println!("wrote /tmp/multi_roundtrip/{name}.trace");
+    }
+
     /// Materialises the two-party relay seeds (a real client PUT against a real
     /// server PUT) to `/tmp/two_party/` for `-T <put> display-execute`, e.g. to
     /// check that a client-harness change did not shift their relay step
@@ -3264,6 +3420,7 @@ mod tests {
             "seed_client_attacker_passwd_change", // item-6 positive control
             "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
             "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
+            "seed_client_attacker_multi_roundtrip", // several dependent round-trips
         ] {
             assert!(
                 names.contains(&want),

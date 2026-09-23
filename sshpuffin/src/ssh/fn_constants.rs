@@ -370,6 +370,14 @@ pub fn fn_request_tcpip_forward() -> Result<SshBytes, FnError> {
 pub fn fn_request_cancel_tcpip_forward() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"cancel-tcpip-forward".to_vec()))
 }
+/// A global request name no stack recognises. RFC 4254 §4: a recipient that does
+/// not recognise a want_reply request MUST answer REQUEST_FAILURE — an honest
+/// request/response round-trip on every stack. (Deliberately NOT a real vendor
+/// extension such as keepalive@openssh.com: libssh answers that with
+/// REQUEST_SUCCESS and wolfSSH with REQUEST_FAILURE, a benign policy difference.)
+pub fn fn_request_unknown() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"unknown-request@puffin".to_vec()))
+}
 pub fn fn_channel_type_direct_tcpip() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"direct-tcpip".to_vec()))
 }

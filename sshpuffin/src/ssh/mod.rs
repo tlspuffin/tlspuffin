@@ -123,6 +123,7 @@ define_signature!(
     // name atoms + type-specific payload builders.
     fn_request_tcpip_forward
     fn_request_cancel_tcpip_forward
+    fn_request_unknown
     fn_channel_type_direct_tcpip
     fn_channel_type_forwarded_tcpip
     fn_tcpip_forward_data
