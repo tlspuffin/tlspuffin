@@ -100,11 +100,6 @@ pub struct ZooTest<'a, PB: ProtocolBehavior> {
 }
 
 impl<'a, PB: ProtocolBehavior> ZooTest<'a, PB> {
-    /// Whether the check's outcome on `symbol` counts (it is neither ignored nor unstable).
-    fn counts(&self, symbol: &str) -> bool {
-        !self.ignored_functions.contains(symbol) && !self.unstable_functions.contains(symbol)
-    }
-
     #[must_use]
     pub fn new(signature: &'a Signature<PB::ProtocolTypes>, registry: PutRegistry<PB>) -> Self {
         Self {
@@ -277,9 +272,9 @@ pub struct ReadEncodeStats {
     pub read_count: usize,
     /// …and whose re-encoding was byte-identical to the evaluation.
     pub read_success: usize,
-    /// `try_read_bytes` failed, on a symbol that is neither ignored nor unstable.
+    /// `try_read_bytes` failed, on a symbol that is not ignored.
     pub read_fail: usize,
-    /// Read back but re-encoded differently, on a symbol that is neither ignored nor unstable.
+    /// Read back but re-encoded differently, on a symbol that is not ignored.
     pub read_wrong: usize,
     /// The symbols counted in `read_wrong`.
     pub wrong_functions: Vec<String>,
@@ -307,7 +302,7 @@ pub fn term_read_encode<PB: ProtocolBehavior>(
                         Ok(())
                     } else {
                         log::error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, eval2, term.get_type_shape(), type_id);
-                        if zoo.counts(term.name()) {
+                        if !zoo.ignored_functions.contains(term.name()) {
                             stats.read_wrong += 1;
                             let name = term.name().to_string();
                             if !stats.wrong_functions.contains(&name) {
@@ -319,7 +314,7 @@ pub fn term_read_encode<PB: ProtocolBehavior>(
                 }
                 Err(e) => {
                     log::error!("Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, term.get_type_shape(), type_id);
-                    if zoo.counts(term.name()) {
+                    if !zoo.ignored_functions.contains(term.name()) {
                         stats.read_fail += 1;
                     }
                     Err(Error::Fn(FnError::Codec(format!("Failed to read: {e}"))))
@@ -338,15 +333,16 @@ pub fn term_read_encode<PB: ProtocolBehavior>(
 pub struct PayloadEvalStats {
     /// Terms that evaluated with their payloads.
     pub success: usize,
-    /// Terms, rooted at a counted symbol, on which no payload could be placed.
+    /// Terms, rooted at a symbol that is not ignored, on which no payload could be placed.
     pub add_payload_fail: usize,
-    /// Terms, rooted at a counted symbol, that failed to evaluate with payloads.
+    /// Terms, rooted at a symbol that is not ignored, that failed to evaluate with payloads.
     pub eval_payload_fail: usize,
     /// Bit-level mutations that left the payload unchanged or were skipped.
     pub mutate_fail: usize,
     /// Terms whose evaluation with payloads hit [`Error::TermBug`]: the payload machinery could
     /// not find a payload's bytes in its parent's encoding, i.e. the parent symbol is missing its
-    /// `[opaque]` / `[get]` / `[list]` flag. Always a bug, whatever the root symbol.
+    /// `[opaque]` / `[get]` / `[list]` flag. Always a bug, whatever the root symbol. Only counted
+    /// in release builds: in debug builds (tests) `evaluate` panics on it.
     pub term_bug: usize,
     /// The first terms counted in `term_bug`.
     pub term_bug_terms: Vec<String>,
@@ -377,7 +373,7 @@ pub fn term_payloads_eval<PB: ProtocolBehavior>(
             add_payloads_randomly(&mut term_with_payloads, rand2, ctx);
             if term_with_payloads.count_payloads() == 0 {
                 log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
-                if zoo.counts(term.name()) {
+                if !zoo.ignored_functions.contains(term.name()) {
                     stats.add_payload_fail += 1;
                 }
                 return Err(Error::Term("Failed to add payloads".to_string()));
@@ -385,9 +381,7 @@ pub fn term_payloads_eval<PB: ProtocolBehavior>(
             log::debug!("Term with payloads: {term_with_payloads}");
             // Sanity check:
             test_pay(&term_with_payloads);
-            // `evaluate_config` rather than `evaluate`: the latter panics on `Error::TermBug` in
-            // debug builds, which this check counts instead.
-            match term_with_payloads.evaluate_config(ctx, true) {
+            match term_with_payloads.evaluate(ctx) {
                 Ok(_) => {
                     stats.success += 1;
                     Ok(())
@@ -397,7 +391,7 @@ pub fn term_payloads_eval<PB: ProtocolBehavior>(
                     if matches!(e, Error::TermBug(_)) {
                         stats.record_term_bug(&term_with_payloads);
                     }
-                    if zoo.counts(term.name()) {
+                    if !zoo.ignored_functions.contains(term.name()) {
                         stats.eval_payload_fail += 1;
                     }
                     Err(Error::Term("Failed to evaluate with payloads".to_string()))
@@ -443,7 +437,7 @@ pub fn term_payloads_mutate_eval<PB: ProtocolBehavior>(
             add_payloads_randomly(&mut term_with_payloads, rand2, ctx);
             if term_with_payloads.count_payloads() == 0 {
                 log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
-                if zoo.counts(term.name()) {
+                if !zoo.ignored_functions.contains(term.name()) {
                     stats.add_payload_fail += 1;
                 }
                 return Err(Error::Term("Failed to add payloads".to_string()));
@@ -467,8 +461,7 @@ pub fn term_payloads_mutate_eval<PB: ProtocolBehavior>(
                             stats.mutate_fail += 1;
                             continue;
                         }
-                        // `evaluate_config`: see `term_payloads_eval`.
-                        match mutant.evaluate_config(ctx, true) {
+                        match mutant.evaluate(ctx) {
                             Ok(_) => {
                                 stats.success += 1;
                                 return Ok(());
@@ -478,7 +471,7 @@ pub fn term_payloads_mutate_eval<PB: ProtocolBehavior>(
                                 if matches!(e, Error::TermBug(_)) {
                                     stats.record_term_bug(&mutant);
                                 }
-                                if zoo.counts(term.name()) {
+                                if !zoo.ignored_functions.contains(term.name()) {
                                     stats.eval_payload_fail += 1;
                                 }
                                 continue;

@@ -104,9 +104,14 @@ fn test_term_read_encode() {
     let (ok, stats) = term_read_encode(&zoo, 0..1);
     log::info!("[test_term_read_encode] {stats:?}");
     assert!(ok);
-    assert_eq!(
-        stats.read_wrong, 0,
-        "a value read back as its declared type but re-encoded differently: {stats:?}"
+    let wrong: Vec<_> = stats
+        .wrong_functions
+        .iter()
+        .filter(|f| !zoo.unstable_functions.contains(*f))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "values read back as their declared type but re-encoded differently: {wrong:?} ({stats:?})"
     );
 }
 
