@@ -57,6 +57,49 @@ if "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null | grep -E "register_claimer|puff
     INSTRUMENTATION+=("claimer")
 fi
 
+# Surface the version actually found in the installed headers, and warn (stderr,
+# i.e. the vendor build log — stdout is the .metadata file) when it disagrees with
+# the preset's declared `version`: e.g. a moving `branch` that advanced, or a
+# preset edited without rebuilding. Libraries without a version header (BoringSSL)
+# and non-numeric preset versions (main/master) are only reported, not checked.
+function header_define() { # <header> <macro>: the macro's string/number value
+    [ -f "$1" ] || return 0
+    sed -n -E "s/^#[[:space:]]*define[[:space:]]+$2[[:space:]]+\"?([^\"]*)\"?.*$/\1/p" "$1" | head -1
+}
+function detected_version() {
+    local inc="${INSTALL_DIR}/include" v
+    case "${LIBNAME}" in
+        libssh)
+            local h="${inc}/libssh/libssh_version.h" maj min mic
+            maj=$(header_define "$h" LIBSSH_VERSION_MAJOR)
+            min=$(header_define "$h" LIBSSH_VERSION_MINOR)
+            mic=$(header_define "$h" LIBSSH_VERSION_MICRO)
+            [ -n "$maj" ] && [ -n "$min" ] && [ -n "$mic" ] && printf '%s.%s.%s\n' "$maj" "$min" "$mic" ;;
+        wolfssh) header_define "${inc}/wolfssh/version.h" LIBWOLFSSH_VERSION_STRING ;;
+        wolfssl) header_define "${inc}/wolfssl/version.h" LIBWOLFSSL_VERSION_STRING ;;
+        libressl)
+            v=$(header_define "${inc}/openssl/opensslv.h" LIBRESSL_VERSION_TEXT)
+            printf '%s\n' "${v#LibreSSL }" ;;
+        openssl)
+            # 3.x defines OPENSSL_VERSION_STR; 1.x only "OpenSSL 1.1.1g  21 Apr 2020".
+            v=$(header_define "${inc}/openssl/opensslv.h" OPENSSL_VERSION_STR)
+            if [ -z "$v" ]; then
+                v=$(header_define "${inc}/openssl/opensslv.h" OPENSSL_VERSION_TEXT)
+                v=$(printf '%s\n' "$v" | awk '{ print $2 }')
+            fi
+            printf '%s\n' "$v" ;;
+    esac
+}
+DETECTED_VERSION=$(detected_version 2>/dev/null || true)
+EXPECTED_VERSION="${VERSION%%+*}" # drop build metadata, e.g. 1.1.1g+git.<sha>
+if [ -z "${DETECTED_VERSION}" ]; then
+    echo "vendorinfo: ${LIBNAME}: preset version ${VERSION}; no version found in the installed headers" >&2
+elif [[ "${EXPECTED_VERSION}" =~ ^[0-9] ]] && [ "${DETECTED_VERSION}" != "${EXPECTED_VERSION}" ]; then
+    echo "vendorinfo: WARNING: ${LIBNAME}: preset declares version ${VERSION} but the installed headers say ${DETECTED_VERSION} (stale vendor or moving branch?)" >&2
+else
+    echo "vendorinfo: ${LIBNAME}: version ${DETECTED_VERSION} (preset ${VERSION})" >&2
+fi
+
 cat <<EOF
 vendor = "${LIBNAME}"
 version = "${VERSION}"

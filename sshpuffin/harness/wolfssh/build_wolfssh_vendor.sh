@@ -14,7 +14,7 @@
 # preset, dropping this script's output there yields a silently-broken PUT.
 #
 # PREFER THE PRESET BUILDER for anything that feeds the differential:
-#     just mk-vendor wolfssh wolfssh150-asan      # applies RNG hook + claim instrumentation
+#     just mk_vendor wolfssh wolfssh150-asan      # applies RNG hook + claim instrumentation
 # (build.rs also builds it automatically from the `wolfssh` preset when no vendor
 # is present.) This script is retained ONLY as a minimal, dependency-mapping
 # reference for the raw wolfSSL/wolfSSH autotools build; it is guarded below so
@@ -22,7 +22,12 @@
 #
 # Usage: SSHPUFFIN_ALLOW_RAW_WOLFSSH_BUILD=1 \
 #          harness/wolfssh/build_wolfssh_vendor.sh [WOLFSSL_TAG] [WOLFSSH_TAG]
-# Env:   CC (clang), LIBTOOL_BIN (dir containing libtoolize), VENDOR_DIR.
+# The tags default to the pins read from puffin-build (see below); pass them only
+# to deliberately build another version.
+# Env:   PRESET (wolfssh150-asan; the presets.toml section to read the wolfSSH pin
+#        from, also names the default vendor dir), CC (clang), LIBTOOL_BIN (dir
+#        containing libtoolize), SCRATCH (clone/build dir; default under the
+#        repo's target/), VENDOR_DIR (default vendor/$PRESET).
 set -euo pipefail
 
 if [ "${SSHPUFFIN_ALLOW_RAW_WOLFSSH_BUILD:-}" != "1" ]; then
@@ -32,7 +37,7 @@ error: build_wolfssh_vendor.sh produces a PUT WITHOUT the deterministic-RNG hook
        fuzzing (nondeterministic; no H claim => decryption recipe fails).
 
        Use the preset builder instead:
-           just mk-vendor wolfssh wolfssh150-asan
+           just mk_vendor wolfssh wolfssh150-asan
 
        If you really want this raw build anyway (e.g. dependency mapping only),
        re-run with:
@@ -41,20 +46,51 @@ MSG
     exit 1
 fi
 
-# Version source of truth (keep this reference script in step with them, do not
-# fork the pins here):
-#   * wolfSSH  -> puffin-build/vendors/wolfssh/presets.toml   (branch = "v1.5.0-stable")
-#   * wolfSSL  -> puffin-build/vendors/wolfssh/build_wolfssl_dep.sh (WOLFSSL_TAG)
-# In particular wolfSSH is pinned to the v1.5.0-stable RELEASE, NOT master:
-# presets.toml documents that a newer master (1.5.0-dev) regresses the handshake
-# with WS_BUFFER_E, so defaulting to master here would build a broken PUT.
-WOLFSSL_TAG="${1:-v5.7.6-stable}"
-WOLFSSH_TAG="${2:-v1.5.0-stable}"
-SCRATCH="${SCRATCH:-/tmp/wolf_scratch}"
+# Version source of truth — READ from puffin-build, never forked here:
+#   * wolfSSH  -> puffin-build/vendors/wolfssh/presets.toml, `branch` of [$PRESET]
+#                 (the v1.5.0-stable RELEASE, NOT master: presets.toml documents
+#                 that a newer master regresses the handshake with WS_BUFFER_E)
+#   * wolfSSL  -> puffin-build/vendors/wolfssh/build_wolfssl_dep.sh (WOLFSSL_TAG default)
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-VENDOR_DIR="${VENDOR_DIR:-$PROJECT_DIR/vendor/wolfssh150-asan}"
+PRESETS_TOML="$PROJECT_DIR/puffin-build/vendors/wolfssh/presets.toml"
+WOLFSSL_DEP_SH="$PROJECT_DIR/puffin-build/vendors/wolfssh/build_wolfssl_dep.sh"
+PRESET="${PRESET:-wolfssh150-asan}"
+
+# `branch = "..."` of the [$PRESET] section (first match before the next section).
+preset_wolfssh_tag() {
+    awk -v sec="[$PRESET]" '
+        $0 == sec { in_sec = 1; next }
+        /^\[/    { in_sec = 0 }
+        in_sec && match($0, /branch *= *"[^"]+"/) {
+            v = substr($0, RSTART, RLENGTH); sub(/^branch *= *"/, "", v); sub(/"$/, "", v)
+            print v; exit
+        }' "$PRESETS_TOML"
+}
+# The `${WOLFSSL_TAG:-<default>}` default in build_wolfssl_dep.sh.
+preset_wolfssl_tag() {
+    sed -n 's/^WOLFSSL_TAG="\${WOLFSSL_TAG:-\([^}]*\)}"$/\1/p' "$WOLFSSL_DEP_SH" | head -1
+}
+
+WOLFSSL_TAG="${1:-$(preset_wolfssl_tag)}"
+WOLFSSH_TAG="${2:-$(preset_wolfssh_tag)}"
+if [ -z "$WOLFSSL_TAG" ] || [ -z "$WOLFSSH_TAG" ]; then
+    echo "error: could not read the wolfSSL/wolfSSH pins (preset [$PRESET] in $PRESETS_TOML," >&2
+    echo "       WOLFSSL_TAG default in $WOLFSSL_DEP_SH); pass them as arguments." >&2
+    exit 1
+fi
+echo "wolfSSL $WOLFSSL_TAG, wolfSSH $WOLFSSH_TAG (preset $PRESET)"
+# Per-tag scratch under the (gitignored) target/ dir, so cached clones never mix versions.
+SCRATCH="${SCRATCH:-$PROJECT_DIR/target/wolfssh-raw-build/$WOLFSSL_TAG-$WOLFSSH_TAG}"
+VENDOR_DIR="${VENDOR_DIR:-$PROJECT_DIR/vendor/$PRESET}"
 CC="${CC:-clang}"
-CFLAGS="-g -fPIC -fsanitize=address -fsanitize-coverage=trace-pc-guard"
+# ASAN iff the preset says `asan = true` (sancov is on for every wolfSSH preset).
+if awk -v sec="[$PRESET]" '$0 == sec { f = 1; next } /^\[/ { f = 0 } f && /^asan *= *true/ { ok = 1 } END { exit !ok }' "$PRESETS_TOML"; then
+    CFLAGS="-g -fPIC -fsanitize=address -fsanitize-coverage=trace-pc-guard"
+    INSTRUMENTATION='["sancov","asan"]'
+else
+    CFLAGS="-g -fPIC -fsanitize-coverage=trace-pc-guard"
+    INSTRUMENTATION='["sancov"]'
+fi
 
 # libtoolize must be on PATH for wolfSSL/wolfSSH autogen.sh.
 if [ -n "${LIBTOOL_BIN:-}" ]; then export PATH="$LIBTOOL_BIN:$PATH"; fi
@@ -95,7 +131,7 @@ WVER="$(grep -oE '[0-9]+\.[0-9]+\.[0-9]+' "$SCRATCH/wolfssh_install/include/wolf
 cat > "$VENDOR_DIR/.metadata" <<EOF
 vendor = "wolfssh"
 version = "${WVER:-unknown}"
-instrumentation = ["sancov","asan"]
+instrumentation = ${INSTRUMENTATION}
 known_vulnerabilities = []
 fixed_vulnerabilities = []
 capabilities = []

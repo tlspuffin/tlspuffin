@@ -95,7 +95,7 @@ pub fn ssh_registry() -> PutRegistry<SshProtocolBehavior> {
         panic!(
             "No SSH PUT found. \
              Build libssh into the vendor directory first: \
-             `just mk-vendor libssh0104` (or use the -asan variant)."
+             `just mk_vendor libssh libssh0114` (or use the -asan variant)."
         );
     }
 
