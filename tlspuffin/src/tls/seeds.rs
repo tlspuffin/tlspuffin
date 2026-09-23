@@ -3588,6 +3588,7 @@ pub mod tests {
                 source: None,
                 matcher: Some(TlsQueryMatcher::Alert),
                 counter: 0,
+                concatenate_all: false,
             },
         );
 
