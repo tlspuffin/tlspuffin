@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build wolfSSL + wolfSSH from source and stage them as a sshpuffin vendor
-# (vendor/wolfssh-asan/) discoverable by build.rs.
+# (vendor/wolfssh150-asan/) discoverable by build.rs.
 #
 # ⚠ NOT SUITABLE FOR DIFFERENTIAL FUZZING. This standalone script builds a
 # wolfSSH PUT that is MISSING two things the puffin-build preset applies:
@@ -10,11 +10,11 @@
 #   2. the session-id claim instrumentation (+ the `claimer` metadata tag) —
 #      without it no exchange-hash (H) claim is emitted, so the cross-vendor
 #      s2c decryption recipe cannot source H and produces no transcript.
-# Because build.rs accepts an existing vendor/wolfssh-asan BEFORE invoking the
+# Because build.rs accepts an existing vendor/wolfssh150-asan BEFORE invoking the
 # preset, dropping this script's output there yields a silently-broken PUT.
 #
 # PREFER THE PRESET BUILDER for anything that feeds the differential:
-#     just mk-vendor wolfssh wolfssh-asan      # applies RNG hook + claim instrumentation
+#     just mk-vendor wolfssh wolfssh150-asan      # applies RNG hook + claim instrumentation
 # (build.rs also builds it automatically from the `wolfssh` preset when no vendor
 # is present.) This script is retained ONLY as a minimal, dependency-mapping
 # reference for the raw wolfSSL/wolfSSH autotools build; it is guarded below so
@@ -32,7 +32,7 @@ error: build_wolfssh_vendor.sh produces a PUT WITHOUT the deterministic-RNG hook
        fuzzing (nondeterministic; no H claim => decryption recipe fails).
 
        Use the preset builder instead:
-           just mk-vendor wolfssh wolfssh-asan
+           just mk-vendor wolfssh wolfssh150-asan
 
        If you really want this raw build anyway (e.g. dependency mapping only),
        re-run with:
@@ -52,7 +52,7 @@ WOLFSSL_TAG="${1:-v5.7.6-stable}"
 WOLFSSH_TAG="${2:-v1.5.0-stable}"
 SCRATCH="${SCRATCH:-/tmp/wolf_scratch}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-VENDOR_DIR="${VENDOR_DIR:-$PROJECT_DIR/vendor/wolfssh-asan}"
+VENDOR_DIR="${VENDOR_DIR:-$PROJECT_DIR/vendor/wolfssh150-asan}"
 CC="${CC:-clang}"
 CFLAGS="-g -fPIC -fsanitize=address -fsanitize-coverage=trace-pc-guard"
 

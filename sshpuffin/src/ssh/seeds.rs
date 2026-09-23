@@ -1139,7 +1139,7 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
 ///
 /// NOT registered in any corpus: it diverges by design (kept as a callable
 /// reproducer / regression fixture, like `seed_client_attacker_bad_service`). Run
-/// `differential-execute libssh0114-asan wolfssh-asan <trace>` to observe.
+/// `differential-execute libssh0114-asan wolfssh150-asan <trace>` to observe.
 pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -1196,7 +1196,7 @@ pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolT
 /// NON-LEGIT trace that diverges by design, kept only as a callable reproducer for
 /// the finding. `#![allow(dead_code)]` (ssh/mod.rs) permits the unregistered
 /// `pub fn`. To reproduce: call this, run `differential-execute libssh0114-asan
-/// wolfssh-asan <trace>` — wolfSSH yields UserAuthSuccess, libssh UserAuthFailure.
+/// wolfssh150-asan <trace>` — wolfSSH yields UserAuthSuccess, libssh UserAuthFailure.
 pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -2734,7 +2734,7 @@ pub fn seed_handshake_two_party_packet_complete(
 /// WITHOUT the `claimer` instrumentation (no `-DHAS_CLAIMS`, hence no session-id
 /// claim) yields no H → this recipe errors and is skipped → that PUT's encrypted
 /// s2c layer is NOT decoded or compared. In the cross-vendor campaign both
-/// libssh0114-asan and wolfssh-asan are claimer-instrumented, so this holds.
+/// libssh0114-asan and wolfssh150-asan are claimer-instrumented, so this holds.
 /// KNOWN CONSEQUENCE: the version campaign's `libssh0104-asan` (and
 /// `libssh0803-asan`) are currently NOT claimer-instrumented, so their s2c
 /// decryption is inert until they are rebuilt with the claim patch. This is an
