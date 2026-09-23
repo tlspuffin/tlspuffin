@@ -47,8 +47,8 @@ Bucket families
                              §7.1 divergence (traffic processed mid-rekey shows up as
                              DIFFERENT downstream messages, matching no benign bucket).
 
-Correspondence to the in-fuzzer shadow predicates (sshpuffin/src/protocol.rs)
------------------------------------------------------------------------------
+Correspondence to the in-fuzzer shadow predicates (sshpuffin/src/ssh/differential.rs)
+-------------------------------------------------------------------------------------
 The offline buckets and the online shadow predicates classify the SAME classes; the
 shadows are the subset suppressed live, documented next to each predicate in
 sshpuffin/src/ssh/differential.rs:

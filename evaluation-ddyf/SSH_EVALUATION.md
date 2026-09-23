@@ -128,7 +128,7 @@ ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh
 
 To *shadow* a divergence class means to suppress it before it becomes an objective —
 either a documented benign non-bug, or a real bug already filed that we do not want
-re-surfaced on every run. Two master switches in `sshpuffin/src/protocol.rs` gate this
+re-surfaced on every run. Two master switches in `sshpuffin/src/ssh/differential.rs` gate this
 (both default `true`): `SHADOW_KNOWN_BENIGN` (benign classes, e.g. libssh's stricter
 protocol-version check) and `SHADOW_KNOWN_BUGS` (bugs already filed: the wolfSSH port-echo,
 #1246, and libssh's banner-length limit, libssh-mirror#376). They are
@@ -157,7 +157,7 @@ protocols; all its differential hooks are overridden by SSH
 | claims blacklist                          | `differential_fuzzing_claims_blacklist` | volatile claims (timers, counters) |
 | decryption recipes + encryption-key claim | `differential_fuzzing_terms_to_eval` (+ `fn_fold_s2c_transcript`, `fn_claim_exchange_hash`) | compare the *decrypted* record layer |
 | PUT-config alignment API                  | `differential_fuzzing_uniformise_put_config` | algorithm-advertisement / cipher-choice diffs |
-| custom comparison + field blacklist       | `AlignedTranscript` + 12× `#[comparable_ignore]`/`_synthetic` | server-chosen channel numbers, timestamps |
+| custom comparison + field blacklist       | `AlignedTranscript` + 15× `#[comparable_ignore]`/`_synthetic` | server-chosen channel numbers, timestamps |
 | objective filter                          | `differential_fuzzing_filter_diff` / `filter_diffs` | documented benign/known classes (shadowing) |
 
 Each feature's necessity is pinned by a unit test that fails if it is removed  [test]:
@@ -520,23 +520,26 @@ annotations + decryption recipes + PUT-config APIs), and TLS is one of the large
 protocols. Measured for SSH on this branch (the *shared*, one-time framework cost —
 reused by every protocol, not part of this per-protocol claim — is §B0 above):
 
-**SSH-specific DDYF integration** — the per-protocol cost this claim is about. The
-`transcript.rs` (non-test) and `message.rs` figures are exact; the `protocol.rs` and
-`fn_crypto.rs` figures are **estimated subsets** — those files are 1342 and 1515 lines
+**SSH-specific DDYF integration** — the per-protocol cost this claim is about. Line
+counts include comments (the code-only count is in parentheses). The `protocol.rs`,
+`ssh/differential.rs` (non-test), `transcript.rs` (non-test) and `message.rs` figures are
+exact; the `fn_crypto.rs` figure is an **estimated subset** — that file is 1559 lines
 *total* and mostly ordinary Mapper code (term constructors, message building) that a
 DYF-only integration would need anyway, and there is no DYF-only baseline to `git diff`
 against, so the DDYF-specific portion is scoped by hand:
 
-| component | where | ≈ LoC |
+| component | where | lines |
 |---|---|---|
-| differential oracle hooks + shadow predicates + §7.1 renumber pass | `protocol.rs` (subset of 1342) | ~410 *(est.)* |
-| decrypted-transcript alignment + custom comparison | `ssh/transcript.rs` (non-test) | **179** *(exact)* |
-| decryption recipes + key derivation + session-id/exchange-hash claim | `ssh/fn_crypto.rs` (12 fns, subset of 1515) | ~150 *(est.)* |
-| knowledge annotations (`#[comparable_ignore]`/`_synthetic`) | `ssh/message.rs` | **12 sites** *(exact)* |
+| differential oracle hooks (`differential_fuzzing_*`, `preprocess_trace`) | `protocol.rs` (subset of 498) | **232** (89) *(exact)* |
+| shadow switches + shadow predicates + §7.1 renumber pass | `ssh/differential.rs` (non-test) | **400** (219) *(exact)* |
+| decrypted-transcript alignment + custom comparison | `ssh/transcript.rs` (non-test) | **179** (76) *(exact)* |
+| decryption recipes + key derivation + session-id/exchange-hash claim | `ssh/fn_crypto.rs` (subset of 1559) | ~150 *(est.)* |
+| knowledge annotations (`#[comparable_ignore]`/`_synthetic`) | `ssh/message.rs` | **15 sites** *(exact)* |
 
-**≈ 700–750 LoC total (estimated)**, *below* TLS's ~1 kLoC — matching the expectation of the paper [A] that
-non-TLS protocols need less. For scale, sshpuffin's Rust source is ≈ 11.3 kLoC, so the
-DDYF-specific delta is well under 10% of the crate; the rest (the Mapper: message
+**≈ 960 lines total including comments (≈ 480 without)**, not more than TLS's ~1 kLoC —
+consistent with the expectation of the paper [A] that non-TLS protocols need less. For
+scale, sshpuffin's Rust source is ≈ 12.1 kLoC, so the DDYF-specific delta is about 8% of
+the crate; the rest (the Mapper: message
 model, framing, term constructors, seeds, C harnesses) is standard DYF a DYF-only SSH
 integration would need anyway. DDYF also *removes* work relative to security-property
 fuzzing: no protocol-specific security policy or checker is written.
