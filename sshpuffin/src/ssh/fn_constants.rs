@@ -24,7 +24,12 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![])
 }
 
-// ── u32 constants (channel IDs, reason codes, window sizes) ─────────────────
+// ── u32 constants (channel IDs, counters, reason codes, window sizes) ────────
+//
+// ALL generic `fn_u32_*` atoms live here: small values 0..=15 (channel ids,
+// AES-GCM packet counters, reason codes), the boundary values `u32::MAX` /
+// 0x10000, and the `fn_u32_auto` counter sentinel. Semantically named u32
+// atoms stay next to their feature (`fn_disconnect_reason_*`, `fn_port_ssh`).
 
 pub fn fn_u32_0() -> Result<u32, FnError> {
     Ok(0)
@@ -34,6 +39,69 @@ pub fn fn_u32_1() -> Result<u32, FnError> {
 }
 pub fn fn_u32_2() -> Result<u32, FnError> {
     Ok(2)
+}
+pub fn fn_u32_3() -> Result<u32, FnError> {
+    Ok(3)
+}
+pub fn fn_u32_4() -> Result<u32, FnError> {
+    Ok(4)
+}
+pub fn fn_u32_5() -> Result<u32, FnError> {
+    Ok(5)
+}
+pub fn fn_u32_6() -> Result<u32, FnError> {
+    Ok(6)
+}
+pub fn fn_u32_7() -> Result<u32, FnError> {
+    Ok(7)
+}
+pub fn fn_u32_8() -> Result<u32, FnError> {
+    Ok(8)
+}
+pub fn fn_u32_9() -> Result<u32, FnError> {
+    Ok(9)
+}
+pub fn fn_u32_10() -> Result<u32, FnError> {
+    Ok(10)
+}
+pub fn fn_u32_11() -> Result<u32, FnError> {
+    Ok(11)
+}
+pub fn fn_u32_12() -> Result<u32, FnError> {
+    Ok(12)
+}
+pub fn fn_u32_13() -> Result<u32, FnError> {
+    Ok(13)
+}
+pub fn fn_u32_14() -> Result<u32, FnError> {
+    Ok(14)
+}
+pub fn fn_u32_15() -> Result<u32, FnError> {
+    Ok(15)
+}
+
+/// Sentinel AES-GCM packet counter, resolved per-execution by
+/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
+/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
+/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
+/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
+/// later packet's wire position — keep the GCM nonce sequence valid, letting the
+/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
+///
+/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
+/// never by the value returned here, so the concrete value is only a reserved
+/// marker that must never collide with a real counter; it is never actually read
+/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
+pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
+pub fn fn_u32_auto() -> Result<u32, FnError> {
+    Ok(U32_AUTO_SENTINEL)
+}
+pub fn fn_u32_max() -> Result<u32, FnError> {
+    Ok(u32::MAX)
+}
+/// 0x10000 — just past the typical 64 KiB channel-window / packet boundary.
+pub fn fn_u32_0x10000() -> Result<u32, FnError> {
+    Ok(0x10000)
 }
 
 // ── SSH service names (RFC 4253 §10) ─────────────────────────────────────────
@@ -76,19 +144,6 @@ pub fn fn_username() -> Result<Username, FnError> {
 // method_data is raw bytes (not SSH-format string), so Vec<u8>
 pub fn fn_password() -> Result<Vec<u8>, FnError> {
     Ok(b"test".to_vec())
-}
-
-pub fn fn_u32_3() -> Result<u32, FnError> {
-    Ok(3)
-}
-pub fn fn_u32_4() -> Result<u32, FnError> {
-    Ok(4)
-}
-pub fn fn_u32_5() -> Result<u32, FnError> {
-    Ok(5)
-}
-pub fn fn_u32_6() -> Result<u32, FnError> {
-    Ok(6)
 }
 
 /// "SSH-2.0-puffin" as SshBytes (no \\r\\n) — used as the attacker's banner ID.
@@ -475,57 +530,6 @@ pub fn fn_password_b() -> Result<Vec<u8>, FnError> {
 }
 pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
     Ok(b"testc".to_vec())
-}
-pub fn fn_u32_7() -> Result<u32, FnError> {
-    Ok(7)
-}
-pub fn fn_u32_8() -> Result<u32, FnError> {
-    Ok(8)
-}
-pub fn fn_u32_9() -> Result<u32, FnError> {
-    Ok(9)
-}
-pub fn fn_u32_10() -> Result<u32, FnError> {
-    Ok(10)
-}
-pub fn fn_u32_11() -> Result<u32, FnError> {
-    Ok(11)
-}
-pub fn fn_u32_12() -> Result<u32, FnError> {
-    Ok(12)
-}
-pub fn fn_u32_13() -> Result<u32, FnError> {
-    Ok(13)
-}
-pub fn fn_u32_14() -> Result<u32, FnError> {
-    Ok(14)
-}
-pub fn fn_u32_15() -> Result<u32, FnError> {
-    Ok(15)
-}
-
-/// Sentinel AES-GCM packet counter, resolved per-execution by
-/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
-/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
-/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
-/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
-/// later packet's wire position — keep the GCM nonce sequence valid, letting the
-/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
-///
-/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
-/// never by the value returned here, so the concrete value is only a reserved
-/// marker that must never collide with a real counter; it is never actually read
-/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
-pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
-pub fn fn_u32_auto() -> Result<u32, FnError> {
-    Ok(U32_AUTO_SENTINEL)
-}
-pub fn fn_u32_max() -> Result<u32, FnError> {
-    Ok(u32::MAX)
-}
-/// 0x10000 — just past the typical 64 KiB channel-window / packet boundary.
-pub fn fn_u32_0x10000() -> Result<u32, FnError> {
-    Ok(0x10000)
 }
 
 /// RFC 4252 §7 publickey method_data, WITH signature:

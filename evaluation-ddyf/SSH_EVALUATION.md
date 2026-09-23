@@ -341,6 +341,18 @@ in two mature SSH stacks — 3 in wolfSSH, 1 in libssh** — of which:
   incomplete rekey, RFC 4253 §7.1/§9, fixed upstream [wolfSSL/wolfssh#1200](https://github.com/wolfSSL/wolfssh/pull/1200)) that had been fixed upstream around the time this
   work matured — evidence the oracle flags true positives, not merely that it stays quiet.
 
+**How each was surfaced (probe vs blind fuzzing).** The two rediscovered wolfSSH bugs were
+found by *fuzzing from honest seeds* (the committed `bad_service` / `kexinit_injection`
+traces are their minimised reproducers). The libssh over-strict banner bug was **not**
+found by blind fuzzing: it was surfaced by a **targeted probe seed** (`banner_probe_seed`,
+hypothesis H2 — "does each stack bind a 200-byte identification line?") that uses
+purpose-built oversized-banner atoms (`fn_banner_wire_oversized` / `fn_vc_oversized`).
+Those atoms are registered `[no_gen]`, so the mutator cannot synthesise them into
+generated terms; with the current grammar the fuzzer would not reach this bug unaided.
+DDYF's contribution for this bug is the *oracle*: once the probe sent the out-of-spec
+banner, the cross-stack disagreement (libssh "too large banner" vs wolfSSH completing)
+flagged it, and the triage bucket (§2b) classifies it.
+
 (The unknown-high-numbered-message §11.4 divergence and the embedded-NUL banner handling
 are additional observed divergences, not counted in the headline 4: the former is public
 in [wolfssh#1047](https://github.com/wolfSSL/wolfssh/issues/1047) and not first-found, the latter informational.) These conformance bugs are
