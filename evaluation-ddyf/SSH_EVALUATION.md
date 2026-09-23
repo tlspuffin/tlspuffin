@@ -186,10 +186,11 @@ for t in ./seeds/*.trace; do
   ASAN_OPTIONS=detect_leaks=0 target/release/sshpuffin differential-execute libssh0114 wolfssh150 "$t"
 done
 ```
-Observed — **11 / 11 `No differences`**:
-`channel_data, ext_info, forwarding, full_aesgcm, full_kexinit_synth,
-impersonate_a_with_b, passwd_change, pubkey_aesgcm, pubkey_b, rekey,
-unauthorized_key_c`.
+Observed — **17 / 17 `No differences`**: the client-attacker seeds
+`channel_data, ext_info, flow_control, forwarding, full_aesgcm, full_kexinit_synth,
+impersonate_a_with_b, passwd_change, pubkey_aesgcm, pubkey_b, pubkey_query, rekey,
+rekey_complete, session_requests, unauthorized_key_c` and the server-attacker seeds
+`server_attacker_full_aesgcm, server_attacker_session_aesgcm`.
 
 That the *shadowing* is load-bearing (not just cosmetic) is shown concretely in §2b(iv):
 the honest `forwarding` seed is `No differences` by default but re-surfaces the filed

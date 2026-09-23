@@ -1,7 +1,7 @@
 use puffin::agent::{AgentDescriptor, AgentName};
-use puffin::algebra::Term;
+use puffin::algebra::{DYTerm, Term};
 use puffin::term;
-use puffin::trace::{InputAction, OutputAction, Step, Trace};
+use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
 use crate::protocol::{
     AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes,
@@ -293,9 +293,14 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -313,16 +318,22 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -395,14 +406,18 @@ fn banner_probe_seed(
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner((@banner_wire)) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -480,17 +495,24 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @inject_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -614,17 +636,24 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
         ],
         ..Default::default()
@@ -691,9 +720,14 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -711,16 +745,22 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -981,15 +1021,20 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @fwd_req }),
+            OutputAction::new_step(server), // REQUEST_SUCCESS
             // Both stacks now accept an authorized direct-tcpip (wolfSSH FwdCb,
             // libssh message-callback fallback). The residual divergence is a
             // genuine wolfSSH behaviour: it echoes the bound port in
@@ -997,6 +1042,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
             // RFC 4254 §7.1 (port reply only for a port-0 dynamic request); libssh
             // omits it.
             InputAction::new_step(server, term! { @direct }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
         ],
         ..Default::default()
     }
@@ -1041,12 +1087,14 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             // KEXDH_INIT with e = 0 (out of range).
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_dh_init((fn_dh_exponent_zero)))) },
             ),
+            OutputAction::new_step(server), // KEXDH_REPLY
         ],
         ..Default::default()
     }
@@ -1110,14 +1158,18 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -1173,13 +1225,16 @@ pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @unknown }),
+            OutputAction::new_step(server), // UNIMPLEMENTED
         ],
         ..Default::default()
     }
@@ -1268,16 +1323,22 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1330,9 +1391,14 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -1350,16 +1416,22 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1415,9 +1487,14 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
                                 (fn_exec_payload((fn_exec_command_userauth))))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -1435,16 +1512,22 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1522,14 +1605,18 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @pump1 }),
             InputAction::new_step(server, term! { @pump2 }),
         ],
@@ -1599,14 +1686,18 @@ pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @pump1 }),
             InputAction::new_step(server, term! { @pump2 }),
         ],
@@ -1713,26 +1804,32 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @win_adjust }),
             InputAction::new_step(server, term! { @chan_data }),
             InputAction::new_step(server, term! { @chan_ext_data }),
             InputAction::new_step(server, term! { @chan_eof }),
             InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
         ],
         ..Default::default()
     }
 }
 
-/// Multi-round-trip seed (WS5.2): after publickey login, drive several
+/// Session-requests seed: after publickey login, drive several
 /// request/response round-trips on ONE session, each answered by its own s2c
 /// flight — instead of a single post-auth burst:
 ///
@@ -1759,7 +1856,7 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
 /// the libssh server harness accepts a single session channel, so a second one
 /// would diverge on a harness choice, not a library difference.
 /// AES-256-GCM; key A publickey login.
-pub fn seed_client_attacker_multi_roundtrip(server: AgentName) -> Trace<SshProtocolTypes> {
+pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
     let server_kexinit = term! { (server, 0)[None]/SshMessage };
@@ -1844,19 +1941,27 @@ pub fn seed_client_attacker_multi_roundtrip(server: AgentName) -> Trace<SshProto
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_exec }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS, command output
             InputAction::new_step(server, term! { @unknown_req }),
+            OutputAction::new_step(server), // REQUEST_FAILURE
             InputAction::new_step(server, term! { @chan_eof }),
             InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
         ],
         ..Default::default()
     }
@@ -1963,16 +2068,22 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
         ],
         ..Default::default()
@@ -2062,16 +2173,22 @@ pub fn seed_client_attacker_pubkey_query(server: AgentName) -> Trace<SshProtocol
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @query }),
+            OutputAction::new_step(server), // USERAUTH_PK_OK
             InputAction::new_step(server, term! { @signed }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
         ],
         ..Default::default()
     }
@@ -2170,19 +2287,25 @@ pub fn seed_client_attacker_flow_control(server: AgentName) -> Trace<SshProtocol
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_data }),
             InputAction::new_step(server, term! { @chan_ext_data }),
             InputAction::new_step(server, term! { @chan_eof }),
             InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
         ],
         ..Default::default()
     }
@@ -2319,19 +2442,27 @@ pub fn seed_client_attacker_rekey_complete(server: AgentName) -> Trace<SshProtoc
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
             InputAction::new_step(server, term! { @chan_open2 }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @global_req2 }),
+            OutputAction::new_step(server), // REQUEST_FAILURE
         ],
         ..Default::default()
     }
@@ -2425,16 +2556,22 @@ pub fn seed_client_attacker_rekey_auto(server: AgentName) -> Trace<SshProtocolTy
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
         ],
         ..Default::default()
@@ -2517,15 +2654,19 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @ext_info }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -2691,7 +2832,9 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(client),
             InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // KEXINIT
             InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            OutputAction::new_step(client), // KEX_ECDH_INIT
             InputAction::new_step(
                 client,
                 term! {
@@ -2702,9 +2845,13 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
                     )))
                 },
             ),
+            OutputAction::new_step(client), // NEWKEYS
             InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), // SERVICE_REQUEST
             InputAction::new_step(client, term! { @svc_accept }),
+            OutputAction::new_step(client), // USERAUTH_REQUEST
             InputAction::new_step(client, term! { @auth_success }),
+            OutputAction::new_step(client), // CHANNEL_OPEN
         ],
         ..Default::default()
     }
@@ -2780,7 +2927,9 @@ pub fn seed_server_attacker_session_aesgcm(client: AgentName) -> Trace<SshProtoc
         steps: vec![
             OutputAction::new_step(client),
             InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // KEXINIT
             InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            OutputAction::new_step(client), // KEX_ECDH_INIT
             InputAction::new_step(
                 client,
                 term! {
@@ -2791,10 +2940,15 @@ pub fn seed_server_attacker_session_aesgcm(client: AgentName) -> Trace<SshProtoc
                     )))
                 },
             ),
+            OutputAction::new_step(client), // NEWKEYS
             InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), // SERVICE_REQUEST
             InputAction::new_step(client, term! { @svc_accept }),
+            OutputAction::new_step(client), // USERAUTH_REQUEST
             InputAction::new_step(client, term! { @auth_success }),
+            OutputAction::new_step(client), // CHANNEL_OPEN
             InputAction::new_step(client, term! { @chan_confirm }),
+            OutputAction::new_step(client), // CHANNEL_REQUEST
             InputAction::new_step(client, term! { @chan_success }),
         ],
         ..Default::default()
@@ -3260,23 +3414,6 @@ pub fn client_decryption_recipes_aesgcm(client: AgentName) -> Vec<Term<SshProtoc
     vec![term! { fn_fold_s2c_transcript(((client, *)/RawSshMessageFlight), (@key), (@iv)) }]
 }
 
-/// Truncate a client-attacker seed to end at USERAUTH_SUCCESS by dropping its two
-/// trailing channel steps (CHANNEL_OPEN + CHANNEL_REQUEST).
-///
-/// The connection/channel layer is NOT differential-ready: it needs real-channel
-/// addressing (Phase 3 — the seed hard-codes `recipient_channel = 0`, which only
-/// one stack's numbering matches) AND a fix for wolfSSH's *non-deterministic*
-/// CHANNEL_OPEN_CONFIRMATION draining (Phase 6 — wolfSSH-vs-wolfSSH is itself
-/// non-zero on channel-opening traces). Both stacks are fully deterministic and
-/// agree through the auth boundary, so the DIFFERENTIAL corpus stops there; the
-/// full channel flow stays exercised single-PUT via the rich-corpus
-/// `channel_data` seed. Restore the channel steps here once Phase 3+6 land.
-fn auth_complete(mut trace: Trace<SshProtocolTypes>) -> Trace<SshProtocolTypes> {
-    let n = trace.steps.len();
-    trace.steps.truncate(n.saturating_sub(2));
-    trace
-}
-
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
@@ -3341,8 +3478,13 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_server_attacker_session_aesgcm(client),
             "seed_server_attacker_session_aesgcm",
         ),
+        // The base session: password login, then a session channel and an exec
+        // request. The request addresses the channel each server confirmed (libssh
+        // 43, wolfSSH 0), read from its decrypted CHANNEL_OPEN_CONFIRMATION, so
+        // both stacks process it (a hard-coded channel 0 is dropped by libssh; the
+        // corpus used to cut these seeds before the channel for that reason).
         (
-            auth_complete(seed_client_attacker_full_aesgcm(server)),
+            seed_client_attacker_full_aesgcm(server),
             "seed_client_attacker_full_aesgcm",
         ),
         // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
@@ -3351,8 +3493,7 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // `fn_password_change_auth_data` constructor reaches each stack's password
         // handler and (b) is the 0-diff baseline the differential campaign explores
         // FROM — a mutation that makes one stack handle the change-request
-        // differently now surfaces against a known-good control. NOT wrapped in
-        // `auth_complete` (it already ends at the auth step, no channel traffic).
+        // differently now surfaces against a known-good control.
         (
             seed_client_attacker_passwd_change(server),
             "seed_client_attacker_passwd_change",
@@ -3376,7 +3517,7 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // Same handshake but with a synthesized KEXINIT whose algorithm lists are
         // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
         (
-            auth_complete(seed_client_attacker_full_kexinit_synth(server)),
+            seed_client_attacker_full_kexinit_synth(server),
             "seed_client_attacker_full_kexinit_synth",
         ),
         // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
@@ -3394,7 +3535,7 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         //     "seed_client_attacker_pubkey",
         // ),
         (
-            auth_complete(seed_client_attacker_pubkey_aesgcm(server)),
+            seed_client_attacker_pubkey_aesgcm(server),
             "seed_client_attacker_pubkey_aesgcm",
         ),
         // Credential-confusion entry point, PROMOTED to the differential corpus.
@@ -3410,7 +3551,7 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // recipe aligns on one side only — the same flush-timing wall documented
         // for the channel-number query. Not a bug; just not positionally clean.
         (
-            auth_complete(seed_client_attacker_pubkey_b(server)),
+            seed_client_attacker_pubkey_b(server),
             "seed_client_attacker_pubkey_b",
         ),
         // Session layer: authenticated channel with full connection-protocol
@@ -3442,15 +3583,15 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_client_attacker_ext_info(server),
             "seed_client_attacker_ext_info",
         ),
-        // Multi-round-trip session (WS5.2): channel open / exec / unknown global
+        // Session requests: channel open / exec / unknown global
         // request / EOF / CLOSE, each answered by its own s2c flight, the later
         // ones addressed to the channel read back from the first reply. 0-diff
         // cross-vendor (stable over repeated runs) once the libssh harness's
         // global-request callback replied like libssh's own default. Its
         // `fn_u32_auto` counters let mutations drop / reorder whole round-trips.
         (
-            seed_client_attacker_multi_roundtrip(server),
-            "seed_client_attacker_multi_roundtrip",
+            seed_client_attacker_session_requests(server),
+            "seed_client_attacker_session_requests",
         ),
         // COMPLETED rekey: the new keys are derived from the server's own rekey
         // KEXINIT / KEX_ECDH_REPLY (decrypted from its s2c stream), then traffic is
@@ -3710,20 +3851,20 @@ mod tests {
         println!("wrote /tmp/server_attacker/{name}.trace");
     }
 
-    /// Materialises the multi-round-trip seed to `/tmp/multi_roundtrip/` for
+    /// Materialises the session-requests seed to `/tmp/session_requests/` for
     /// `differential-execute`. `#[ignore]`: on-demand, not part of CI.
     #[test]
     #[ignore]
-    fn emit_multi_roundtrip_trace() {
+    fn emit_session_requests_trace() {
         use puffin::libafl::inputs::Input;
         let server = AgentName::first().next();
-        let dir = std::path::Path::new("/tmp/multi_roundtrip");
+        let dir = std::path::Path::new("/tmp/session_requests");
         std::fs::create_dir_all(dir).unwrap();
-        let name = "seed_client_attacker_multi_roundtrip";
-        seed_client_attacker_multi_roundtrip(server)
+        let name = "seed_client_attacker_session_requests";
+        seed_client_attacker_session_requests(server)
             .to_file(dir.join(format!("{name}.trace")))
             .unwrap_or_else(|e| panic!("write {name}: {e}"));
-        println!("wrote /tmp/multi_roundtrip/{name}.trace");
+        println!("wrote /tmp/session_requests/{name}.trace");
     }
 
     /// Materialises the data-dependent round-trip seeds to `/tmp/roundtrip_seeds/`
@@ -3927,7 +4068,7 @@ mod tests {
             "seed_client_attacker_passwd_change", // item-6 positive control
             "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
             "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
-            "seed_client_attacker_multi_roundtrip", // several dependent round-trips
+            "seed_client_attacker_session_requests", // several dependent round-trips
             "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
             "seed_server_attacker_session_aesgcm", // replies built from the client's c2s
             "seed_client_attacker_pubkey_query",  // signs the blob echoed in PK_OK
@@ -3971,49 +4112,67 @@ mod tests {
         );
     }
 
+    /// (Input steps, Output steps) of a trace.
+    fn io_counts(trace: &Trace<SshProtocolTypes>) -> (usize, usize) {
+        let inputs = trace
+            .steps
+            .iter()
+            .filter(|s| matches!(s.action, Action::Input(_)))
+            .count();
+        (inputs, trace.steps.len() - inputs)
+    }
+
     // The credential-confusion seeds must build without panicking and carry the
-    // full publickey handshake (9 steps: output + banner + kexinit + ecdh +
-    // newkeys + svc_req + auth_req + chan_open + chan_req). Type-correctness is
-    // enforced by the term! macro at compile time; this guards the shape.
+    // full publickey handshake (8 inputs: banner + kexinit + ecdh + newkeys +
+    // svc_req + auth_req + two more: chan_open + chan_req for pubkey_b, two IGNORE
+    // pumps for the others), each reply read by an explicit Output.
+    // Type-correctness is enforced by the term! macro at compile time; this guards
+    // the shape.
     #[test]
     fn credential_confusion_seeds_build() {
         let client = AgentName::first();
         let server = client.next();
-        for (trace, name) in [
-            (seed_client_attacker_pubkey_b(server), "pubkey_b"),
+        for (trace, name, outputs) in [
+            (seed_client_attacker_pubkey_b(server), "pubkey_b", 7),
             (
                 seed_client_attacker_impersonate_a_with_b(server),
                 "impersonate_a_with_b",
+                5,
             ),
             (
                 seed_client_attacker_unauthorized_key_c(server),
                 "unauthorized_key_c",
+                5,
             ),
         ] {
-            assert_eq!(trace.steps.len(), 9, "seed {name} step count");
+            assert_eq!(io_counts(&trace), (8, outputs), "seed {name} shape");
             assert_eq!(trace.descriptors.len(), 1, "seed {name} descriptor count");
         }
     }
 
-    // The rekey seed keeps its 10-step re-KEX shape after the mutable-KEXINIT
-    // enrichment, and the channel-data seed keeps its 13 steps.
+    // The rekey seed keeps its 9-input re-KEX shape after the mutable-KEXINIT
+    // enrichment, and the channel-data seed keeps its 12 inputs.
     #[test]
     fn enriched_seeds_shape() {
         let client = AgentName::first();
         let server = client.next();
-        assert_eq!(seed_client_attacker_rekey(server).steps.len(), 10);
-        assert_eq!(seed_client_attacker_channel_data(server).steps.len(), 13);
+        assert_eq!(io_counts(&seed_client_attacker_rekey(server)), (9, 7));
+        assert_eq!(
+            io_counts(&seed_client_attacker_channel_data(server)),
+            (12, 7)
+        );
     }
 
     // The server-attacker seed (attacker plays the server; the PUT is the CLIENT,
     // so this fuzzes the client-side parsers) builds and carries the full server
-    // flight: output + banner + kexinit + kexdh-reply + newkeys + svc-accept +
-    // auth-success = 7 steps, on a single CLIENT agent.
+    // flight: banner + kexinit + kexdh-reply + newkeys + svc-accept + auth-success
+    // = 6 inputs, each answered by the client (7 outputs with its opening flight),
+    // on a single CLIENT agent.
     #[test]
     fn server_attacker_seed_shape() {
         let client = AgentName::first();
         let trace = seed_server_attacker_full_aesgcm(client);
-        assert_eq!(trace.steps.len(), 7, "server-attacker step count");
+        assert_eq!(io_counts(&trace), (6, 7), "server-attacker shape");
         assert_eq!(
             trace.descriptors.len(),
             1,

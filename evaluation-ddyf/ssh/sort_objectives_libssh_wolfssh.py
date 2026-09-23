@@ -224,8 +224,8 @@ buckets: dict[str, BucketCondition] = {
         InnerKnowledgeC(diff_contains="Removed(AlignmentKey { channel: 0, msg_number: 51"),
     ),
 
-    # wolfSSH UNSOLICITED SERVICE_ACCEPT (found 2026-09-23 by the multi-round-trip
-    # seed; reported in SERVICE_ACCEPT_FINDING.md). A client that skips SERVICE_REQUEST
+    # wolfSSH UNSOLICITED SERVICE_ACCEPT (found 2026-09-23 by a campaign from the
+    # session-requests seed; not reported upstream). A client that skips SERVICE_REQUEST
     # and sends USERAUTH_REQUEST straight away is authenticated by BOTH stacks, but
     # wolfSSH's accept() state machine (ssh.c ~557-569) then also emits a
     # SERVICE_ACCEPT nobody asked for, right before USERAUTH_SUCCESS; libssh sends
