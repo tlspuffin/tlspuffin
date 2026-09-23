@@ -8,10 +8,11 @@
 use puffin::agent::AgentName;
 use puffin::algebra::atoms::Function;
 use puffin::algebra::{DYTerm, Term};
-use puffin::protocol::ProtocolTypes;
+use puffin::term;
 use puffin::trace::{Action, Step, Trace};
 
 use crate::protocol::SshProtocolTypes;
+use crate::ssh::fn_impl::*;
 
 /// Master switch for shadowing documented-BENIGN divergence classes — divergences
 /// investigated to a benign (non-bug) conclusion, so suppressing them removes
@@ -218,31 +219,28 @@ pub(crate) fn is_fwd_reqsuccess_port_echo_diff(
 
 // ── AES-GCM packet-counter renumbering (RFC 4253 §7.1 auto-discovery) ────────
 //
-// Function symbols the renumbering pass keys on. Matched by NAME (symbol), never
-// by evaluated value, so `fn_u32_auto`'s sentinel value is never actually read.
-const AUTO_COUNTER_FN: &str = "fn_u32_auto";
-const AESGCM_ENCRYPT_FN: &str = "fn_encrypt_packet_aesgcm";
-const NEWKEYS_FN: &str = "fn_new_keys";
-const PACKET_FN: &str = "fn_packet";
+// The pass keys on function SYMBOLS (`fn_u32_auto`, `fn_encrypt_packet_aesgcm`,
+// `fn_new_keys`, `fn_packet`), never on evaluated values, so `fn_u32_auto`'s
+// sentinel value is never actually read.
 
-/// A `Function::name()` is the full Rust path (`std::any::type_name`), e.g.
-/// `sshpuffin::ssh::fn_impl::fn_constants::fn_u32_auto`. Compare the LAST `::`
-/// segment against the short symbol name.
-fn fn_name_is(full: &str, symbol: &str) -> bool {
-    full.rsplit("::").next().unwrap_or(full) == symbol
+/// Whether `f` is the function symbol `sym`. `Function::name()` is the symbol's
+/// `std::any::type_name` (see `DescribableFunction::shape`), so the comparison is tied
+/// to the symbol itself: renaming or removing it breaks the build, not the match.
+fn is_symbol<F>(f: &Function<SshProtocolTypes>, _sym: F) -> bool {
+    f.name() == std::any::type_name::<F>()
 }
 
-/// Whether a `Term`'s root application is the named function symbol.
-fn term_root_is(term: &Term<SshProtocolTypes>, symbol: &str) -> bool {
-    matches!(&term.term, DYTerm::Application(f, _) if fn_name_is(f.name(), symbol))
+/// Whether a `Term`'s root application is the function symbol `sym`.
+fn term_root_is<F>(term: &Term<SshProtocolTypes>, sym: F) -> bool {
+    matches!(&term.term, DYTerm::Application(f, _) if is_symbol(f, sym))
 }
 
-/// Whether any sub-term is the given symbol (read-only DAG walk; no allocation).
-fn term_contains_symbol(term: &Term<SshProtocolTypes>, symbol: &str) -> bool {
+/// Whether any sub-term is the function symbol `sym` (read-only DAG walk; no allocation).
+fn term_contains_symbol<F: Copy>(term: &Term<SshProtocolTypes>, sym: F) -> bool {
     match &term.term {
         DYTerm::Variable(_) => false,
         DYTerm::Application(f, args) => {
-            fn_name_is(f.name(), symbol) || args.iter().any(|a| term_contains_symbol(a, symbol))
+            is_symbol(f, sym) || args.iter().any(|a| term_contains_symbol(a, sym))
         }
     }
 }
@@ -251,7 +249,7 @@ fn term_contains_symbol(term: &Term<SshProtocolTypes>, symbol: &str) -> bool {
 /// input recipe carry the auto-counter sentinel anywhere?
 pub(crate) fn step_has_auto_counter(step: &Step<SshProtocolTypes>) -> bool {
     match &step.action {
-        Action::Input(input) => term_contains_symbol(&input.recipe, AUTO_COUNTER_FN),
+        Action::Input(input) => term_contains_symbol(&input.recipe, fn_u32_auto),
         Action::Output(_) => false,
     }
 }
@@ -261,7 +259,7 @@ pub(crate) fn step_has_auto_counter(step: &Step<SshProtocolTypes>) -> bool {
 /// the first match encountered is the closest to the root. `Some(vec![])` means
 /// the root itself is the encrypt (the shape every current seed uses).
 fn find_outermost_aesgcm_path(term: &Term<SshProtocolTypes>) -> Option<Vec<usize>> {
-    if term_root_is(term, AESGCM_ENCRYPT_FN) {
+    if term_root_is(term, fn_encrypt_packet_aesgcm) {
         return Some(vec![]);
     }
     if let DYTerm::Application(_, args) = &term.term {
@@ -295,51 +293,39 @@ fn term_at_path_mut<'a>(
 /// A plaintext NEWKEYS step, `fn_packet(fn_new_keys)` — the first key-epoch
 /// boundary (before any encryption). Consumes no AES-GCM counter itself.
 fn recipe_is_plaintext_newkeys(term: &Term<SshProtocolTypes>) -> bool {
-    if !term_root_is(term, PACKET_FN) {
+    if !term_root_is(term, fn_packet) {
         return false;
     }
     let DYTerm::Application(_, args) = &term.term else {
         return false;
     };
-    args.first().is_some_and(|a| term_root_is(a, NEWKEYS_FN))
+    args.first().is_some_and(|a| term_root_is(a, fn_new_keys))
 }
 
-/// Build the `fn_u32_<n>` constant leaf by name lookup in the signature. The
-/// rewritten trace is a throwaway executed immediately (never serialised), so this
-/// only needs to EVALUATE to `n`; reusing the registered constant guarantees an
-/// exact type/shape match. Returns `None` for `n` beyond the registered range
-/// (single-epoch traces stay small), leaving the sentinel in place so the packet
-/// simply fails to decrypt rather than silently carrying a wrong counter.
+/// The `fn_u32_<n>` constant leaf for counter `n`. The rewritten trace is a throwaway
+/// executed immediately (never serialised), so this only needs to EVALUATE to `n`.
+/// Returns `None` for `n` beyond the registered range (single-epoch traces stay small),
+/// leaving the sentinel in place so the packet simply fails to decrypt rather than
+/// silently carrying a wrong counter.
 fn u32_leaf(n: u32) -> Option<Term<SshProtocolTypes>> {
-    const NAMES: [&str; 16] = [
-        "fn_u32_0",
-        "fn_u32_1",
-        "fn_u32_2",
-        "fn_u32_3",
-        "fn_u32_4",
-        "fn_u32_5",
-        "fn_u32_6",
-        "fn_u32_7",
-        "fn_u32_8",
-        "fn_u32_9",
-        "fn_u32_10",
-        "fn_u32_11",
-        "fn_u32_12",
-        "fn_u32_13",
-        "fn_u32_14",
-        "fn_u32_15",
-    ];
-    let want = *NAMES.get(n as usize)?;
-    // `functions_by_name` is keyed by the full type-name path, so match on the
-    // short last-segment symbol instead.
-    let sig = SshProtocolTypes::signature();
-    let (shape, dyn_fn) = sig
-        .functions
-        .iter()
-        .find(|(shape, _)| fn_name_is(shape.name, want))?;
-    Some(Term {
-        term: DYTerm::Application(Function::new(shape.clone(), dyn_fn.clone()), vec![]),
-        payloads: None,
+    Some(match n {
+        0 => term! { fn_u32_0 },
+        1 => term! { fn_u32_1 },
+        2 => term! { fn_u32_2 },
+        3 => term! { fn_u32_3 },
+        4 => term! { fn_u32_4 },
+        5 => term! { fn_u32_5 },
+        6 => term! { fn_u32_6 },
+        7 => term! { fn_u32_7 },
+        8 => term! { fn_u32_8 },
+        9 => term! { fn_u32_9 },
+        10 => term! { fn_u32_10 },
+        11 => term! { fn_u32_11 },
+        12 => term! { fn_u32_12 },
+        13 => term! { fn_u32_13 },
+        14 => term! { fn_u32_14 },
+        15 => term! { fn_u32_15 },
+        _ => return None,
     })
 }
 
@@ -374,9 +360,9 @@ pub(crate) fn renumber_aesgcm_counters(trace: &mut Trace<SshProtocolTypes>) {
             };
             // an ENCRYPTED NEWKEYS (msg arg 0) closes the epoch AFTER its own
             // counter (it is the last packet under the old keys).
-            let is_encrypted_newkeys = args.first().is_some_and(|m| term_root_is(m, NEWKEYS_FN));
+            let is_encrypted_newkeys = args.first().is_some_and(|m| term_root_is(m, fn_new_keys));
             if let Some(ctr) = args.get_mut(3) {
-                if term_root_is(ctr, AUTO_COUNTER_FN) {
+                if term_root_is(ctr, fn_u32_auto) {
                     if let Some(leaf) = u32_leaf(*counter) {
                         *ctr = leaf;
                     }
@@ -786,25 +772,44 @@ mod preprocess_trace_tests {
         }
     }
 
-    /// Root fn-name of a step's outermost aes-gcm counter argument (index 3), or
-    /// `None` if the step is not an aes-gcm packet.
-    fn last_seg(name: &str) -> &str {
-        name.rsplit("::").next().unwrap_or(name)
+    /// The name `Function::name()` reports for the symbol `sym`.
+    fn sym<F>(_sym: F) -> &'static str {
+        std::any::type_name::<F>()
     }
 
-    fn counter_name(trace: &Trace<SshProtocolTypes>, step: usize) -> Option<String> {
+    /// Symbol name of a step's outermost aes-gcm counter argument (index 3), or
+    /// `None` if the step is not an aes-gcm packet.
+    fn counter_name(trace: &Trace<SshProtocolTypes>, step: usize) -> Option<&'static str> {
         let Action::Input(input) = &trace.steps[step].action else {
             return None;
         };
         let DYTerm::Application(f, args) = &input.recipe.term else {
             return None;
         };
-        if last_seg(f.name()) != "fn_encrypt_packet_aesgcm" {
+        if f.name() != sym(fn_encrypt_packet_aesgcm) {
             return None;
         }
         match &args.get(3)?.term {
-            DYTerm::Application(cf, _) => Some(last_seg(cf.name()).to_string()),
+            DYTerm::Application(cf, _) => Some(cf.name()),
             DYTerm::Variable(_) => None,
+        }
+    }
+
+    #[test]
+    fn symbols_match_their_signature_entries() {
+        // Traces loaded from disk get their functions from the signature, so the
+        // symbol name the pass compares against must be the registered one.
+        let sig = SshProtocolTypes::signature();
+        for name in [
+            sym(fn_u32_auto),
+            sym(fn_encrypt_packet_aesgcm),
+            sym(fn_new_keys),
+            sym(fn_packet),
+        ] {
+            assert!(
+                sig.functions_by_name.contains_key(name),
+                "{name} not registered"
+            );
         }
     }
 
@@ -812,9 +817,9 @@ mod preprocess_trace_tests {
     fn consecutive_auto_counters_renumber_from_zero() {
         let trace = trace_of(vec![auto_pkt(svc()), auto_pkt(svc()), auto_pkt(svc())]);
         let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
-        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
-        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
-        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+        assert_eq!(counter_name(&out, 0), Some(sym(fn_u32_0)));
+        assert_eq!(counter_name(&out, 1), Some(sym(fn_u32_1)));
+        assert_eq!(counter_name(&out, 2), Some(sym(fn_u32_2)));
     }
 
     #[test]
@@ -829,9 +834,9 @@ mod preprocess_trace_tests {
         ]);
         trace.steps.remove(1);
         let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
-        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
-        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
-        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+        assert_eq!(counter_name(&out, 0), Some(sym(fn_u32_0)));
+        assert_eq!(counter_name(&out, 1), Some(sym(fn_u32_1)));
+        assert_eq!(counter_name(&out, 2), Some(sym(fn_u32_2)));
     }
 
     #[test]
@@ -862,11 +867,11 @@ mod preprocess_trace_tests {
         };
         let trace = trace_of(vec![auto_pkt(svc()), explicit, auto_pkt(svc())]);
         let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
-        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 0), Some(sym(fn_u32_0)));
         // step 1 is explicit fn_u32_max -> untouched (its wire slot still consumes
         // a counter, so the next sentinel is 2, not 1).
-        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_max"));
-        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_2"));
+        assert_eq!(counter_name(&out, 1), Some(sym(fn_u32_max)));
+        assert_eq!(counter_name(&out, 2), Some(sym(fn_u32_2)));
     }
 
     #[test]
@@ -881,11 +886,11 @@ mod preprocess_trace_tests {
             auto_pkt(svc()),
         ]);
         let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
-        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
-        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 0), Some(sym(fn_u32_0)));
+        assert_eq!(counter_name(&out, 1), Some(sym(fn_u32_1)));
         assert_eq!(counter_name(&out, 2), None); // plaintext newkeys, not a gcm pkt
-        assert_eq!(counter_name(&out, 3).as_deref(), Some("fn_u32_0"));
-        assert_eq!(counter_name(&out, 4).as_deref(), Some("fn_u32_1"));
+        assert_eq!(counter_name(&out, 3), Some(sym(fn_u32_0)));
+        assert_eq!(counter_name(&out, 4), Some(sym(fn_u32_1)));
     }
 
     #[test]
@@ -895,9 +900,9 @@ mod preprocess_trace_tests {
         let enc_newkeys = auto_pkt(term! { fn_new_keys });
         let trace = trace_of(vec![auto_pkt(svc()), enc_newkeys, auto_pkt(svc())]);
         let out = SshProtocolTypes::preprocess_trace(&trace).expect("sentinel present -> Some");
-        assert_eq!(counter_name(&out, 0).as_deref(), Some("fn_u32_0"));
-        assert_eq!(counter_name(&out, 1).as_deref(), Some("fn_u32_1"));
-        assert_eq!(counter_name(&out, 2).as_deref(), Some("fn_u32_0"));
+        assert_eq!(counter_name(&out, 0), Some(sym(fn_u32_0)));
+        assert_eq!(counter_name(&out, 1), Some(sym(fn_u32_1)));
+        assert_eq!(counter_name(&out, 2), Some(sym(fn_u32_0)));
     }
 
     #[test]
