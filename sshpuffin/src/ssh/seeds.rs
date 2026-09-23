@@ -28,7 +28,7 @@ pub fn create_corpus(
 /// Factory-free corpus builder (see [`create_corpus`]). Under default features this
 /// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
 /// appends the single-PUT divergent seeds.
-pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+pub fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
     let client = AgentName::first();
     let server = client.next();
 
@@ -3740,18 +3740,6 @@ mod tests {
 
     use super::*;
 
-    /// Serialises the tests that EXECUTE PUTs. Each PUT's deterministic RNG is
-    /// process-global (libssh: OpenSSL RAND_METHOD + one static seed in
-    /// harness/libssh/src/rng.c; wolfSSH: one seed stream), and `cargo test` runs
-    /// tests on parallel threads: two PUT executions interleaving their draws make
-    /// each other nondeterministic. (This, not the PUT, is why libssh once looked
-    /// nondeterministic "by attempt 4".) Hold it for the whole execution.
-    static PUT_EXEC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn put_exec_lock() -> std::sync::MutexGuard<'static, ()> {
-        PUT_EXEC_LOCK.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
     /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
     /// for `differential-execute libssh0114 wolfssh150 <trace>`. `#[ignore]`: run
     /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
@@ -3890,126 +3878,6 @@ mod tests {
                 .to_file(dir.join(format!("{name}.trace")))
                 .unwrap_or_else(|e| panic!("write {name}: {e}"));
             println!("wrote /tmp/roundtrip_seeds/{name}.trace");
-        }
-    }
-
-    /// Every two-party / Terrapin relay seed must reach ITS verdict on each built
-    /// PUT — not die on an unresolvable relay query first (they all used to):
-    ///   * the honest relays (flight and packet granularity) complete, both agents DONE;
-    ///   * on libssh, every Terrapin variant is stopped by strict-kex (the injected IGNORE during
-    ///     KEX is rejected);
-    ///   * on wolfSSH (no strict-kex), the c2s variants run to the end but stall (no later c2s
-    ///     packet to realign on), and the s2c variant fails the client's AES-GCM tag check
-    ///     (`AES_GCM_AUTH_E` = -180: GCM nonces do not follow the sequence number, so the
-    ///     truncation cannot be hidden).
-    #[cfg(all(has_put = "libssh0114", has_put = "wolfssh150"))]
-    #[test]
-    fn two_party_seeds_reach_their_verdict() {
-        use puffin::put::{PutDescriptor, PutOptions};
-        use puffin::trace::{Spawner, TraceContext};
-
-        use crate::put_registry::ssh_registry;
-
-        #[derive(Debug)]
-        enum Verdict {
-            BothDone,
-            StrictKexReject,
-            Stall,
-            GcmTagFailure,
-        }
-        use Verdict::*;
-
-        let client = AgentName::first();
-        let server = client.next();
-        type Seed = fn(AgentName, AgentName) -> Trace<SshProtocolTypes>;
-        let cases: [(&str, Seed, Verdict, Verdict); 5] = [
-            ("two_party", seed_handshake_two_party, BothDone, BothDone),
-            (
-                "two_party_packet_complete",
-                seed_handshake_two_party_packet_complete,
-                BothDone,
-                BothDone,
-            ),
-            (
-                "terrapin_attempt",
-                seed_terrapin_attempt,
-                StrictKexReject,
-                Stall,
-            ),
-            (
-                "terrapin_packet",
-                seed_terrapin_packet,
-                StrictKexReject,
-                Stall,
-            ),
-            (
-                "terrapin_s2c",
-                seed_terrapin_s2c,
-                StrictKexReject,
-                GcmTagFailure,
-            ),
-        ];
-        let _exec = put_exec_lock();
-        let mut failures = Vec::new();
-        for (name, seed, on_libssh, on_wolfssh) in &cases {
-            for (put, want) in [("libssh0114", on_libssh), ("wolfssh150", on_wolfssh)] {
-                let desc = PutDescriptor::new(put, PutOptions::default());
-                let spawner = Spawner::new(ssh_registry())
-                    .with_mapping(&[(client, desc.clone()), (server, desc)]);
-                let mut ctx = TraceContext::new(spawner);
-                let res = seed(client, server).execute(&mut ctx, &mut 0, false);
-                let states = format!(
-                    "{:?} / {:?}",
-                    ctx.find_agent(client),
-                    ctx.find_agent(server)
-                );
-                let ok = match (want, &res) {
-                    (BothDone, Ok(())) => ctx.agents_successful(),
-                    (Stall, Ok(())) => !ctx.agents_successful(),
-                    (StrictKexReject, Err(e)) => e.to_string().contains("strict KEX"),
-                    (GcmTagFailure, Err(_)) => states.contains("gerr=-180"),
-                    _ => false,
-                };
-                if !ok {
-                    failures.push(format!(
-                        "{name} on {put}: want {want:?}, got {res:?}; {states}"
-                    ));
-                }
-            }
-        }
-        assert!(
-            failures.is_empty(),
-            "two-party verdicts:\n{}",
-            failures.join("\n")
-        );
-    }
-
-    /// The data-dependent server-attacker session must take BOTH client PUTs all the
-    /// way to DONE (channel confirmed on the channel number each client chose, shell
-    /// request answered) — i.e. the attacker really read the client's CHANNEL_OPEN
-    /// from its encrypted stream and replied on the right channel.
-    #[cfg(all(has_put = "libssh0114", has_put = "wolfssh150"))]
-    #[test]
-    fn server_session_clients_reach_done() {
-        use puffin::put::{PutDescriptor, PutOptions};
-        use puffin::trace::{Spawner, TraceContext};
-
-        use crate::put_registry::ssh_registry;
-
-        let client = AgentName::first();
-        let _exec = put_exec_lock();
-        for put in ["libssh0114", "wolfssh150"] {
-            let desc = PutDescriptor::new(put, PutOptions::default());
-            let spawner = Spawner::new(ssh_registry()).with_mapping(&[(client, desc)]);
-            let mut ctx = TraceContext::new(spawner);
-            seed_server_attacker_session_aesgcm(client)
-                .execute(&mut ctx, &mut 0, false)
-                .unwrap_or_else(|e| panic!("{put}: server-attacker session failed: {e}"));
-            assert!(
-                ctx.agents_successful(),
-                "{put}: client did not reach DONE: {:?}",
-                ctx.find_agent(client)
-            );
         }
     }
 
@@ -4187,66 +4055,5 @@ mod tests {
             AgentType::Client,
             "server-attacker PUT must be the CLIENT role"
         );
-    }
-
-    /// PUT determinism (mirrors TLS `test_attacker_full_det_recreate`): the same
-    /// trace, replayed against the same PUT in the same process, must produce
-    /// byte-identical contexts across runs even with a wall-clock gap between them.
-    /// Determinism is the precondition the whole differential method rests on: a
-    /// nondeterministic PUT would manufacture spurious cross-stack "differences" run
-    /// to run.
-    ///
-    /// Both PUTs and both roles are covered. wolfSSL draws from the harness's
-    /// CUSTOM_RAND_GENERATE_SEED stream, rewound at every agent create. libssh draws
-    /// from OpenSSL through the harness's custom RAND_METHOD (harness/libssh/src/rng.c),
-    /// reset to its default seed by `determinism_reseed_all_factories` before every
-    /// execution. (An earlier note here said libssh was nondeterministic in-process;
-    /// re-measured 2026-09-23 it is deterministic in both roles. The single-PUT vs
-    /// differential mismatch seen in triage was a CONFIG difference, the missing
-    /// uniformisation, not randomness; see `display-execute --uniformise`.)
-    #[cfg(any(has_put = "wolfssh150", has_put = "libssh0114"))]
-    fn assert_put_deterministic(put: &str, trace: Trace<SshProtocolTypes>) {
-        use std::thread;
-        use std::time::Duration;
-
-        use puffin::execution::{Runner, TraceRunner};
-        use puffin::trace::Spawner;
-
-        use crate::put_registry::ssh_registry;
-
-        let mut registry = ssh_registry();
-        registry
-            .set_default_factory(put)
-            .unwrap_or_else(|e| panic!("PUT {put} not registered: {e}"));
-        let spawner = Spawner::new(registry.clone());
-        let runner = Runner::new(registry, spawner);
-
-        let _exec = put_exec_lock();
-        let ctx_1 = (&runner).execute(&trace, &mut 0);
-        // A wall-clock gap between executions surfaces any hidden time dependence.
-        thread::sleep(Duration::from_secs(1));
-        for i in 0..20 {
-            let ctx_2 = (&runner).execute(&trace, &mut 0);
-            assert!(
-                ctx_1 == ctx_2,
-                "PUT {put} executed nondeterministically at attempt {i}"
-            );
-        }
-    }
-
-    #[cfg(has_put = "wolfssh150")]
-    #[test]
-    fn wolfssh_put_is_deterministic() {
-        let a = AgentName::first();
-        assert_put_deterministic("wolfssh150", seed_client_attacker_full_aesgcm(a)); // server role
-        assert_put_deterministic("wolfssh150", seed_server_attacker_full_aesgcm(a)); // client role
-    }
-
-    #[cfg(has_put = "libssh0114")]
-    #[test]
-    fn libssh_put_is_deterministic() {
-        let a = AgentName::first();
-        assert_put_deterministic("libssh0114", seed_client_attacker_full_aesgcm(a)); // server role
-        assert_put_deterministic("libssh0114", seed_server_attacker_full_aesgcm(a)); // client role
     }
 }

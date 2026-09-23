@@ -258,8 +258,8 @@ fn term_contains_symbol<F: Copy>(term: &Term<SshProtocolTypes>, sym: F) -> bool 
     }
 }
 
-/// Fast-path predicate for [`SshProtocolTypes::preprocess_trace`]: does this step's
-/// input recipe carry the auto-counter sentinel anywhere?
+/// Fast-path predicate for [`preprocess_trace`](puffin::protocol::ProtocolTypes::preprocess_trace):
+/// does this step's input recipe carry the auto-counter sentinel anywhere?
 pub(crate) fn step_has_auto_counter(step: &Step<SshProtocolTypes>) -> bool {
     match &step.action {
         Action::Input(input) => term_contains_symbol(&input.recipe, fn_u32_auto),

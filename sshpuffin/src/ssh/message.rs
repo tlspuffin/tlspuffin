@@ -2045,7 +2045,7 @@ pub fn try_read_bytes(
         // parent (KDF / hash / DH / cipher / namelist builder) can be re-typed and the
         // opaque function re-applied (puffin `eval_until_opaque`) — without this the
         // payload cannot take effect. Their codecs are exact inverses (checked by
-        // `ssh_term_read_encode_roundtrip`).
+        // `tests/term_zoo.rs::test_term_read_encode`).
         SharedSecret,
         ExchangeHash,
         SessionId,

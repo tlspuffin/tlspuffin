@@ -13,7 +13,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub(crate) mod differential;
 pub mod message;
-pub(crate) mod seeds;
+pub mod seeds;
 pub mod transcript;
 #[path = "."]
 pub mod fn_impl {
@@ -31,15 +31,20 @@ use puffin::define_signature;
 
 use crate::protocol::SshProtocolTypes;
 
-// Flags (see `FunctionAttributes`; they only steer where payloads can be placed):
-//   * no flag   — a builder whose encoding contains each argument's encoding; checked by
-//     `unflagged_symbols_contain_their_arguments` below;
+// Flags (see `FunctionAttributes`): `[opaque]`, `[get]` and `[list]` steer where puffin can
+// place payloads, `[no_gen]` what the term zoo generates. All four are checked by
+// `sshpuffin/tests/term_zoo.rs`.
+//   * no flag   — a builder whose encoding contains each argument's encoding
+//     (`unflagged_symbols_contain_their_arguments`);
 //   * [opaque]  — the encoding contains none of the arguments' (hash, KDF, DH, cipher, signature,
 //     decryption, and the filler generator `fn_bytes_of_len`), or only with separators in between
 //     (`fn_namelist_{2,3}`);
 //   * [get]     — an accessor returning a field of its argument (TLS convention; also a truncating
 //     conversion, like TLS's `fn_u32_to_u16`);
-//   * [no_gen]  — not generated at the top level (probe/reproducer atoms, recipe helpers).
+//   * [no_gen]  — not generated at the top level: probe/reproducer atoms, recipe helpers, and
+//     symbols the zoo cannot build an evaluable term for (the KDFs need an exchange hash, the
+//     decryptions a real ciphertext, `fn_encrypt_packet{,_ctr}` keys of an exact length); checked
+//     by `tests/term_zoo.rs::test_term_eval`.
 // No SSH symbol builds an element-by-element list, so none is `[list]`.
 define_signature!(
     SSH_SIGNATURE<SshProtocolTypes>,
@@ -259,31 +264,31 @@ define_signature!(
     fn_pk_ok_blob [get] // key blob field of a PK_OK
     fn_channel_send_budget [get] // the smaller of two fields
     fn_bytes_of_len [opaque] // `len` filler bytes, not the length itself
-    fn_derive_enc_key_c2s [opaque] // KDF
-    fn_derive_enc_key_s2c [opaque] // KDF
-    fn_encrypt_packet [opaque] // encryption
-    fn_decrypt_packet [opaque] // decryption
-    fn_derive_aes_key_c2s [opaque] // KDF
-    fn_derive_aes_key_s2c [opaque] // KDF
-    fn_derive_iv_c2s [opaque] // KDF
-    fn_derive_iv_s2c [opaque] // KDF
+    fn_derive_enc_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_enc_key_s2c [opaque] [no_gen] // KDF
+    fn_encrypt_packet [opaque] [no_gen] // encryption
+    fn_decrypt_packet [opaque] [no_gen] // decryption
+    fn_derive_aes_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_aes_key_s2c [opaque] [no_gen] // KDF
+    fn_derive_iv_c2s [opaque] [no_gen] // KDF
+    fn_derive_iv_s2c [opaque] [no_gen] // KDF
     fn_encrypt_packet_aesgcm [opaque] // encryption
-    fn_decrypt_packet_aesgcm [opaque] // decryption
-    fn_decrypt_flight_aesgcm [opaque] // decryption
+    fn_decrypt_packet_aesgcm [opaque] [no_gen] // decryption
+    fn_decrypt_flight_aesgcm [opaque] [no_gen] // decryption
     // Single comparison recipe of the AES-GCM decryption differential: folds a
     // server flight into one key-aligned `AlignedTranscript` (see
     // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
     fn_fold_s2c_transcript [opaque] [no_gen] // decryption
     // Joins two flights (not a list and one element, so not `[list]`).
     fn_concat_raw_flights
-    fn_derive_ctr_key_c2s [opaque] // KDF
-    fn_derive_ctr_key_s2c [opaque] // KDF
-    fn_derive_ctr_iv_c2s [opaque] // KDF
-    fn_derive_ctr_iv_s2c [opaque] // KDF
-    fn_derive_mac_key_c2s [opaque] // KDF
-    fn_derive_mac_key_s2c [opaque] // KDF
-    fn_encrypt_packet_ctr [opaque] // encryption + MAC
-    fn_decrypt_packet_ctr [opaque] // decryption
+    fn_derive_ctr_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_ctr_key_s2c [opaque] [no_gen] // KDF
+    fn_derive_ctr_iv_c2s [opaque] [no_gen] // KDF
+    fn_derive_ctr_iv_s2c [opaque] [no_gen] // KDF
+    fn_derive_mac_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_mac_key_s2c [opaque] [no_gen] // KDF
+    fn_encrypt_packet_ctr [opaque] [no_gen] // encryption + MAC
+    fn_decrypt_packet_ctr [opaque] [no_gen] // decryption
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
@@ -305,177 +310,3 @@ define_signature!(
     fn_publickey_auth_data
     fn_publickey_query_data
 );
-
-#[cfg(test)]
-mod signature_tests {
-    use std::collections::HashSet;
-
-    use puffin::algebra::dynamic_function::DescribableFunction;
-    use puffin::test_utils::zoo_read_encode;
-
-    use super::SSH_SIGNATURE;
-    use crate::protocol::SshProtocolBehavior;
-
-    /// Encode / `try_read` / re-encode round-trip over the whole SSH signature,
-    /// via the protocol-parametric `puffin::test_utils::zoo_read_encode` harness
-    /// (TLS's `tests/term_zoo.rs::test_term_read_encode` is the reference). Locks the
-    /// codec-consistency invariant: whenever a generated value reads back as its
-    /// declared type, re-encoding it is byte-identical — i.e. `encode` and
-    /// `try_read_bytes` are mutually consistent. A `read_wrong > 0` regression is a
-    /// genuine `encode ≠ encode ∘ try_read` codec bug (many `read_fail`s are
-    /// expected and benign — e.g. a bare `u32` atom cannot be re-read as a specific
-    /// message type — so only `read_wrong` is asserted). PUT-gated because building
-    /// the (empty) evaluation context needs a linked registry.
-    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
-    #[test]
-    fn ssh_term_read_encode_roundtrip() {
-        use crate::put_registry::ssh_registry;
-        use crate::ssh::fn_impl::fn_concat_raw_flights;
-
-        // `fn_concat_raw_flights` is the one documented exception to byte-exact
-        // round-tripping, and it is BY DESIGN, not a codec bug. It joins two flights
-        // at the message level; `RawSshMessageFlight::encode` then just concatenates
-        // each message's wire bytes, while `RawSshMessageFlight::read` re-deframes the
-        // WHOLE joined stream from scratch (`SshMessageDeframer`). For arbitrary,
-        // misaligned zoo-generated pairs the re-deframe legitimately re-canonicalises
-        // framing — e.g. a partial `OnWire` packet at the A/B boundary completes with
-        // B's bytes and parses as a typed message, or a NEWKEYS in A flips the
-        // deframer into opaque mode for B — so `encode ∘ read` need not reproduce the
-        // naive concatenation. This is exactly the chunk-boundary re-framing the
-        // decryption recipes rely on; the aligned-input identity property is locked
-        // separately by `message::tests::concatenated_flights_reread_as_one_stream`.
-        let ignored: HashSet<String> = [fn_concat_raw_flights.name().to_string()]
-            .into_iter()
-            .collect();
-        // 400 draws per symbol across two seeds. Because `zoo_read_encode` generates
-        // syntactically and evaluates once (see its `filter_evaluated = false` note)
-        // instead of burning the 140k-try zoo budget forcing evaluable draws, this is
-        // ~104k round-tripped terms in ~8s — an order of magnitude MORE codec
-        // coverage than the naive `filter_evaluated = true` version gave (~6k terms)
-        // in ~18 min. Draws, not per-symbol retries, are the cheap axis to spend on.
-        let stats = zoo_read_encode::<SshProtocolBehavior>(
-            &SSH_SIGNATURE,
-            ssh_registry(),
-            &[0, 1],
-            400,
-            &ignored,
-        );
-        log::info!("[ssh_term_read_encode_roundtrip] {stats:?}");
-        assert!(
-            stats.read_success > 0,
-            "round-trip test was vacuous: no generated term read back as its declared type"
-        );
-        assert_eq!(
-            stats.read_wrong, 0,
-            "a value read back as its declared type but re-encoded differently: {stats:?}"
-        );
-    }
-
-    /// The claim behind every UNFLAGGED symbol of the signature: its encoding
-    /// contains the encoding of each of its arguments, so a payload placed in an
-    /// argument can be found in the parent's bytes. For each non-constant symbol
-    /// without `[opaque]` / `[get]` / `[list]`, over generated terms that evaluate,
-    /// every argument's encoding must be a sub-string of the term's encoding. A
-    /// symbol failing this needs a faithful encoding or a flag (see the flag legend
-    /// above `define_signature!`).
-    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
-    #[test]
-    fn unflagged_symbols_contain_their_arguments() {
-        use puffin::algebra::{DYTerm, TermType};
-        use puffin::fuzzer::term_zoo::TermZoo;
-        use puffin::fuzzer::utils::TermConstraints;
-        use puffin::libafl_bolts::rands::StdRand;
-        use puffin::trace::{Spawner, TraceContext};
-
-        use crate::put_registry::ssh_registry;
-
-        fn contains(hay: &[u8], needle: &[u8]) -> bool {
-            needle.is_empty() || hay.windows(needle.len()).any(|w| w == needle)
-        }
-
-        let ctx = TraceContext::new(Spawner::new(ssh_registry()));
-        let sig = &*SSH_SIGNATURE;
-        let mut rand = StdRand::with_seed(7);
-        let (mut checked, mut failures) = (0usize, Vec::new());
-        for def in &sig.functions {
-            let attrs = sig.attrs_by_name[def.0.name];
-            if def.0.argument_types.is_empty() || attrs.is_opaque || attrs.is_get || attrs.is_list {
-                continue;
-            }
-            let zoo = TermZoo::<SshProtocolBehavior>::generate_many(
-                &ctx,
-                sig,
-                &mut rand,
-                100,
-                TermConstraints::default().zoo_max_depth,
-                Some(def),
-                false,
-                false,
-            );
-            for term in zoo.terms() {
-                let DYTerm::Application(_, args) = &term.term else {
-                    continue;
-                };
-                let Ok(out) = term.evaluate(&ctx) else {
-                    continue;
-                };
-                let Ok(args) = args
-                    .iter()
-                    .map(|a| a.evaluate(&ctx).map(Vec::<u8>::from))
-                    .collect::<Result<Vec<_>, _>>()
-                else {
-                    continue;
-                };
-                checked += 1;
-                if let Some(i) = args.iter().position(|a| !contains(&out, a)) {
-                    failures.push(format!("{} (argument {i}): {term}", def.0.name));
-                }
-            }
-        }
-        assert!(
-            checked > 1000,
-            "containment check was vacuous: {checked} terms"
-        );
-        assert!(
-            failures.is_empty(),
-            "unflagged symbols whose encoding lacks an argument: {failures:#?}"
-        );
-    }
-
-    /// Payload-evaluation check over the whole SSH signature — the correctness check
-    /// behind the signature's `[opaque]` / `[get]` attributes (see
-    /// `puffin::test_utils::zoo_payloads_eval` and `FunctionAttributes`). A payload
-    /// placed under a parent whose encoding does not contain its arguments'
-    /// concretizations (a KDF, hash, cipher, DH, or a re-encoding builder such as
-    /// `fn_namelist_{2,3}`) raises `Error::TermBug` unless that parent is flagged
-    /// `[opaque]` (or `[get]` for extractors). Asserting zero `TermBug`s locks the flag
-    /// audit: adding a new re-encoding symbol without its flag fails here, and the
-    /// per-parent table printed on failure names the symbol to flag.
-    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
-    #[test]
-    fn ssh_term_payloads_eval() {
-        use puffin::test_utils::zoo_payloads_eval;
-
-        use crate::put_registry::ssh_registry;
-
-        let stats = zoo_payloads_eval::<SshProtocolBehavior>(
-            &SSH_SIGNATURE,
-            ssh_registry(),
-            &[0, 1, 2, 3, 4, 5, 6, 7],
-            60,
-            &HashSet::new(),
-        );
-        eprintln!(
-            "[ssh_term_payloads_eval] success={} add_payload_fail={} termbug_fail={} other_eval_fail={}",
-            stats.success, stats.add_payload_fail, stats.eval_payload_fail, stats.other_eval_fail
-        );
-        let mut rows: Vec<_> = stats.by_parent.iter().filter(|(_, v)| v.1 > 0).collect();
-        rows.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
-        assert!(stats.success > 0, "payload check was vacuous: {stats:?}");
-        assert_eq!(
-            stats.eval_payload_fail, 0,
-            "payload evaluation hit Error::TermBug — a parent symbol is missing its \
-             [opaque]/[get] flag. Parents of failing payloads (ok, TermBug): {rows:?}"
-        );
-    }
-}

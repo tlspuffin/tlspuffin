@@ -89,11 +89,12 @@ jobs:
         run: |
           set -o pipefail
           just test sshpuffin x86_64-unknown-linux-gnu "" "" 2>&1 | tee sshpuffin-tests.log
-          # These tests only compile when their PUTs (libssh0114, wolfssh150) are
-          # built; a missing vendor would silently drop them and still pass.
+          # These tests (sshpuffin/tests/{determinism,traces}.rs) only compile when
+          # their PUTs (libssh0114, wolfssh150) are built; a missing vendor would
+          # silently drop them and still pass.
           for t in libssh_put_is_deterministic wolfssh_put_is_deterministic \
                    two_party_seeds_reach_their_verdict server_session_clients_reach_done; do
-            grep -q "tests::$t \.\.\. ok" sshpuffin-tests.log \
+            grep -q "^test $t \.\.\. ok" sshpuffin-tests.log \
               || { echo "::error::sshpuffin test $t did not run (PUT not built?)"; exit 1; }
           done
 
