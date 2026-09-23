@@ -320,7 +320,7 @@ guard determined by manual triage — are:
 
 | divergence | side / RFC | status |
 |---|---|---|
-| `tcpip-forward` REQUEST_SUCCESS echoes the bound port | wolfSSH, RFC 4254 §7.1 | reported by us, acknowledged by vendor; [wolfSSL/wolfssh#1246](https://github.com/wolfSSL/wolfssh/issues/1246); live on master |
+| `tcpip-forward` REQUEST_SUCCESS echoes the bound port | wolfSSH, RFC 4254 §7.1 | reported by us, acknowledged by vendor; [wolfSSL/wolfssh#1246](https://github.com/wolfSSL/wolfssh/issues/1246); fixed on master after our report ([`24c2139a`](https://github.com/wolfSSL/wolfssh/commit/24c2139a), 2026-09-10), still present in the pinned v1.5.0-stable |
 | identification string > 129 bytes rejected | libssh, RFC 4253 §4.2 | reported by us, acknowledged by vendor; [libssh-mirror#376](https://gitlab.com/libssh/libssh-mirror/-/issues/376); live on master |
 | `USERAUTH_REQUEST` service ≠ `ssh-connection` accepted | wolfSSH, RFC 4252 §5 | rediscovered by us; fixed upstream; [wolfSSL/wolfssh@`0068d52e`](https://github.com/wolfSSL/wolfssh/commit/0068d52e) |
 | non-KEX traffic during incomplete rekey | wolfSSH, RFC 4253 §7.1/§9 | rediscovered by us; fixed upstream; [wolfSSL/wolfssh#1200](https://github.com/wolfSSL/wolfssh/pull/1200); NIL security impact |
