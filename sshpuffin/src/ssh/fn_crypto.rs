@@ -16,8 +16,8 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, ServiceName,
-    SessionId, SharedSecret, SshBytes, SshMessage, SshMsgNumber, SshPublicKey, SshPublicKeyBlob,
-    SshSecretKey, SshSignature, Username, VersionString,
+    SessionId, SharedSecret, SshBytes, SshMessage, SshMsgNumber, SshMsgOrdinal, SshPublicKey,
+    SshPublicKeyBlob, SshSecretKey, SshSignature, Username, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -724,18 +724,18 @@ pub fn fn_decrypted_message(
     key: &SshBytes,
     iv: &SshBytes,
     msg_number: &SshMsgNumber,
-    ordinal: &u32,
+    ordinal: &SshMsgOrdinal,
 ) -> Result<SshMessage, FnError> {
     let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
     transcript
         .by_key
         .iter()
-        .find(|(k, _)| k.msg_number == msg_number.0 && k.ordinal == *ordinal)
+        .find(|(k, _)| k.msg_number == msg_number.0 && k.ordinal == ordinal.0)
         .map(|(_, m)| m.clone())
         .ok_or_else(|| {
             FnError::Malformed(format!(
                 "no message {} (ordinal {}) in the decrypted flight",
-                msg_number.0, ordinal
+                msg_number.0, ordinal.0
             ))
         })
 }

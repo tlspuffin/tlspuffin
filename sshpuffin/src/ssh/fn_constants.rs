@@ -4,7 +4,8 @@
 use puffin::algebra::error::FnError;
 
 use crate::ssh::message::{
-    AlgoName, ServiceName, SshBytes, SshMsgNumber, SshPublicKeyBlob, Username, VersionString,
+    AlgoName, ServiceName, SshBytes, SshMsgNumber, SshMsgOrdinal, SshPublicKeyBlob, Username,
+    VersionString,
 };
 
 pub fn fn_true() -> Result<bool, FnError> {
@@ -128,6 +129,31 @@ pub fn fn_msg_channel_window_adjust() -> Result<SshMsgNumber, FnError> {
 }
 pub fn fn_msg_channel_request() -> Result<SshMsgNumber, FnError> {
     Ok(SshMsgNumber::new(98))
+}
+
+/// Which occurrence of a message number to select (`fn_decrypted_message`): the
+/// first, or the second (e.g. the KEXINIT of a rekey).
+pub fn fn_ordinal_first() -> Result<SshMsgOrdinal, FnError> {
+    Ok(SshMsgOrdinal(0))
+}
+pub fn fn_ordinal_second() -> Result<SshMsgOrdinal, FnError> {
+    Ok(SshMsgOrdinal(1))
+}
+
+// ── Channel parameters (RFC 4254 §5.1, §5.2) ─────────────────────────────────
+
+/// The window a session channel opens with: 2 MiB, OpenSSH's session default.
+pub fn fn_window_size_default() -> Result<u32, FnError> {
+    Ok(2 * 1024 * 1024)
+}
+/// The largest packet a session channel accepts: 32 KiB, OpenSSH's session default
+/// (RFC 4253 §6.1 requires every implementation to handle 32768-byte payloads).
+pub fn fn_max_packet_size_default() -> Result<u32, FnError> {
+    Ok(32 * 1024)
+}
+/// The CHANNEL_EXTENDED_DATA type code of stderr, SSH_EXTENDED_DATA_STDERR.
+pub fn fn_extended_data_stderr() -> Result<u32, FnError> {
+    Ok(1)
 }
 
 // ── SSH service names (RFC 4253 §10) ─────────────────────────────────────────

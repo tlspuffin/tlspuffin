@@ -420,6 +420,23 @@ impl Codec for SshMsgNumber {
     }
 }
 
+// `SshMsgOrdinal` types which occurrence of a message number a term selects, e.g.
+// the SECOND KEXINIT of a flight (the rekey one) in `fn_decrypted_message`. Typed so
+// type-directed mutation swaps it only for another ordinal.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgOrdinal(#[extractable_no_recursion] pub u32);
+
+impl Codec for SshMsgOrdinal {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgOrdinal(u32::read(reader)?))
+    }
+}
+
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
 fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {
@@ -2040,6 +2057,7 @@ pub fn try_read_bytes(
         SshSecretKey,
         ChannelId,
         SshMsgNumber,
+        SshMsgOrdinal,
         // Name lists
         NameList,
         KexAlgorithms,

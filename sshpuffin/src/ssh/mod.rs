@@ -142,6 +142,11 @@ define_signature!(
     fn_msg_channel_open_confirmation
     fn_msg_channel_window_adjust
     fn_msg_channel_request
+    fn_ordinal_first
+    fn_ordinal_second
+    fn_window_size_default
+    fn_max_packet_size_default
+    fn_extended_data_stderr
     fn_channel_type_direct_tcpip
     fn_channel_type_forwarded_tcpip
     fn_tcpip_forward_data
