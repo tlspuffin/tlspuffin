@@ -18,6 +18,53 @@ use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, P
 use crate::tls::rustls::msgs::handshake::{Random, ServerExtensions, SessionID};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
+macro_rules! corpus {
+    () => {
+        vec![]
+    };
+
+    ( $( $func:ident : $cond:expr ),* $(,)? ) => {
+        {
+            use puffin::trace_helper::TraceHelper;
+            let mut corpus = vec![];
+
+            $(
+                if $cond {
+                    corpus.push(($func.build_trace(), $func.fn_name()));
+                }
+            )*
+
+            corpus
+        }
+    };
+}
+
+pub fn create_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    corpus!(
+        // Full Handshakes
+        seed_successful: put.supports("tls13"),
+        seed_successful_with_ccs: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
+        // Client Attackers
+        seed_client_attacker: put.supports("tls13"),
+        seed_client_attacker_full: put.supports("tls13"),
+        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        seed_client_attacker12: put.supports("tls12"),
+        // Session resumption
+        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
+        // Server Attackers
+        seed_server_attacker_full: put.supports("tls13"),
+        seed_server_attacker_full_coalesced: put.supports("tls13"),
+        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
+        seed_server_attacker12: put.supports("tls12"),
+    )
+}
+
 pub fn seed_successful_client_auth(
     client: AgentName,
     server: AgentName,
@@ -2765,53 +2812,6 @@ fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
                 fn_seq_0  // sequence 0
             )
     }
-}
-
-macro_rules! corpus {
-    () => {
-        vec![]
-    };
-
-    ( $( $func:ident : $cond:expr ),* $(,)? ) => {
-        {
-            use puffin::trace_helper::TraceHelper;
-            let mut corpus = vec![];
-
-            $(
-                if $cond {
-                    corpus.push(($func.build_trace(), $func.fn_name()));
-                }
-            )*
-
-            corpus
-        }
-    };
-}
-
-pub fn create_corpus(
-    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
-) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
-    corpus!(
-        // Full Handshakes
-        seed_successful: put.supports("tls13"),
-        seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
-        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
-        // Client Attackers
-        seed_client_attacker: put.supports("tls13"),
-        seed_client_attacker_full: put.supports("tls13"),
-        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
-        seed_client_attacker12: put.supports("tls12"),
-        // Session resumption
-        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
-        // Server Attackers
-        seed_server_attacker_full: put.supports("tls13"),
-        seed_server_attacker_full_coalesced: put.supports("tls13"),
-        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
-        seed_server_attacker12: put.supports("tls12"),
-    )
 }
 
 #[cfg(test)]

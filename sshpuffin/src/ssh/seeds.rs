@@ -1,7 +1,7 @@
 use puffin::agent::{AgentDescriptor, AgentName};
-use puffin::algebra::{DYTerm, Term};
+use puffin::algebra::Term;
 use puffin::term;
-use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
+use puffin::trace::{InputAction, OutputAction, Step, Trace};
 
 use crate::protocol::{
     AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes,
@@ -9,9 +9,329 @@ use crate::protocol::{
 use crate::query::SshQueryMatcher;
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::{
-    CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, OnWireData,
-    RawSshMessage, SignatureSchemes, SshBytes, SshMessage,
+    CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, RawSshMessage,
+    SignatureSchemes, SshBytes, SshMessage,
 };
+
+// ── Corpus ─────────────────────────────────────────────────────────────────
+
+pub fn create_corpus(
+    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
+) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    // The corpus does not depend on the PUT; delegate to a factory-free builder so
+    // the corpus-composition invariant (which seeds are in the 0-diff differential
+    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
+    // built harness — see `mod tests::differential_corpus_composition_invariant`.
+    build_corpus()
+}
+
+/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
+/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
+/// appends the single-PUT divergent seeds.
+pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    let client = AgentName::first();
+    let server = client.next();
+
+    // Only seeds that complete a full handshake are kept (the legacy mutual /
+    // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
+    // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
+    //
+    // On this branch the cross-vendor differential corpus is restricted to the
+    // seeds that complete IDENTICALLY on both libssh and wolfSSH (the AES-GCM
+    // client seeds). The other seeds do not (chacha20/ctr are libssh-only;
+    // server-attacker / channel / rekey / ext-info / two-party seeds diverge
+    // cross-vendor), so they would become spurious objectives and starve the
+    // differential corpus — they are commented out below but kept documented
+    // (and their `seed_*` functions remain defined above) for single-PUT /
+    // claims-oracle campaigns.
+    //
+    // The `rich-corpus` feature appends the divergent seeds (channel DATA, rekey,
+    // ext-info, credential-confusion B/C) for single-PUT parser/crash campaigns;
+    // see the cfg block after this vec.
+    #[allow(unused_mut)]
+    let mut corpus: Vec<(Trace<SshProtocolTypes>, &'static str)> = vec![
+        // (
+        //     seed_client_attacker_full(server),
+        //     "seed_client_attacker_full",
+        // ),
+        // (
+        //     seed_server_attacker_full(client),
+        //     "seed_server_attacker_full",
+        // ),
+        // SERVER-attacker (the PUT is the CLIENT): the only seed that fuzzes the
+        // libssh / wolfSSH CLIENT parsers differentially. Promoted once it became
+        // genuinely 0-diff: the c2s decryption recipe compares each client's
+        // encrypted stream (before, a client-PUT comparison was vacuous), and the
+        // libssh client harness was aligned with wolfSSH_connect() (pinned
+        // algorithms, fixed user, "none" probe, session channel + shell). Both
+        // clients now emit the same 6-message c2s transcript; stable over repeated
+        // runs. (The ChaCha20 `seed_server_attacker_full` above stays out: chacha
+        // is not negotiated in the differential.)
+        (
+            seed_server_attacker_full_aesgcm(client),
+            "seed_server_attacker_full_aesgcm",
+        ),
+        // The same, continued into the connection protocol: the attacker reads the
+        // client's CHANNEL_OPEN from its decrypted c2s stream and answers on the
+        // channel number each client chose (confirmation + shell reply). 0-diff;
+        // both clients reach DONE.
+        (
+            seed_server_attacker_session_aesgcm(client),
+            "seed_server_attacker_session_aesgcm",
+        ),
+        // The base session: password login, then a session channel and an exec
+        // request. The request addresses the channel each server confirmed (libssh
+        // 43, wolfSSH 0), read from its decrypted CHANNEL_OPEN_CONFIRMATION, so
+        // both stacks process it (a hard-coded channel 0 is dropped by libssh; the
+        // corpus used to cut these seeds before the channel for that reason).
+        (
+            seed_client_attacker_full_aesgcm(server),
+            "seed_client_attacker_full_aesgcm",
+        ),
+        // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
+        // format (RFC 4252 §8; issue #1047 item 6). Both stacks parse and accept
+        // the change-request identically (0-diff), so this both (a) proves the
+        // `fn_password_change_auth_data` constructor reaches each stack's password
+        // handler and (b) is the 0-diff baseline the differential campaign explores
+        // FROM — a mutation that makes one stack handle the change-request
+        // differently now surfaces against a known-good control.
+        (
+            seed_client_attacker_passwd_change(server),
+            "seed_client_attacker_passwd_change",
+        ),
+        // TCP/IP forwarding (RFC 4254 §7): an authorized tcpip-forward global
+        // request + direct-tcpip channel open, both ACCEPTED by both stacks (shared
+        // ssh_creds_forward_authorized boundary; wolfSSH FwdCb + libssh
+        // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
+        // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
+        // for a non-zero requested port — is now permanently shadowed
+        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BUGS; filed
+        // as wolfSSL/wolfssh#1246). Registering it here
+        // gives the forwarding accept path real differential-campaign coverage while
+        // the known, documented port-echo stays quiet. Any OTHER forwarding
+        // divergence (accept-vs-reject, a second changed message, a non-port-echo
+        // response_data delta) is NOT shadowed and surfaces as an objective.
+        (
+            seed_client_attacker_forwarding(server),
+            "seed_client_attacker_forwarding",
+        ),
+        // Same handshake but with a synthesized KEXINIT whose algorithm lists are
+        // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
+        (
+            seed_client_attacker_full_kexinit_synth(server),
+            "seed_client_attacker_full_kexinit_synth",
+        ),
+        // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
+        // cipher + separate-MAC code path, distinct from the AEAD seeds.
+        // (
+        //     seed_client_attacker_full_ctr(server),
+        //     "seed_client_attacker_full_ctr",
+        // ),
+        // Publickey login as key A — the baseline for the entity-authentication
+        // / impersonation oracle. Mutations that make the server authenticate a
+        // different key are flagged as impersonation. The chacha20 variant is
+        // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
+        // (
+        //     seed_client_attacker_pubkey(server),
+        //     "seed_client_attacker_pubkey",
+        // ),
+        (
+            seed_client_attacker_pubkey_aesgcm(server),
+            "seed_client_attacker_pubkey_aesgcm",
+        ),
+        // Credential-confusion entry point, PROMOTED to the differential corpus.
+        // Publickey login as authorized identity B (user "userb", key B): both
+        // stacks emit USERAUTH_SUCCESS and the trace is 0-diff. From here the DY
+        // mutator explores the credential space under differential comparison —
+        // swapping the username / pubkey blob / signature across identities A/B/C
+        // — so a mutation that makes one stack AUTHENTICATE a pairing the other
+        // rejects surfaces as a real accept/reject (UserAuthSuccess vs Failure)
+        // divergence. The explicit *rejection* seeds (impersonate / unauthorized
+        // C) stay single-PUT only: both stacks correctly reject, but they flush
+        // USERAUTH_FAILURE at different s2c counter positions, so the decryption
+        // recipe aligns on one side only — the same flush-timing wall documented
+        // for the channel-number query. Not a bug; just not positionally clean.
+        (
+            seed_client_attacker_pubkey_b(server),
+            "seed_client_attacker_pubkey_b",
+        ),
+        // Session layer: authenticated channel with full connection-protocol
+        // traffic (window-adjust / data / extended-data / eof / close). PROMOTED:
+        // 0-diff cross-vendor. Both stacks now decode the WHOLE channel flow
+        // (setup CHANNEL_OPEN_CONFIRMATION through teardown WINDOW_ADJUST / EOF /
+        // CLOSE). Two harness/comparison pieces made this possible: (1) the libssh
+        // harness now drives channel data/eof/close callbacks symmetrically with
+        // wolfSSH's worker (it consumes data -> WINDOW_ADJUST, answers EOF/CLOSE);
+        // (2) the seed re-addresses channel traffic to each stack's actual channel
+        // number, read from its decrypted CHANNEL_OPEN_CONFIRMATION (libssh 43 vs
+        // wolfSSH 0), resolved per-PUT (fn_s2c_confirmation_sender_channel) — a
+        // hard-coded recipient_channel=0 would be silently dropped by libssh. The
+        // sole residual — WINDOW_ADJUST bytes_to_add (window-credit policy differs
+        // per stack) — is #[comparable_ignore]'d as benign flow-control.
+        (
+            seed_client_attacker_channel_data(server),
+            "seed_client_attacker_channel_data",
+        ),
+        // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
+        // 0-diff cross-vendor now that uniformise + semantic alignment + flight
+        // decryption are in place (the earlier "diverges" note was stale).
+        (
+            seed_client_attacker_rekey(server),
+            "seed_client_attacker_rekey",
+        ),
+        // RFC 8308 ext-info parser. PROMOTED: 0-diff cross-vendor.
+        (
+            seed_client_attacker_ext_info(server),
+            "seed_client_attacker_ext_info",
+        ),
+        // Session requests: channel open / exec / unknown global
+        // request / EOF / CLOSE, each answered by its own s2c flight, the later
+        // ones addressed to the channel read back from the first reply. 0-diff
+        // cross-vendor (stable over repeated runs) once the libssh harness's
+        // global-request callback replied like libssh's own default. Its
+        // `fn_u32_auto` counters let mutations drop / reorder whole round-trips.
+        (
+            seed_client_attacker_session_requests(server),
+            "seed_client_attacker_session_requests",
+        ),
+        // COMPLETED rekey: the new keys are derived from the server's own rekey
+        // KEXINIT / KEX_ECDH_REPLY (decrypted from its s2c stream), then traffic is
+        // sent under them. 0-diff cross-vendor; both stacks answer in the new epoch.
+        (
+            seed_client_attacker_rekey_complete(server),
+            "seed_client_attacker_rekey_complete",
+        ),
+        // Publickey query-then-sign: signs for the key blob the server echoed in its
+        // USERAUTH_PK_OK (decrypted from its s2c stream). 0-diff cross-vendor.
+        (
+            seed_client_attacker_pubkey_query(server),
+            "seed_client_attacker_pubkey_query",
+        ),
+        // Flow control from the server's own limits: one CHANNEL_DATA of exactly
+        // min(window, max packet) from its decrypted confirmation. 0-diff.
+        (
+            seed_client_attacker_flow_control(server),
+            "seed_client_attacker_flow_control",
+        ),
+        // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
+        // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
+        // correctly reject the same (user, key) pairing, and — now that the
+        // post-KEX claim exposes the session id (H) even when auth is rejected —
+        // both decode the encrypted SERVICE_ACCEPT + USERAUTH_FAILURE, which the
+        // key-aligned transcript compares position-independently. (The earlier
+        // "flush-timing wall, single-PUT only" note is stale: the wall was a
+        // positional-alignment artifact the AlignedTranscript removes, and the
+        // no-decryption-on-failed-auth gap is closed by the post-KEX claim.)
+        // The DY mutator explores the credential space from here: a mutation that
+        // makes one stack ACCEPT a pairing the other rejects surfaces as an
+        // accept/reject (UserAuthSuccess vs Failure) divergence.
+        (
+            seed_client_attacker_impersonate_a_with_b(server),
+            "seed_client_attacker_impersonate_a_with_b",
+        ),
+        (
+            seed_client_attacker_unauthorized_key_c(server),
+            "seed_client_attacker_unauthorized_key_c",
+        ),
+        // Two real PUTs relayed by the attacker — the substrate the live
+        // matching-conversation oracle needs. Mutations that desync the relayed
+        // transcript (Terrapin-style) are flagged as a security objective.
+        // (
+        //     seed_handshake_two_party(client, server),
+        //     "seed_handshake_two_party",
+        // ),
+        // (The packet-granular honest relay `seed_handshake_two_party_packet_complete`
+        // — the Terrapin substrate — is registered under rich-corpus below.)
+    ];
+
+    // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
+    // Kept out of the differential corpus (they don't complete identically on both
+    // stacks) but invaluable for exercising post-auth channel data, re-KEX, ext-
+    // info, and the credential-confusion boundary on one stack at a time.
+    #[cfg(feature = "rich-corpus")]
+    {
+        corpus.extend([
+            // (channel_data was PROMOTED to the differential corpus above, now that
+            // the libssh harness drives channel data/eof/close symmetrically and
+            // the seed re-addresses channel traffic per-PUT. The credential-
+            // confusion REJECTION seeds impersonate_a_with_b / unauthorized_key_c
+            // were likewise promoted, once the post-KEX claim let their encrypted
+            // USERAUTH_FAILURE decode on both stacks. None are registered here now.)
+            // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
+            // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
+            // state machine); the confirmed-correct behaviour was validated with a
+            // fresh-build TCP reproducer outside the fuzzer.
+            // DELIBERATELY kept out of the differential corpus: it diverges BY
+            // DESIGN on the strict-kex / rekey-discipline difference (libssh
+            // withholds userauth while the injected rekey is pending; wolfSSH
+            // proceeds) — a NIL-impact conformance difference, fixed upstream in
+            // wolfSSL/wolfssh#1200 (wolfSSH's lack of the Terrapin-affected
+            // ciphers neutralises any exploitability). Including it differentially
+            // would just re-report this closed finding on every run; legitimate
+            // (0-diff) rekey coverage is already provided by the `rekey` seed.
+            (
+                seed_client_attacker_kexinit_injection(server),
+                "seed_client_attacker_kexinit_injection",
+            ),
+            // Auto-counter §7.1 discovery seed: honest 0-diff channel session with
+            // `fn_u32_auto` c2s counters + a trailing rekey KEXINIT. A single
+            // adjacent SwapMutator move strands app traffic after the incomplete
+            // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
+            // their GCM nonces stay valid — the mechanism that makes §7.1
+            // fuzz-discoverable rather than only hand-reproducible. See the seed
+            // docstring.
+            (
+                seed_client_attacker_rekey_channel_auto(server),
+                "seed_client_attacker_rekey_channel_auto",
+            ),
+            // LEGIT (Tier-1) §7.1 auto-discovery seed: honest 0-diff rekey with NO
+            // app traffic near the window — the mutator must introduce non-KEX
+            // traffic into the incomplete-rekey window on its own (harder, more
+            // autonomous). See the seed docstring.
+            (
+                seed_client_attacker_rekey_auto(server),
+                "seed_client_attacker_rekey_auto",
+            ),
+            // Honest two-party relay (a real client PUT against a real server PUT,
+            // packet-granular): both peers complete on libssh and wolfSSH, and it
+            // is even 0-diff cross-vendor, but only its cleartext prefix + claims
+            // can be compared (the relaying attacker cannot decrypt), and a
+            // divergence would mix client- and server-side behaviour of four
+            // implementations. So single-PUT: it lets the mutator corrupt / drop /
+            // reorder messages BETWEEN two real stacks (the Terrapin neighbourhood
+            // is two mutations away; see the seed docstring).
+            (
+                seed_handshake_two_party_packet_complete(client, server),
+                "seed_handshake_two_party_packet_complete",
+            ),
+            // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
+            // registered here — they diverge BY DESIGN and are kept only as
+            // callable, documented reproducers / regression fixtures (see
+            // wolfSSL/wolfssh#1047):
+            //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
+            //     libssh rejects; fixed upstream in wolfSSH 0068d52e).
+            //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
+            //     tolerates→Success, wolfSSH "message not allowed before user authentication").
+            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
+            //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
+            //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
+            //     positive control needs modular-DH math in the mapper (deferred).
+            // (The item-6 password-change probe was PROMOTED to the differential corpus above as a
+            // legit 0-diff positive control — it is the one new surface with honest legit
+            // coverage.) Honest 0-diff corpus coverage of the auth/handshake paths is
+            // already provided by `seed_client_attacker_pubkey_aesgcm` /
+            // `_full_aesgcm`, from which each is a single-message mutation.
+            // Registering a divergent reproducer as a seed would only re-surface a
+            // closed, documented finding on every run. (The SERVER-attacker seed
+            // `seed_server_attacker_full_aesgcm`, which fuzzes the CLIENT-side
+            // parsers, used to be registered here as single-PUT only; it is now in
+            // the DEFAULT differential corpus above — so it is NOT repeated here,
+            // which would double-register it under rich-corpus.)
+        ]);
+    }
+
+    corpus
+}
 
 // ── Seed: client attacker with full handshake and encrypted post-NewKeys ──────
 //
@@ -3414,326 +3734,10 @@ pub fn client_decryption_recipes_aesgcm(client: AgentName) -> Vec<Term<SshProtoc
     vec![term! { fn_fold_s2c_transcript(((client, *)/RawSshMessageFlight), (@key), (@iv)) }]
 }
 
-pub fn create_corpus(
-    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
-) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
-    // The corpus does not depend on the PUT; delegate to a factory-free builder so
-    // the corpus-composition invariant (which seeds are in the 0-diff differential
-    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
-    // built harness — see `mod tests::differential_corpus_composition_invariant`.
-    build_corpus()
-}
-
-/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
-/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
-/// appends the single-PUT divergent seeds.
-pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
-    let client = AgentName::first();
-    let server = client.next();
-
-    // Only seeds that complete a full handshake are kept (the legacy mutual /
-    // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
-    // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
-    //
-    // On this branch the cross-vendor differential corpus is restricted to the
-    // seeds that complete IDENTICALLY on both libssh and wolfSSH (the AES-GCM
-    // client seeds). The other seeds do not (chacha20/ctr are libssh-only;
-    // server-attacker / channel / rekey / ext-info / two-party seeds diverge
-    // cross-vendor), so they would become spurious objectives and starve the
-    // differential corpus — they are commented out below but kept documented
-    // (and their `seed_*` functions remain defined above) for single-PUT /
-    // claims-oracle campaigns.
-    //
-    // The `rich-corpus` feature appends the divergent seeds (channel DATA, rekey,
-    // ext-info, credential-confusion B/C) for single-PUT parser/crash campaigns;
-    // see the cfg block after this vec.
-    #[allow(unused_mut)]
-    let mut corpus: Vec<(Trace<SshProtocolTypes>, &'static str)> = vec![
-        // (
-        //     seed_client_attacker_full(server),
-        //     "seed_client_attacker_full",
-        // ),
-        // (
-        //     seed_server_attacker_full(client),
-        //     "seed_server_attacker_full",
-        // ),
-        // SERVER-attacker (the PUT is the CLIENT): the only seed that fuzzes the
-        // libssh / wolfSSH CLIENT parsers differentially. Promoted once it became
-        // genuinely 0-diff: the c2s decryption recipe compares each client's
-        // encrypted stream (before, a client-PUT comparison was vacuous), and the
-        // libssh client harness was aligned with wolfSSH_connect() (pinned
-        // algorithms, fixed user, "none" probe, session channel + shell). Both
-        // clients now emit the same 6-message c2s transcript; stable over repeated
-        // runs. (The ChaCha20 `seed_server_attacker_full` above stays out: chacha
-        // is not negotiated in the differential.)
-        (
-            seed_server_attacker_full_aesgcm(client),
-            "seed_server_attacker_full_aesgcm",
-        ),
-        // The same, continued into the connection protocol: the attacker reads the
-        // client's CHANNEL_OPEN from its decrypted c2s stream and answers on the
-        // channel number each client chose (confirmation + shell reply). 0-diff;
-        // both clients reach DONE.
-        (
-            seed_server_attacker_session_aesgcm(client),
-            "seed_server_attacker_session_aesgcm",
-        ),
-        // The base session: password login, then a session channel and an exec
-        // request. The request addresses the channel each server confirmed (libssh
-        // 43, wolfSSH 0), read from its decrypted CHANNEL_OPEN_CONFIRMATION, so
-        // both stacks process it (a hard-coded channel 0 is dropped by libssh; the
-        // corpus used to cut these seeds before the channel for that reason).
-        (
-            seed_client_attacker_full_aesgcm(server),
-            "seed_client_attacker_full_aesgcm",
-        ),
-        // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
-        // format (RFC 4252 §8; issue #1047 item 6). Both stacks parse and accept
-        // the change-request identically (0-diff), so this both (a) proves the
-        // `fn_password_change_auth_data` constructor reaches each stack's password
-        // handler and (b) is the 0-diff baseline the differential campaign explores
-        // FROM — a mutation that makes one stack handle the change-request
-        // differently now surfaces against a known-good control.
-        (
-            seed_client_attacker_passwd_change(server),
-            "seed_client_attacker_passwd_change",
-        ),
-        // TCP/IP forwarding (RFC 4254 §7): an authorized tcpip-forward global
-        // request + direct-tcpip channel open, both ACCEPTED by both stacks (shared
-        // ssh_creds_forward_authorized boundary; wolfSSH FwdCb + libssh
-        // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
-        // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
-        // for a non-zero requested port — is now permanently shadowed
-        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BUGS; filed
-        // as wolfSSL/wolfssh#1246). Registering it here
-        // gives the forwarding accept path real differential-campaign coverage while
-        // the known, documented port-echo stays quiet. Any OTHER forwarding
-        // divergence (accept-vs-reject, a second changed message, a non-port-echo
-        // response_data delta) is NOT shadowed and surfaces as an objective.
-        (
-            seed_client_attacker_forwarding(server),
-            "seed_client_attacker_forwarding",
-        ),
-        // Same handshake but with a synthesized KEXINIT whose algorithm lists are
-        // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
-        (
-            seed_client_attacker_full_kexinit_synth(server),
-            "seed_client_attacker_full_kexinit_synth",
-        ),
-        // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
-        // cipher + separate-MAC code path, distinct from the AEAD seeds.
-        // (
-        //     seed_client_attacker_full_ctr(server),
-        //     "seed_client_attacker_full_ctr",
-        // ),
-        // Publickey login as key A — the baseline for the entity-authentication
-        // / impersonation oracle. Mutations that make the server authenticate a
-        // different key are flagged as impersonation. The chacha20 variant is
-        // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
-        // (
-        //     seed_client_attacker_pubkey(server),
-        //     "seed_client_attacker_pubkey",
-        // ),
-        (
-            seed_client_attacker_pubkey_aesgcm(server),
-            "seed_client_attacker_pubkey_aesgcm",
-        ),
-        // Credential-confusion entry point, PROMOTED to the differential corpus.
-        // Publickey login as authorized identity B (user "userb", key B): both
-        // stacks emit USERAUTH_SUCCESS and the trace is 0-diff. From here the DY
-        // mutator explores the credential space under differential comparison —
-        // swapping the username / pubkey blob / signature across identities A/B/C
-        // — so a mutation that makes one stack AUTHENTICATE a pairing the other
-        // rejects surfaces as a real accept/reject (UserAuthSuccess vs Failure)
-        // divergence. The explicit *rejection* seeds (impersonate / unauthorized
-        // C) stay single-PUT only: both stacks correctly reject, but they flush
-        // USERAUTH_FAILURE at different s2c counter positions, so the decryption
-        // recipe aligns on one side only — the same flush-timing wall documented
-        // for the channel-number query. Not a bug; just not positionally clean.
-        (
-            seed_client_attacker_pubkey_b(server),
-            "seed_client_attacker_pubkey_b",
-        ),
-        // Session layer: authenticated channel with full connection-protocol
-        // traffic (window-adjust / data / extended-data / eof / close). PROMOTED:
-        // 0-diff cross-vendor. Both stacks now decode the WHOLE channel flow
-        // (setup CHANNEL_OPEN_CONFIRMATION through teardown WINDOW_ADJUST / EOF /
-        // CLOSE). Two harness/comparison pieces made this possible: (1) the libssh
-        // harness now drives channel data/eof/close callbacks symmetrically with
-        // wolfSSH's worker (it consumes data -> WINDOW_ADJUST, answers EOF/CLOSE);
-        // (2) the seed re-addresses channel traffic to each stack's actual channel
-        // number, read from its decrypted CHANNEL_OPEN_CONFIRMATION (libssh 43 vs
-        // wolfSSH 0), resolved per-PUT (fn_s2c_confirmation_sender_channel) — a
-        // hard-coded recipient_channel=0 would be silently dropped by libssh. The
-        // sole residual — WINDOW_ADJUST bytes_to_add (window-credit policy differs
-        // per stack) — is #[comparable_ignore]'d as benign flow-control.
-        (
-            seed_client_attacker_channel_data(server),
-            "seed_client_attacker_channel_data",
-        ),
-        // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
-        // 0-diff cross-vendor now that uniformise + semantic alignment + flight
-        // decryption are in place (the earlier "diverges" note was stale).
-        (
-            seed_client_attacker_rekey(server),
-            "seed_client_attacker_rekey",
-        ),
-        // RFC 8308 ext-info parser. PROMOTED: 0-diff cross-vendor.
-        (
-            seed_client_attacker_ext_info(server),
-            "seed_client_attacker_ext_info",
-        ),
-        // Session requests: channel open / exec / unknown global
-        // request / EOF / CLOSE, each answered by its own s2c flight, the later
-        // ones addressed to the channel read back from the first reply. 0-diff
-        // cross-vendor (stable over repeated runs) once the libssh harness's
-        // global-request callback replied like libssh's own default. Its
-        // `fn_u32_auto` counters let mutations drop / reorder whole round-trips.
-        (
-            seed_client_attacker_session_requests(server),
-            "seed_client_attacker_session_requests",
-        ),
-        // COMPLETED rekey: the new keys are derived from the server's own rekey
-        // KEXINIT / KEX_ECDH_REPLY (decrypted from its s2c stream), then traffic is
-        // sent under them. 0-diff cross-vendor; both stacks answer in the new epoch.
-        (
-            seed_client_attacker_rekey_complete(server),
-            "seed_client_attacker_rekey_complete",
-        ),
-        // Publickey query-then-sign: signs for the key blob the server echoed in its
-        // USERAUTH_PK_OK (decrypted from its s2c stream). 0-diff cross-vendor.
-        (
-            seed_client_attacker_pubkey_query(server),
-            "seed_client_attacker_pubkey_query",
-        ),
-        // Flow control from the server's own limits: one CHANNEL_DATA of exactly
-        // min(window, max packet) from its decrypted confirmation. 0-diff.
-        (
-            seed_client_attacker_flow_control(server),
-            "seed_client_attacker_flow_control",
-        ),
-        // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
-        // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
-        // correctly reject the same (user, key) pairing, and — now that the
-        // post-KEX claim exposes the session id (H) even when auth is rejected —
-        // both decode the encrypted SERVICE_ACCEPT + USERAUTH_FAILURE, which the
-        // key-aligned transcript compares position-independently. (The earlier
-        // "flush-timing wall, single-PUT only" note is stale: the wall was a
-        // positional-alignment artifact the AlignedTranscript removes, and the
-        // no-decryption-on-failed-auth gap is closed by the post-KEX claim.)
-        // The DY mutator explores the credential space from here: a mutation that
-        // makes one stack ACCEPT a pairing the other rejects surfaces as an
-        // accept/reject (UserAuthSuccess vs Failure) divergence.
-        (
-            seed_client_attacker_impersonate_a_with_b(server),
-            "seed_client_attacker_impersonate_a_with_b",
-        ),
-        (
-            seed_client_attacker_unauthorized_key_c(server),
-            "seed_client_attacker_unauthorized_key_c",
-        ),
-        // Two real PUTs relayed by the attacker — the substrate the live
-        // matching-conversation oracle needs. Mutations that desync the relayed
-        // transcript (Terrapin-style) are flagged as a security objective.
-        // (
-        //     seed_handshake_two_party(client, server),
-        //     "seed_handshake_two_party",
-        // ),
-        // (The packet-granular honest relay `seed_handshake_two_party_packet_complete`
-        // — the Terrapin substrate — is registered under rich-corpus below.)
-    ];
-
-    // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
-    // Kept out of the differential corpus (they don't complete identically on both
-    // stacks) but invaluable for exercising post-auth channel data, re-KEX, ext-
-    // info, and the credential-confusion boundary on one stack at a time.
-    #[cfg(feature = "rich-corpus")]
-    {
-        corpus.extend([
-            // (channel_data was PROMOTED to the differential corpus above, now that
-            // the libssh harness drives channel data/eof/close symmetrically and
-            // the seed re-addresses channel traffic per-PUT. The credential-
-            // confusion REJECTION seeds impersonate_a_with_b / unauthorized_key_c
-            // were likewise promoted, once the post-KEX claim let their encrypted
-            // USERAUTH_FAILURE decode on both stacks. None are registered here now.)
-            // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
-            // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
-            // state machine); the confirmed-correct behaviour was validated with a
-            // fresh-build TCP reproducer outside the fuzzer.
-            // DELIBERATELY kept out of the differential corpus: it diverges BY
-            // DESIGN on the strict-kex / rekey-discipline difference (libssh
-            // withholds userauth while the injected rekey is pending; wolfSSH
-            // proceeds) — a NIL-impact conformance difference, fixed upstream in
-            // wolfSSL/wolfssh#1200 (wolfSSH's lack of the Terrapin-affected
-            // ciphers neutralises any exploitability). Including it differentially
-            // would just re-report this closed finding on every run; legitimate
-            // (0-diff) rekey coverage is already provided by the `rekey` seed.
-            (
-                seed_client_attacker_kexinit_injection(server),
-                "seed_client_attacker_kexinit_injection",
-            ),
-            // Auto-counter §7.1 discovery seed: honest 0-diff channel session with
-            // `fn_u32_auto` c2s counters + a trailing rekey KEXINIT. A single
-            // adjacent SwapMutator move strands app traffic after the incomplete
-            // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
-            // their GCM nonces stay valid — the mechanism that makes §7.1
-            // fuzz-discoverable rather than only hand-reproducible. See the seed
-            // docstring.
-            (
-                seed_client_attacker_rekey_channel_auto(server),
-                "seed_client_attacker_rekey_channel_auto",
-            ),
-            // LEGIT (Tier-1) §7.1 auto-discovery seed: honest 0-diff rekey with NO
-            // app traffic near the window — the mutator must introduce non-KEX
-            // traffic into the incomplete-rekey window on its own (harder, more
-            // autonomous). See the seed docstring.
-            (
-                seed_client_attacker_rekey_auto(server),
-                "seed_client_attacker_rekey_auto",
-            ),
-            // Honest two-party relay (a real client PUT against a real server PUT,
-            // packet-granular): both peers complete on libssh and wolfSSH, and it
-            // is even 0-diff cross-vendor, but only its cleartext prefix + claims
-            // can be compared (the relaying attacker cannot decrypt), and a
-            // divergence would mix client- and server-side behaviour of four
-            // implementations. So single-PUT: it lets the mutator corrupt / drop /
-            // reorder messages BETWEEN two real stacks (the Terrapin neighbourhood
-            // is two mutations away; see the seed docstring).
-            (
-                seed_handshake_two_party_packet_complete(client, server),
-                "seed_handshake_two_party_packet_complete",
-            ),
-            // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
-            // registered here — they diverge BY DESIGN and are kept only as
-            // callable, documented reproducers / regression fixtures (see
-            // wolfSSL/wolfssh#1047):
-            //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
-            //     libssh rejects; fixed upstream in wolfSSH 0068d52e).
-            //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
-            //     tolerates→Success, wolfSSH "message not allowed before user authentication").
-            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
-            //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
-            //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
-            //     positive control needs modular-DH math in the mapper (deferred).
-            // (The item-6 password-change probe was PROMOTED to the differential corpus above as a
-            // legit 0-diff positive control — it is the one new surface with honest legit
-            // coverage.) Honest 0-diff corpus coverage of the auth/handshake paths is
-            // already provided by `seed_client_attacker_pubkey_aesgcm` /
-            // `_full_aesgcm`, from which each is a single-message mutation.
-            // Registering a divergent reproducer as a seed would only re-surface a
-            // closed, documented finding on every run. (The SERVER-attacker seed
-            // `seed_server_attacker_full_aesgcm`, which fuzzes the CLIENT-side
-            // parsers, used to be registered here as single-PUT only; it is now in
-            // the DEFAULT differential corpus above — so it is NOT repeated here,
-            // which would double-register it under rich-corpus.)
-        ]);
-    }
-
-    corpus
-}
-
 #[cfg(test)]
 mod tests {
+    use puffin::trace::Action;
+
     use super::*;
 
     /// Serialises the tests that EXECUTE PUTs. Each PUT's deterministic RNG is
