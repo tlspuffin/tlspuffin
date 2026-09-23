@@ -33,6 +33,12 @@ Bucket families
                              `BothChannelOpenFailure` reason-code class).
 * `benign_kex_*`           — KEX-phase packet-length strictness (libssh stricter);
                              both ultimately reject.
+* `known_wolfssh_unsolicited_service_accept`, `known_repeated_service_request_reply`
+                           — two documented SERVICE_REQUEST behaviour differences (see
+                             the bucket comments); pinned to their exact transcript shape.
+* `benign_client_kex_reply_reject`
+                           — client-side (server-attacker) traces where both CLIENTS
+                             reject a mutated KEX_ECDH_REPLY.
 * `known_rekey_kexinit_presence`
                            — the RFC 4253 §7.1 second-KEXINIT (msg 20 ordinal 1)
                              presence marker; names the known incomplete-rekey class
@@ -125,6 +131,8 @@ from ..diff_analyzer import (
     KnowledgeContainsC,
     run_triaging,
     KnowledgeDiffC,
+    InnerKnowledgeReC,
+    OnlyDiffKindsC,
 )
 
 LIBSSH = 1
@@ -206,6 +214,40 @@ buckets: dict[str, BucketCondition] = {
         InnerKnowledgeC(diff_contains="Removed(AlignmentKey { channel: 0, msg_number: 51"),
     ),
 
+    # wolfSSH UNSOLICITED SERVICE_ACCEPT (found 2026-09-23 by the multi-round-trip
+    # seed; reported in SERVICE_ACCEPT_FINDING.md). A client that skips SERVICE_REQUEST
+    # and sends USERAUTH_REQUEST straight away is authenticated by BOTH stacks, but
+    # wolfSSH's accept() state machine (ssh.c ~557-569) then also emits a
+    # SERVICE_ACCEPT nobody asked for, right before USERAUTH_SUCCESS; libssh sends
+    # none. RFC 4253 §10 puts the obligation on the client, so this is an unspecified
+    # deviation, LOW, no security impact; still present on wolfSSH master.
+    # Pinned exactly: the ONLY transcript change is that one added (6,0)
+    # ServiceAccept, sitting where libssh has USERAUTH_SUCCESS (U8Change(52, 6)),
+    # and no Status/Claim difference. Mixed cases stay unbucketed for audit.
+    "known_wolfssh_unsolicited_service_accept/": AllC(
+        OnlyDiffKindsC("Knowledges"),
+        InnerKnowledgeReC(
+            r"\[ByKey\(\[Added\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: 0 \}, "
+            r"ServiceAccept\(ServiceAcceptMessageDesc \{ service_name: SshBytesDesc\(\[[0-9, ]*\]\) \}\)\)\]\), "
+            r"Order\(\[.*U8Change\(52, 6\).*\]\)\]"
+        ),
+    ),
+    # REPEATED SERVICE_REQUEST (same campaign): when the client sends SERVICE_REQUEST
+    # again (e.g. after auth or after a channel closed), libssh answers every one with
+    # another SERVICE_ACCEPT (ordinal >= 1 on libssh only = "Removed" in the diff),
+    # while wolfSSH answers only the first and stays silent afterwards. Behavioural
+    # latitude around a request a real client never repeats; no acceptance or
+    # auth-state difference. Pinned exactly: the ONLY transcript changes are
+    # extra (6, ordinal>=1) ServiceAccepts on the libssh side, no Status/Claim diff.
+    "known_repeated_service_request_reply/": AllC(
+        OnlyDiffKindsC("Knowledges"),
+        InnerKnowledgeReC(
+            r"\[ByKey\(\[Removed\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: [1-9][0-9]* \}\)"
+            r"(, Removed\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: [1-9][0-9]* \}\))*\]\)"
+            r"(, Order\(\[.*\]\))?\]"
+        ),
+    ),
+
     # AUDITED (tightened 2026-09-02 with BOTH_ERROR + mirror direction).
     # A claim-presence diff (one PUT emitted the session-id/H claim, the other did
     # not) means exactly one stack finalised KEX. Guard BOTH_ERROR so a case where
@@ -267,6 +309,26 @@ buckets: dict[str, BucketCondition] = {
     # or the mapper failing to decode a rejected peer's non-reply); no protocol or
     # security divergence. `first_to_fail=False` reads each PUT's OWN status so the
     # match is independent of which stack stopped first.
+
+    # CLIENT-side (server-attacker traces, where the PUT is the CLIENT): both clients
+    # reject a mutated KEX_ECDH_REPLY (host key / signature / exchange value), each with
+    # its own error. Scoped by the trace shape (the attacker sends fn_kex_ecdh_reply,
+    # which only server-attacker traces do) and keyed on wolfSSH's DETERMINISTIC
+    # client errors. libssh's error is deliberately NOT keyed on: its client is not
+    # deterministic in a single-PUT run (no RNG-reseed hook), so the same trace can
+    # report "Failed to verify server hostkey signature", "Invalid padding", "Packet len
+    # too high" or an empty message between runs. BOTH_ERROR keeps any case where one
+    # client ACCEPTS the reply out of here (it lands in diverge_* above).
+    "benign_client_kex_reply_reject/": AllC(
+        TermContainsC(LIBSSH, in_term="fn_kex_ecdh_reply"),
+        OnlyDiffKindsC("Status"),
+        AnyC(
+            StatusC(WOLFSSH, in_error="RSA buffer error", first_to_fail=False),
+            StatusC(WOLFSSH, in_error="general parsing error", first_to_fail=False),
+            StatusC(WOLFSSH, in_error="crypto action failed", first_to_fail=False),
+        ),
+        BOTH_ERROR,
+    ),
 
     # wolfSSH internal rejections — the term-agnostic superset of the fn_encrypt_packet
     # buckets above (catches the same errors on fn_banner / fn_packet / fn_kex_* terms).

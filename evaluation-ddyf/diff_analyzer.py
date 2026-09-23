@@ -297,6 +297,51 @@ class InnerKnowledgeC(BucketCondition):
         return False
 
 
+class InnerKnowledgeReC(BucketCondition):
+    """
+    Like `InnerKnowledgeC`, but the WHOLE inner-difference string must match the
+    regular expression `pattern` (`re.fullmatch`). Use it when a bucket must pin the
+    exact shape of the difference, e.g. "the only transcript change is this one added
+    message", so that a mixed case with additional changes does not match.
+    """
+
+    type_name: str | None
+    pattern: "re.Pattern[str]"
+
+    def __init__(self, pattern: str, type_name: str | None = None):
+        self.type_name = type_name
+        self.pattern = re.compile(pattern, re.DOTALL)
+
+    def check_condition(self, exec_stat: ExecutionStatus) -> bool:
+        for err in exec_stat.errors:
+            inner = (err.get("Knowledges") or {}).get("InnerDifference")
+            if inner is None:
+                continue
+            if self.type_name is not None and self.type_name not in inner.get("type_name"):
+                continue
+            if self.pattern.fullmatch(inner.get("diff")):
+                return True
+        return False
+
+
+class OnlyDiffKindsC(BucketCondition):
+    """
+    True iff every difference of the objective is of one of the given kinds (the
+    top-level keys of the diff entries: "Status", "Claims", "Knowledges",
+    "SecurityClaim", ...) and there is at least one difference.
+    """
+
+    kinds: set[str]
+
+    def __init__(self, *kinds: str):
+        self.kinds = set(kinds)
+
+    def check_condition(self, exec_stat: ExecutionStatus) -> bool:
+        return len(exec_stat.errors) > 0 and all(
+            next(iter(err)) in self.kinds for err in exec_stat.errors
+        )
+
+
 class KnowledgeDiffC(BucketCondition):
     first_type_name: str
     second_type_name: str
