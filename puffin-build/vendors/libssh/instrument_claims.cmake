@@ -21,6 +21,18 @@
 # from hooks injected at the single incoming-dispatch and outgoing-encrypt
 # choke points. Pure observation -- it never alters protocol behaviour. The hook
 # anchors are byte-identical across libssh 0.10.4 and 0.11.4.
+#
+# Why this is a bespoke cmake-script patch and NOT the TLS claim mechanism:
+# tlspuffin instruments claims with static `.patch` diffs plus a shared
+# `tlspuffin-claims` include, and each TLS library exports a library-level
+# `register_claimer` symbol. SSH has no such library-level claim symbol (the
+# claimer lives in the sshpuffin harness), and the hooks are observation-only
+# calls injected at two internal dispatch choke points whose surrounding source
+# differs between libssh releases -- a frozen `.patch` diff would rot across
+# versions, whereas anchor-based string replacement stays valid. Both mechanisms
+# still enter through the same cmake `PATCH_COMMANDS`/`patch()` build phase, so
+# this stays consistent with the TLS vendors at the invocation level; only the
+# per-vendor patch body is SSH-specific by necessity.
 
 file(READ "${FILE}" content)
 

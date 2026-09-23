@@ -1,6 +1,6 @@
 # Bucket Granularity — Strict Criteria
 
-> **Protocol-agnostic methodology — TLS is the worked example.** The concrete names in this file (`openssl340`/`libressl421`, `tlspuffin`, `sort_objectives_ossl_libre.py`, TLS error strings / RFCs) are the running **TLS example**. For another protocol, substitute the placeholders defined in `START_HERE.md` § Protocol configuration — e.g. SSH: `libssh0114`/`wolfssh`, `sshpuffin`, `ssh/sort_objectives_libssh_wolfssh.py`, RFC 4251-4254.
+> **Protocol-agnostic methodology — TLS is the worked example.** The concrete names in this file (`openssl340`/`libressl421`, `tlspuffin`, `sort_objectives_ossl_libre.py`, TLS error strings / RFCs) are the running **TLS example**. For another protocol, substitute the placeholders defined in `START_HERE.md` § Protocol configuration — e.g. SSH: `libssh0114`/`wolfssh150`, `sshpuffin`, `ssh/sort_objectives_libssh_wolfssh.py`, RFC 4251-4254.
 
 
 This file defines what makes a bucket valid. Every bucket must pass these criteria before it can be tagged `# PENDING REVIEW`. Buckets that fail are split (most common) or merged (rare).

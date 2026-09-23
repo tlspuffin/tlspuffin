@@ -62,6 +62,19 @@ def get_diff(trace: str, first_put: str, second_put: str) -> list[dict]:
         return None
 
 
+def uniformise_single_runs() -> bool:
+    """
+    Whether the per-PUT re-executions (get_status) apply the differential config
+    uniformisation (`display-execute --uniformise`), i.e. run each PUT under the SAME
+    config as the `differential-execute` that produced the objective. Without it a
+    per-PUT run can take a different path (another negotiated suite, hence another
+    error), so status-based buckets are evaluated on a run the objective never had.
+    Opt-in via PUFFIN_TRIAGE_UNIFORMISE=1 (the SSH triage sets it) so existing
+    pipelines keep their results until re-validated.
+    """
+    return os.environ.get("PUFFIN_TRIAGE_UNIFORMISE", "0") == "1"
+
+
 def get_status(trace: str, put: str) -> dict:
     """
     Execute `trace` on `put` and get terms, knowledges, decryption, status and claims
@@ -81,6 +94,7 @@ def get_status(trace: str, put: str) -> dict:
                 "-k",
                 "-c",
                 "-p",
+                *(["--uniformise"] if uniformise_single_runs() else []),
                 trace,
             ],
             timeout=5,  # 5 second timeout
@@ -295,6 +309,51 @@ class InnerKnowledgeC(BucketCondition):
                 ) and self.diff_contains in diff.get("diff"):
                     return True
         return False
+
+
+class InnerKnowledgeReC(BucketCondition):
+    """
+    Like `InnerKnowledgeC`, but the WHOLE inner-difference string must match the
+    regular expression `pattern` (`re.fullmatch`). Use it when a bucket must pin the
+    exact shape of the difference, e.g. "the only transcript change is this one added
+    message", so that a mixed case with additional changes does not match.
+    """
+
+    type_name: str | None
+    pattern: "re.Pattern[str]"
+
+    def __init__(self, pattern: str, type_name: str | None = None):
+        self.type_name = type_name
+        self.pattern = re.compile(pattern, re.DOTALL)
+
+    def check_condition(self, exec_stat: ExecutionStatus) -> bool:
+        for err in exec_stat.errors:
+            inner = (err.get("Knowledges") or {}).get("InnerDifference")
+            if inner is None:
+                continue
+            if self.type_name is not None and self.type_name not in inner.get("type_name"):
+                continue
+            if self.pattern.fullmatch(inner.get("diff")):
+                return True
+        return False
+
+
+class OnlyDiffKindsC(BucketCondition):
+    """
+    True iff every difference of the objective is of one of the given kinds (the
+    top-level keys of the diff entries: "Status", "Claims", "Knowledges",
+    "SecurityClaim", ...) and there is at least one difference.
+    """
+
+    kinds: set[str]
+
+    def __init__(self, *kinds: str):
+        self.kinds = set(kinds)
+
+    def check_condition(self, exec_stat: ExecutionStatus) -> bool:
+        return len(exec_stat.errors) > 0 and all(
+            next(iter(err)) in self.kinds for err in exec_stat.errors
+        )
 
 
 class KnowledgeDiffC(BucketCondition):

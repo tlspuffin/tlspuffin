@@ -3,7 +3,10 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::ssh::message::{SshBytes, VersionString};
+use crate::ssh::message::{
+    AlgoName, ServiceName, SshBytes, SshMsgNumber, SshMsgOrdinal, SshPublicKeyBlob, Username,
+    VersionString,
+};
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
@@ -22,7 +25,12 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![])
 }
 
-// ── u32 constants (channel IDs, reason codes, window sizes) ─────────────────
+// ── u32 constants (channel IDs, counters, reason codes, window sizes) ────────
+//
+// ALL generic `fn_u32_*` atoms live here: small values 0..=15 (channel ids,
+// AES-GCM packet counters, reason codes), the boundary values `u32::MAX` /
+// 0x10000, and the `fn_u32_auto` counter sentinel. Semantically named u32
+// atoms stay next to their feature (`fn_disconnect_reason_*`, `fn_port_ssh`).
 
 pub fn fn_u32_0() -> Result<u32, FnError> {
     Ok(0)
@@ -33,14 +41,139 @@ pub fn fn_u32_1() -> Result<u32, FnError> {
 pub fn fn_u32_2() -> Result<u32, FnError> {
     Ok(2)
 }
-
-// ── SSH service names (SshBytes so they can be used directly in messages) ────
-
-pub fn fn_ssh_userauth() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-userauth".to_vec()))
+pub fn fn_u32_3() -> Result<u32, FnError> {
+    Ok(3)
 }
-pub fn fn_ssh_connection() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-connection".to_vec()))
+pub fn fn_u32_4() -> Result<u32, FnError> {
+    Ok(4)
+}
+pub fn fn_u32_5() -> Result<u32, FnError> {
+    Ok(5)
+}
+pub fn fn_u32_6() -> Result<u32, FnError> {
+    Ok(6)
+}
+pub fn fn_u32_7() -> Result<u32, FnError> {
+    Ok(7)
+}
+pub fn fn_u32_8() -> Result<u32, FnError> {
+    Ok(8)
+}
+pub fn fn_u32_9() -> Result<u32, FnError> {
+    Ok(9)
+}
+pub fn fn_u32_10() -> Result<u32, FnError> {
+    Ok(10)
+}
+pub fn fn_u32_11() -> Result<u32, FnError> {
+    Ok(11)
+}
+pub fn fn_u32_12() -> Result<u32, FnError> {
+    Ok(12)
+}
+pub fn fn_u32_13() -> Result<u32, FnError> {
+    Ok(13)
+}
+pub fn fn_u32_14() -> Result<u32, FnError> {
+    Ok(14)
+}
+pub fn fn_u32_15() -> Result<u32, FnError> {
+    Ok(15)
+}
+
+/// Sentinel AES-GCM packet counter, resolved per-execution by
+/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
+/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
+/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
+/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
+/// later packet's wire position — keep the GCM nonce sequence valid, letting the
+/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
+///
+/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
+/// never by the value returned here, so the concrete value is only a reserved
+/// marker that must never collide with a real counter; it is never actually read
+/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
+pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
+pub fn fn_u32_auto() -> Result<u32, FnError> {
+    Ok(U32_AUTO_SENTINEL)
+}
+pub fn fn_u32_max() -> Result<u32, FnError> {
+    Ok(u32::MAX)
+}
+/// 0x10000 — just past the typical 64 KiB channel-window / packet boundary.
+pub fn fn_u32_0x10000() -> Result<u32, FnError> {
+    Ok(0x10000)
+}
+
+// ── SSH message numbers (RFC 4250 §4.1.2) ────────────────────────────────────
+// Select a message out of a decrypted flight (`fn_decrypted_message`), e.g. the
+// server's rekey KEX_ECDH_REPLY or the client's CHANNEL_OPEN.
+
+pub fn fn_msg_kexinit() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(20))
+}
+pub fn fn_msg_kex_ecdh_reply() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(31))
+}
+pub fn fn_msg_userauth_pk_ok() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(60))
+}
+pub fn fn_msg_channel_open() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(90))
+}
+pub fn fn_msg_channel_open_confirmation() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(91))
+}
+pub fn fn_msg_channel_window_adjust() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(93))
+}
+pub fn fn_msg_channel_request() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(98))
+}
+
+/// Which occurrence of a message number to select (`fn_decrypted_message`): the
+/// first, or the second (e.g. the KEXINIT of a rekey).
+pub fn fn_ordinal_first() -> Result<SshMsgOrdinal, FnError> {
+    Ok(SshMsgOrdinal(0))
+}
+pub fn fn_ordinal_second() -> Result<SshMsgOrdinal, FnError> {
+    Ok(SshMsgOrdinal(1))
+}
+
+// ── Channel parameters (RFC 4254 §5.1, §5.2) ─────────────────────────────────
+
+/// The window a session channel opens with: 2 MiB, OpenSSH's session default.
+pub fn fn_window_size_default() -> Result<u32, FnError> {
+    Ok(2 * 1024 * 1024)
+}
+/// The largest packet a session channel accepts: 32 KiB, OpenSSH's session default
+/// (RFC 4253 §6.1 requires every implementation to handle 32768-byte payloads).
+pub fn fn_max_packet_size_default() -> Result<u32, FnError> {
+    Ok(32 * 1024)
+}
+/// The CHANNEL_EXTENDED_DATA type code of stderr, SSH_EXTENDED_DATA_STDERR.
+pub fn fn_extended_data_stderr() -> Result<u32, FnError> {
+    Ok(1)
+}
+
+// ── SSH service names (RFC 4253 §10) ─────────────────────────────────────────
+// Typed as `ServiceName` (not `SshBytes`) so the mutator only substitutes a
+// service name into a service slot — the bad-service class.
+
+pub fn fn_ssh_userauth() -> Result<ServiceName, FnError> {
+    Ok(ServiceName::new(b"ssh-userauth".to_vec()))
+}
+pub fn fn_ssh_connection() -> Result<ServiceName, FnError> {
+    Ok(ServiceName::new(b"ssh-connection".to_vec()))
+}
+
+/// Placeholder exec command ("ssh-userauth" bytes) for the channel-exec seeds.
+/// A plain `SshBytes` command payload — historically the seeds reused the
+/// `ssh-userauth` service-name atom here as arbitrary non-empty command bytes;
+/// now that service names are typed `ServiceName`, this keeps the exact wire
+/// bytes while decoupling the exec-command slot from the service-name type.
+pub fn fn_exec_command_userauth() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"ssh-userauth".to_vec()))
 }
 
 // ── Auth method names ────────────────────────────────────────────────────────
@@ -57,25 +190,12 @@ pub fn fn_method_none() -> Result<SshBytes, FnError> {
 
 // ── Common field values ──────────────────────────────────────────────────────
 
-pub fn fn_username() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"user".to_vec()))
+pub fn fn_username() -> Result<Username, FnError> {
+    Ok(Username::new(b"user".to_vec()))
 }
 // method_data is raw bytes (not SSH-format string), so Vec<u8>
 pub fn fn_password() -> Result<Vec<u8>, FnError> {
     Ok(b"test".to_vec())
-}
-
-pub fn fn_u32_3() -> Result<u32, FnError> {
-    Ok(3)
-}
-pub fn fn_u32_4() -> Result<u32, FnError> {
-    Ok(4)
-}
-pub fn fn_u32_5() -> Result<u32, FnError> {
-    Ok(5)
-}
-pub fn fn_u32_6() -> Result<u32, FnError> {
-    Ok(6)
 }
 
 /// "SSH-2.0-puffin" as SshBytes (no \\r\\n) — used as the attacker's banner ID.
@@ -97,20 +217,20 @@ pub fn fn_channel_session() -> Result<SshBytes, FnError> {
 // seeds get past the early algorithm-name validation and exercise deeper code
 // paths in key verification and signature checking.
 
-pub fn fn_algo_ssh_ed25519() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-ed25519".to_vec()))
+pub fn fn_algo_ssh_ed25519() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ssh-ed25519".to_vec()))
 }
-pub fn fn_algo_ecdsa_sha2_nistp256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ecdsa-sha2-nistp256".to_vec()))
+pub fn fn_algo_ecdsa_sha2_nistp256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ecdsa-sha2-nistp256".to_vec()))
 }
-pub fn fn_algo_rsa_sha2_256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"rsa-sha2-256".to_vec()))
+pub fn fn_algo_rsa_sha2_256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"rsa-sha2-256".to_vec()))
 }
-pub fn fn_algo_curve25519_sha256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"curve25519-sha256".to_vec()))
+pub fn fn_algo_curve25519_sha256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"curve25519-sha256".to_vec()))
 }
-pub fn fn_algo_aes256_gcm() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes256-gcm@openssh.com".to_vec()))
+pub fn fn_algo_aes256_gcm() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes256-gcm@openssh.com".to_vec()))
 }
 
 // ── Additional algorithm-name atoms ──────────────────────────────────────────
@@ -122,58 +242,58 @@ pub fn fn_algo_aes256_gcm() -> Result<SshBytes, FnError> {
 // negotiation / downgrade / algorithm-confusion handling even though a handshake
 // on the alternative suite would not complete.
 
-pub fn fn_algo_aes128_gcm() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes128-gcm@openssh.com".to_vec()))
+pub fn fn_algo_aes128_gcm() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes128-gcm@openssh.com".to_vec()))
 }
-pub fn fn_algo_aes128_ctr() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes128-ctr".to_vec()))
+pub fn fn_algo_aes128_ctr() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes128-ctr".to_vec()))
 }
-pub fn fn_algo_aes256_ctr() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"aes256-ctr".to_vec()))
+pub fn fn_algo_aes256_ctr() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"aes256-ctr".to_vec()))
 }
-pub fn fn_algo_3des_cbc() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"3des-cbc".to_vec()))
+pub fn fn_algo_3des_cbc() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"3des-cbc".to_vec()))
 }
-pub fn fn_algo_chacha20_poly1305() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"chacha20-poly1305@openssh.com".to_vec()))
+pub fn fn_algo_chacha20_poly1305() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"chacha20-poly1305@openssh.com".to_vec()))
 }
-pub fn fn_algo_hmac_sha2_256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha2-256".to_vec()))
+pub fn fn_algo_hmac_sha2_256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha2-256".to_vec()))
 }
-pub fn fn_algo_hmac_sha2_512() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha2-512".to_vec()))
+pub fn fn_algo_hmac_sha2_512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha2-512".to_vec()))
 }
-pub fn fn_algo_hmac_sha1() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"hmac-sha1".to_vec()))
+pub fn fn_algo_hmac_sha1() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"hmac-sha1".to_vec()))
 }
-pub fn fn_algo_none() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"none".to_vec()))
+pub fn fn_algo_none() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"none".to_vec()))
 }
-pub fn fn_algo_dh_group14_sha256() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"diffie-hellman-group14-sha256".to_vec()))
+pub fn fn_algo_dh_group14_sha256() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"diffie-hellman-group14-sha256".to_vec()))
 }
-pub fn fn_algo_ssh_rsa() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ssh-rsa".to_vec()))
+pub fn fn_algo_ssh_rsa() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ssh-rsa".to_vec()))
 }
-pub fn fn_algo_rsa_sha2_512() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"rsa-sha2-512".to_vec()))
+pub fn fn_algo_rsa_sha2_512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"rsa-sha2-512".to_vec()))
 }
 /// Terrapin / strict-KEX negotiation marker (sent as a pseudo-algorithm in the
 /// KEXINIT lists). Lets the fuzzer add/remove strict-kex from the offer.
-pub fn fn_algo_kex_strict_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"kex-strict-c-v00@openssh.com".to_vec()))
+pub fn fn_algo_kex_strict_c() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"kex-strict-c-v00@openssh.com".to_vec()))
 }
-pub fn fn_algo_kex_strict_s() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"kex-strict-s-v00@openssh.com".to_vec()))
+pub fn fn_algo_kex_strict_s() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"kex-strict-s-v00@openssh.com".to_vec()))
 }
 /// An unrecognized algorithm name, for exercising unknown-algorithm handling.
-pub fn fn_algo_unknown() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"x-unknown-algo@puffin".to_vec()))
+pub fn fn_algo_unknown() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"x-unknown-algo@puffin".to_vec()))
 }
 /// RFC 8308 ext-info-c marker: included in the client KEXINIT to advertise
 /// EXT_INFO support, so the server will then accept a client SSH_MSG_EXT_INFO.
-pub fn fn_algo_ext_info_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"ext-info-c".to_vec()))
+pub fn fn_algo_ext_info_c() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"ext-info-c".to_vec()))
 }
 
 // ── EXT_INFO extension names / values (RFC 8308) ─────────────────────────────
@@ -189,7 +309,8 @@ pub fn fn_puffin_banner() -> Result<String, FnError> {
 }
 
 // ── Out-of-spec banner / version identification-string probes ────────────────
-// (REPORT_triaging.md hypotheses H2/H3/H4.) Each PAIR is a wire banner (String,
+// (hypotheses H2/H3 of `banner_probe_seed`, raised while triaging the banner
+// divergence class of the differential campaigns.) Each PAIR is a wire banner (String,
 // INCLUDING the CR-LF terminator, sent verbatim by `RawSshMessage::Banner`) and
 // its RFC 4253 §8-canonical V_C (SshBytes, ONLY the trailing CR-LF stripped, every
 // other byte kept). A probe seed sends the wire banner AND reconstructs the
@@ -301,6 +422,14 @@ pub fn fn_request_tcpip_forward() -> Result<SshBytes, FnError> {
 }
 pub fn fn_request_cancel_tcpip_forward() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"cancel-tcpip-forward".to_vec()))
+}
+/// A global request name no stack recognises. RFC 4254 §4: a recipient that does
+/// not recognise a want_reply request MUST answer REQUEST_FAILURE — an honest
+/// request/response round-trip on every stack. (Deliberately NOT a real vendor
+/// extension such as keepalive@openssh.com: libssh answers that with
+/// REQUEST_SUCCESS and wolfSSH with REQUEST_FAILURE, a benign policy difference.)
+pub fn fn_request_unknown() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"unknown-request@puffin".to_vec()))
 }
 pub fn fn_channel_type_direct_tcpip() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"direct-tcpip".to_vec()))
@@ -426,15 +555,15 @@ pub fn fn_cookie_zeros() -> Result<[u8; 16], FnError> {
 pub fn fn_cookie_ff() -> Result<[u8; 16], FnError> {
     Ok([0xffu8; 16])
 }
-pub fn fn_username_empty() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(Vec::new()))
+pub fn fn_username_empty() -> Result<Username, FnError> {
+    Ok(Username::new(Vec::new()))
 }
-pub fn fn_username_root() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"root".to_vec()))
+pub fn fn_username_root() -> Result<Username, FnError> {
+    Ok(Username::new(b"root".to_vec()))
 }
 /// An oversized user name (300 bytes) for length / buffer-handling exploration.
-pub fn fn_username_long() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(vec![b'A'; 300]))
+pub fn fn_username_long() -> Result<Username, FnError> {
+    Ok(Username::new(vec![b'A'; 300]))
 }
 pub fn fn_password_empty() -> Result<Vec<u8>, FnError> {
     Ok(Vec::new())
@@ -451,11 +580,11 @@ pub fn fn_password_long() -> Result<Vec<u8>, FnError> {
 // fuzzer swaps a username / pubkey-blob / signature across identities to try to
 // make a stack authenticate the wrong pairing. See fn_client_{b,c}_pubkey_blob
 // and fn_sign_userauth_{b,c} in fn_crypto.rs.
-pub fn fn_username_b() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"userb".to_vec()))
+pub fn fn_username_b() -> Result<Username, FnError> {
+    Ok(Username::new(b"userb".to_vec()))
 }
-pub fn fn_username_c() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(b"userc".to_vec()))
+pub fn fn_username_c() -> Result<Username, FnError> {
+    Ok(Username::new(b"userc".to_vec()))
 }
 pub fn fn_password_b() -> Result<Vec<u8>, FnError> {
     Ok(b"testb".to_vec())
@@ -463,56 +592,28 @@ pub fn fn_password_b() -> Result<Vec<u8>, FnError> {
 pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
     Ok(b"testc".to_vec())
 }
-pub fn fn_u32_7() -> Result<u32, FnError> {
-    Ok(7)
-}
-pub fn fn_u32_8() -> Result<u32, FnError> {
-    Ok(8)
-}
-pub fn fn_u32_9() -> Result<u32, FnError> {
-    Ok(9)
-}
-pub fn fn_u32_10() -> Result<u32, FnError> {
-    Ok(10)
-}
-pub fn fn_u32_11() -> Result<u32, FnError> {
-    Ok(11)
-}
-pub fn fn_u32_12() -> Result<u32, FnError> {
-    Ok(12)
-}
-pub fn fn_u32_13() -> Result<u32, FnError> {
-    Ok(13)
-}
-pub fn fn_u32_14() -> Result<u32, FnError> {
-    Ok(14)
-}
-pub fn fn_u32_15() -> Result<u32, FnError> {
-    Ok(15)
+
+/// A channel payload of exactly `len` bytes (capped at 1 MiB so a mutated length
+/// cannot exhaust memory). Sized from a peer's advertised limits, e.g.
+/// `fn_channel_send_budget`, to exercise its window / packet-size accounting at
+/// the boundary.
+pub fn fn_bytes_of_len(len: &u32) -> Result<Vec<u8>, FnError> {
+    const CAP: u32 = 1 << 20;
+    Ok(vec![b'd'; (*len).min(CAP) as usize])
 }
 
-/// Sentinel AES-GCM packet counter, resolved per-execution by
-/// [`SshProtocolTypes::preprocess_trace`](crate::protocol::SshProtocolTypes) to the
-/// packet's true c2s wire position (index since the last NEWKEYS). A seed authors
-/// its `fn_encrypt_packet_aesgcm` counter argument with this instead of a fixed
-/// `fn_u32_N` so that step-deleting / reordering mutations — which shift every
-/// later packet's wire position — keep the GCM nonce sequence valid, letting the
-/// mutator autonomously reach the RFC 4253 §7.1 incomplete-rekey state.
-///
-/// The renumbering pass matches this atom by its FUNCTION SYMBOL (`fn_u32_auto`),
-/// never by the value returned here, so the concrete value is only a reserved
-/// marker that must never collide with a real counter; it is never actually read
-/// as a counter. `u32::MAX - 1` is used (real per-epoch counters are small).
-pub const U32_AUTO_SENTINEL: u32 = u32::MAX - 1;
-pub fn fn_u32_auto() -> Result<u32, FnError> {
-    Ok(U32_AUTO_SENTINEL)
-}
-pub fn fn_u32_max() -> Result<u32, FnError> {
-    Ok(u32::MAX)
-}
-/// 0x10000 — just past the typical 64 KiB channel-window / packet boundary.
-pub fn fn_u32_0x10000() -> Result<u32, FnError> {
-    Ok(0x10000)
+/// RFC 4252 §7 publickey method_data WITHOUT signature (the "is this key
+/// acceptable?" query the server answers with USERAUTH_PK_OK):
+///   boolean FALSE
+///   string  public key algorithm name ("rsa-sha2-256")
+///   string  public key blob
+pub fn fn_publickey_query_data(pubkey_blob: &SshPublicKeyBlob) -> Result<Vec<u8>, FnError> {
+    let mut data = vec![0x00]; // has-signature = FALSE
+    for s in [&b"rsa-sha2-256"[..], &pubkey_blob.0[..]] {
+        data.extend_from_slice(&(s.len() as u32).to_be_bytes());
+        data.extend_from_slice(s);
+    }
+    Ok(data)
 }
 
 /// RFC 4252 §7 publickey method_data, WITH signature:
@@ -521,7 +622,7 @@ pub fn fn_u32_0x10000() -> Result<u32, FnError> {
 ///   string  public key blob
 ///   string  signature  (= string "rsa-sha2-256" || string raw signature)
 pub fn fn_publickey_auth_data(
-    pubkey_blob: &SshBytes,
+    pubkey_blob: &SshPublicKeyBlob,
     signature_raw: &SshBytes,
 ) -> Result<Vec<u8>, FnError> {
     fn push_str(buf: &mut Vec<u8>, s: &[u8]) {

@@ -34,6 +34,7 @@ const sidebars: SidebarsConfig = {
                 'developer/overview',
                 'developer/build',
                 'developer/howto',
+                'developer/integrating-a-protocol',
                 'developer/benchmarks',
                 'developer/differential-fuzzing',
             ],

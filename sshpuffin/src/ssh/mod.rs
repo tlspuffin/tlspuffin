@@ -11,8 +11,9 @@
 
 use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
+pub(crate) mod differential;
 pub mod message;
-pub(crate) mod seeds;
+pub mod seeds;
 pub mod transcript;
 #[path = "."]
 pub mod fn_impl {
@@ -30,6 +31,21 @@ use puffin::define_signature;
 
 use crate::protocol::SshProtocolTypes;
 
+// Flags (see `FunctionAttributes`): `[opaque]`, `[get]` and `[list]` steer where puffin can
+// place payloads, `[no_gen]` what the term zoo generates. All four are checked by
+// `sshpuffin/tests/term_zoo.rs`.
+//   * no flag   — a builder whose encoding contains each argument's encoding
+//     (`unflagged_symbols_contain_their_arguments`);
+//   * [opaque]  — the encoding contains none of the arguments' (hash, KDF, DH, cipher, signature,
+//     decryption, and the filler generator `fn_bytes_of_len`);
+//   * [get]     — an accessor returning a field of its argument (TLS convention; also a truncating
+//     conversion, like TLS's `fn_u32_to_u16`);
+//   * [no_gen]  — not generated at the top level: probe/reproducer atoms, recipe helpers, and
+//     symbols the zoo cannot build an evaluable term for (the KDFs need an exchange hash, the
+//     decryptions a real ciphertext, `fn_encrypt_packet{,_ctr}` keys of an exact length); checked
+//     by `tests/term_zoo.rs::test_term_eval`.
+//   * [list]    — a list built one element at a time, like tlspuffin's (`fn_namelist_empty`,
+//     `fn_namelist_append`); puffin finds the appended element at the end of the list.
 define_signature!(
     SSH_SIGNATURE<SshProtocolTypes>,
     fn_true
@@ -100,8 +116,8 @@ define_signature!(
     fn_u32_0x10000
     fn_puffin_banner
     fn_puffin_id
-    // Out-of-spec banner / version identification-string probes (REPORT_triaging.md
-    // H2/H3/H4). Each PAIR = a wire banner (String, includes CR-LF) + its
+    // Out-of-spec banner / version identification-string probes (hypotheses H2/H3
+    // of `banner_probe_seed`). Each PAIR = a wire banner (String, includes CR-LF) + its
     // RFC-4253-§8-canonical V_C (SshBytes, only trailing CR-LF stripped). `no_gen`:
     // deterministic reproducer atoms, not for blind term generation.
     fn_banner_wire_oversized [no_gen]
@@ -122,6 +138,20 @@ define_signature!(
     // name atoms + type-specific payload builders.
     fn_request_tcpip_forward
     fn_request_cancel_tcpip_forward
+    fn_request_unknown
+    // SSH message numbers selecting a message out of a decrypted flight.
+    fn_msg_kexinit
+    fn_msg_kex_ecdh_reply
+    fn_msg_userauth_pk_ok
+    fn_msg_channel_open
+    fn_msg_channel_open_confirmation
+    fn_msg_channel_window_adjust
+    fn_msg_channel_request
+    fn_ordinal_first
+    fn_ordinal_second
+    fn_window_size_default
+    fn_max_packet_size_default
+    fn_extended_data_stderr
     fn_channel_type_direct_tcpip
     fn_channel_type_forwarded_tcpip
     fn_tcpip_forward_data
@@ -130,6 +160,7 @@ define_signature!(
     fn_addr_localhost
     fn_port_ssh
     fn_exec_payload
+    fn_exec_command_userauth
     fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty
@@ -143,10 +174,9 @@ define_signature!(
     // round-trip through (de)serialization. `no_gen`: not for term generation.
     fn_raw_message_flight [no_gen]
     fn_onwire_data
-    fn_namelist_empty
+    fn_namelist_empty [list] // the empty name-list, start of fn_namelist_append
     fn_namelist_1
-    fn_namelist_2
-    fn_namelist_3
+    fn_namelist_append [list] // a name-list and one more name
     fn_namelist_from_bytes
     fn_kex_algos
     fn_enc_algos
@@ -160,9 +190,11 @@ define_signature!(
     fn_unimplemented
     // Arbitrary / unknown-type SSH message injection (RFC 4253 §11.4 probing;
     // issue #1047 item 7). `fn_raw_ssh_message(number, body)` is generator-usable
-    // (drives the type byte from fn_u32_* atoms); the fixed 250-type convenience is
-    // `no_gen` (a deterministic reproducer atom, not for blind generation).
+    // (the type byte comes from an `fn_msg_*` atom or `fn_msg_number(fn_u32_*)`); the
+    // fixed 250-type convenience is `no_gen` (a deterministic reproducer atom, not for
+    // blind generation).
     fn_raw_ssh_message
+    fn_msg_number [get] // the low byte of a u32
     fn_msg_unknown_highnumber [no_gen]
     fn_debug
     fn_service_request
@@ -197,58 +229,69 @@ define_signature!(
     fn_channel_request
     fn_channel_success
     fn_channel_failure
+    // Channel-id producers (type-directed): a converter from any u32 and the fixed
+    // channel 0 the honest seeds use. See `ChannelId` in ssh/message.rs.
+    fn_channel_id
+    fn_channel_id_0
     fn_client_ecdh_privkey
     fn_client_ecdh_pubkey
-    fn_ecdh_shared_secret
-    fn_banner_id
+    fn_ecdh_shared_secret [opaque] // X25519
+    fn_banner_id [get] // the banner line without its CR-LF
     fn_kexinit_payload
-    fn_server_ecdh_pubkey
-    fn_server_hostkey
-    fn_server_hostkey_raw
-    fn_kex_exchange_hash
+    fn_server_ecdh_pubkey [get] // Q_S field of a KEX_ECDH_REPLY
+    fn_server_hostkey [get] // K_S field of a KEX_ECDH_REPLY
+    fn_server_hostkey_raw [get] // K_S field, from the raw packet
+    fn_kex_exchange_hash [opaque] // SHA-256
     // Explicit ExchangeHash -> SessionId conversion; makes session-id-vs-exchange-hash
     // confusion (rekey / Terrapin) a first-class, well-typed DY mutation.
     fn_session_id_from_hash
     // Sources the exchange hash H from the server's completion claim (session id)
     // instead of reconstructing it from a hard-coded client KEXINIT. `no_gen`: a
     // decryption-recipe helper (reads a claim), not for term generation.
-    fn_claim_exchange_hash [no_gen]
+    fn_claim_exchange_hash [get] [no_gen] // the session id carried by a claim
     // Extracts the server's assigned channel number from its decrypted
     // CHANNEL_OPEN_CONFIRMATION, so a client can re-address channel traffic to the
     // channel THIS stack owns (libssh vs wolfSSH pick different numbers). `no_gen`:
     // decryption helper, not for term generation.
-    fn_s2c_confirmation_sender_channel [no_gen]
-    fn_derive_enc_key_c2s
-    fn_derive_enc_key_s2c
-    fn_encrypt_packet
-    fn_decrypt_packet
-    fn_derive_aes_key_c2s
-    fn_derive_aes_key_s2c
-    fn_derive_iv_c2s
-    fn_derive_iv_s2c
-    fn_encrypt_packet_aesgcm
-    fn_decrypt_packet_aesgcm
-    fn_decrypt_flight_aesgcm
+    fn_s2c_confirmation_sender_channel [opaque] [no_gen] // decryption
+    fn_decrypted_message [opaque] [no_gen] // decryption
+    fn_sender_channel [get] // sender_channel field
+    fn_initial_window_size [get] // initial_window_size field
+    fn_pk_ok_blob [get] // key blob field of a PK_OK
+    fn_channel_send_budget [get] // the smaller of two fields
+    fn_bytes_of_len [opaque] // `len` filler bytes, not the length itself
+    fn_derive_enc_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_enc_key_s2c [opaque] [no_gen] // KDF
+    fn_encrypt_packet [opaque] [no_gen] // encryption
+    fn_decrypt_packet [opaque] [no_gen] // decryption
+    fn_derive_aes_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_aes_key_s2c [opaque] [no_gen] // KDF
+    fn_derive_iv_c2s [opaque] [no_gen] // KDF
+    fn_derive_iv_s2c [opaque] [no_gen] // KDF
+    fn_encrypt_packet_aesgcm [opaque] // encryption
+    fn_decrypt_packet_aesgcm [opaque] [no_gen] // decryption
+    fn_decrypt_flight_aesgcm [opaque] [no_gen] // decryption
     // Single comparison recipe of the AES-GCM decryption differential: folds a
     // server flight into one key-aligned `AlignedTranscript` (see
     // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
-    fn_fold_s2c_transcript [no_gen]
+    fn_fold_s2c_transcript [opaque] [no_gen] // decryption
+    // Joins two flights (not a list and one element, so not `[list]`).
     fn_concat_raw_flights
-    fn_derive_ctr_key_c2s
-    fn_derive_ctr_key_s2c
-    fn_derive_ctr_iv_c2s
-    fn_derive_ctr_iv_s2c
-    fn_derive_mac_key_c2s
-    fn_derive_mac_key_s2c
-    fn_encrypt_packet_ctr
-    fn_decrypt_packet_ctr
+    fn_derive_ctr_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_ctr_key_s2c [opaque] [no_gen] // KDF
+    fn_derive_ctr_iv_c2s [opaque] [no_gen] // KDF
+    fn_derive_ctr_iv_s2c [opaque] [no_gen] // KDF
+    fn_derive_mac_key_c2s [opaque] [no_gen] // KDF
+    fn_derive_mac_key_s2c [opaque] [no_gen] // KDF
+    fn_encrypt_packet_ctr [opaque] [no_gen] // encryption + MAC
+    fn_decrypt_packet_ctr [opaque] [no_gen] // decryption
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
     // Signs the exchange hash with the embedded host key (server-attacker
     // seeds). `no_gen`: a signing helper that needs a specific private key and a
     // well-formed transcript; generating it blindly only yields useless terms.
-    fn_sign_exchange_hash [no_gen]
+    fn_sign_exchange_hash [opaque] [no_gen] // RSA signature
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
     fn_client_b_pubkey_blob
@@ -257,8 +300,9 @@ define_signature!(
     // private key. `no_gen`: each needs its matching key and the session's
     // exchange hash, so they are only meaningful when hand-wired in a seed, not
     // synthesised by the mutator.
-    fn_sign_userauth [no_gen]
-    fn_sign_userauth_b [no_gen]
-    fn_sign_userauth_c [no_gen]
+    fn_sign_userauth [opaque] [no_gen] // RSA signature
+    fn_sign_userauth_b [opaque] [no_gen] // RSA signature
+    fn_sign_userauth_c [opaque] [no_gen] // RSA signature
     fn_publickey_auth_data
+    fn_publickey_query_data
 );

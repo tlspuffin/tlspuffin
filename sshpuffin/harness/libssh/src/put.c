@@ -113,11 +113,16 @@ static const char *SERVER_HOST_KEY =
 
 typedef enum
 {
-    PUT_STATE_KEX,   /* key-exchange (or TCP connect) in progress */
-    PUT_STATE_AUTH,  /* authentication in progress */
-    PUT_STATE_DONE,  /* fully authenticated */
-    PUT_STATE_ERROR, /* unrecoverable error */
+    PUT_STATE_KEX,     /* key-exchange (or TCP connect) in progress */
+    PUT_STATE_AUTH,    /* authentication in progress */
+    PUT_STATE_CHANNEL, /* client only: authenticated, opening the session
+                          channel + shell request (mirrors wolfSSH_connect) */
+    PUT_STATE_DONE,    /* fully authenticated (client: channel set up too) */
+    PUT_STATE_ERROR,   /* unrecoverable error */
 } PutState;
+
+/* Session-channel slots of the SERVER role (see cb_channel_open). */
+#define LIBSSH_MAX_SERVER_CHANNELS 8
 
 struct AGENT_TYPE
 {
@@ -133,6 +138,10 @@ struct AGENT_TYPE
 
     PutState state;
     char state_desc[256]; /* human-readable state for describe_state */
+
+    /* Client-role progress flags (see the SSH_CLIENT branch of libssh_progress). */
+    bool auth_none_done;     /* the "none" probe was refused; now use password */
+    bool client_chan_opened; /* CHANNEL_OPEN confirmed; now send the shell request */
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
@@ -156,10 +165,13 @@ struct AGENT_TYPE
      * libssh 0.10.4 and 0.11.4 — so it is set via ssh_set_callbacks(). */
     struct ssh_callbacks_struct session_cb;
     struct ssh_channel_callbacks_struct channel_cb;
-    ssh_event event;      /* event loop that dispatches the callbacks */
-    ssh_channel channel;  /* session channel the client opened, or NULL */
+    ssh_event event;     /* event loop that dispatches the callbacks */
+    ssh_channel channel; /* CLIENT role: the session channel it opened, or NULL */
+    /* SERVER role: every session channel the peer opened, in slot order (NULL =
+     * free slot). Owned by the session; freed in libssh_destroy. */
+    ssh_channel server_channels[LIBSSH_MAX_SERVER_CHANNELS];
     bool authenticated;   /* set by the auth callback */
-    bool callbacks_ready; /* server callbacks + event registered (post-KEX) */
+    bool callbacks_ready; /* server callbacks registered (before KEX) */
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -365,11 +377,13 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         ssh_options_set(session, SSH_OPTIONS_HOST, "puffin-dummy");
         ssh_options_set(session, SSH_OPTIONS_FD, &put_fd);
         /* Pre-set user and ssh_dir to avoid ssh_options_apply failures in
-         * restricted environments. */
-        const char *user = getenv("USER");
-        if (user == NULL)
-            user = "puffin";
-        ssh_options_set(session, SSH_OPTIONS_USER, user);
+         * restricted environments. The user is a FIXED "user" — identity A of the
+         * shared allow-list, the seeds' fn_username, and exactly what the wolfSSH
+         * client harness sends (wolfSSH_SetUsername(ssh, "user")). It used to be
+         * getenv("USER"), which made the client's USERAUTH_REQUEST depend on who
+         * ran the fuzzer (non-reproducible traces) and showed up as a spurious
+         * user-name diff against wolfSSH once the c2s transcript was compared. */
+        ssh_options_set(session, SSH_OPTIONS_USER, "user");
         const char *home = getenv("HOME");
         char sshdir[4096];
         if (home != NULL)
@@ -381,6 +395,30 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
             snprintf(sshdir, sizeof(sshdir), "/tmp/.ssh-puffin");
         }
         ssh_options_set(session, SSH_OPTIONS_SSH_DIR, sshdir);
+        /* Apply the SAME negotiable-algorithm pins the SSH_SERVER branch applies
+         * via ssh_bind_options_set, so a CLIENT PUT honours
+         * differential_fuzzing_uniformise_put_config too. The wolfSSH harness sets
+         * them on the shared CTX for both roles; without this the libssh client
+         * offered its full defaults (e.g. diffie-hellman-group18-sha512) and every
+         * client-role differential showed a spurious KEXINIT capability diff —
+         * surfaced once the c2s decryption recipe made the client stream
+         * comparable. Same libssh >= 0.9 guard as the server branch. */
+#if defined(LIBSSH_VERSION_INT) && LIBSSH_VERSION_INT >= SSH_VERSION_INT(0, 9, 0)
+        if (descriptor->kex)
+            ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, descriptor->kex);
+        if (descriptor->ciphers)
+        {
+            ssh_options_set(session, SSH_OPTIONS_CIPHERS_C_S, descriptor->ciphers);
+            ssh_options_set(session, SSH_OPTIONS_CIPHERS_S_C, descriptor->ciphers);
+        }
+        if (descriptor->macs)
+        {
+            ssh_options_set(session, SSH_OPTIONS_HMAC_C_S, descriptor->macs);
+            ssh_options_set(session, SSH_OPTIONS_HMAC_S_C, descriptor->macs);
+        }
+        if (descriptor->hostkey_algos)
+            ssh_options_set(session, SSH_OPTIONS_HOSTKEYS, descriptor->hostkey_algos);
+#endif
         /* put_fd is now owned by the session */
     }
 
@@ -418,8 +456,17 @@ static void libssh_destroy(AGENT agent)
 
     close(agent->fuzz_fd);
 
-    /* Remove the session from the event before freeing either. The channel is
-     * owned by the session and freed by ssh_free below. */
+    /* Remove the session from the event before freeing either. Channels are
+     * owned by the session; free the server's explicitly (ssh_channel_free
+     * unlinks each from the session), the client's goes with ssh_free below. */
+    for (int i = 0; i < LIBSSH_MAX_SERVER_CHANNELS; ++i)
+    {
+        if (agent->server_channels[i] != NULL)
+        {
+            ssh_channel_free(agent->server_channels[i]);
+            agent->server_channels[i] = NULL;
+        }
+    }
     if (agent->event)
     {
         ssh_event_remove_session(agent->event, agent->session);
@@ -546,11 +593,20 @@ static int cb_service_request(ssh_session session, const char *service, void *us
     return 0; /* accept the service request */
 }
 
-/* Global-request handler (tcpip-forward / cancel-tcpip-forward). libssh calls this
- * with the request message; we ACCEPT by replying success iff the (host,port) is
- * on the shared forwarding allow-list (ssh_creds_forward_authorized) — the SAME
- * boundary the wolfSSH FwdCb enforces — else leave it unanswered (refused). This
- * makes a forward accept/reject asymmetry a real cross-vendor differential.
+/* Global-request handler. Registering it makes libssh hand EVERY recognised global
+ * request (tcpip-forward, cancel-tcpip-forward, keepalive@openssh.com,
+ * no-more-sessions@openssh.com) to us and send NOTHING itself, so every path must
+ * reply exactly as libssh does WITHOUT a callback — otherwise an unanswered
+ * want_reply request is a harness-made divergence (wolfSSH does reply):
+ *   - tcpip-forward: ACCEPT iff the (host,port) is on the shared forwarding
+ *     allow-list (ssh_creds_forward_authorized) — the SAME boundary the wolfSSH
+ *     FwdCb enforces — making a forward accept/reject asymmetry a real
+ *     cross-vendor differential; else refuse (REQUEST_FAILURE if want_reply), as
+ *     libssh's queued-message default does;
+ *   - cancel-tcpip-forward: refuse, as the queued-message default does;
+ *   - keepalive / no-more-sessions: REQUEST_SUCCESS if want_reply (libssh's inline
+ *     default; no-more-sessions has no enum constant in 0.10.x, hence `default`).
+ * Unknown request names never reach this callback (libssh refuses them itself).
  * (direct-tcpip is a CHANNEL open, handled via the message API, not here.) */
 static void cb_global_request(ssh_session session, ssh_message message, void *userdata)
 {
@@ -558,14 +614,25 @@ static void cb_global_request(ssh_session session, ssh_message message, void *us
     (void)userdata;
     if (ssh_message_type(message) != SSH_REQUEST_GLOBAL)
         return;
-    int subtype = ssh_message_subtype(message);
-    if (subtype == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
+    switch (ssh_message_subtype(message))
+    {
+    case SSH_GLOBAL_REQUEST_TCPIP_FORWARD:
     {
         const char *addr = ssh_message_global_request_address(message);
         int port = ssh_message_global_request_port(message);
         if (ssh_creds_forward_authorized(addr, (uint32_t)port))
             ssh_message_global_request_reply_success(message, (uint16_t)port);
-        /* else: unanswered => libssh sends REQUEST_FAILURE */
+        else /* REQUEST_FAILURE iff want_reply */
+            ssh_message_reply_default(message);
+        break;
+    }
+    case SSH_GLOBAL_REQUEST_CANCEL_TCPIP_FORWARD:
+        ssh_message_reply_default(message);
+        break;
+    default:
+        /* keepalive, no-more-sessions: success; a no-op unless want_reply. */
+        ssh_message_global_request_reply_success(message, 0);
+        break;
     }
 }
 
@@ -652,11 +719,34 @@ static void cb_channel_close(ssh_session session, ssh_channel channel, void *use
 static ssh_channel cb_channel_open(ssh_session session, void *userdata)
 {
     AGENT agent = (AGENT)userdata;
-    if (agent->channel != NULL)
-        return NULL; /* one session channel is enough */
-    agent->channel = ssh_channel_new(session);
-    if (agent->channel == NULL)
+    /* Mirror wolfSSH's session-channel policy exactly (internal.c DoChannelOpen:
+     * a session open is refused, ADMINISTRATIVELY_PROHIBITED, while one is already
+     * in its channel list, and accepted again once that one is closed). libssh
+     * itself has no such limit — it is the application's choice — so the harness
+     * makes the SAME choice: one OPEN session channel at a time, any number over
+     * the session's life. Refusing every later open (as this harness used to)
+     * made "open, close, open again" diverge on a harness choice; accepting
+     * concurrent opens would diverge the other way. */
+    int free_slot = -1;
+    for (int i = 0; i < LIBSSH_MAX_SERVER_CHANNELS; ++i)
+    {
+        ssh_channel c = agent->server_channels[i];
+        if (c != NULL && !ssh_channel_is_closed(c))
+            return NULL; /* a session channel is still open: refuse */
+        if (free_slot < 0 && (c == NULL || ssh_channel_is_closed(c)))
+            free_slot = i;
+    }
+    if (free_slot < 0)
         return NULL;
+    if (agent->server_channels[free_slot] != NULL) /* recycle a closed channel */
+        ssh_channel_free(agent->server_channels[free_slot]);
+
+    ssh_channel channel = ssh_channel_new(session);
+    agent->server_channels[free_slot] = channel;
+    if (channel == NULL)
+        return NULL;
+    /* One callback table serves every channel: the callbacks receive the channel
+     * they fire for. */
     ssh_callbacks_init(&agent->channel_cb);
     agent->channel_cb.userdata = agent;
     agent->channel_cb.channel_exec_request_function = cb_channel_exec;
@@ -664,8 +754,8 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     agent->channel_cb.channel_data_function = cb_channel_data;
     agent->channel_cb.channel_eof_function = cb_channel_eof;
     agent->channel_cb.channel_close_function = cb_channel_close;
-    ssh_set_channel_callbacks(agent->channel, &agent->channel_cb);
-    return agent->channel;
+    ssh_set_channel_callbacks(channel, &agent->channel_cb);
+    return channel;
 }
 
 #ifdef HAS_CLAIMS
@@ -837,6 +927,43 @@ static RESULT libssh_progress(AGENT agent)
 
     if (agent->descriptor.role == SSH_SERVER)
     {
+        /* Register the high-level server callbacks once, BEFORE the key
+         * exchange (as libssh's samplesshd-cb does). From here libssh's own state
+         * machine drives auth (publickey/password), service requests, channel
+         * open, and channel requests — including sending USERAUTH_PK_OK/FAILURE/
+         * SUCCESS and CHANNEL_SUCCESS/FAILURE per RFC 4252/4254 — instead of the
+         * harness re-implementing it. This keeps the harness thin and its
+         * behaviour close to a real libssh server (and symmetric with the wolfSSH
+         * harness, which delegates to wolfSSH_accept).
+         * They must exist before ssh_handle_key_exchange: a peer may send its
+         * SERVICE_REQUEST in the same write as its NEWKEYS (wolfSSH and libssh
+         * clients both do), and libssh then dispatches it from inside the key
+         * exchange. Registered only afterwards (as this harness used to), that
+         * request was parked with no callback and never answered — the session
+         * stalled on libssh while wolfSSH replied: a harness-made divergence. */
+        if (!agent->callbacks_ready)
+        {
+            ssh_callbacks_init(&agent->server_cb);
+            agent->server_cb.userdata = agent;
+            agent->server_cb.auth_pubkey_function = cb_auth_pubkey;
+            agent->server_cb.auth_password_function = cb_auth_password;
+            agent->server_cb.service_request_function = cb_service_request;
+            agent->server_cb.channel_open_request_session_function = cb_channel_open;
+            ssh_set_server_callbacks(agent->session, &agent->server_cb);
+            /* global_request_function (tcpip-forward) is a SESSION callback. */
+            ssh_callbacks_init(&agent->session_cb);
+            agent->session_cb.userdata = agent;
+            agent->session_cb.global_request_function = cb_global_request;
+            ssh_set_callbacks(agent->session, &agent->session_cb);
+            /* Fallback for messages the server callbacks don't handle (direct-tcpip
+             * channel open). Server callbacks run first, so existing seeds are
+             * unaffected; this only catches the fall-through. */
+            ssh_set_message_callback(agent->session, cb_message, agent);
+            ssh_set_auth_methods(agent->session,
+                                 SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
+            agent->callbacks_ready = true;
+        }
+
         if (agent->state == PUT_STATE_KEX)
         {
             for (int i = 0; i < 8; ++i)
@@ -861,33 +988,11 @@ static RESULT libssh_progress(AGENT agent)
                 return ok_result();
         }
 
-        /* Register the high-level server callbacks once, right after KEX. From
-         * here libssh's own state machine drives auth (publickey/password),
-         * service requests, channel open, and channel requests — including
-         * sending USERAUTH_PK_OK/FAILURE/SUCCESS and CHANNEL_SUCCESS/FAILURE per
-         * RFC 4252/4254 — instead of the harness re-implementing it. This keeps
-         * the harness thin and its behaviour close to a real libssh server (and
-         * symmetric with the wolfSSH harness, which delegates to wolfSSH_accept). */
-        if (!agent->callbacks_ready)
+        /* The event loop that dispatches post-KEX traffic is created once KEX
+         * is done (as in libssh's samplesshd-cb); the callbacks it dispatches
+         * to were registered before KEX (see above). */
+        if (agent->event == NULL)
         {
-            ssh_callbacks_init(&agent->server_cb);
-            agent->server_cb.userdata = agent;
-            agent->server_cb.auth_pubkey_function = cb_auth_pubkey;
-            agent->server_cb.auth_password_function = cb_auth_password;
-            agent->server_cb.service_request_function = cb_service_request;
-            agent->server_cb.channel_open_request_session_function = cb_channel_open;
-            ssh_set_server_callbacks(agent->session, &agent->server_cb);
-            /* global_request_function (tcpip-forward) is a SESSION callback. */
-            ssh_callbacks_init(&agent->session_cb);
-            agent->session_cb.userdata = agent;
-            agent->session_cb.global_request_function = cb_global_request;
-            ssh_set_callbacks(agent->session, &agent->session_cb);
-            /* Fallback for messages the server callbacks don't handle (direct-tcpip
-             * channel open). Server callbacks run first, so existing seeds are
-             * unaffected; this only catches the fall-through. */
-            ssh_set_message_callback(agent->session, cb_message, agent);
-            ssh_set_auth_methods(agent->session,
-                                 SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
             agent->event = ssh_event_new();
             if (agent->event == NULL)
             {
@@ -895,7 +1000,6 @@ static RESULT libssh_progress(AGENT agent)
                 return error_result("ssh_event_new failed");
             }
             ssh_event_add_session(agent->event, agent->session);
-            agent->callbacks_ready = true;
         }
 
         /* Dispatch pending callbacks non-blocking (timeout 0). Each dopoll
@@ -954,21 +1058,36 @@ static RESULT libssh_progress(AGENT agent)
                 return ok_result();
         }
 
+        /* The client flow mirrors wolfSSH_connect() step for step, so a libssh
+         * client and a wolfSSH client emit the same c2s message sequence and the
+         * c2s-decrypted transcripts compare 1:1:
+         *   USERAUTH_REQUEST "none" (the RFC 4252 §5.2 probe) -> "password" only if
+         *   the server refuses it -> CHANNEL_OPEN "session" -> CHANNEL_REQUEST
+         *   "shell" (want_reply) -> DONE.
+         * (wolfSSH's connect() sends exactly these; its agent / pty requests are
+         * compiled out of our build.) The handshake claim is still emitted at
+         * auth success, as before. */
         if (agent->state == PUT_STATE_AUTH)
         {
             for (int i = 0; i < 4; ++i)
             {
-                int rc = ssh_userauth_password(agent->session, NULL, "test");
+                int rc = agent->auth_none_done ? ssh_userauth_password(agent->session, NULL, "test")
+                                               : ssh_userauth_none(agent->session, NULL);
                 if (rc == SSH_AUTH_AGAIN)
                 {
                     continue;
                 }
                 if (rc == SSH_AUTH_SUCCESS)
                 {
-                    agent->state = PUT_STATE_DONE;
-                    snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                    agent->state = PUT_STATE_CHANNEL;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_OPEN");
                     emit_handshake_claim(agent);
-                    return ok_result();
+                    break;
+                }
+                if ((rc == SSH_AUTH_DENIED || rc == SSH_AUTH_PARTIAL) && !agent->auth_none_done)
+                {
+                    agent->auth_none_done = true; /* "none" refused: fall back */
+                    continue;
                 }
                 if (rc == SSH_AUTH_DENIED || rc == SSH_AUTH_PARTIAL)
                 {
@@ -978,6 +1097,44 @@ static RESULT libssh_progress(AGENT agent)
                 agent->state = PUT_STATE_ERROR;
                 snprintf(agent->state_desc, sizeof(agent->state_desc), "AUTH_ERROR");
                 return error_result(ssh_get_error(agent->session));
+            }
+            if (agent->state == PUT_STATE_AUTH)
+                return ok_result();
+        }
+
+        if (agent->state == PUT_STATE_CHANNEL)
+        {
+            if (agent->channel == NULL)
+            {
+                agent->channel = ssh_channel_new(agent->session);
+                if (agent->channel == NULL)
+                {
+                    agent->state = PUT_STATE_ERROR;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_ERROR");
+                    return error_result(ssh_get_error(agent->session));
+                }
+            }
+            for (int i = 0; i < 4; ++i)
+            {
+                int rc = agent->client_chan_opened ? ssh_channel_request_shell(agent->channel)
+                                                   : ssh_channel_open_session(agent->channel);
+                if (rc == SSH_AGAIN)
+                    return ok_result(); /* waiting for the server's reply */
+                if (rc != SSH_OK)
+                {
+                    agent->state = PUT_STATE_ERROR;
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_ERROR");
+                    return error_result(ssh_get_error(agent->session));
+                }
+                if (!agent->client_chan_opened)
+                {
+                    agent->client_chan_opened = true; /* confirmed: send the shell request */
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "CHANNEL_REQUEST");
+                    continue;
+                }
+                agent->state = PUT_STATE_DONE;
+                snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                return ok_result();
             }
         }
     }

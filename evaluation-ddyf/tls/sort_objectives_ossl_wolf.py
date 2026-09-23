@@ -1,5 +1,5 @@
 import sys
-from .diff_analyzer import (
+from ..diff_analyzer import (
     BucketCondition,
     NoDiffC,
     AllC,

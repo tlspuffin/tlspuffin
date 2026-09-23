@@ -98,7 +98,8 @@ where
                 .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms used in differential fuzzing").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool)))
-                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool))),
+                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool)))
+                .arg(arg!(-u --uniformise "Apply the differential PUT-config uniformisation first, as differential-execute does (use when re-executing a differential objective on one PUT)").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -397,6 +398,7 @@ where
             matches.get_one("differential_post_computations").unwrap();
         let show_raw: &bool = matches.get_one("show_raw").unwrap();
         let disable_security_oracle: &bool = matches.get_one("disable_security_oracle").unwrap();
+        let uniformise: &bool = matches.get_one("uniformise").unwrap();
 
         let config_trace = ConfigTrace {
             with_bit_level,
@@ -412,6 +414,16 @@ where
             log::error!("Invalid trace file {}", input);
 
             return ExitCode::FAILURE;
+        };
+
+        // A differential objective was produced under the uniformised config (pinned
+        // algorithms etc.); re-executing it on one PUT without the same step can take
+        // a different path (e.g. a different negotiated suite), so offline triage of
+        // differential objectives should pass --uniformise.
+        let trace = if *uniformise {
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+        } else {
+            trace
         };
 
         log::info!("Agents: {:?}", &trace.descriptors);

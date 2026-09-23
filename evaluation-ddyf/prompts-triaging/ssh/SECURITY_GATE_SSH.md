@@ -1,7 +1,7 @@
 # Security Gate (SSH) — Discipline for the `[VULN]` Tag and CVE Candidates
 
 > **This file is self-contained for an SSH campaign — you do not need to open any TLS file.**
-> Concrete names are the SSH pair `libssh0114` (libssh 0.11.4) vs `wolfssh` (wolfSSH 1.5.0),
+> Concrete names are the SSH pair `libssh0114` (libssh 0.11.4) vs `wolfssh150` (wolfSSH 1.5.0),
 > driven by `sshpuffin`; the normative reference is RFC 4251–4254 (+ 8308/8332/5647/8709).
 > *(Maintainer note, not a read instruction: this is the SSH counterpart of the per-protocol
 > `tls/SECURITY_GATE_TLS.md`; keep the two structurally in sync when the methodology changes.)*

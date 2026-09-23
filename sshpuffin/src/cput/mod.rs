@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{c_char, c_void};
 use std::io::Read;
 
 use puffin::agent::{AgentDescriptor, AgentName};

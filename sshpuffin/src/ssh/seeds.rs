@@ -1,7 +1,7 @@
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::Term;
 use puffin::term;
-use puffin::trace::{InputAction, OutputAction, Trace};
+use puffin::trace::{InputAction, OutputAction, Step, Trace};
 
 use crate::protocol::{
     AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes,
@@ -9,9 +9,329 @@ use crate::protocol::{
 use crate::query::SshQueryMatcher;
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::{
-    CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, OnWireData,
-    RawSshMessage, SignatureSchemes, SshBytes, SshMessage,
+    CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, RawSshMessage,
+    SignatureSchemes, SshBytes, SshMessage,
 };
+
+// ── Corpus ─────────────────────────────────────────────────────────────────
+
+pub fn create_corpus(
+    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
+) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    // The corpus does not depend on the PUT; delegate to a factory-free builder so
+    // the corpus-composition invariant (which seeds are in the 0-diff differential
+    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
+    // built harness — see `mod tests::differential_corpus_composition_invariant`.
+    build_corpus()
+}
+
+/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
+/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
+/// appends the single-PUT divergent seeds.
+pub fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    let client = AgentName::first();
+    let server = client.next();
+
+    // Only seeds that complete a full handshake are kept (the legacy mutual /
+    // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
+    // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
+    //
+    // On this branch the cross-vendor differential corpus is restricted to the
+    // seeds that complete IDENTICALLY on both libssh and wolfSSH (the AES-GCM
+    // client seeds). The other seeds do not (chacha20/ctr are libssh-only;
+    // server-attacker / channel / rekey / ext-info / two-party seeds diverge
+    // cross-vendor), so they would become spurious objectives and starve the
+    // differential corpus — they are commented out below but kept documented
+    // (and their `seed_*` functions remain defined above) for single-PUT /
+    // claims-oracle campaigns.
+    //
+    // The `rich-corpus` feature appends the divergent seeds (channel DATA, rekey,
+    // ext-info, credential-confusion B/C) for single-PUT parser/crash campaigns;
+    // see the cfg block after this vec.
+    #[allow(unused_mut)]
+    let mut corpus: Vec<(Trace<SshProtocolTypes>, &'static str)> = vec![
+        // (
+        //     seed_client_attacker_full(server),
+        //     "seed_client_attacker_full",
+        // ),
+        // (
+        //     seed_server_attacker_full(client),
+        //     "seed_server_attacker_full",
+        // ),
+        // SERVER-attacker (the PUT is the CLIENT): the only seed that fuzzes the
+        // libssh / wolfSSH CLIENT parsers differentially. Promoted once it became
+        // genuinely 0-diff: the c2s decryption recipe compares each client's
+        // encrypted stream (before, a client-PUT comparison was vacuous), and the
+        // libssh client harness was aligned with wolfSSH_connect() (pinned
+        // algorithms, fixed user, "none" probe, session channel + shell). Both
+        // clients now emit the same 6-message c2s transcript; stable over repeated
+        // runs. (The ChaCha20 `seed_server_attacker_full` above stays out: chacha
+        // is not negotiated in the differential.)
+        (
+            seed_server_attacker_full_aesgcm(client),
+            "seed_server_attacker_full_aesgcm",
+        ),
+        // The same, continued into the connection protocol: the attacker reads the
+        // client's CHANNEL_OPEN from its decrypted c2s stream and answers on the
+        // channel number each client chose (confirmation + shell reply). 0-diff;
+        // both clients reach DONE.
+        (
+            seed_server_attacker_session_aesgcm(client),
+            "seed_server_attacker_session_aesgcm",
+        ),
+        // The base session: password login, then a session channel and an exec
+        // request. The request addresses the channel each server confirmed (libssh
+        // 43, wolfSSH 0), read from its decrypted CHANNEL_OPEN_CONFIRMATION, so
+        // both stacks process it (a hard-coded channel 0 is dropped by libssh; the
+        // corpus used to cut these seeds before the channel for that reason).
+        (
+            seed_client_attacker_full_aesgcm(server),
+            "seed_client_attacker_full_aesgcm",
+        ),
+        // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
+        // format (RFC 4252 §8; issue #1047 item 6). Both stacks parse and accept
+        // the change-request identically (0-diff), so this both (a) proves the
+        // `fn_password_change_auth_data` constructor reaches each stack's password
+        // handler and (b) is the 0-diff baseline the differential campaign explores
+        // FROM — a mutation that makes one stack handle the change-request
+        // differently now surfaces against a known-good control.
+        (
+            seed_client_attacker_passwd_change(server),
+            "seed_client_attacker_passwd_change",
+        ),
+        // TCP/IP forwarding (RFC 4254 §7): an authorized tcpip-forward global
+        // request + direct-tcpip channel open, both ACCEPTED by both stacks (shared
+        // ssh_creds_forward_authorized boundary; wolfSSH FwdCb + libssh
+        // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
+        // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
+        // for a non-zero requested port — is now permanently shadowed
+        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BUGS; filed
+        // as wolfSSL/wolfssh#1246). Registering it here
+        // gives the forwarding accept path real differential-campaign coverage while
+        // the known, documented port-echo stays quiet. Any OTHER forwarding
+        // divergence (accept-vs-reject, a second changed message, a non-port-echo
+        // response_data delta) is NOT shadowed and surfaces as an objective.
+        (
+            seed_client_attacker_forwarding(server),
+            "seed_client_attacker_forwarding",
+        ),
+        // Same handshake but with a synthesized KEXINIT whose algorithm lists are
+        // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
+        (
+            seed_client_attacker_full_kexinit_synth(server),
+            "seed_client_attacker_full_kexinit_synth",
+        ),
+        // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
+        // cipher + separate-MAC code path, distinct from the AEAD seeds.
+        // (
+        //     seed_client_attacker_full_ctr(server),
+        //     "seed_client_attacker_full_ctr",
+        // ),
+        // Publickey login as key A — the baseline for the entity-authentication
+        // / impersonation oracle. Mutations that make the server authenticate a
+        // different key are flagged as impersonation. The chacha20 variant is
+        // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
+        // (
+        //     seed_client_attacker_pubkey(server),
+        //     "seed_client_attacker_pubkey",
+        // ),
+        (
+            seed_client_attacker_pubkey_aesgcm(server),
+            "seed_client_attacker_pubkey_aesgcm",
+        ),
+        // Credential-confusion entry point, PROMOTED to the differential corpus.
+        // Publickey login as authorized identity B (user "userb", key B): both
+        // stacks emit USERAUTH_SUCCESS and the trace is 0-diff. From here the DY
+        // mutator explores the credential space under differential comparison —
+        // swapping the username / pubkey blob / signature across identities A/B/C
+        // — so a mutation that makes one stack AUTHENTICATE a pairing the other
+        // rejects surfaces as a real accept/reject (UserAuthSuccess vs Failure)
+        // divergence. The explicit *rejection* seeds (impersonate / unauthorized
+        // C) stay single-PUT only: both stacks correctly reject, but they flush
+        // USERAUTH_FAILURE at different s2c counter positions, so the decryption
+        // recipe aligns on one side only — the same flush-timing wall documented
+        // for the channel-number query. Not a bug; just not positionally clean.
+        (
+            seed_client_attacker_pubkey_b(server),
+            "seed_client_attacker_pubkey_b",
+        ),
+        // Session layer: authenticated channel with full connection-protocol
+        // traffic (window-adjust / data / extended-data / eof / close). PROMOTED:
+        // 0-diff cross-vendor. Both stacks now decode the WHOLE channel flow
+        // (setup CHANNEL_OPEN_CONFIRMATION through teardown WINDOW_ADJUST / EOF /
+        // CLOSE). Two harness/comparison pieces made this possible: (1) the libssh
+        // harness now drives channel data/eof/close callbacks symmetrically with
+        // wolfSSH's worker (it consumes data -> WINDOW_ADJUST, answers EOF/CLOSE);
+        // (2) the seed re-addresses channel traffic to each stack's actual channel
+        // number, read from its decrypted CHANNEL_OPEN_CONFIRMATION (libssh 43 vs
+        // wolfSSH 0), resolved per-PUT (fn_s2c_confirmation_sender_channel) — a
+        // hard-coded recipient_channel=0 would be silently dropped by libssh. The
+        // sole residual — WINDOW_ADJUST bytes_to_add (window-credit policy differs
+        // per stack) — is #[comparable_ignore]'d as benign flow-control.
+        (
+            seed_client_attacker_channel_data(server),
+            "seed_client_attacker_channel_data",
+        ),
+        // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
+        // 0-diff cross-vendor now that uniformise + semantic alignment + flight
+        // decryption are in place (the earlier "diverges" note was stale).
+        (
+            seed_client_attacker_rekey(server),
+            "seed_client_attacker_rekey",
+        ),
+        // RFC 8308 ext-info parser. PROMOTED: 0-diff cross-vendor.
+        (
+            seed_client_attacker_ext_info(server),
+            "seed_client_attacker_ext_info",
+        ),
+        // Session requests: channel open / exec / unknown global
+        // request / EOF / CLOSE, each answered by its own s2c flight, the later
+        // ones addressed to the channel read back from the first reply. 0-diff
+        // cross-vendor (stable over repeated runs) once the libssh harness's
+        // global-request callback replied like libssh's own default. Its
+        // `fn_u32_auto` counters let mutations drop / reorder whole round-trips.
+        (
+            seed_client_attacker_session_requests(server),
+            "seed_client_attacker_session_requests",
+        ),
+        // COMPLETED rekey: the new keys are derived from the server's own rekey
+        // KEXINIT / KEX_ECDH_REPLY (decrypted from its s2c stream), then traffic is
+        // sent under them. 0-diff cross-vendor; both stacks answer in the new epoch.
+        (
+            seed_client_attacker_rekey_complete(server),
+            "seed_client_attacker_rekey_complete",
+        ),
+        // Publickey query-then-sign: signs for the key blob the server echoed in its
+        // USERAUTH_PK_OK (decrypted from its s2c stream). 0-diff cross-vendor.
+        (
+            seed_client_attacker_pubkey_query(server),
+            "seed_client_attacker_pubkey_query",
+        ),
+        // Flow control from the server's own limits: one CHANNEL_DATA of exactly
+        // min(window, max packet) from its decrypted confirmation. 0-diff.
+        (
+            seed_client_attacker_flow_control(server),
+            "seed_client_attacker_flow_control",
+        ),
+        // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
+        // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
+        // correctly reject the same (user, key) pairing, and — now that the
+        // post-KEX claim exposes the session id (H) even when auth is rejected —
+        // both decode the encrypted SERVICE_ACCEPT + USERAUTH_FAILURE, which the
+        // key-aligned transcript compares position-independently. (The earlier
+        // "flush-timing wall, single-PUT only" note is stale: the wall was a
+        // positional-alignment artifact the AlignedTranscript removes, and the
+        // no-decryption-on-failed-auth gap is closed by the post-KEX claim.)
+        // The DY mutator explores the credential space from here: a mutation that
+        // makes one stack ACCEPT a pairing the other rejects surfaces as an
+        // accept/reject (UserAuthSuccess vs Failure) divergence.
+        (
+            seed_client_attacker_impersonate_a_with_b(server),
+            "seed_client_attacker_impersonate_a_with_b",
+        ),
+        (
+            seed_client_attacker_unauthorized_key_c(server),
+            "seed_client_attacker_unauthorized_key_c",
+        ),
+        // Two real PUTs relayed by the attacker — the substrate the live
+        // matching-conversation oracle needs. Mutations that desync the relayed
+        // transcript (Terrapin-style) are flagged as a security objective.
+        // (
+        //     seed_handshake_two_party(client, server),
+        //     "seed_handshake_two_party",
+        // ),
+        // (The packet-granular honest relay `seed_handshake_two_party_packet_complete`
+        // — the Terrapin substrate — is registered under rich-corpus below.)
+    ];
+
+    // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
+    // Kept out of the differential corpus (they don't complete identically on both
+    // stacks) but invaluable for exercising post-auth channel data, re-KEX, ext-
+    // info, and the credential-confusion boundary on one stack at a time.
+    #[cfg(feature = "rich-corpus")]
+    {
+        corpus.extend([
+            // (channel_data was PROMOTED to the differential corpus above, now that
+            // the libssh harness drives channel data/eof/close symmetrically and
+            // the seed re-addresses channel traffic per-PUT. The credential-
+            // confusion REJECTION seeds impersonate_a_with_b / unauthorized_key_c
+            // were likewise promoted, once the post-KEX claim let their encrypted
+            // USERAUTH_FAILURE decode on both stacks. None are registered here now.)
+            // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
+            // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
+            // state machine); the confirmed-correct behaviour was validated with a
+            // fresh-build TCP reproducer outside the fuzzer.
+            // DELIBERATELY kept out of the differential corpus: it diverges BY
+            // DESIGN on the strict-kex / rekey-discipline difference (libssh
+            // withholds userauth while the injected rekey is pending; wolfSSH
+            // proceeds) — a NIL-impact conformance difference, fixed upstream in
+            // wolfSSL/wolfssh#1200 (wolfSSH's lack of the Terrapin-affected
+            // ciphers neutralises any exploitability). Including it differentially
+            // would just re-report this closed finding on every run; legitimate
+            // (0-diff) rekey coverage is already provided by the `rekey` seed.
+            (
+                seed_client_attacker_kexinit_injection(server),
+                "seed_client_attacker_kexinit_injection",
+            ),
+            // Auto-counter §7.1 discovery seed: honest 0-diff channel session with
+            // `fn_u32_auto` c2s counters + a trailing rekey KEXINIT. A single
+            // adjacent SwapMutator move strands app traffic after the incomplete
+            // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
+            // their GCM nonces stay valid — the mechanism that makes §7.1
+            // fuzz-discoverable rather than only hand-reproducible. See the seed
+            // docstring.
+            (
+                seed_client_attacker_rekey_channel_auto(server),
+                "seed_client_attacker_rekey_channel_auto",
+            ),
+            // LEGIT (Tier-1) §7.1 auto-discovery seed: honest 0-diff rekey with NO
+            // app traffic near the window — the mutator must introduce non-KEX
+            // traffic into the incomplete-rekey window on its own (harder, more
+            // autonomous). See the seed docstring.
+            (
+                seed_client_attacker_rekey_auto(server),
+                "seed_client_attacker_rekey_auto",
+            ),
+            // Honest two-party relay (a real client PUT against a real server PUT,
+            // packet-granular): both peers complete on libssh and wolfSSH, and it
+            // is even 0-diff cross-vendor, but only its cleartext prefix + claims
+            // can be compared (the relaying attacker cannot decrypt), and a
+            // divergence would mix client- and server-side behaviour of four
+            // implementations. So single-PUT: it lets the mutator corrupt / drop /
+            // reorder messages BETWEEN two real stacks (the Terrapin neighbourhood
+            // is two mutations away; see the seed docstring).
+            (
+                seed_handshake_two_party_packet_complete(client, server),
+                "seed_handshake_two_party_packet_complete",
+            ),
+            // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
+            // registered here — they diverge BY DESIGN and are kept only as
+            // callable, documented reproducers / regression fixtures (see
+            // wolfSSL/wolfssh#1047):
+            //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
+            //     libssh rejects; fixed upstream in wolfSSH 0068d52e).
+            //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
+            //     tolerates→Success, wolfSSH "message not allowed before user authentication").
+            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
+            //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
+            //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
+            //     positive control needs modular-DH math in the mapper (deferred).
+            // (The item-6 password-change probe was PROMOTED to the differential corpus above as a
+            // legit 0-diff positive control — it is the one new surface with honest legit
+            // coverage.) Honest 0-diff corpus coverage of the auth/handshake paths is
+            // already provided by `seed_client_attacker_pubkey_aesgcm` /
+            // `_full_aesgcm`, from which each is a single-message mutation.
+            // Registering a divergent reproducer as a seed would only re-surface a
+            // closed, documented finding on every run. (The SERVER-attacker seed
+            // `seed_server_attacker_full_aesgcm`, which fuzzes the CLIENT-side
+            // parsers, used to be registered here as single-PUT only; it is now in
+            // the DEFAULT differential corpus above — so it is NOT repeated here,
+            // which would double-register it under rich-corpus.)
+        ]);
+    }
+
+    corpus
+}
 
 // ── Seed: client attacker with full handshake and encrypted post-NewKeys ──────
 //
@@ -105,7 +425,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
         fn_encrypt_packet(
             (fn_channel_open(
                 (fn_channel_session),
-                (fn_u32_0),
+                (fn_channel_id_0),
                 (fn_u32_1),
                 (fn_u32_2),
                 (fn_empty_bytes_vec)
@@ -120,7 +440,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
                 (fn_u32_0),
                 (fn_channel_exec),
                 (fn_true),
-                (fn_exec_payload((fn_ssh_userauth)))
+                (fn_exec_payload((fn_exec_command_userauth)))
             )),
             (@enc_key),
             (fn_u32_6)
@@ -279,25 +599,30 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
 
     // AES-GCM invocation counter = per-direction packet index since NewKeys (0,1,2,3).
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
                                   (fn_password_auth_data((fn_password))))),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_3))
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -313,22 +638,31 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
 }
 
-/// Banner/version probe builder (REPORT_triaging.md H2/H3). A completing
+/// Banner/version probe builder, written after the campaigns surfaced the banner
+/// divergence class (libssh "too large banner" vs wolfSSH carrying on), to test two
+/// hypotheses: H2, does each stack accept an over-long identification line; H3, do they
+/// treat a control byte inside it the same way. A completing
 /// AES-256-GCM client-attacker handshake (mirrors `seed_client_attacker_full_aesgcm`,
 /// truncated at USERAUTH_REQUEST) whose WIRE banner and H-input V_C are both
 /// replaced by a caller-supplied out-of-spec pair. Because puffin reconstructs H
@@ -370,13 +704,13 @@ fn banner_probe_seed(
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
                                   (fn_password_auth_data((fn_password))))),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -392,14 +726,18 @@ fn banner_probe_seed(
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner((@banner_wire)) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -440,28 +778,28 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
     // Injected valid rekey KEXINIT (encrypted, counter 0).
     let inject_kexinit = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_client_kexinit_aesgcm((fn_cookie_zeros))), (@key), (@iv), (fn_u32_0))
+            (fn_client_kexinit_aesgcm((fn_cookie_zeros))), (@key), (@iv), (fn_u32_auto))
     };
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_1))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
                                   (fn_password_auth_data((fn_password))))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_3))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_4))
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -477,17 +815,24 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @inject_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -569,7 +914,7 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
     // rekey KEXINIT moves it into the incomplete-rekey window (§7.1).
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_auto))
     };
@@ -580,7 +925,7 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -611,17 +956,24 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
         ],
         ..Default::default()
@@ -652,7 +1004,7 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -674,25 +1026,30 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
                                   (fn_password_auth_data((fn_password))))),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_3))
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -708,16 +1065,22 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -745,7 +1108,7 @@ pub fn seed_client_attacker_full_ctr(server: AgentName) -> Trace<SshProtocolType
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -859,7 +1222,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
     };
     let chan_open = term! {
         fn_encrypt_packet(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_1), (fn_u32_2),
                              (fn_empty_bytes_vec))),
             (@enc_key), (fn_u32_4))
     };
@@ -896,17 +1259,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 // completes on wolfSSH (which lacks chacha20-poly1305) as well as libssh. This
 // is the cross-vendor baseline for the entity-authentication / impersonation
 // oracle.
-/// MINIMAL REPRODUCER for the auth-outcome divergence (findings_phase3/
-/// AUTH_DIVERGENCE_ROOTCAUSE.md). Identical to `seed_client_attacker_pubkey_aesgcm`
-/// (authorized user "user" + key A, valid signature) EXCEPT the USERAUTH_REQUEST
-/// service-name field is `"ssh-userauth"` instead of `"ssh-connection"` — changed
-/// in BOTH the request and the signed blob, so the signature is valid over the
-/// bogus service. libssh 0.11.4 rejects it (`messages.c:819` strict
-/// `strcmp(service,"ssh-connection")`); wolfSSH accepts it (`internal.c:8352`
-/// parses but never validates the service). This isolates the DY-discovered class
-/// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
-/// single deliberate change, as a permanent regression fixture.
-///
+
 /// TCP/IP forwarding flow (RFC 4254 §7; issue #1047 items 2-4): publickey-A auth,
 /// then a `tcpip-forward` global request + a `direct-tcpip` channel open, BOTH
 /// accepted by both stacks (shared `ssh_creds_forward_authorized` boundary; wolfSSH
@@ -915,7 +1268,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 /// REGISTERED in the differential corpus. It is post-filter 0-diff: the single
 /// genuine wolfSSH deviation it triggers — the REQUEST_SUCCESS bound-port echo for
 /// a non-zero requested port — is permanently shadowed
-/// (`is_fwd_reqsuccess_port_echo_diff`; WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). This
+/// (`is_fwd_reqsuccess_port_echo_diff`; wolfSSL/wolfssh#1246). This
 /// gives the forwarding accept path real campaign coverage; any OTHER forwarding
 /// divergence (accept-vs-reject, another changed message, a non-port-echo
 /// response_data delta) is NOT shadowed and surfaces as an objective.
@@ -942,7 +1295,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
@@ -953,7 +1306,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
                 (fn_username), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     // tcpip-forward global request (counter 2). Uses a VALID port (22) so both
     // stacks parse the same value (0x10000 overflows uint16 inconsistently).
@@ -961,7 +1314,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
         fn_encrypt_packet_aesgcm(
             (fn_global_request((fn_request_tcpip_forward), (fn_true),
                                (fn_tcpip_forward_data((fn_addr_localhost), (fn_port_ssh))))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
     // direct-tcpip channel open (counter 3). Both harnesses now accept an
     // authorized direct-tcpip: wolfSSH via FwdCb LOCAL_SETUP, libssh via the
@@ -969,10 +1322,10 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
     // allow-list, so any divergence here is a real library difference.
     let direct = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_type_direct_tcpip), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_type_direct_tcpip), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_direct_tcpip_data((fn_addr_localhost), (fn_port_ssh),
                                                    (fn_addr_localhost), (fn_port_ssh))))),
-            (@key), (@iv), (fn_u32_3))
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -988,15 +1341,20 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @fwd_req }),
+            OutputAction::new_step(server), // REQUEST_SUCCESS
             // Both stacks now accept an authorized direct-tcpip (wolfSSH FwdCb,
             // libssh message-callback fallback). The residual divergence is a
             // genuine wolfSSH behaviour: it echoes the bound port in
@@ -1004,6 +1362,7 @@ pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTy
             // RFC 4254 §7.1 (port reply only for a port-0 dynamic request); libssh
             // omits it.
             InputAction::new_step(server, term! { @direct }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
         ],
         ..Default::default()
     }
@@ -1025,7 +1384,7 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_dh_group14_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1048,12 +1407,14 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             // KEXDH_INIT with e = 0 (out of range).
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_dh_init((fn_dh_exponent_zero)))) },
             ),
+            OutputAction::new_step(server), // KEXDH_REPLY
         ],
         ..Default::default()
     }
@@ -1070,7 +1431,7 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
 /// for the password-change message format: it proves the constructor reaches both
 /// stacks' password handlers and gives the mutator a known-good baseline. (That
 /// both stacks are equally lax about the change semantics is a shared-conformance
-/// observation a *differential* oracle cannot flag — see RFC_CONFORMANCE_PROBES.md.)
+/// observation a *differential* oracle cannot flag.)
 pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -1094,14 +1455,14 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     // password-CHANGE: current password as "old", a new password. change=TRUE.
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
             (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
                                   (fn_password_change_auth_data((fn_password), (fn_password_long))))),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1117,14 +1478,18 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -1134,12 +1499,12 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
 /// unknown/high-numbered SSH message (type 250, "reserved for private use") via the
 /// new `fn_msg_unknown_highnumber` primitive. RFC 4253 §11.4 says the peer MUST
 /// reply SSH_MSG_UNIMPLEMENTED; a lax stack bare-closes. The differential compares
-/// the two stacks' handling of an unrecognised pre-auth message — the surface the
-/// Status-bucket re-scan (ITEM7_RESCAN.md) could only reach incidentally post-auth.
+/// the two stacks' handling of an unrecognised pre-auth message, which campaign
+/// objectives had only reached incidentally, post-auth.
 ///
 /// NOT registered in any corpus: it diverges by design (kept as a callable
 /// reproducer / regression fixture, like `seed_client_attacker_bad_service`). Run
-/// `differential-execute libssh0114-asan wolfssh-asan <trace>` to observe.
+/// `differential-execute libssh0114-asan wolfssh150-asan <trace>` to observe.
 pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -1164,7 +1529,7 @@ pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolT
 
     // First post-NEWKEYS packet (counter 0): an unknown/high-numbered message.
     let unknown = term! {
-        fn_encrypt_packet_aesgcm((fn_msg_unknown_highnumber), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_msg_unknown_highnumber), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1180,23 +1545,37 @@ pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @unknown }),
+            OutputAction::new_step(server), // UNIMPLEMENTED
         ],
         ..Default::default()
     }
 }
 
+/// MINIMAL REPRODUCER for the USERAUTH service-name divergence (RFC 4252 §5; fixed
+/// upstream in wolfSSH 0068d52e). Identical to `seed_client_attacker_pubkey_aesgcm`
+/// (authorized user "user" + key A, valid signature) EXCEPT the USERAUTH_REQUEST
+/// service-name field is `"ssh-userauth"` instead of `"ssh-connection"` — changed
+/// in BOTH the request and the signed blob, so the signature is valid over the
+/// bogus service. libssh 0.11.4 rejects it (`messages.c:819` strict
+/// `strcmp(service,"ssh-connection")`); wolfSSH accepts it (`internal.c:8352`
+/// parses but never validates the service). This isolates the fuzzer-found class
+/// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
+/// single deliberate change, as a permanent regression fixture.
+///
 /// NOT registered in any corpus (see the NOTE in `create_corpus`): it is a
 /// NON-LEGIT trace that diverges by design, kept only as a callable reproducer for
 /// the finding. `#![allow(dead_code)]` (ssh/mod.rs) permits the unregistered
 /// `pub fn`. To reproduce: call this, run `differential-execute libssh0114-asan
-/// wolfssh-asan <trace>` — wolfSSH yields UserAuthSuccess, libssh UserAuthFailure.
+/// wolfssh150-asan <trace>` — wolfSSH yields UserAuthSuccess, libssh UserAuthFailure.
 pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -1220,7 +1599,7 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     // The ONLY change vs the honest pubkey seed: service = fn_ssh_userauth
     // ("ssh-userauth") instead of fn_ssh_connection — signed AND sent, so the
@@ -1236,19 +1615,19 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
                 (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_3))
+            (fn_channel_request((fn_channel_id_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1264,16 +1643,22 @@ pub fn seed_client_attacker_bad_service(server: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1303,7 +1688,7 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
@@ -1316,21 +1701,26 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
                 (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     // Channel traffic after auth — also pumps extra progress() iterations, which
     // wolfSSH's single-step accept() needs to finish processing the auth.
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_3))
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1346,16 +1736,22 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1391,7 +1787,7 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     // B signs over (session id, "userb", service, key-B blob) with B's key.
     let sig = term! {
@@ -1403,19 +1799,24 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
                 (fn_username_b), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_b_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
+    // The channel the server confirmed (its sender_channel), read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION: the CHANNEL_REQUEST addresses it (RFC 4254 §5.1).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
     let chan_req = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
-                                (fn_exec_payload((fn_ssh_userauth))))),
-            (@key), (@iv), (fn_u32_3))
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1431,16 +1832,22 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @chan_req }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS
         ],
         ..Default::default()
     }
@@ -1477,7 +1884,7 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     // Valid signature by key B, but over a request whose username is "user" (A's
     // name). Signature verifies; the (user "user", key B) pairing is unauthorized.
@@ -1490,7 +1897,7 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
                 (fn_username), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_b_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     // After a REJECTED auth, pump with SSH_MSG_IGNORE (permitted in any state) so
     // wolfSSH flushes its USERAUTH_FAILURE without hitting "message not allowed
@@ -1499,10 +1906,10 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
     // un-mutated trace is 0-diff and mutations that make one stack ACCEPT the bad
     // pairing surface as a real accept/reject divergence.
     let pump1 = term! {
-        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_2))
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_auto))
     };
     let pump2 = term! {
-        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_3))
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1518,14 +1925,18 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @pump1 }),
             InputAction::new_step(server, term! { @pump2 }),
         ],
@@ -1561,7 +1972,7 @@ pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshPr
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth_c((fn_session_id_from_hash((@exch_hash))), (fn_username_c), (fn_ssh_connection), (fn_client_c_pubkey_blob))
@@ -1572,14 +1983,14 @@ pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshPr
                 (fn_username_c), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_c_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     // Pump with SSH_MSG_IGNORE after the rejected auth (see impersonate seed).
     let pump1 = term! {
-        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_2))
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_auto))
     };
     let pump2 = term! {
-        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_3))
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1595,14 +2006,18 @@ pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshPr
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @pump1 }),
             InputAction::new_step(server, term! { @pump2 }),
         ],
@@ -1640,7 +2055,7 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
@@ -1651,13 +2066,13 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
                 (fn_username), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_open = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
                              (fn_empty_bytes_vec))),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
     // s2c key/iv (to DECRYPT the server's output) + the channel number THIS server
     // assigned. libssh and wolfSSH pick different channel numbers, so the client
@@ -1674,7 +2089,7 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     // Connection-protocol traffic on the server-assigned channel (see `chan`).
     let win_adjust = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_window_adjust((@chan), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_3))
+            (fn_channel_window_adjust((@chan), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_auto))
     };
     // Mutable byte payload (fn_ssh_bytes over a Vec<u8> leaf): bit-level havoc
     // grows/shrinks/flips the bytes and the DY mutator can swap the leaf — the
@@ -1682,18 +2097,18 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     let chan_data = term! {
         fn_encrypt_packet_aesgcm(
             (fn_channel_data((@chan), (fn_ssh_bytes((fn_channel_payload))))),
-            (@key), (@iv), (fn_u32_4))
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_ext_data = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_extended_data((@chan), (fn_u32_1), (fn_ssh_bytes((fn_channel_payload))))),
-            (@key), (@iv), (fn_u32_5))
+            (fn_channel_extended_data((@chan), (fn_extended_data_stderr), (fn_ssh_bytes((fn_channel_payload))))),
+            (@key), (@iv), (fn_u32_auto))
     };
     let chan_eof = term! {
-        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_6))
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_auto))
     };
     let chan_close = term! {
-        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_7))
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1709,20 +2124,165 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
             InputAction::new_step(server, term! { @win_adjust }),
             InputAction::new_step(server, term! { @chan_data }),
             InputAction::new_step(server, term! { @chan_ext_data }),
             InputAction::new_step(server, term! { @chan_eof }),
             InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
+        ],
+        ..Default::default()
+    }
+}
+
+/// Session-requests seed: after publickey login, drive several
+/// request/response round-trips on ONE session, each answered by its own s2c
+/// flight — instead of a single post-auth burst:
+///
+///   1. `CHANNEL_OPEN` session → `CHANNEL_OPEN_CONFIRMATION` (its `sender_channel` is read back and
+///      addresses every later channel message)
+///   2. `CHANNEL_REQUEST` exec, want_reply → `CHANNEL_SUCCESS`
+///   3. `GLOBAL_REQUEST` with an unknown name, want_reply → `REQUEST_FAILURE` (RFC 4254 §4: an
+///      unrecognised want_reply request MUST be refused)
+///   4. `CHANNEL_EOF` → the server's own `CHANNEL_EOF`
+///   5. `CHANNEL_CLOSE` → the server's `CHANNEL_CLOSE`
+///
+/// No `CHANNEL_DATA` round-trip: plain data has no reply common to both stacks.
+/// libssh credits the window (`WINDOW_ADJUST`) as soon as the harness consumes
+/// the data, while wolfSSH only adjusts once its channel input buffer is over half
+/// full or the window hits 0 (`_UpdateChannelWindow`) — a benign flow-control
+/// policy difference, not a harness artifact. (`seed_client_attacker_channel_data`
+/// is 0-diff because its EXTENDED_DATA makes wolfSSH adjust immediately too.)
+///
+/// Every c2s packet counter is the `fn_u32_auto` sentinel (renumbered to its wire
+/// position by `preprocess_trace`), so step-deleting / reordering mutations keep
+/// the GCM nonces valid: the mutator can drop, repeat or reorder whole
+/// round-trips (e.g. a channel request before the open or after the close)
+/// and the server still decrypts and PROCESSES them. One session channel only:
+/// the libssh server harness accepts a single session channel, so a second one
+/// would diverge on a harness choice, not a library difference.
+/// AES-256-GCM; key A publickey login.
+pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trip 1: open the session channel.
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // The channel number THIS server assigned, read from its decrypted
+    // CHANNEL_OPEN_CONFIRMATION (per-PUT in the differential; see
+    // `seed_client_attacker_channel_data`).
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
+
+    // Round-trip 2: exec request on that channel, want_reply.
+    let chan_exec = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((@chan), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_exec_command_userauth))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trip 3: a connection-level request no stack recognises.
+    let unknown_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_global_request((fn_request_unknown), (fn_true), (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // Round-trips 4-5: a bidirectional EOF / CLOSE teardown.
+    let chan_eof = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_close = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
+            InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
+            InputAction::new_step(server, term! { @chan_exec }),
+            OutputAction::new_step(server), // CHANNEL_SUCCESS, command output
+            InputAction::new_step(server, term! { @unknown_req }),
+            OutputAction::new_step(server), // REQUEST_FAILURE
+            InputAction::new_step(server, term! { @chan_eof }),
+            OutputAction::new_step(server), // the server's own CHANNEL_EOF
+            InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
         ],
         ..Default::default()
     }
@@ -1766,7 +2326,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
     // libssh's packet filter only permits a rekey KEXINIT once the connection is
     // established, so authenticate first (publickey, key A; counters 0,1).
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
@@ -1777,7 +2337,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
                 (fn_username), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_1))
+            (@key), (@iv), (fn_u32_auto))
     };
 
     // Rekey handshake, encrypted under the first keys (c2s counters 2,3,4). The
@@ -1798,7 +2358,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1806,14 +2366,14 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
                 (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
                 (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
             )),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
     let rekey_ecdh_init = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_3))
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_auto))
     };
     let rekey_newkeys = term! {
-        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_4))
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -1829,17 +2389,401 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Publickey "query, then sign" (RFC 4252 §7), the flow real clients use: first a
+/// USERAUTH_REQUEST WITHOUT signature asking whether key A is acceptable; the
+/// server answers USERAUTH_PK_OK echoing the algorithm and key blob; the client
+/// then signs for exactly the blob the server echoed (read back from the
+/// decrypted s2c stream with `fn_decrypted_message` + `fn_pk_ok_blob`) and sends
+/// the signed request. A mutated PK_OK or query therefore changes what gets
+/// signed. Then a session channel is opened. AES-256-GCM, all counters auto.
+pub fn seed_client_attacker_pubkey_query(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    // 1. The query: no signature.
+    let query = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_query_data((fn_client_a_pubkey_blob)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // 2. The key blob the server says it would accept, from its PK_OK.
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let pk_ok = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_userauth_pk_ok), (fn_ordinal_first))
+    };
+    let accepted_blob = term! { fn_pk_ok_blob((@pk_ok)) };
+    // 3. Sign for that blob.
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (@accepted_blob))
+    };
+    let signed = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((@accepted_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @query }),
+            OutputAction::new_step(server), // USERAUTH_PK_OK
+            InputAction::new_step(server, term! { @signed }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS
+            InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
+        ],
+        ..Default::default()
+    }
+}
+
+/// Flow control from the server's own limits (RFC 4254 §5.1-5.2): open a session
+/// channel, read the server's CHANNEL_OPEN_CONFIRMATION back from the decrypted s2c
+/// stream, and send ONE CHANNEL_DATA of exactly min(window, max packet) it
+/// advertised (libssh 32000 = its whole window; wolfSSH 32768), addressed to its
+/// channel number. Each server's window / packet-size accounting is exercised at its
+/// real boundary, and a mutated confirmation or budget changes what is sent. Then
+/// EXTENDED_DATA, EOF, CLOSE as in `seed_client_attacker_channel_data` (the extended
+/// data makes wolfSSH credit the window immediately too). All counters auto.
+pub fn seed_client_attacker_flow_control(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // The server's confirmation: its channel number and its send limits.
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let confirm = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_channel_open_confirmation), (fn_ordinal_first))
+    };
+    let chan = term! { fn_sender_channel((@confirm)) };
+    let budget = term! { fn_channel_send_budget((@confirm)) };
+
+    let chan_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_data((@chan), (fn_ssh_bytes((fn_bytes_of_len((@budget))))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_ext_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_extended_data((@chan), (fn_extended_data_stderr), (fn_ssh_bytes((fn_channel_payload))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_eof = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_close = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
+            InputAction::new_step(server, term! { @chan_open }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
+            InputAction::new_step(server, term! { @chan_data }),
+            InputAction::new_step(server, term! { @chan_ext_data }),
+            InputAction::new_step(server, term! { @chan_eof }),
+            InputAction::new_step(server, term! { @chan_close }),
+            OutputAction::new_step(server), // CHANNEL_CLOSE
+        ],
+        ..Default::default()
+    }
+}
+
+/// COMPLETED rekey (RFC 4253 §9): the `seed_client_attacker_rekey` handshake, then
+/// traffic under the NEW keys, which the attacker derives from what the server said
+/// during the re-exchange — a real data dependency on post-KEX server replies.
+///
+/// The server's rekey KEXINIT and its second KEX_ECDH_REPLY arrive encrypted under
+/// the FIRST keys; `fn_decrypted_message` recovers them from the s2c stream. From
+/// them: K2 = ECDH(our ephemeral, Q_S2), H2 = hash(V_C, V_S, I_C2, I_S2, K_S, Q_C,
+/// Q_S2, K2), and the new c2s key/IV from (K2, H2, session id = H1, unchanged by a
+/// rekey, RFC 4253 §7.2). After NEWKEYS the attacker opens a session channel and
+/// sends a want_reply global request with those keys (GCM counter restarts at 0).
+/// A server that did not actually switch keys fails the tag on both packets.
+/// AES-256-GCM, key A publickey login.
+pub fn seed_client_attacker_rekey_complete(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Re-exchange under the first keys, same KEXINIT as
+    // `seed_client_attacker_rekey` (mutable name-lists).
+    let rekey_kexinit_msg = term! {
+        fn_kex_init(
+            (fn_cookie_zeros),
+            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm((@rekey_kexinit_msg), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_ecdh_init = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
+    };
+
+    // What the server said during the re-exchange, decrypted from its s2c stream
+    // under the FIRST keys (the fold stops where its NEWKEYS switches keys). The
+    // transcript also holds the cleartext first exchange, so the rekey KEXINIT and
+    // KEX_ECDH_REPLY are the second occurrence (`fn_ordinal_second`).
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let server_kexinit2 = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_kexinit), (fn_ordinal_second))
+    };
+    let server_ecdh_reply2 = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_kex_ecdh_reply), (fn_ordinal_second))
+    };
+    let server_ecdh_pub2 = term! { fn_server_ecdh_pubkey((@server_ecdh_reply2)) };
+    let shared2 = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub2)) };
+    let exch_hash2 = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id),
+            (fn_kexinit_payload((@rekey_kexinit_msg))), (fn_kexinit_payload((@server_kexinit2))),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub2), (@shared2)
+        )
+    };
+    let key2 = term! { fn_derive_aes_key_c2s((@shared2), (@exch_hash2), (@sid)) };
+    let iv2 = term! { fn_derive_iv_c2s((@shared2), (@exch_hash2), (@sid)) };
+
+    // Traffic under the NEW keys. Every c2s packet counter is the `fn_u32_auto`
+    // sentinel: `preprocess_trace` numbers each packet by its wire position within
+    // its key epoch (restarting after the encrypted rekey NEWKEYS), so deleting or
+    // reordering steps keeps every GCM nonce valid.
+    let chan_open2 = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_window_size_default), (fn_max_packet_size_default),
+                             (fn_empty_bytes_vec))),
+            (@key2), (@iv2), (fn_u32_auto))
+    };
+    let global_req2 = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_global_request((fn_request_unknown), (fn_true), (fn_empty_bytes_vec))),
+            (@key2), (@iv2), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+            InputAction::new_step(server, term! { @chan_open2 }),
+            OutputAction::new_step(server), // CHANNEL_OPEN_CONFIRMATION
+            InputAction::new_step(server, term! { @global_req2 }),
+            OutputAction::new_step(server), // REQUEST_FAILURE
         ],
         ..Default::default()
     }
@@ -1902,7 +2846,7 @@ pub fn seed_client_attacker_rekey_auto(server: AgentName) -> Trace<SshProtocolTy
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1933,16 +2877,22 @@ pub fn seed_client_attacker_rekey_auto(server: AgentName) -> Trace<SshProtocolTy
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
             InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { @rekey_newkeys }),
         ],
         ..Default::default()
@@ -1970,8 +2920,8 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
     let our_kexinit = term! {
         fn_kex_init(
             (fn_placeholder_16bytes),
-            (fn_kex_algos((fn_namelist_2((fn_algo_curve25519_sha256), (fn_algo_ext_info_c))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_kex_algos((fn_namelist_append((fn_namelist_1((fn_algo_curve25519_sha256))), (fn_algo_ext_info_c))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1995,10 +2945,10 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
     let ext_info = term! {
         fn_encrypt_packet_aesgcm(
             (fn_ext_info((fn_ext_name_server_sig_algs), (fn_ext_val_rsa_sha2))),
-            (@key), (@iv), (fn_u32_0))
+            (@key), (@iv), (fn_u32_auto))
     };
     let svc_req = term! {
-        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_1))
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let sig = term! {
         fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
@@ -2009,7 +2959,7 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
                 (fn_username), (fn_ssh_connection), (fn_method_publickey),
                 (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
             )),
-            (@key), (@iv), (fn_u32_2))
+            (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -2025,15 +2975,19 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
             ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @ext_info }),
             InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
             InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
         ],
         ..Default::default()
     }
@@ -2180,10 +3134,10 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
     let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_accept = term! {
-        fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+        fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
     };
     let auth_success = term! {
-        fn_encrypt_packet_aesgcm((fn_user_auth_success), (@key), (@iv), (fn_u32_1))
+        fn_encrypt_packet_aesgcm((fn_user_auth_success), (@key), (@iv), (fn_u32_auto))
     };
 
     Trace {
@@ -2199,7 +3153,9 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
         steps: vec![
             OutputAction::new_step(client),
             InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // KEXINIT
             InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            OutputAction::new_step(client), // KEX_ECDH_INIT
             InputAction::new_step(
                 client,
                 term! {
@@ -2210,520 +3166,492 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
                     )))
                 },
             ),
+            OutputAction::new_step(client), // NEWKEYS
             InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), // SERVICE_REQUEST
             InputAction::new_step(client, term! { @svc_accept }),
+            OutputAction::new_step(client), // USERAUTH_REQUEST
             InputAction::new_step(client, term! { @auth_success }),
+            OutputAction::new_step(client), // CHANNEL_OPEN
         ],
         ..Default::default()
     }
 }
 
-/// Differential-fuzzing decryption recipes for a libssh **server** agent.
-///
-/// After NewKeys the server's responses are opaque `OnWire` ciphertext, so to
-/// compare two PUTs structurally we reconstruct the server→client (s2c) key
-/// from the server's observed KEX output (exactly as `seed_client_attacker_full`
-/// derives the c2s key, but for the 'D' direction) and decrypt each encrypted
-/// server output back into a typed `SshMessage`.
-///
-/// The s2c sequence number after NewKeys depends on whether the server enabled
-/// strict KEX (Terrapin mitigation): strict resets the counter to 0, otherwise
-/// it continues (KexInit=0, KexEcdhReply=1, NewKeys=2 → first encrypted = 3).
-/// We therefore emit a recipe at BOTH the strict (0,1,2) and non-strict (3,4,5)
-/// sequence numbers for each of the first three encrypted outputs; the wrong
-/// seqno fails the Poly1305 tag and is skipped during evaluation, so each PUT's
-/// decrypted store fills in message order and the two stores stay aligned.
-///
-/// NOTE: no longer emitted in the differential (chacha is never negotiated under
-/// `uniformise_put_config`; see `differential_fuzzing_terms_to_eval`). Its
-/// positional `(server, N)/OnWireData` queries are framing-fragile across PUTs.
-/// Retained for reference / potential single-PUT use and as the template to
-/// convert to a framing-independent `fn_fold_s2c_transcript_chacha` if the
-/// cipher set is ever widened.
-#[allow(dead_code)]
-pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
-    // Reconstruct the exchange hash from the server's KEX output (mirrors
-    // seed_client_attacker_full).
-    let server_banner_id =
-        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
-    let server_kexinit = term! { (server, 0)[None]/SshMessage };
-    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
-    let server_ecdh_reply_raw =
-        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
-    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
-    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
-    let shared = term! {
-        fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub))
-    };
-    let our_kexinit = term! {
-        fn_kex_init(
-            (fn_placeholder_16bytes),
-            ((server, 0)[None]/KexAlgorithms),
-            ((server, 0)[None]/SignatureSchemes),
-            ((server, 0)[None]/EncryptionAlgorithms),
-            ((server, 1)[None]/EncryptionAlgorithms),
-            ((server, 0)[None]/MacAlgorithms),
-            ((server, 1)[None]/MacAlgorithms),
-            ((server, 0)[None]/CompressionAlgorithms),
-            ((server, 1)[None]/CompressionAlgorithms)
-        )
-    };
-    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
-    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+/// SERVER-attacker session: `seed_server_attacker_full_aesgcm` continued into the
+/// connection protocol, driven by what the CLIENT PUT sends after authentication.
+/// Both clients open a "session" channel and then send a want_reply "shell"
+/// request (the libssh client harness mirrors `wolfSSH_connect()`), but each picks
+/// its own channel number (libssh 43, wolfSSH 0). The attacker derives the c2s
+/// key from the handshake it ran, decrypts the client's stream with
+/// `fn_decrypted_message`, reads the client's CHANNEL_OPEN `sender_channel`, and
+/// answers on THAT channel: CHANNEL_OPEN_CONFIRMATION, then CHANNEL_SUCCESS for
+/// the shell request. This drives both clients' channel-setup parsers (a
+/// confirmation, a request reply) instead of stopping at USERAUTH_SUCCESS.
+pub fn seed_server_attacker_session_aesgcm(client: AgentName) -> Trace<SshProtocolTypes> {
+    let client_banner_id = term! { fn_banner_id(((client, 0)[None]/RawSshMessage)) };
+    let client_kexinit = term! { (client, 0)[None]/SshMessage };
+    let q_c = term! { (client, 0)[None]/SshBytes };
+
+    let our_kexinit = term! { fn_server_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let i_c = term! { fn_kexinit_payload((@client_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@our_kexinit)) };
     let exch_hash = term! {
         fn_kex_exchange_hash(
-            (fn_puffin_id),
-            (@server_banner_id),
-            (@i_c),
-            (@i_s),
-            (@server_hostkey),
-            (fn_client_ecdh_pubkey),
-            (@server_ecdh_pub),
-            (@shared)
+            (@client_banner_id), (fn_puffin_id), (@i_c), (@i_s),
+            (fn_server_rsa_pubkey_bytes), (@q_c), (fn_client_ecdh_pubkey), (@shared)
         )
     };
-    let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    // s2c: what we (the server) send; c2s: what the client sends, to read it back.
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+    let key_c2s = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv_c2s = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
 
-    // Decrypt each of the first three encrypted server outputs at both the
-    // strict (0,1,2) and non-strict (3,4,5) s2c sequence numbers. The wrong
-    // seqno fails the Poly1305 tag during evaluation and is skipped, so both
-    // PUTs' decrypted stores fill in message order and stay aligned.
-    let mk = |idx_term: Term<SshProtocolTypes>, seqno: Term<SshProtocolTypes>| {
-        let key = key.clone();
-        term! { fn_decrypt_packet((@idx_term), (@key), (@seqno)) }
+    let svc_accept = term! {
+        fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let auth_success = term! {
+        fn_encrypt_packet_aesgcm((fn_user_auth_success), (@key), (@iv), (fn_u32_auto))
     };
 
-    vec![
-        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
-        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_3 }),
-        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
-        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_4 }),
-        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
-        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_5 }),
+    // The channel number the CLIENT chose, from its decrypted CHANNEL_OPEN.
+    let c2s = term! { (client, *)/RawSshMessageFlight };
+    let client_open = term! {
+        fn_decrypted_message((@c2s), (@key_c2s), (@iv_c2s), (fn_msg_channel_open), (fn_ordinal_first))
+    };
+    let client_chan = term! { fn_sender_channel((@client_open)) };
+
+    let chan_confirm = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open_confirmation((@client_chan), (fn_channel_id_0), (fn_window_size_default),
+                                          (fn_max_packet_size_default), (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_success = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_success((@client_chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // KEXINIT
+            InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            OutputAction::new_step(client), // KEX_ECDH_INIT
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_packet((fn_kex_ecdh_reply(
+                        (fn_server_rsa_pubkey),
+                        (fn_client_ecdh_pubkey),
+                        (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
+                    )))
+                },
+            ),
+            OutputAction::new_step(client), // NEWKEYS
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), // SERVICE_REQUEST
+            InputAction::new_step(client, term! { @svc_accept }),
+            OutputAction::new_step(client), // USERAUTH_REQUEST
+            InputAction::new_step(client, term! { @auth_success }),
+            OutputAction::new_step(client), // CHANNEL_OPEN
+            InputAction::new_step(client, term! { @chan_confirm }),
+            OutputAction::new_step(client), // CHANNEL_REQUEST
+            InputAction::new_step(client, term! { @chan_success }),
+        ],
+        ..Default::default()
+    }
+}
+
+// ── Legacy ChaCha20 s2c decryption recipe — COMMENTED OUT (kept for reference) ──
+//
+// `server_decryption_recipes` decrypted a server's first three encrypted outputs
+// under chacha20-poly1305. It is not called anywhere: chacha is never negotiated
+// in the differential (`uniformise_put_config` pins AES-256-GCM; see
+// `differential_fuzzing_terms_to_eval` in protocol.rs), and the live recipe is the
+// framing-independent `server_decryption_recipes_aesgcm` below. It is also the
+// last code addressing encrypted output by raw POSITION, `(server, N)/OnWireData`,
+// which no longer resolves (encrypted chunks are `RawSshMessage` knowledge now,
+// matched with `[Some(SshQueryMatcher::OnWire)]`; see the two-party relay seeds).
+// To revive it for a ChaCha20 campaign: switch those queries to the `[OnWire]`
+// matcher (or better, write a `fn_fold_s2c_transcript_chacha` over the
+// concatenated `(server, *)` flight, as the AES-GCM recipe does), then uncomment.
+//
+// /// Differential-fuzzing decryption recipes for a libssh **server** agent.
+// ///
+// /// After NewKeys the server's responses are opaque `OnWire` ciphertext, so to
+// /// compare two PUTs structurally we reconstruct the server→client (s2c) key
+// /// from the server's observed KEX output (exactly as `seed_client_attacker_full`
+// /// derives the c2s key, but for the 'D' direction) and decrypt each encrypted
+// /// server output back into a typed `SshMessage`.
+// ///
+// /// The s2c sequence number after NewKeys depends on whether the server enabled
+// /// strict KEX (Terrapin mitigation): strict resets the counter to 0, otherwise
+// /// it continues (KexInit=0, KexEcdhReply=1, NewKeys=2 → first encrypted = 3).
+// /// We therefore emit a recipe at BOTH the strict (0,1,2) and non-strict (3,4,5)
+// /// sequence numbers for each of the first three encrypted outputs; the wrong
+// /// seqno fails the Poly1305 tag and is skipped during evaluation, so each PUT's
+// /// decrypted store fills in message order and the two stores stay aligned.
+// ///
+// /// NOTE: no longer emitted in the differential (chacha is never negotiated under
+// /// `uniformise_put_config`; see `differential_fuzzing_terms_to_eval`). Its
+// /// positional `(server, N)/OnWireData` queries are framing-fragile across PUTs.
+// /// Retained for reference / potential single-PUT use and as the template to
+// /// convert to a framing-independent `fn_fold_s2c_transcript_chacha` if the
+// /// cipher set is ever widened.
+// #[allow(dead_code)]
+// pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
+//     // Reconstruct the exchange hash from the server's KEX output (mirrors
+//     // seed_client_attacker_full).
+//     let server_banner_id =
+//         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+//     let server_kexinit = term! { (server, 0)[None]/SshMessage };
+//     let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+//     let server_ecdh_reply_raw =
+//         term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+//     let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+//     let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+//     let shared = term! {
+//         fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub))
+//     };
+//     let our_kexinit = term! {
+//         fn_kex_init(
+//             (fn_placeholder_16bytes),
+//             ((server, 0)[None]/KexAlgorithms),
+//             ((server, 0)[None]/SignatureSchemes),
+//             ((server, 0)[None]/EncryptionAlgorithms),
+//             ((server, 1)[None]/EncryptionAlgorithms),
+//             ((server, 0)[None]/MacAlgorithms),
+//             ((server, 1)[None]/MacAlgorithms),
+//             ((server, 0)[None]/CompressionAlgorithms),
+//             ((server, 1)[None]/CompressionAlgorithms)
+//         )
+//     };
+//     let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+//     let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+//     let exch_hash = term! {
+//         fn_kex_exchange_hash(
+//             (fn_puffin_id),
+//             (@server_banner_id),
+//             (@i_c),
+//             (@i_s),
+//             (@server_hostkey),
+//             (fn_client_ecdh_pubkey),
+//             (@server_ecdh_pub),
+//             (@shared)
+//         )
+//     };
+//     let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash),
+// (fn_session_id_from_hash((@exch_hash)))) };
+//
+//     // Decrypt each of the first three encrypted server outputs at both the
+//     // strict (0,1,2) and non-strict (3,4,5) s2c sequence numbers. The wrong
+//     // seqno fails the Poly1305 tag during evaluation and is skipped, so both
+//     // PUTs' decrypted stores fill in message order and stay aligned.
+//     let mk = |idx_term: Term<SshProtocolTypes>, seqno: Term<SshProtocolTypes>| {
+//         let key = key.clone();
+//         term! { fn_decrypt_packet((@idx_term), (@key), (@seqno)) }
+//     };
+//
+//     vec![
+//         mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
+//         mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_3 }),
+//         mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
+//         mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_4 }),
+//         mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
+//         mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_5 }),
+//     ]
+// }
+
+// ── Two-party relay seeds (a real client PUT against a real server PUT) ──────
+//
+// The attacker only relays. Messages are addressed by TYPE, never by raw
+// position: `[Banner]` / `[MsgType(n)]` for the cleartext phase and the n-th
+// `[OnWire]` chunk (opaque ciphertext) for the encrypted phase; the flight relay
+// forwards each agent's n-th non-empty output flight. (The seeds used to address
+// `(agent, n)/OnWireData` and lockstep flight indices, which stopped resolving
+// when encrypted chunks became `RawSshMessage` knowledge — every one of them
+// failed mid-relay on both stacks before reaching its point.) Every relay step is
+// followed by an output pump of the receiver: libssh sometimes needs one more
+// progress round to emit its reply (e.g. to a batched EXT_INFO + SERVICE_ACCEPT),
+// and an empty pump adds no knowledge, so indices stay aligned across stacks.
+// `tests::two_party_seeds_reach_their_verdict` locks each seed's outcome on
+// both PUTs.
+
+/// Client + server descriptors shared by the two-party seeds.
+fn two_party_descriptors(
+    client: AgentName,
+    server: AgentName,
+) -> Vec<AgentDescriptor<SshDescriptorConfig>> {
+    [(client, AgentType::Client), (server, AgentType::Server)]
+        .into_iter()
+        .map(|(name, typ)| {
+            AgentDescriptor::from_config(
+                name,
+                SshDescriptorConfig {
+                    typ,
+                    try_reuse: false,
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
+}
+
+/// Deliver the `n`-th message of kind `m` that `from` emitted to `to`, then pump
+/// `to` once.
+fn relay_msg(
+    to: AgentName,
+    from: AgentName,
+    m: SshQueryMatcher,
+    n: u16,
+) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { (from, n)[Some(m)]/RawSshMessage }),
+        OutputAction::new_step(to),
     ]
 }
 
-/// Two-honest-party handshake: both the client and the server are real PUTs,
-/// and the Dolev-Yao attacker sits on the wire, here simply relaying each
-/// party's output flight to the other faithfully (the benign baseline). This is
-/// the trace shape required for the *matching-conversation* property — a
-/// security property that is only definable with two honest endpoints to
-/// compare. Mutations of this seed (drop / insert / reorder relayed messages)
-/// are what a transcript-integrity attack like Terrapin would exercise.
-pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            // Bootstrap: both peers emit their banner + KEXINIT without waiting.
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Relay, letting each delivery drive the receiver's next output.
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 4)/RawSshMessageFlight }),
-            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
-        ],
-        ..Default::default()
-    }
+/// Deliver `from`'s `n`-th non-empty output flight to `to`, then pump `to` once.
+fn relay_flight(to: AgentName, from: AgentName, n: u16) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { (from, n)/RawSshMessageFlight }),
+        OutputAction::new_step(to),
+    ]
 }
 
-/// Hybrid Terrapin attempt: relay the handshake at **flight** granularity
-/// (preserving each PUT's I/O batching, so it completes) but at the targeted
-/// c2s point (a) insert a cleartext `SSH_MSG_IGNORE` before the client's NEWKEYS
-/// — bumping the server's c2s sequence number by one — and (b) forward the
-/// client's post-NEWKEYS encrypted packets individually as `OnWireData`,
-/// **dropping the first one**. The inserted IGNORE and the dropped packet cancel
-/// in the sequence counter, so the server's AEAD tags still verify (Terrapin
-/// prefix truncation). If the dropped packet is ignorable (e.g. EXT_INFO) both
-/// peers still complete, but the server never saw it — and the trace-aware
-/// matching-conversation oracle flags the divergence. On strict-kex (0.11.4) the
-/// server must abort on the IGNORE during KEX, so it never completes.
-pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Cleartext handshake, flight-forwarded (batching preserved).
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }), // ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), /* ECDH_REPLY+NEWKEYS */
-            // (a) INSERT a cleartext IGNORE into c2s before the client's NEWKEYS:
-            // bumps the server's c2s receive sequence number by 1.
-            InputAction::new_step(
-                server,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), /* client NEWKEYS */
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
-            // (b) Forward the client's encrypted c2s packets individually, DROPPING
-            // the first (OnWire 0). With the +1 from the IGNORE, the server's
-            // counter realigns on OnWire 1, so tags still verify.
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
-            InputAction::new_step(server, term! { (client, 2)/OnWireData }),
-            InputAction::new_step(client, term! { (server, 5)/RawSshMessageFlight }),
-        ],
-        ..Default::default()
-    }
+/// Inject a cleartext `SSH_MSG_IGNORE` into `to` (Terrapin's sequence-number
+/// bump), then pump `to` once.
+fn inject_ignore(to: AgentName) -> [Step<SshProtocolTypes>; 2] {
+    [
+        InputAction::new_step(to, term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) }),
+        OutputAction::new_step(to),
+    ]
 }
 
-/// Packet-granular two-honest-party relay: forwards **one message per step**
-/// (cleartext as `RawSshMessage`, encrypted as byte-faithful `OnWireData`)
-/// instead of whole flights. This makes every packet — including each
-/// post-NEWKEYS encrypted packet — an individually droppable/reorderable step,
-/// the representation a prefix-truncation attack (Terrapin) needs (the
-/// flight-granular relay could only drop whole flights).
-///
-/// STATUS: WIP. The cleartext handshake and the first encrypted exchange
-/// (SERVICE_REQUEST / SERVICE_ACCEPT) relay correctly packet-by-packet, proving
-/// individual encrypted packets are forwardable. But the handshake does NOT
-/// complete: forcing one-message-per-step desynchronises libssh's reactive
-/// output *batching* (the real client stops emitting USERAUTH_REQUEST after
-/// SERVICE_ACCEPT, regardless of progress pumping), whereas the flight-granular
-/// relay completes precisely because it preserves that batching. Finding: even
-/// with packet-granularity, driving two real PUTs to completion one packet at a
-/// time fights the libraries' I/O batching — which further explains why the
-/// fuzzer is unlikely to *maintain* a completing handshake while mutating toward
-/// Terrapin. Not in the corpus until it completes.
-pub fn seed_handshake_two_party_packet(
+/// Cleartext phase of the packet relay, message by message: banners, KEXINITs,
+/// ECDH_INIT / ECDH_REPLY. Stops BEFORE the NEWKEYS exchange so a Terrapin seed can
+/// splice its IGNORE in front of either NEWKEYS.
+fn relay_kex_messages(client: AgentName, server: AgentName) -> Vec<Step<SshProtocolTypes>> {
+    use SshQueryMatcher::{Banner, MsgType};
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for (to, from, m) in [
+        (server, client, Banner),
+        (client, server, Banner),
+        (server, client, MsgType(20)), // KEXINIT
+        (client, server, MsgType(20)),
+        (server, client, MsgType(30)), // KEX_ECDH_INIT
+        (client, server, MsgType(31)), // KEX_ECDH_REPLY
+    ] {
+        steps.extend(relay_msg(to, from, m, 0));
+    }
+    steps
+}
+
+/// Encrypted phase of the packet relay: forward the server's `[OnWire]` chunks
+/// `s2c` and the client's `c2s` alternately (server chunk first — the server's
+/// first post-NEWKEYS chunk is its EXT_INFO, emitted before the client says
+/// anything). Chunk k of each side is its reply to the other side's previous one;
+/// the full client flow is 6 server / 5 client chunks (EXT_INFO, SERVICE,
+/// none-auth FAILURE, password SUCCESS, CHANNEL_OPEN, shell).
+fn relay_encrypted(
     client: AgentName,
     server: AgentName,
-) -> Trace<SshProtocolTypes> {
+    s2c: std::ops::Range<u16>,
+    c2s: std::ops::Range<u16>,
+) -> Vec<Step<SshProtocolTypes>> {
+    let mut steps = Vec::new();
+    let (mut s, mut c) = (s2c.peekable(), c2s.peekable());
+    while s.peek().is_some() || c.peek().is_some() {
+        if let Some(n) = s.next() {
+            steps.extend(relay_msg(client, server, SshQueryMatcher::OnWire, n));
+        }
+        if let Some(n) = c.next() {
+            steps.extend(relay_msg(server, client, SshQueryMatcher::OnWire, n));
+        }
+    }
+    steps
+}
+
+/// Two-honest-party handshake at FLIGHT granularity: the attacker forwards each
+/// party's n-th output flight to the other faithfully (the benign baseline), so
+/// each PUT's I/O batching is preserved. This is the trace shape required for
+/// the *matching-conversation* property — only definable with two honest
+/// endpoints. Mutations (drop / insert / reorder relayed flights) are what a
+/// transcript-integrity attack like Terrapin exercises. Both peers complete the
+/// whole client flow (8 flights each way: banner, KEXINIT, ECDH, NEWKEYS+SERVICE,
+/// none-auth, password, CHANNEL_OPEN, shell) and reach DONE on libssh and wolfSSH.
+pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for n in 0..8 {
+        steps.extend(relay_flight(server, client, n));
+        steps.extend(relay_flight(client, server, n));
+    }
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            // Cleartext handshake, one packet per step.
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // KEX_ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // KEX_ECDH_REPLY
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // server NEWKEYS
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // client NEWKEYS
-            // Encrypted phase: forward each post-NEWKEYS packet as raw OnWireData
-            // (byte-faithful; RawSshMessage can't represent ciphertext). OnWireData
-            // is indexed per encrypted packet (0-based), and each is an
-            // individually droppable step — the representation Terrapin needs.
-            // Empty output reads don't add knowledge, so pump liberally.
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // SERVICE_REQUEST (client OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // SERVICE_ACCEPT (server OnWire 0)
-            InputAction::new_step(client, term! { (server, 0)/OnWireData }),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // USERAUTH_REQUEST (client OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // USERAUTH_SUCCESS (server OnWire 1)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
-            OutputAction::new_step(client),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
-/// Packet-granular Terrapin attempt (c2s prefix truncation). Relays the
-/// cleartext handshake one packet per step, inserts a cleartext IGNORE to the
-/// server just before the client's NEWKEYS (bumping the server's c2s receive
-/// sequence number by 1), then in the encrypted phase DROPS the client's first
-/// post-NewKeys packet (OnWire 0, send-seqno 3) and forwards the second (OnWire
-/// 1, send-seqno 4) to the server, which after the +1 IGNORE is now at receive
-/// seqno 4 — so AEAD tags would realign and the truncation be invisible.
+/// Hybrid c2s Terrapin attempt: relay the KEX at FLIGHT granularity (preserving
+/// batching), (a) insert a cleartext IGNORE into the server before the client's
+/// NEWKEYS — bumping the server's c2s receive sequence number — and (b) forward
+/// only the client's NEWKEYS, DROPPING the SERVICE_REQUEST the client batched
+/// into the same flight (its first encrypted packet).
 ///
-/// EMPIRICAL FINDING (libssh 0.10.4): this c2s direction does NOT work — the
-/// client emits only a SINGLE post-NewKeys packet (SERVICE_REQUEST) and then
-/// waits for the server's reply, so there is no second packet (OnWire 1) to
-/// realign onto, and no *ignorable* first packet to drop (SERVICE_REQUEST is
-/// mandatory — dropping it stalls auth). A tag-preserving Terrapin truncation
-/// therefore needs the S2C direction, where the server sends an EXT_INFO
-/// (ignorable) as its first post-NewKeys packet: drop that, forward the next,
-/// realign on the client side. That requires ext-info to be negotiated and a
-/// s2c packet-granular relay — the remaining work to make the
-/// matching-conversation oracle fire on a completed Terrapin. On strict-kex
-/// (0.11.4) the injected IGNORE is rejected during KEX, mitigating regardless.
-pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+/// Outcome (locked by `tests::two_party_seeds_reach_their_verdict`): libssh's
+/// strict-kex server rejects the IGNORE during KEX ("unexpected packets in
+/// strict KEX mode") — the Terrapin mitigation. wolfSSH (no strict-kex) accepts
+/// the IGNORE, but the truncation cannot be completed in the c2s direction: the
+/// dropped SERVICE_REQUEST is mandatory and the client sends nothing else until
+/// it is answered, so there is no later packet to realign on and the session
+/// stalls (neither side reaches DONE). The viable direction is s2c
+/// ([`seed_terrapin_s2c`]).
+pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    let mut steps = vec![
+        OutputAction::new_step(client),
+        OutputAction::new_step(server),
+    ];
+    for n in 0..3 {
+        // banner, KEXINIT, ECDH_INIT / ECDH_REPLY+NEWKEYS(+EXT_INFO)
+        steps.extend(relay_flight(server, client, n));
+        steps.extend(relay_flight(client, server, n));
+    }
+    steps.extend(inject_ignore(server)); // (a)
+    steps.extend(relay_msg(server, client, SshQueryMatcher::MsgType(21), 0)); // (b) NEWKEYS only
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // server NEWKEYS
-            // (a) insert IGNORE to server before client NEWKEYS (+1 server c2s seqno)
-            InputAction::new_step(
-                server,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), // client NEWKEYS
-            // pump the client to emit its post-NewKeys encrypted packets
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client),
-            // (b) DROP client OnWire 0 (seqno 3); forward OnWire 1 (seqno 4)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
-/// S2C Terrapin prefix truncation (the direction the c2s attempt showed is
-/// needed). Packet-granular relay; insert a cleartext IGNORE to the **client**
-/// just before the server's NEWKEYS (+1 the client's s2c receive seqno), then in
-/// the encrypted phase DROP the server's first post-NewKeys packet — its
-/// EXT_INFO, which is ignorable — and forward every later server packet shifted
-/// by one (its send-seqno now matches the client's +1 receive seqno, so AEAD
-/// tags realign). The client completes auth never having seen EXT_INFO, so the
-/// server's sent transcript and the client's received transcript diverge → the
-/// matching-conversation oracle fires. On strict-kex (0.11.4) the IGNORE is
-/// rejected during KEX, mitigating. (Relies on the real libssh peers negotiating
-/// ext-info, which recent libssh does by default.)
-pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+/// Packet-granular c2s Terrapin attempt: the same attack as
+/// [`seed_terrapin_attempt`] on the packet relay (every KEX message its own
+/// droppable step). Relay the KEX, deliver the server's NEWKEYS, (a) insert a
+/// cleartext IGNORE into the server, deliver the client's NEWKEYS, and (b) drop
+/// the client's first encrypted packet (SERVICE_REQUEST) by never forwarding it,
+/// while still forwarding the server's first encrypted chunk (EXT_INFO).
+///
+/// Same outcome as the flight variant: libssh's strict-kex rejects the IGNORE;
+/// wolfSSH accepts it but stalls, because c2s has no later packet to realign on
+/// (the client waits for SERVICE_ACCEPT). Kept as the minimal c2s counter-example.
+pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(inject_ignore(server)); // (a)
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+    steps.extend(relay_encrypted(client, server, 0..1, 0..0)); // (b) EXT_INFO only; c2s 0 dropped
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
-            // (a) insert IGNORE to the CLIENT before the server's NEWKEYS (+1 client s2c seqno)
-            InputAction::new_step(
-                client,
-                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
-            ),
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* server NEWKEYS s->c */
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* client NEWKEYS c->s */
-            // Encrypted phase. Forward client's c2s packets normally; on s2c DROP
-            // the server's OnWire 0 (EXT_INFO, seqno 3) and forward OnWire 1.. only.
-            OutputAction::new_step(server), // pump server to emit EXT_INFO (OnWire 0, dropped)
-            OutputAction::new_step(server),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }), // -> server
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1, seqno 4)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }), /* forward (drop
-                                             * OnWire 0) */
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }), // -> server
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
-            InputAction::new_step(client, term! { (server, 2)/OnWireData }), // forward realigned
-            OutputAction::new_step(client),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
+        ..Default::default()
+    }
+}
+
+/// S2C Terrapin prefix truncation (the direction the c2s attempts show is
+/// needed). The honest packet relay of
+/// [`seed_handshake_two_party_packet_complete`] with exactly the two Terrapin
+/// mutations applied: (a) insert a cleartext IGNORE into the CLIENT just before
+/// the server's NEWKEYS (+1 on the client's s2c receive sequence number), and
+/// (b) DROP the server's first encrypted chunk — its EXT_INFO, which is
+/// ignorable — forwarding every later server chunk unchanged. With a
+/// sequence-number-keyed AEAD (chacha20-poly1305 / EtM) the +1 and the −1
+/// cancel, the tags verify, and the client completes having never seen
+/// EXT_INFO: the matching-conversation oracle's case.
+///
+/// Outcome here (locked by `tests::two_party_seeds_reach_their_verdict`): not
+/// exploitable on either stack. libssh's strict-kex client rejects the IGNORE
+/// during KEX. wolfSSH (no strict-kex) accepts it, but the pinned cipher is
+/// AES-GCM, whose nonce is an invocation counter independent of the sequence
+/// number, so the next forwarded chunk fails its tag and the session never
+/// completes — consistent with wolfSSH lacking the Terrapin-affected ciphers.
+pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(inject_ignore(client)); // (a)
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+                                                             // (b) s2c chunk 0 (EXT_INFO) dropped: the server's chunk k+1 is its reply to
+                                                             // the client's chunk k, so each client chunk is forwarded first.
+    for n in 0..5 {
+        steps.extend(relay_msg(server, client, SshQueryMatcher::OnWire, n));
+        steps.extend(relay_msg(client, server, SshQueryMatcher::OnWire, n + 1));
+    }
+    Trace {
+        prior_traces: vec![],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
 /// HONEST completing packet-granular two-party relay — the Terrapin discovery
-/// substrate. Identical in shape to `seed_terrapin_s2c` but faithful: NO injected
-/// IGNORE, and the server's EXT_INFO (s2c OnWire 0) is forwarded in order with
-/// the rest. Both peers complete and transcripts agree (no violation). From here
-/// the Terrapin attack is exactly TWO mutations away: (1) Skip the
-/// `(server,0)/OnWireData` forward step (drop EXT_INFO), and (2) insert a cleartext
+/// substrate. A real client PUT against a real server PUT, relayed message by
+/// message: the cleartext phase by type (`[Banner]`, `[MsgType(20|30|31|21)]`),
+/// the encrypted phase chunk by chunk (`[OnWire]`, the n-th opaque chunk each
+/// side emitted). Faithful: NO injected IGNORE, and the server's first encrypted
+/// chunk (EXT_INFO) is forwarded in order with the rest. Both peers complete the
+/// whole client flow (service, none + password auth, session channel, shell) and
+/// reach DONE on libssh AND wolfSSH — locked by
+/// `tests::two_party_seeds_reach_their_verdict`.
+///
+/// From here the Terrapin attack is exactly TWO mutations away: (1) skip the
+/// `(server, 0)[OnWire]` forward (drop EXT_INFO), and (2) insert a cleartext
 /// IGNORE to the client before the server's NEWKEYS. The +1 from the IGNORE
-/// cancels the −1 from the skip, so the already-present `(server,1)`/`(server,2)`
-/// forwards realign and tags stay valid — letting the matching-conversation oracle
-/// fire. This seed exists so the fuzzer has a packet-granular base whose mutation
-/// neighbourhood actually contains Terrapin.
+/// cancels the −1 from the skip, so the later `[OnWire]` forwards realign and
+/// tags stay valid — letting a matching-conversation oracle fire. (The relay used
+/// to address raw positions, `(server, n)/OnWireData`; that stopped resolving
+/// when encrypted chunks became `RawSshMessage` knowledge, so the seed silently
+/// failed at its first encrypted forward on both stacks.)
+///
+/// Not in the differential corpus: the attacker only relays and knows neither
+/// peer's ECDH secret, so the encrypted layer cannot be decrypted and compared —
+/// only the cleartext prefix and claims would be. Its value is as a single-PUT /
+/// security-oracle substrate.
 pub fn seed_handshake_two_party_packet_complete(
     client: AgentName,
     server: AgentName,
 ) -> Trace<SshProtocolTypes> {
+    use SshQueryMatcher::MsgType;
+    let mut steps = relay_kex_messages(client, server);
+    steps.extend(relay_msg(client, server, MsgType(21), 0)); // server NEWKEYS
+    steps.extend(relay_msg(server, client, MsgType(21), 0)); // client NEWKEYS
+    steps.extend(relay_encrypted(client, server, 0..6, 0..5));
     Trace {
         prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::from_config(
-                client,
-                SshDescriptorConfig {
-                    typ: AgentType::Client,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-            AgentDescriptor::from_config(
-                server,
-                SshDescriptorConfig {
-                    typ: AgentType::Server,
-                    try_reuse: false,
-                    ..Default::default()
-                },
-            ),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            OutputAction::new_step(server),
-            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
-            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
-            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
-            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
-            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
-            InputAction::new_step(
-                client,
-                term! { (server, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* server NEWKEYS s->c */
-            InputAction::new_step(
-                server,
-                term! { (client, 0)[Some(SshQueryMatcher::MsgType(21))]/RawSshMessage },
-            ), /* client NEWKEYS c->s */
-            // Encrypted phase, faithful: forward server OnWire 0 (EXT_INFO), 1, 2.
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server EXT_INFO (OnWire 0)
-            InputAction::new_step(client, term! { (server, 0)/OnWireData }), // forward EXT_INFO
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
-            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
-            OutputAction::new_step(client),
-            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
-            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
-            OutputAction::new_step(server),
-            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
-            InputAction::new_step(client, term! { (server, 2)/OnWireData }),
-            OutputAction::new_step(client),
-        ],
+        descriptors: two_party_descriptors(client, server),
+        steps,
         ..Default::default()
     }
 }
 
-/// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
+/// AES-256-GCM counterpart of the (commented-out, legacy ChaCha20)
+/// `server_decryption_recipes`, for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
 /// 0 at NewKeys, so it matches the per-direction packet index directly (no
@@ -2734,7 +3662,7 @@ pub fn seed_handshake_two_party_packet_complete(
 /// WITHOUT the `claimer` instrumentation (no `-DHAS_CLAIMS`, hence no session-id
 /// claim) yields no H → this recipe errors and is skipped → that PUT's encrypted
 /// s2c layer is NOT decoded or compared. In the cross-vendor campaign both
-/// libssh0114-asan and wolfssh-asan are claimer-instrumented, so this holds.
+/// libssh0114-asan and wolfssh150-asan are claimer-instrumented, so this holds.
 /// KNOWN CONSEQUENCE: the version campaign's `libssh0104-asan` (and
 /// `libssh0803-asan`) are currently NOT claimer-instrumented, so their s2c
 /// decryption is inert until they are rebuilt with the claim patch. This is an
@@ -2774,297 +3702,47 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     vec![term! { fn_fold_s2c_transcript(((server, *)/RawSshMessageFlight), (@key), (@iv)) }]
 }
 
-/// Truncate a client-attacker seed to end at USERAUTH_SUCCESS by dropping its two
-/// trailing channel steps (CHANNEL_OPEN + CHANNEL_REQUEST).
+/// Differential-fuzzing decryption recipe for a **client** PUT agent (c2s) — the
+/// mirror of [`server_decryption_recipes_aesgcm`].
 ///
-/// The connection/channel layer is NOT differential-ready: it needs real-channel
-/// addressing (Phase 3 — the seed hard-codes `recipient_channel = 0`, which only
-/// one stack's numbering matches) AND a fix for wolfSSH's *non-deterministic*
-/// CHANNEL_OPEN_CONFIRMATION draining (Phase 6 — wolfSSH-vs-wolfSSH is itself
-/// non-zero on channel-opening traces). Both stacks are fully deterministic and
-/// agree through the auth boundary, so the DIFFERENTIAL corpus stops there; the
-/// full channel flow stays exercised single-PUT via the rich-corpus
-/// `channel_data` seed. Restore the channel steps here once Phase 3+6 land.
-fn auth_complete(mut trace: Trace<SshProtocolTypes>) -> Trace<SshProtocolTypes> {
-    let n = trace.steps.len();
-    trace.steps.truncate(n.saturating_sub(2));
-    trace
-}
-
-pub fn create_corpus(
-    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
-) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
-    // The corpus does not depend on the PUT; delegate to a factory-free builder so
-    // the corpus-composition invariant (which seeds are in the 0-diff differential
-    // corpus vs. which divergent probes must stay OUT) is unit-testable without a
-    // built harness — see `mod tests::differential_corpus_composition_invariant`.
-    build_corpus()
-}
-
-/// Factory-free corpus builder (see [`create_corpus`]). Under default features this
-/// returns the DIFFERENTIAL (0-diff-required) corpus; `--features rich-corpus`
-/// appends the single-PUT divergent seeds.
-pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
-    let client = AgentName::first();
-    let server = client.next();
-
-    // Only seeds that complete a full handshake are kept (the legacy mutual /
-    // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
-    // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
-    //
-    // On this branch the cross-vendor differential corpus is restricted to the
-    // seeds that complete IDENTICALLY on both libssh and wolfSSH (the AES-GCM
-    // client seeds). The other seeds do not (chacha20/ctr are libssh-only;
-    // server-attacker / channel / rekey / ext-info / two-party seeds diverge
-    // cross-vendor), so they would become spurious objectives and starve the
-    // differential corpus — they are commented out below but kept documented
-    // (and their `seed_*` functions remain defined above) for single-PUT /
-    // claims-oracle campaigns.
-    //
-    // The `rich-corpus` feature appends the divergent seeds (channel DATA, rekey,
-    // ext-info, credential-confusion B/C) for single-PUT parser/crash campaigns;
-    // see the cfg block after this vec.
-    #[allow(unused_mut)]
-    let mut corpus: Vec<(Trace<SshProtocolTypes>, &'static str)> = vec![
-        // (
-        //     seed_client_attacker_full(server),
-        //     "seed_client_attacker_full",
-        // ),
-        // (
-        //     seed_server_attacker_full(client),
-        //     "seed_server_attacker_full",
-        // ),
-        (
-            auth_complete(seed_client_attacker_full_aesgcm(server)),
-            "seed_client_attacker_full_aesgcm",
-        ),
-        // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
-        // format (RFC 4252 §8; issue #1047 item 6). Both stacks parse and accept
-        // the change-request identically (0-diff), so this both (a) proves the
-        // `fn_password_change_auth_data` constructor reaches each stack's password
-        // handler and (b) is the 0-diff baseline the differential campaign explores
-        // FROM — a mutation that makes one stack handle the change-request
-        // differently now surfaces against a known-good control. NOT wrapped in
-        // `auth_complete` (it already ends at the auth step, no channel traffic).
-        (
-            seed_client_attacker_passwd_change(server),
-            "seed_client_attacker_passwd_change",
-        ),
-        // TCP/IP forwarding (RFC 4254 §7): an authorized tcpip-forward global
-        // request + direct-tcpip channel open, both ACCEPTED by both stacks (shared
-        // ssh_creds_forward_authorized boundary; wolfSSH FwdCb + libssh
-        // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
-        // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
-        // for a non-zero requested port — is now permanently shadowed
-        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BENIGN; see
-        // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Registering it here
-        // gives the forwarding accept path real differential-campaign coverage while
-        // the known, documented port-echo stays quiet. Any OTHER forwarding
-        // divergence (accept-vs-reject, a second changed message, a non-port-echo
-        // response_data delta) is NOT shadowed and surfaces as an objective.
-        (
-            seed_client_attacker_forwarding(server),
-            "seed_client_attacker_forwarding",
-        ),
-        // Same handshake but with a synthesized KEXINIT whose algorithm lists are
-        // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
-        (
-            auth_complete(seed_client_attacker_full_kexinit_synth(server)),
-            "seed_client_attacker_full_kexinit_synth",
-        ),
-        // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
-        // cipher + separate-MAC code path, distinct from the AEAD seeds.
-        // (
-        //     seed_client_attacker_full_ctr(server),
-        //     "seed_client_attacker_full_ctr",
-        // ),
-        // (
-        //     seed_server_attacker_full_aesgcm(client),
-        //     "seed_server_attacker_full_aesgcm",
-        // ),
-        // Publickey login as key A — the baseline for the entity-authentication
-        // / impersonation oracle. Mutations that make the server authenticate a
-        // different key are flagged as impersonation. The chacha20 variant is
-        // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
-        // (
-        //     seed_client_attacker_pubkey(server),
-        //     "seed_client_attacker_pubkey",
-        // ),
-        (
-            auth_complete(seed_client_attacker_pubkey_aesgcm(server)),
-            "seed_client_attacker_pubkey_aesgcm",
-        ),
-        // Credential-confusion entry point, PROMOTED to the differential corpus.
-        // Publickey login as authorized identity B (user "userb", key B): both
-        // stacks emit USERAUTH_SUCCESS and the trace is 0-diff. From here the DY
-        // mutator explores the credential space under differential comparison —
-        // swapping the username / pubkey blob / signature across identities A/B/C
-        // — so a mutation that makes one stack AUTHENTICATE a pairing the other
-        // rejects surfaces as a real accept/reject (UserAuthSuccess vs Failure)
-        // divergence. The explicit *rejection* seeds (impersonate / unauthorized
-        // C) stay single-PUT only: both stacks correctly reject, but they flush
-        // USERAUTH_FAILURE at different s2c counter positions, so the decryption
-        // recipe aligns on one side only — the same flush-timing wall documented
-        // for the channel-number query. Not a bug; just not positionally clean.
-        (
-            auth_complete(seed_client_attacker_pubkey_b(server)),
-            "seed_client_attacker_pubkey_b",
-        ),
-        // Session layer: authenticated channel with full connection-protocol
-        // traffic (window-adjust / data / extended-data / eof / close). PROMOTED:
-        // 0-diff cross-vendor. Both stacks now decode the WHOLE channel flow
-        // (setup CHANNEL_OPEN_CONFIRMATION through teardown WINDOW_ADJUST / EOF /
-        // CLOSE). Two harness/comparison pieces made this possible: (1) the libssh
-        // harness now drives channel data/eof/close callbacks symmetrically with
-        // wolfSSH's worker (it consumes data -> WINDOW_ADJUST, answers EOF/CLOSE);
-        // (2) the seed re-addresses channel traffic to each stack's actual channel
-        // number, read from its decrypted CHANNEL_OPEN_CONFIRMATION (libssh 43 vs
-        // wolfSSH 0), resolved per-PUT (fn_s2c_confirmation_sender_channel) — a
-        // hard-coded recipient_channel=0 would be silently dropped by libssh. The
-        // sole residual — WINDOW_ADJUST bytes_to_add (window-credit policy differs
-        // per stack) — is #[comparable_ignore]'d as benign flow-control.
-        (
-            seed_client_attacker_channel_data(server),
-            "seed_client_attacker_channel_data",
-        ),
-        // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
-        // 0-diff cross-vendor now that uniformise + semantic alignment + flight
-        // decryption are in place (the earlier "diverges" note was stale).
-        (
-            seed_client_attacker_rekey(server),
-            "seed_client_attacker_rekey",
-        ),
-        // RFC 8308 ext-info parser. PROMOTED: 0-diff cross-vendor.
-        (
-            seed_client_attacker_ext_info(server),
-            "seed_client_attacker_ext_info",
-        ),
-        // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
-        // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
-        // correctly reject the same (user, key) pairing, and — now that the
-        // post-KEX claim exposes the session id (H) even when auth is rejected —
-        // both decode the encrypted SERVICE_ACCEPT + USERAUTH_FAILURE, which the
-        // key-aligned transcript compares position-independently. (The earlier
-        // "flush-timing wall, single-PUT only" note is stale: the wall was a
-        // positional-alignment artifact the AlignedTranscript removes, and the
-        // no-decryption-on-failed-auth gap is closed by the post-KEX claim.)
-        // The DY mutator explores the credential space from here: a mutation that
-        // makes one stack ACCEPT a pairing the other rejects surfaces as an
-        // accept/reject (UserAuthSuccess vs Failure) divergence.
-        (
-            seed_client_attacker_impersonate_a_with_b(server),
-            "seed_client_attacker_impersonate_a_with_b",
-        ),
-        (
-            seed_client_attacker_unauthorized_key_c(server),
-            "seed_client_attacker_unauthorized_key_c",
-        ),
-        // Two real PUTs relayed by the attacker — the substrate the live
-        // matching-conversation oracle needs. Mutations that desync the relayed
-        // transcript (Terrapin-style) are flagged as a security objective.
-        // (
-        //     seed_handshake_two_party(client, server),
-        //     "seed_handshake_two_party",
-        // ),
-        // Packet-granular honest relay: the substrate whose 2-mutation
-        // neighbourhood (skip EXT_INFO forward + insert IGNORE) contains Terrapin.
-        // (
-        //     seed_handshake_two_party_packet_complete(client, server),
-        //     "seed_handshake_two_party_packet_complete",
-        // ),
-    ];
-
-    // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
-    // Kept out of the differential corpus (they don't complete identically on both
-    // stacks) but invaluable for exercising post-auth channel data, re-KEX, ext-
-    // info, and the credential-confusion boundary on one stack at a time.
-    #[cfg(feature = "rich-corpus")]
-    {
-        corpus.extend([
-            // (channel_data was PROMOTED to the differential corpus above, now that
-            // the libssh harness drives channel data/eof/close symmetrically and
-            // the seed re-addresses channel traffic per-PUT. The credential-
-            // confusion REJECTION seeds impersonate_a_with_b / unauthorized_key_c
-            // were likewise promoted, once the post-KEX claim let their encrypted
-            // USERAUTH_FAILURE decode on both stacks. None are registered here now.)
-            // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
-            // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
-            // state machine); the confirmed-correct behaviour was validated with a
-            // fresh-build TCP reproducer (wolfssh-repro/rekey_repro.py).
-            // DELIBERATELY kept out of the differential corpus: it diverges BY
-            // DESIGN on the strict-kex / rekey-discipline difference (libssh
-            // withholds userauth while the injected rekey is pending; wolfSSH
-            // proceeds) — a documented, NIL-impact conformance difference (see
-            // SSHPUFFIN_FINDINGS.md §4c; wolfSSH's lack of the Terrapin-affected
-            // ciphers neutralises any exploitability). Including it differentially
-            // would just re-report this closed finding on every run; legitimate
-            // (0-diff) rekey coverage is already provided by the `rekey` seed.
-            (
-                seed_client_attacker_kexinit_injection(server),
-                "seed_client_attacker_kexinit_injection",
-            ),
-            // Auto-counter §7.1 discovery seed: honest 0-diff channel session with
-            // `fn_u32_auto` c2s counters + a trailing rekey KEXINIT. A single
-            // adjacent SwapMutator move strands app traffic after the incomplete
-            // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
-            // their GCM nonces stay valid — the mechanism that makes §7.1
-            // fuzz-discoverable rather than only hand-reproducible. See the seed
-            // docstring and SSH_71_AUTODISCOVERY_PLAN.md.
-            (
-                seed_client_attacker_rekey_channel_auto(server),
-                "seed_client_attacker_rekey_channel_auto",
-            ),
-            // LEGIT (Tier-1) §7.1 auto-discovery seed: honest 0-diff rekey with NO
-            // app traffic near the window — the mutator must introduce non-KEX
-            // traffic into the incomplete-rekey window on its own (harder, more
-            // autonomous). See the seed docstring.
-            (
-                seed_client_attacker_rekey_auto(server),
-                "seed_client_attacker_rekey_auto",
-            ),
-            // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
-            // registered here — they diverge BY DESIGN and are kept only as
-            // callable, documented reproducers / regression fixtures (see
-            // RFC_CONFORMANCE_PROBES.md and issue #1047):
-            //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
-            //     libssh rejects; AUTH_DIVERGENCE_ROOTCAUSE.md).
-            //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
-            //     tolerates→Success, wolfSSH "message not allowed before user authentication";
-            //     ITEM7_RESCAN.md).
-            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
-            //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
-            //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
-            //     positive control needs modular-DH math in the mapper (deferred).
-            // (The item-6 password-change probe was PROMOTED to the differential corpus above as a
-            // legit 0-diff positive control — it is the one new surface with honest legit
-            // coverage.) Honest 0-diff corpus coverage of the auth/handshake paths is
-            // already provided by `seed_client_attacker_pubkey_aesgcm` /
-            // `_full_aesgcm`, from which each is a single-message mutation.
-            // Registering a divergent reproducer as a seed would only re-surface a
-            // closed, documented finding on every run. SERVER-ATTACKER seeds: the
-            // attacker plays the SSH SERVER and the PUT is the CLIENT, so these fuzz
-            // the CLIENT-side parsers (a surface the client-attacker differential
-            // never touches). Single-PUT: run one client stack against the (mutable)
-            // server flight and let ASAN catch memory bugs in its banner / KEXINIT /
-            // KEXDH_REPLY / EXT_INFO / post-NewKeys parsing. The attacker signs the
-            // exchange hash with the embedded host key, so the client completes the
-            // handshake on the un-mutated seed.
-            (
-                seed_server_attacker_full_aesgcm(client),
-                "seed_server_attacker_full_aesgcm",
-            ),
-        ]);
-    }
-
-    corpus
+/// When the attacker plays the SERVER (the server-attacker seeds / client-parser
+/// fuzzing), the PUT is the client and its post-NewKeys output (SERVICE_REQUEST,
+/// USERAUTH_REQUEST, channel traffic, …) is opaque AES-GCM ciphertext. Without
+/// this recipe that whole client→server stream goes uncompared, so the
+/// differential only ever saw the clients' plaintext KEX and their claims.
+///
+/// Key material mirrors the s2c recipe with the roles swapped:
+///   * K = ECDH(attacker-server ephemeral private key, Q_C). The server-attacker seeds use the
+///     fixed `fn_client_ecdh_privkey` as that key (they send `fn_client_ecdh_pubkey` in
+///     KEX_ECDH_REPLY), and Q_C is the client's ephemeral public key, queried exactly as the seed
+///     does (`(client, 0)[None]/SshBytes`).
+///   * H is sourced from the CLIENT's own completion claim (session id) — both harnesses emit the
+///     handshake claim for the client role too — for the same mutation-robustness reason as the s2c
+///     recipe.
+///   * The c2s key/IV (RFC 4253 §7.2 letters 'C'/'A'), and the direction-agnostic
+///     `fn_fold_s2c_transcript` (a plain GCM peel from counter 0 over the concatenated flight;
+///     despite its name it does not assume a direction).
+///
+/// If the attacker's ephemeral key was mutated away from `fn_client_ecdh_privkey`,
+/// K is wrong, the fold decrypts nothing, and the comparison degrades to the
+/// plaintext prefix — the same best-effort behaviour as the s2c recipe.
+pub fn client_decryption_recipes_aesgcm(client: AgentName) -> Vec<Term<SshProtocolTypes>> {
+    let q_c = term! { (client, 0)[None]/SshBytes };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let exch_hash = term! { fn_claim_exchange_hash(((client, 0))) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    vec![term! { fn_fold_s2c_transcript(((client, *)/RawSshMessageFlight), (@key), (@iv)) }]
 }
 
 #[cfg(test)]
 mod tests {
+    use puffin::trace::Action;
+
     use super::*;
 
     /// Emits the H2/H3 out-of-spec banner probe traces to `/tmp/banner_probe/`
-    /// for `differential-execute libssh0114 wolfssh <trace>`. `#[ignore]`: run
+    /// for `differential-execute libssh0114 wolfssh150 <trace>`. `#[ignore]`: run
     /// on demand (`cargo test emit_banner_probe_traces -- --ignored`), not in CI.
     #[test]
     #[ignore]
@@ -3103,7 +3781,7 @@ mod tests {
 
     /// Materialises the four by-design DIVERGENT probe reproducers to
     /// `/tmp/eval_probes/` so they can be replayed with
-    /// `differential-execute libssh0114 wolfssh <trace>`:
+    /// `differential-execute libssh0114 wolfssh150 <trace>`:
     ///   * `bad_service`       — USERAUTH_REQUEST with service != "ssh-connection" (wolfSSH
     ///     accepts, libssh rejects; RFC 4252 §5),
     ///   * `unknown_msg`       — unknown high-numbered message pre-auth (libssh tolerates per
@@ -3145,6 +3823,99 @@ mod tests {
         }
     }
 
+    /// Materialises the server-attacker seed (attacker plays the SERVER, the PUT is
+    /// the CLIENT) to `/tmp/server_attacker/` for a CLIENT-side differential run:
+    /// `differential-execute libssh0114 wolfssh150 /tmp/server_attacker/<name>.trace`.
+    /// Kept out of the differential corpus (see `build_corpus`); this emitter is the
+    /// supported way to produce it for evaluating client-side (c2s) comparison.
+    /// `#[ignore]`: writes files on demand
+    /// (`cargo test emit_server_attacker_trace -- --ignored`), not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_server_attacker_trace() {
+        use puffin::libafl::inputs::Input;
+        let client = AgentName::first();
+        let dir = std::path::Path::new("/tmp/server_attacker");
+        std::fs::create_dir_all(dir).unwrap();
+        let name = "seed_server_attacker_full_aesgcm";
+        seed_server_attacker_full_aesgcm(client)
+            .to_file(dir.join(format!("{name}.trace")))
+            .unwrap_or_else(|e| panic!("write {name}: {e}"));
+        println!("wrote /tmp/server_attacker/{name}.trace");
+    }
+
+    /// Materialises the session-requests seed to `/tmp/session_requests/` for
+    /// `differential-execute`. `#[ignore]`: on-demand, not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_session_requests_trace() {
+        use puffin::libafl::inputs::Input;
+        let server = AgentName::first().next();
+        let dir = std::path::Path::new("/tmp/session_requests");
+        std::fs::create_dir_all(dir).unwrap();
+        let name = "seed_client_attacker_session_requests";
+        seed_client_attacker_session_requests(server)
+            .to_file(dir.join(format!("{name}.trace")))
+            .unwrap_or_else(|e| panic!("write {name}: {e}"));
+        println!("wrote /tmp/session_requests/{name}.trace");
+    }
+
+    /// Materialises the data-dependent round-trip seeds to `/tmp/roundtrip_seeds/`
+    /// for `differential-execute`. `#[ignore]`: on-demand, not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_roundtrip_seeds() {
+        use puffin::libafl::inputs::Input;
+        let a = AgentName::first();
+        let dir = std::path::Path::new("/tmp/roundtrip_seeds");
+        std::fs::create_dir_all(dir).unwrap();
+        for (name, trace) in [
+            ("rekey_complete", seed_client_attacker_rekey_complete(a)),
+            ("server_session", seed_server_attacker_session_aesgcm(a)),
+            ("pubkey_query", seed_client_attacker_pubkey_query(a)),
+            ("flow_control", seed_client_attacker_flow_control(a)),
+        ] {
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/roundtrip_seeds/{name}.trace");
+        }
+    }
+
+    /// Materialises the two-party relay seeds (a real client PUT against a real
+    /// server PUT) to `/tmp/two_party/` for `-T <put> display-execute`, e.g. to
+    /// check that a client-harness change did not shift their relay step
+    /// alignment. `#[ignore]`: on-demand (`cargo test emit_two_party_traces --
+    /// --ignored`), not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_two_party_traces() {
+        use puffin::libafl::inputs::Input;
+        let client = AgentName::first();
+        let server = client.next();
+        let dir = std::path::Path::new("/tmp/two_party");
+        std::fs::create_dir_all(dir).unwrap();
+        let cases: Vec<(&str, Trace<SshProtocolTypes>)> = vec![
+            (
+                "handshake_two_party",
+                seed_handshake_two_party(client, server),
+            ),
+            (
+                "handshake_two_party_packet_complete",
+                seed_handshake_two_party_packet_complete(client, server),
+            ),
+            ("terrapin_attempt", seed_terrapin_attempt(client, server)),
+            ("terrapin_packet", seed_terrapin_packet(client, server)),
+            ("terrapin_s2c", seed_terrapin_s2c(client, server)),
+        ];
+        for (name, trace) in cases {
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/two_party/{name}.trace");
+        }
+    }
+
     /// E.A — corpus-composition invariant (CI guard for the "0-diff corpus stays
     /// 0-diff" property, WITHOUT needing to run PUTs).
     ///
@@ -3169,6 +3940,12 @@ mod tests {
             "seed_client_attacker_pubkey_aesgcm",
             "seed_client_attacker_passwd_change", // item-6 positive control
             "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
+            "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
+            "seed_client_attacker_session_requests", // several dependent round-trips
+            "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
+            "seed_server_attacker_session_aesgcm", // replies built from the client's c2s
+            "seed_client_attacker_pubkey_query",  // signs the blob echoed in PK_OK
+            "seed_client_attacker_flow_control",  // data sized from the server's window
         ] {
             assert!(
                 names.contains(&want),
@@ -3208,49 +3985,67 @@ mod tests {
         );
     }
 
+    /// (Input steps, Output steps) of a trace.
+    fn io_counts(trace: &Trace<SshProtocolTypes>) -> (usize, usize) {
+        let inputs = trace
+            .steps
+            .iter()
+            .filter(|s| matches!(s.action, Action::Input(_)))
+            .count();
+        (inputs, trace.steps.len() - inputs)
+    }
+
     // The credential-confusion seeds must build without panicking and carry the
-    // full publickey handshake (9 steps: output + banner + kexinit + ecdh +
-    // newkeys + svc_req + auth_req + chan_open + chan_req). Type-correctness is
-    // enforced by the term! macro at compile time; this guards the shape.
+    // full publickey handshake (8 inputs: banner + kexinit + ecdh + newkeys +
+    // svc_req + auth_req + two more: chan_open + chan_req for pubkey_b, two IGNORE
+    // pumps for the others), each reply read by an explicit Output.
+    // Type-correctness is enforced by the term! macro at compile time; this guards
+    // the shape.
     #[test]
     fn credential_confusion_seeds_build() {
         let client = AgentName::first();
         let server = client.next();
-        for (trace, name) in [
-            (seed_client_attacker_pubkey_b(server), "pubkey_b"),
+        for (trace, name, outputs) in [
+            (seed_client_attacker_pubkey_b(server), "pubkey_b", 7),
             (
                 seed_client_attacker_impersonate_a_with_b(server),
                 "impersonate_a_with_b",
+                5,
             ),
             (
                 seed_client_attacker_unauthorized_key_c(server),
                 "unauthorized_key_c",
+                5,
             ),
         ] {
-            assert_eq!(trace.steps.len(), 9, "seed {name} step count");
+            assert_eq!(io_counts(&trace), (8, outputs), "seed {name} shape");
             assert_eq!(trace.descriptors.len(), 1, "seed {name} descriptor count");
         }
     }
 
-    // The rekey seed keeps its 10-step re-KEX shape after the mutable-KEXINIT
-    // enrichment, and the channel-data seed keeps its 13 steps.
+    // The rekey seed keeps its 9-input re-KEX shape after the mutable-KEXINIT
+    // enrichment, and the channel-data seed keeps its 12 inputs.
     #[test]
     fn enriched_seeds_shape() {
         let client = AgentName::first();
         let server = client.next();
-        assert_eq!(seed_client_attacker_rekey(server).steps.len(), 10);
-        assert_eq!(seed_client_attacker_channel_data(server).steps.len(), 13);
+        assert_eq!(io_counts(&seed_client_attacker_rekey(server)), (9, 7));
+        assert_eq!(
+            io_counts(&seed_client_attacker_channel_data(server)),
+            (12, 7)
+        );
     }
 
     // The server-attacker seed (attacker plays the server; the PUT is the CLIENT,
     // so this fuzzes the client-side parsers) builds and carries the full server
-    // flight: output + banner + kexinit + kexdh-reply + newkeys + svc-accept +
-    // auth-success = 7 steps, on a single CLIENT agent.
+    // flight: banner + kexinit + kexdh-reply + newkeys + svc-accept + auth-success
+    // = 6 inputs, each answered by the client (7 outputs with its opening flight),
+    // on a single CLIENT agent.
     #[test]
     fn server_attacker_seed_shape() {
         let client = AgentName::first();
         let trace = seed_server_attacker_full_aesgcm(client);
-        assert_eq!(trace.steps.len(), 7, "server-attacker step count");
+        assert_eq!(io_counts(&trace), (6, 7), "server-attacker shape");
         assert_eq!(
             trace.descriptors.len(),
             1,

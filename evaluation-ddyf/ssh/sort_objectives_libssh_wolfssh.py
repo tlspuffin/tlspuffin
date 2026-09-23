@@ -33,6 +33,12 @@ Bucket families
                              `BothChannelOpenFailure` reason-code class).
 * `benign_kex_*`           — KEX-phase packet-length strictness (libssh stricter);
                              both ultimately reject.
+* `known_wolfssh_unsolicited_service_accept`, `known_repeated_service_request_reply`
+                           — two documented SERVICE_REQUEST behaviour differences (see
+                             the bucket comments); pinned to their exact transcript shape.
+* `benign_client_kex_reply_reject`
+                           — client-side (server-attacker) traces where both CLIENTS
+                             reject a mutated KEX_ECDH_REPLY.
 * `known_rekey_kexinit_presence`
                            — the RFC 4253 §7.1 second-KEXINIT (msg 20 ordinal 1)
                              presence marker; names the known incomplete-rekey class
@@ -41,12 +47,13 @@ Bucket families
                              §7.1 divergence (traffic processed mid-rekey shows up as
                              DIFFERENT downstream messages, matching no benign bucket).
 
-Correspondence to the in-fuzzer shadow predicates (sshpuffin/src/protocol.rs)
------------------------------------------------------------------------------
+Correspondence to the in-fuzzer shadow predicates (sshpuffin/src/ssh/differential.rs)
+-------------------------------------------------------------------------------------
 The offline buckets and the online shadow predicates classify the SAME classes; the
-shadows are the subset suppressed live, documented in `BUG_CANDIDATE_LEDGER.md` §4
-(the fail-closed oracle dossier):
-    bootstrap_too_large_banner* / bootstrap_no_version_usable*  <->  is_banner_strictness_diff        (SHADOW_KNOWN_BENIGN)
+shadows are the subset suppressed live, documented next to each predicate in
+sshpuffin/src/ssh/differential.rs:
+    bootstrap_too_large_banner*                                 <->  is_banner_length_diff             (SHADOW_KNOWN_BUGS, libssh-mirror#376)
+    bootstrap_no_version_usable*                                <->  is_version_strictness_diff        (SHADOW_KNOWN_BENIGN)
     benign_kex_decrypt_transcript_presence                      <->  is_banner_induced_transcript_presence
     benign_decrypt_userauth_failure                             <->  is_userauth_failure_only_diff     (SHADOW_KNOWN_BENIGN)
     (a decrypted REQUEST_SUCCESS +bound-port change)            <->  is_fwd_reqsuccess_port_echo_diff  (SHADOW_KNOWN_BUGS, wolfssh#1246)
@@ -88,13 +95,16 @@ above name; a genuinely new divergence matches none and stays unbucketed for aud
 
 Usage
 -----
-    python -m evaluation-ddyf.ssh.sort_objectives_libssh_wolfssh [objective_folder]
+    ln -sfn evaluation-ddyf evaluation_ddyf   # once: `-m` needs an importable (underscore) name
+    python -m evaluation_ddyf.ssh.sort_objectives_libssh_wolfssh [objective_folder]
 
 The two PUT names and worker count are overridable via the environment (defaults are
 the clean, non-ASAN artifact vendors: libssh 0.11.4 vs wolfSSH 1.5.0):
     SSHPUFFIN_FIRST_PUT   (default "libssh0114")
-    SSHPUFFIN_SECOND_PUT  (default "wolfssh")
+    SSHPUFFIN_SECOND_PUT  (default "wolfssh150")
     SSHPUFFIN_TRIAGE_PARALLELISM (default 24)  sizes the classifier ThreadPool
+    PUFFIN_TRIAGE_UNIFORMISE     (default 1)   re-execute each PUT under the uniformised
+                                               differential config (display-execute --uniformise)
     PUFFIN_TRIAGE_NO_CACHE       (unset)       set to force live re-execution instead of
                                                reading the Phase-0 metadata_diff_*.json cache
 
@@ -125,13 +135,21 @@ from ..diff_analyzer import (
     KnowledgeContainsC,
     run_triaging,
     KnowledgeDiffC,
+    InnerKnowledgeReC,
+    OnlyDiffKindsC,
 )
 
 LIBSSH = 1
 WOLFSSH = 2
 FIRST_PUT = os.environ.get("SSHPUFFIN_FIRST_PUT", "libssh0114")
-SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh")
+SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh150")
 PARALLELISM = int(os.environ.get("SSHPUFFIN_TRIAGE_PARALLELISM", "24"))
+# Re-execute each PUT under the SAME uniformised config as the differential run that
+# produced the objective (see diff_analyzer.uniformise_single_runs). Without it the
+# per-PUT status of a client-role (server-attacker) objective came from a run with
+# the libssh client's default algorithms, which fails elsewhere than in the
+# differential, so status buckets misfired. Override with PUFFIN_TRIAGE_UNIFORMISE=0.
+os.environ.setdefault("PUFFIN_TRIAGE_UNIFORMISE", "1")
 
 # ── Over-permissiveness guard ────────────────────────────────────────────────
 # BOTH_ERROR is true iff NEITHER PUT completed the trace (both have a non-None
@@ -206,6 +224,40 @@ buckets: dict[str, BucketCondition] = {
         InnerKnowledgeC(diff_contains="Removed(AlignmentKey { channel: 0, msg_number: 51"),
     ),
 
+    # wolfSSH UNSOLICITED SERVICE_ACCEPT (found 2026-09-23 by a campaign from the
+    # session-requests seed; not reported upstream). A client that skips SERVICE_REQUEST
+    # and sends USERAUTH_REQUEST straight away is authenticated by BOTH stacks, but
+    # wolfSSH's accept() state machine (ssh.c ~557-569) then also emits a
+    # SERVICE_ACCEPT nobody asked for, right before USERAUTH_SUCCESS; libssh sends
+    # none. RFC 4253 §10 puts the obligation on the client, so this is an unspecified
+    # deviation, LOW, no security impact; still present on wolfSSH master.
+    # Pinned exactly: the ONLY transcript change is that one added (6,0)
+    # ServiceAccept, sitting where libssh has USERAUTH_SUCCESS (U8Change(52, 6)),
+    # and no Status/Claim difference. Mixed cases stay unbucketed for audit.
+    "known_wolfssh_unsolicited_service_accept/": AllC(
+        OnlyDiffKindsC("Knowledges"),
+        InnerKnowledgeReC(
+            r"\[ByKey\(\[Added\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: 0 \}, "
+            r"ServiceAccept\(ServiceAcceptMessageDesc \{ service_name: SshBytesDesc\(\[[0-9, ]*\]\) \}\)\)\]\), "
+            r"Order\(\[.*U8Change\(52, 6\).*\]\)\]"
+        ),
+    ),
+    # REPEATED SERVICE_REQUEST (same campaign): when the client sends SERVICE_REQUEST
+    # again (e.g. after auth or after a channel closed), libssh answers every one with
+    # another SERVICE_ACCEPT (ordinal >= 1 on libssh only = "Removed" in the diff),
+    # while wolfSSH answers only the first and stays silent afterwards. Behavioural
+    # latitude around a request a real client never repeats; no acceptance or
+    # auth-state difference. Pinned exactly: the ONLY transcript changes are
+    # extra (6, ordinal>=1) ServiceAccepts on the libssh side, no Status/Claim diff.
+    "known_repeated_service_request_reply/": AllC(
+        OnlyDiffKindsC("Knowledges"),
+        InnerKnowledgeReC(
+            r"\[ByKey\(\[Removed\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: [1-9][0-9]* \}\)"
+            r"(, Removed\(AlignmentKey \{ channel: 0, msg_number: 6, ordinal: [1-9][0-9]* \}\))*\]\)"
+            r"(, Order\(\[.*\]\))?\]"
+        ),
+    ),
+
     # AUDITED (tightened 2026-09-02 with BOTH_ERROR + mirror direction).
     # A claim-presence diff (one PUT emitted the session-id/H claim, the other did
     # not) means exactly one stack finalised KEX. Guard BOTH_ERROR so a case where
@@ -267,6 +319,27 @@ buckets: dict[str, BucketCondition] = {
     # or the mapper failing to decode a rejected peer's non-reply); no protocol or
     # security divergence. `first_to_fail=False` reads each PUT's OWN status so the
     # match is independent of which stack stopped first.
+
+    # CLIENT-side (server-attacker traces, where the PUT is the CLIENT): both clients
+    # reject a mutated KEX_ECDH_REPLY (host key / signature / exchange value), each with
+    # its own error. Scoped by the trace shape (the attacker sends fn_kex_ecdh_reply,
+    # which only server-attacker traces do) and keyed on wolfSSH's client errors;
+    # libssh's error text is deliberately not keyed on, since it depends on exactly
+    # where libssh's parser stops on the mutated reply. (Before per-PUT re-runs were
+    # uniformised, see PUFFIN_TRIAGE_UNIFORMISE above, the libssh client's single-PUT
+    # run even negotiated other algorithms than the differential and so failed
+    # elsewhere; that, not randomness, made its error look unstable.) BOTH_ERROR
+    # keeps any case where one client ACCEPTS the reply out of here (diverge_* above).
+    "benign_client_kex_reply_reject/": AllC(
+        TermContainsC(LIBSSH, in_term="fn_kex_ecdh_reply"),
+        OnlyDiffKindsC("Status"),
+        AnyC(
+            StatusC(WOLFSSH, in_error="RSA buffer error", first_to_fail=False),
+            StatusC(WOLFSSH, in_error="general parsing error", first_to_fail=False),
+            StatusC(WOLFSSH, in_error="crypto action failed", first_to_fail=False),
+        ),
+        BOTH_ERROR,
+    ),
 
     # wolfSSH internal rejections — the term-agnostic superset of the fn_encrypt_packet
     # buckets above (catches the same errors on fn_banner / fn_packet / fn_kex_* terms).

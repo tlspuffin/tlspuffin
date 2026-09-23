@@ -86,7 +86,17 @@ jobs:
       - name: unit test `tlspuffin`
         run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
       - name: unit test `sshpuffin`
-        run: just test sshpuffin x86_64-unknown-linux-gnu "" ""
+        run: |
+          set -o pipefail
+          just test sshpuffin x86_64-unknown-linux-gnu "" "" 2>&1 | tee sshpuffin-tests.log
+          # These tests (sshpuffin/tests/{determinism,traces}.rs) only compile when
+          # their PUTs (libssh0114, wolfssh150) are built; a missing vendor would
+          # silently drop them and still pass.
+          for t in libssh_put_is_deterministic wolfssh_put_is_deterministic \
+                   two_party_seeds_reach_their_verdict server_session_clients_reach_done; do
+            grep -q "^test $t \.\.\. ok" sshpuffin-tests.log \
+              || { echo "::error::sshpuffin test $t did not run (PUT not built?)"; exit 1; }
+          done
 
   cli-tlspuffin:
     needs: [configure]
@@ -182,3 +192,46 @@ jobs:
       first_preset: openssl340
       second_vendor: boringssl
       second_preset: boringssl20260508
+
+  # SSH counterpart of the differential-* jobs above. sshpuffin has no integration-test
+  # dir, so the reusable run-differential-tests.yml (a `cargo test -- differential`) cannot
+  # be reused as-is; instead this mirrors cli-sshpuffin and asserts 0-diff by looping
+  # `differential-execute` over the honest corpus seeds (guards the 0-diff corpus, Exp C).
+  differential-sshpuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build libssh0114 vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "libssh"
+          preset: "libssh0114"
+          name: "libssh0114"
+      - name: build wolfssh vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "wolfssh"
+          preset: "wolfssh150"
+          name: "wolfssh150"
+      - name: build `sshpuffin`
+        run: just run cargo build --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release
+      - name: run `sshpuffin seed`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- seed && [[ -d ./seeds ]]
+      - name: differential 0-diff on all corpus seeds
+        run: |
+          BIN=target/x86_64-unknown-linux-gnu/release/sshpuffin
+          fail=0
+          for t in ./seeds/*.trace; do
+            out=$(ASAN_OPTIONS=detect_leaks=0 just run "$BIN" differential-execute libssh0114 wolfssh150 "$t" 2>/dev/null || true)
+            if ! echo "$out" | grep -q "No differences"; then
+              echo "UNEXPECTED DIFF in $t:"; echo "$out"; fail=1
+            fi
+          done
+          exit $fail

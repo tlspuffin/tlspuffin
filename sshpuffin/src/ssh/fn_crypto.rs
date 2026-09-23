@@ -15,8 +15,9 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
-    ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret,
-    SshBytes, SshMessage, SshPublicKey, SshSignature, VersionString,
+    ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, ServiceName,
+    SessionId, SharedSecret, SshBytes, SshMessage, SshMsgNumber, SshMsgOrdinal, SshPublicKey,
+    SshPublicKeyBlob, SshSecretKey, SshSignature, Username, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -33,8 +34,8 @@ const CLIENT_ECDH_SEED: [u8; 32] = [
 // ── ECDH ─────────────────────────────────────────────────────────────────────
 
 /// Fixed X25519 private key (seed) for the DY fuzzer's client role.
-pub fn fn_client_ecdh_privkey() -> Result<SshBytes, FnError> {
-    Ok(SshBytes::new(CLIENT_ECDH_SEED.to_vec()))
+pub fn fn_client_ecdh_privkey() -> Result<SshSecretKey, FnError> {
+    Ok(SshSecretKey::new(CLIENT_ECDH_SEED.to_vec()))
 }
 
 /// X25519 public key corresponding to `fn_client_ecdh_privkey`.
@@ -50,7 +51,7 @@ pub fn fn_client_ecdh_pubkey() -> Result<SshBytes, FnError> {
 /// returns (and that libssh passes to `bignum_bin2bn` treating it as
 /// big-endian), so it can be fed directly into `fn_kex_exchange_hash`.
 pub fn fn_ecdh_shared_secret(
-    priv_key: &SshBytes,
+    priv_key: &SshSecretKey,
     peer_pub: &SshBytes,
 ) -> Result<SharedSecret, FnError> {
     if priv_key.0.len() != 32 {
@@ -697,17 +698,45 @@ pub fn fn_s2c_confirmation_sender_channel(
     flight: &RawSshMessageFlight,
     key: &SshBytes,
     iv: &SshBytes,
-) -> Result<u32, FnError> {
+) -> Result<ChannelId, FnError> {
     let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
     transcript
         .by_key
         .values()
         .find_map(|m| match m {
-            SshMessage::ChannelOpenConfirmation(c) => Some(c.sender_channel),
+            SshMessage::ChannelOpenConfirmation(c) => Some(ChannelId::new(c.sender_channel)),
             _ => None,
         })
         .ok_or_else(|| {
             FnError::Malformed("no CHANNEL_OPEN_CONFIRMATION in decrypted s2c flight".into())
+        })
+}
+
+/// Decrypt a whole AES-256-GCM flight (the same peel as `fn_fold_s2c_transcript`,
+/// direction-agnostic) and return its `ordinal`-th message of type `msg_number`.
+/// This lets a seed build its NEXT message from what the peer actually said after
+/// the key exchange (a real round-trip dependency): e.g. derive the post-rekey keys
+/// from the server's second KEX_ECDH_REPLY, or answer a client's CHANNEL_OPEN on the
+/// channel number it chose. Channel-scoped messages are looked up on the first
+/// channel the transcript saw; non-channel messages on channel 0.
+pub fn fn_decrypted_message(
+    flight: &RawSshMessageFlight,
+    key: &SshBytes,
+    iv: &SshBytes,
+    msg_number: &SshMsgNumber,
+    ordinal: &SshMsgOrdinal,
+) -> Result<SshMessage, FnError> {
+    let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
+    transcript
+        .by_key
+        .iter()
+        .find(|(k, _)| k.msg_number == msg_number.0 && k.ordinal == ordinal.0)
+        .map(|(_, m)| m.clone())
+        .ok_or_else(|| {
+            FnError::Malformed(format!(
+                "no message {} (ordinal {}) in the decrypted flight",
+                msg_number.0, ordinal.0
+            ))
         })
 }
 
@@ -960,7 +989,7 @@ pub fn fn_encrypt_packet(
     cipher_k2.apply_keystream(&mut enc_body);
 
     // Step 4: Poly1305 MAC over [enc_len || enc_body]
-    use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::universal_hash::KeyInit;
     use poly1305::{Key as Poly1305Key, Poly1305};
     let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
     let mut mac_input = Vec::with_capacity(4 + enc_body.len());
@@ -1030,7 +1059,7 @@ pub fn fn_decrypt_packet(
     let tag_bytes = &wire[4 + packet_len..4 + packet_len + 16];
 
     // Step 3: verify the Poly1305 tag over [enc_len || enc_body].
-    use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::universal_hash::KeyInit;
     use poly1305::{Key as Poly1305Key, Poly1305};
     let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
     let mut mac_input = Vec::with_capacity(4 + packet_len);
@@ -1300,9 +1329,9 @@ fn pubkey_blob_of(key: &ssh_key::PrivateKey) -> Result<SshBytes, FnError> {
 fn sign_userauth_with(
     key: &ssh_key::PrivateKey,
     session_id: &SessionId,
-    user: &SshBytes,
-    service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    user: &Username,
+    service: &ServiceName,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     use rsa::pkcs1v15::SigningKey;
     use rsa::signature::{SignatureEncoding, Signer};
@@ -1340,28 +1369,34 @@ fn sign_userauth_with(
 /// Client identity key A's public key blob (reuses the embedded server RSA key).
 /// This is the blob carried in a publickey USERAUTH_REQUEST and hashed (SHA-256)
 /// to the fingerprint the server records — the harness allow-list authorizes A.
-pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_server_key()?)
+pub fn fn_client_a_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_server_key()?)?.0,
+    ))
 }
 
 /// Client identity key B's public key blob. B is a distinct RSA-3072 key that the
 /// harness allow-list also authorizes — the swap target for impersonation tests.
-pub fn fn_client_b_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?)
+pub fn fn_client_b_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?)?.0,
+    ))
 }
 
 /// Client identity key C's public key blob. C is a distinct RSA-3072 key that is
 /// deliberately NOT in the harness allow-list — the "unauthorized key" attack.
-pub fn fn_client_c_pubkey_blob() -> Result<SshBytes, FnError> {
-    pubkey_blob_of(&load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?)
+pub fn fn_client_c_pubkey_blob() -> Result<SshPublicKeyBlob, FnError> {
+    Ok(SshPublicKeyBlob::new(
+        pubkey_blob_of(&load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?)?.0,
+    ))
 }
 
 /// Sign a publickey USERAUTH_REQUEST with client identity key A.
 pub fn fn_sign_userauth(
     session_id: &SessionId,
-    user: &SshBytes,
-    service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    user: &Username,
+    service: &ServiceName,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(&load_server_key()?, session_id, user, service, pubkey_blob)
 }
@@ -1369,9 +1404,9 @@ pub fn fn_sign_userauth(
 /// Sign a publickey USERAUTH_REQUEST with client identity key B.
 pub fn fn_sign_userauth_b(
     session_id: &SessionId,
-    user: &SshBytes,
-    service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    user: &Username,
+    service: &ServiceName,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(
         &load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?,
@@ -1385,9 +1420,9 @@ pub fn fn_sign_userauth_b(
 /// Sign a publickey USERAUTH_REQUEST with client identity key C.
 pub fn fn_sign_userauth_c(
     session_id: &SessionId,
-    user: &SshBytes,
-    service: &SshBytes,
-    pubkey_blob: &SshBytes,
+    user: &Username,
+    service: &ServiceName,
+    pubkey_blob: &SshPublicKeyBlob,
 ) -> Result<SshBytes, FnError> {
     sign_userauth_with(
         &load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?,
@@ -1423,8 +1458,8 @@ mod tests {
 
         // Each identity signs the RFC 4252 §7 blob with its own key without error.
         let sid = SessionId::new(vec![7u8; 32]);
-        let user = SshBytes::new(b"user".to_vec());
-        let svc = SshBytes::new(b"ssh-connection".to_vec());
+        let user = Username::new(b"user".to_vec());
+        let svc = ServiceName::new(b"ssh-connection".to_vec());
         assert!(fn_sign_userauth(&sid, &user, &svc, &a).is_ok());
         assert!(fn_sign_userauth_b(&sid, &user, &svc, &b).is_ok());
         assert!(fn_sign_userauth_c(&sid, &user, &svc, &c).is_ok());

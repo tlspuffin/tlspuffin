@@ -123,7 +123,12 @@ static int fwd_callback(WS_FwdCbAction action, void *ctx, const char *address, w
 
 /* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
-static const char WOLFSSH_AUTH_PASSWORD[] = "password";
+/* The CLIENT role logs in as identity A ("user"/"test", the first entry of the
+ * shared allow-list), exactly like the libssh client harness, so a real client
+ * PUT authenticates against a real server PUT (two-party relay seeds). It was
+ * "password" — not authorized — so wolfSSH-client vs wolfSSH-server looped on
+ * USERAUTH_FAILURE forever. */
+static const char WOLFSSH_AUTH_PASSWORD[] = "test";
 
 static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 {

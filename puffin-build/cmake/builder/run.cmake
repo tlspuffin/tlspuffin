@@ -38,6 +38,12 @@ elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake"
   include("${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
   string(REPLACE ";" " " FIXED_VULNERABILITIES "${FIXED_VULNERABILITIES}")
   string(REPLACE ";" " " KNOWN_VULNERABILITIES "${KNOWN_VULNERABILITIES}")
+  # the vendor's own part of the metadata script (optional), see vendorinfo.sh.in
+  set(VENDOR_INFO_FRAGMENT "")
+  if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/vendorinfo.sh")
+    get_filename_component(VENDOR_INFO_FRAGMENT
+      "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/vendorinfo.sh" ABSOLUTE)
+  endif()
   generate_vendorinfo_script(vendorinfo_script)
 else()
   message(FATAL_ERROR "Builder '${BUILDER}' not found")

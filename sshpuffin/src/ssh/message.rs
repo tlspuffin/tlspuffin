@@ -115,6 +115,10 @@ pub struct NameList {
     // (a genuinely different set is real signal), not the order — so compare a
     // sorted copy and ignore the raw ordering. Encoding is unaffected (this only
     // changes the Comparable view, not Codec), so on-wire order is preserved.
+    //
+    // The list is stored as its raw comma-separated bytes, exactly as on the wire,
+    // so the encoding of a list built from names contains each name's bytes and a
+    // list built from arbitrary bytes (`fn_namelist_from_bytes`) keeps them verbatim.
     #[comparable_synthetic {
         let comparable_names = |x: &Self| -> Vec<String> {
             // Compare name-lists as an order-insensitive SET: preference ORDER is
@@ -146,48 +150,80 @@ pub struct NameList {
             // and excluded here. Every NEGOTIABLE algorithm is still compared, so a
             // genuine downgrade still surfaces.
             let mut names: Vec<String> = x
-                .names
-                .iter()
+                .names()
+                .into_iter()
                 .filter(|n| !n.starts_with("kex-strict-") && !n.starts_with("ext-info-"))
-                .cloned()
                 .collect();
             names.sort();
             names
         };
     }]
     #[comparable_ignore]
-    names: Vec<String>,
+    raw: Vec<u8>,
 }
 
 impl NameList {
     pub fn empty() -> NameList {
-        Self { names: vec![] }
+        Self { raw: vec![] }
     }
 
     pub fn from_strs(names: &[&str]) -> NameList {
         Self {
-            names: names.iter().map(|s| s.to_string()).collect(),
+            raw: names.join(",").into_bytes(),
         }
+    }
+
+    /// A list from its raw wire bytes (the names joined by commas), kept verbatim.
+    pub fn from_raw(raw: Vec<u8>) -> NameList {
+        Self { raw }
+    }
+
+    /// The names joined by commas, as on the wire (without the length).
+    pub fn raw(&self) -> &[u8] {
+        &self.raw
+    }
+
+    /// The names, split at the commas (non-UTF-8 bytes replaced).
+    pub fn names(&self) -> Vec<String> {
+        if self.raw.is_empty() {
+            return vec![];
+        }
+        String::from_utf8_lossy(&self.raw)
+            .split(',')
+            .map(str::to_string)
+            .collect()
     }
 }
 
+impl NameList {
+    /// The wire field (RFC 4251 §5): a uint32 length, then the names.
+    pub fn encode_field(&self, bytes: &mut Vec<u8>) {
+        (self.raw.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&self.raw);
+    }
+
+    pub fn read_field(reader: &mut Reader) -> Option<Self> {
+        let length = u32::read(reader)?;
+        Self::from_names_bytes(reader.take(length as usize)?)
+    }
+
+    fn from_names_bytes(raw: &[u8]) -> Option<Self> {
+        // RFC 4251 §5: names are US-ASCII; reject anything that is not UTF-8.
+        std::str::from_utf8(raw).ok()?;
+        Some(NameList { raw: raw.to_vec() })
+    }
+}
+
+/// A name-list term encodes as its names only, like the list types of tlspuffin: the
+/// uint32 length is written by the message field that holds it (`encode_field`), so a
+/// list's encoding is found inside the one `fn_namelist_append` builds from it.
 impl Codec for NameList {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let names = self.names.join(",");
-        let names_bytes = names.as_bytes(); // ASCII is valid UTF-8
-        (names_bytes.len() as u32).encode(bytes);
-        bytes.extend_from_slice(names_bytes);
+        bytes.extend_from_slice(&self.raw);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let length = u32::read(reader)?;
-        let names = if length > 0 {
-            let names = std::str::from_utf8(reader.take(length as usize)?).ok()?;
-            names.split(',').map(str::to_string).collect()
-        } else {
-            Vec::new()
-        };
-        Some(NameList { names })
+        Self::from_names_bytes(reader.rest())
     }
 }
 
@@ -237,25 +273,31 @@ impl Codec for SshBytes {
     }
 }
 
-// ── Type-directed crypto atoms ───────────────────────────────────────────────
+// ── Role-typed byte atoms ────────────────────────────────────────────────────
 //
-// The KEX quantities used to all be plain `SshBytes`, so the term algebra could
-// not tell a shared secret from an exchange hash from a session id — the DY
-// mutator could substitute any byte blob into any of them, and, more importantly,
-// could NOT express the interesting attack: reusing a value of a SPECIFIC
-// cryptographic role across sessions/rekeys (the Terrapin / session-id-confusion
-// class). Giving each role its own type makes substitution type-directed:
+// Many SSH quantities used to be plain `SshBytes`, so the term algebra could not
+// tell (say) a shared secret from an exchange hash from a user name — the DY
+// mutator's `ReplaceMatchMutator` could substitute any byte blob into any of them.
+// Giving each ROLE its own type makes substitution type-directed: a value can only
+// be swapped for another value of the same role, which is exactly the mutation
+// class the interesting attacks live in. `declare_typed_atom!` is the reusable
+// helper for this: each atom is a transparent u32-length-prefixed byte blob
+// (identical wire form to `SshBytes`), so wrapping/unwrapping changes no derived
+// byte; the builders that feed an `SshBytes` struct field copy `.0` across.
 //
-//   * `SharedSecret`  — the ECDH shared secret K.
-//   * `ExchangeHash`  — the per-KEX exchange hash H (changes on every rekey).
-//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned for the whole
-//     connection (RFC 4253 §7.2). Byte-equal to H on the first KEX but semantically distinct — the
-//     distinction is the whole point: after a rekey, `fn_session_id_from_hash` lets the fuzzer try
-//     the NEW H in the session-id slot as a single well-typed mutation.
-//
-// Each is a transparent u32-length-prefixed byte blob (identical wire form to
-// SshBytes), so wrapping/unwrapping does not change any derived bytes.
-macro_rules! declare_crypto_atom (
+// Current role atoms (declared below):
+//   * KEX / crypto — `SharedSecret` (ECDH K), `ExchangeHash` (per-KEX H), `SessionId` (the FIRST H,
+//     pinned for the connection, RFC 4253 §7.2 — byte-equal to H on the first KEX but semantically
+//     distinct: after a rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
+//     session-id slot as one well-typed mutation, the Terrapin / session-id-confusion class),
+//     `SshSecretKey` (the client's ECDH private key).
+//   * identity / negotiation — `VersionString` (V_C/V_S), `SshPublicKeyBlob` (publickey-auth blob:
+//     identity confusion), `AlgoName` (negotiation / downgrade), `Username` and `ServiceName`
+//     (credential / bad-service confusion).
+// `AlgoName` (a bare token, not length-prefixed) and `ChannelId` (a bare u32) are
+// hand-written below, since this macro only makes length-prefixed blobs. All are registered in
+// `try_read_bytes` so payloads under `[opaque]` parents can be re-typed (see that function).
+macro_rules! declare_typed_atom (
     ($name:ident) => {
         #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
         #[extractable(SshProtocolTypes)]
@@ -281,16 +323,140 @@ macro_rules! declare_crypto_atom (
     }
 );
 
-declare_crypto_atom!(SharedSecret);
-declare_crypto_atom!(ExchangeHash);
-declare_crypto_atom!(SessionId);
+declare_typed_atom!(SharedSecret);
+declare_typed_atom!(ExchangeHash);
+declare_typed_atom!(SessionId);
 // The SSH identification strings V_C / V_S (banner minus CR-LF), hashed into the
 // exchange hash H (RFC 4253 §8). Its own type — NOT `SshBytes` — so the DY mutator
 // (in particular `ReplaceMatchMutator`, which picks any signature function of a
 // matching return type) can only substitute a version string into a V_C/V_S slot,
 // never into the ~46 other `SshBytes` fields (pubkeys, signatures, namelists,
 // payloads, K_S, Q_C …). Same length-prefixed wire form as `SshBytes`.
-declare_crypto_atom!(VersionString);
+declare_typed_atom!(VersionString);
+// The publickey-auth public-key blob K carried in a publickey USERAUTH_REQUEST
+// (RFC 4252 §7) and hashed to the fingerprint the server checks against its
+// allow-list. Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` can only
+// substitute one client identity's blob for another (the A/B/C credential- and
+// impersonation-confusion class: authorized-vs-unauthorized key), never an
+// arbitrary byte blob. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(SshPublicKeyBlob);
+// An SSH algorithm-name token (a `fn_algo_*` atom): a kex/cipher/MAC/host-key
+// scheme name, or a pseudo-algorithm negotiation marker (kex-strict, ext-info-c).
+// Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` substitutes an
+// algorithm name only into algorithm-name slots: the `fn_namelist_*` entries that
+// build the KEXINIT negotiation lists, and the `algorithm` field of a public key /
+// signature. This targets the negotiation/downgrade/algorithm-confusion surface
+// instead of letting an algo name land in any of the ~46 other `SshBytes` fields.
+// Unlike the other role atoms, its wire form is the bare name, NOT length-prefixed:
+// inside a name-list the names are joined by commas without prefixes, and in a
+// public key / signature the name is the content of the `algorithm` string. So
+// every builder that takes an `AlgoName` contains its bytes verbatim.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct AlgoName(#[extractable_no_recursion] pub Vec<u8>);
+
+impl AlgoName {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+}
+
+impl Codec for AlgoName {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(AlgoName(reader.rest().to_vec()))
+    }
+}
+// The USERAUTH_REQUEST user name (RFC 4252 §5). Its own type — NOT `SshBytes` — so
+// `ReplaceMatchMutator` substitutes a user name only into the user slot (the
+// authorized/unauthorized-identity and empty/oversized-name class), never into an
+// unrelated byte field. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(Username);
+// An SSH service name (RFC 4253 §10): "ssh-userauth" / "ssh-connection", carried by
+// SERVICE_REQUEST/ACCEPT and the USERAUTH_REQUEST service field. Its own type — NOT
+// `SshBytes` — so `ReplaceMatchMutator` substitutes a service name only into a
+// service slot: this is exactly the fuzzer-found bad-service class (a
+// USERAUTH_REQUEST whose service != "ssh-connection", which wolfSSH accepts and
+// libssh rejects). Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(ServiceName);
+// The client's ephemeral X25519 private key (the ECDH secret scalar). Its own type
+// — NOT `SshBytes` — so `ReplaceMatchMutator` can neither splice the private key
+// into a wire-message byte field nor feed an arbitrary byte blob into the ECDH
+// secret slot of `fn_ecdh_shared_secret`. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(SshSecretKey);
+
+// An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
+// connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
+// `ReplaceMatchMutator` substitutes a channel number only into a channel-id slot,
+// never into the many other u32 fields (sequence/packet counters, window sizes,
+// reason/data-type codes, exit statuses). The interesting mutation this enables is
+// re-addressing channel traffic to a DIFFERENT channel id (the per-PUT
+// channel-number divergence surfaced by `fn_s2c_confirmation_sender_channel`), as a
+// single well-typed swap. Wire form is a bare big-endian u32, identical to the
+// struct field it feeds, so wrapping changes no derived bytes.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelId(#[extractable_no_recursion] pub u32);
+
+impl ChannelId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl Codec for ChannelId {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(ChannelId(u32::read(reader)?))
+    }
+}
+
+// `SshMsgNumber` types an SSH message number (RFC 4250 §4.1.2) where a term SELECTS a
+// message, e.g. `fn_decrypted_message` picking the server's rekey KEX_ECDH_REPLY out
+// of a decrypted flight. Typed so type-directed mutation swaps it only for another
+// message number (reading a different reply), never into a window size or channel.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgNumber(#[extractable_no_recursion] pub u8);
+
+impl SshMsgNumber {
+    pub fn new(n: u8) -> Self {
+        Self(n)
+    }
+}
+
+impl Codec for SshMsgNumber {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgNumber(u8::read(reader)?))
+    }
+}
+
+// `SshMsgOrdinal` types which occurrence of a message number a term selects, e.g.
+// the SECOND KEXINIT of a flight (the rekey one) in `fn_decrypted_message`. Typed so
+// type-directed mutation swaps it only for another ordinal.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgOrdinal(#[extractable_no_recursion] pub u32);
+
+impl Codec for SshMsgOrdinal {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgOrdinal(u32::read(reader)?))
+    }
+}
 
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
@@ -311,11 +477,11 @@ macro_rules! declare_name_list (
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
-        NameList::encode(&self.0, bytes);
+        self.0.encode_field(bytes);
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(NameList::read(r)?))
+        Some($name(NameList::read_field(r)?))
       }
     }
   }
@@ -604,8 +770,8 @@ impl Codec for KexInitMessage {
         self.mac_algorithms_server_to_client.encode(bytes);
         self.compression_algorithms_client_to_server.encode(bytes);
         self.compression_algorithms_server_to_client.encode(bytes);
-        self.languages_client_to_server.encode(bytes);
-        self.languages_server_to_client.encode(bytes);
+        self.languages_client_to_server.encode_field(bytes);
+        self.languages_server_to_client.encode_field(bytes);
 
         (self.first_kex_packet_follows as u8).encode(bytes);
         0u32.encode(bytes);
@@ -624,8 +790,8 @@ impl Codec for KexInitMessage {
             mac_algorithms_server_to_client: MacAlgorithms::read(reader)?,
             compression_algorithms_client_to_server: CompressionAlgorithms::read(reader)?,
             compression_algorithms_server_to_client: CompressionAlgorithms::read(reader)?,
-            languages_client_to_server: NameList::read(reader)?,
-            languages_server_to_client: NameList::read(reader)?,
+            languages_client_to_server: NameList::read_field(reader)?,
+            languages_server_to_client: NameList::read_field(reader)?,
             first_kex_packet_follows: u8::read(reader)? != 0,
         };
 
@@ -805,13 +971,13 @@ pub struct UserAuthFailureMessage {
 
 impl Codec for UserAuthFailureMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.authentications_that_can_continue.encode(bytes);
+        self.authentications_that_can_continue.encode_field(bytes);
         (self.partial_success as u8).encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            authentications_that_can_continue: NameList::read(reader)?,
+            authentications_that_can_continue: NameList::read_field(reader)?,
             partial_success: u8::read(reader)? != 0,
         })
     }
@@ -885,8 +1051,17 @@ impl Codec for RequestSuccessMessage {
 #[extractable(SshProtocolTypes)]
 pub struct ChannelOpenMessage {
     pub channel_type: SshBytes,
+    // The opener's own channel id and flow-control parameters — implementation-
+    // defined (RFC 4254 §5.1), exactly like the confirmer's fields in
+    // `ChannelOpenConfirmationMessage`: libssh numbers channels from 43
+    // (FIRST_CHANNEL + 1) with a 2 MiB window, wolfSSH from 0 with 128 KiB. They
+    // only became comparable once the c2s recipe decrypted a PUT *client*'s
+    // CHANNEL_OPEN, and must not be compared (same class as the KEX cookie).
+    #[comparable_ignore]
     pub sender_channel: u32,
+    #[comparable_ignore]
     pub initial_window_size: u32,
+    #[comparable_ignore]
     pub maximum_packet_size: u32,
     #[extractable_no_recursion]
     pub channel_data: Vec<u8>,
@@ -1344,6 +1519,14 @@ impl Codec for SshMessage {
             100u8 => Some(SshMessage::ChannelFailure(ChannelFailureMessage::read(
                 reader,
             )?)),
+            // 60 is context-dependent (RFC 4252 §7 USERAUTH_PK_OK, §8
+            // PASSWD_CHANGEREQ, RFC 4256 INFO_REQUEST): keep it as the raw body so it
+            // still appears in decrypted transcripts (and can be read back, e.g. by
+            // `fn_pk_ok_blob`) instead of aborting the decode.
+            60u8 => Some(SshMessage::Raw(RawMessage {
+                number: 60,
+                body: SshBytes(reader.rest().to_vec()),
+            })),
             _ => None,
         }
     }
@@ -1518,9 +1701,7 @@ mod tests {
     }
 
     fn nl(items: &[&str]) -> NameList {
-        NameList {
-            names: items.iter().map(|x| x.to_string()).collect(),
-        }
+        NameList::from_strs(items)
     }
 
     /// Documents + locks in the strict-kex / ext-info asymmetry as a KNOWN, BENIGN
@@ -1881,6 +2062,23 @@ pub fn try_read_bytes(
         SshBytes,
         SshPublicKey,
         SshSignature,
+        // Role-typed atoms. Registered so that a payload placed under an `[opaque]`
+        // parent (KDF / hash / DH / cipher / namelist builder) can be re-typed and the
+        // opaque function re-applied (puffin `eval_until_opaque`) — without this the
+        // payload cannot take effect. Their codecs are exact inverses (checked by
+        // `tests/term_zoo.rs::test_term_read_encode`).
+        SharedSecret,
+        ExchangeHash,
+        SessionId,
+        VersionString,
+        SshPublicKeyBlob,
+        AlgoName,
+        Username,
+        ServiceName,
+        SshSecretKey,
+        ChannelId,
+        SshMsgNumber,
+        SshMsgOrdinal,
         // Name lists
         NameList,
         KexAlgorithms,

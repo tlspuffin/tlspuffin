@@ -5,7 +5,7 @@
 # Environment:
 #   PUFFIN_PATH            fuzzer binary (default: target/release/sshpuffin)
 #   SSHPUFFIN_FIRST_PUT    first PUT name  (default: libssh0114)   -- must exist in the binary
-#   SSHPUFFIN_SECOND_PUT   second PUT name (default: wolfssh)
+#   SSHPUFFIN_SECOND_PUT   second PUT name (default: wolfssh150)
 #
 # Scans a directory tree RECURSIVELY (so it covers both top-level objectives and
 # any per-bucket subfolders), runs `differential-execute --json` on every trace,
@@ -27,7 +27,7 @@ from multiprocessing.pool import ThreadPool as Pool
 
 PUFFIN = os.environ.get("PUFFIN_PATH", "target/release/sshpuffin")
 FIRST_PUT = os.environ.get("SSHPUFFIN_FIRST_PUT", "libssh0114")
-SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh")
+SECOND_PUT = os.environ.get("SSHPUFFIN_SECOND_PUT", "wolfssh150")
 VALID = re.compile(r"^[^.].*\.trace(-[0-9]+)?$")
 
 

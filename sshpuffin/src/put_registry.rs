@@ -49,7 +49,7 @@ pub mod registration {
 
                     let interface = unsafe { *interface_ptr };
 
-                    Some(GlobalFactory::CFactory(crate::libssh::CSshPut::new(
+                    Some(GlobalFactory::CFactory(crate::cput::CSshPut::new(
                         $name,
                         $harness_version,
                         $library_version,
@@ -77,7 +77,7 @@ pub mod registration {
 
     enum GlobalFactory {
         #[allow(dead_code)]
-        CFactory(crate::libssh::CSshPut),
+        CFactory(crate::cput::CSshPut),
     }
 
     static PUTS: Lazy<Mutex<Vec<GlobalFactory>>> = Lazy::new(|| Mutex::new(register()));
@@ -95,7 +95,7 @@ pub fn ssh_registry() -> PutRegistry<SshProtocolBehavior> {
         panic!(
             "No SSH PUT found. \
              Build libssh into the vendor directory first: \
-             `just mk-vendor libssh0104` (or use the -asan variant)."
+             `just mk_vendor libssh libssh0114` (or use the -asan variant)."
         );
     }
 

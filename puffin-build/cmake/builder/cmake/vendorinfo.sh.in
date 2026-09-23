@@ -48,13 +48,43 @@ declare -a INSTRUMENTATION=(
     $<$<BOOL:@llvm_cov@>:llvm_cov>
 )
 
-# A vendored library counts as "claimer"-instrumented when its archive exports a
-# claim marker symbol. TLS libraries export `register_claimer` (tlspuffin-claims);
-# SSH libraries have no such library-level symbol — the claimer lives in the
-# harness — so their marker is the session-id accessor injected by the SSH
-# instrument patch (puffin-build/vendors/{libssh,wolfssh}/instrument_claims.cmake).
-if "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null | grep -E "register_claimer|puffin_ssh_get_session_id|puffin_wolfssh_get_session_id" >/dev/null; then
+function header_define() { # <header> <macro>: the macro's string/number value
+    [ -f "$1" ] || return 0
+    sed -n -E "s/^#[[:space:]]*define[[:space:]]+$2[[:space:]]+\"?([^\"]*)\"?.*$/\1/p" "$1" | head -1
+}
+
+# What depends on the vendor lives next to its builder, in
+# puffin-build/vendors/<vendor>/vendorinfo.sh, sourced here if it exists. It may set:
+#   CLAIM_SYMBOLS      symbols whose presence in the installed archives means the library is
+#                      instrumented for claims (e.g. `register_claimer` of tlspuffin-claims);
+#   detected_version   a function printing the version found in the installed headers
+#                      (`header_define` above helps reading a header macro).
+CLAIM_SYMBOLS=()
+function detected_version() { :; }
+VENDOR_INFO_FRAGMENT="@VENDOR_INFO_FRAGMENT@"
+if [ -n "${VENDOR_INFO_FRAGMENT}" ] && [ -f "${VENDOR_INFO_FRAGMENT}" ]; then
+    # shellcheck source=/dev/null
+    source "${VENDOR_INFO_FRAGMENT}"
+fi
+
+if (( ${#CLAIM_SYMBOLS[@]} )) && "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null \
+        | grep -E "$(IFS='|'; printf '%s' "${CLAIM_SYMBOLS[*]}")" >/dev/null; then
     INSTRUMENTATION+=("claimer")
+fi
+
+# Surface the version actually found in the installed headers, and warn (stderr,
+# i.e. the vendor build log — stdout is the .metadata file) when it disagrees with
+# the preset's declared `version`: e.g. a moving `branch` that advanced, or a
+# preset edited without rebuilding. Libraries without a version probe (BoringSSL)
+# and non-numeric preset versions (main/master) are only reported, not checked.
+DETECTED_VERSION=$(detected_version 2>/dev/null || true)
+EXPECTED_VERSION="${VERSION%%+*}" # drop build metadata, e.g. 1.1.1g+git.<sha>
+if [ -z "${DETECTED_VERSION}" ]; then
+    echo "vendorinfo: ${LIBNAME}: preset version ${VERSION}; no version found in the installed headers" >&2
+elif [[ "${EXPECTED_VERSION}" =~ ^[0-9] ]] && [ "${DETECTED_VERSION}" != "${EXPECTED_VERSION}" ]; then
+    echo "vendorinfo: WARNING: ${LIBNAME}: preset declares version ${VERSION} but the installed headers say ${DETECTED_VERSION} (stale vendor or moving branch?)" >&2
+else
+    echo "vendorinfo: ${LIBNAME}: version ${DETECTED_VERSION} (preset ${VERSION})" >&2
 fi
 
 cat <<EOF
