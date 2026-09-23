@@ -234,6 +234,8 @@ define_signature!(
     // decryption helper, not for term generation.
     fn_s2c_confirmation_sender_channel [opaque] [no_gen]
     fn_decrypted_message [opaque] [no_gen]
+    fn_sender_channel [get]
+    fn_initial_window_size [get]
     fn_derive_enc_key_c2s [opaque]
     fn_derive_enc_key_s2c [opaque]
     fn_encrypt_packet [opaque]

@@ -2497,6 +2497,97 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// SERVER-attacker session: `seed_server_attacker_full_aesgcm` continued into the
+/// connection protocol, driven by what the CLIENT PUT sends after authentication.
+/// Both clients open a "session" channel and then send a want_reply "shell"
+/// request (the libssh client harness mirrors `wolfSSH_connect()`), but each picks
+/// its own channel number (libssh 43, wolfSSH 0). The attacker derives the c2s
+/// key from the handshake it ran, decrypts the client's stream with
+/// `fn_decrypted_message`, reads the client's CHANNEL_OPEN `sender_channel`, and
+/// answers on THAT channel: CHANNEL_OPEN_CONFIRMATION, then CHANNEL_SUCCESS for
+/// the shell request. This drives both clients' channel-setup parsers (a
+/// confirmation, a request reply) instead of stopping at USERAUTH_SUCCESS.
+pub fn seed_server_attacker_session_aesgcm(client: AgentName) -> Trace<SshProtocolTypes> {
+    let client_banner_id = term! { fn_banner_id(((client, 0)[None]/RawSshMessage)) };
+    let client_kexinit = term! { (client, 0)[None]/SshMessage };
+    let q_c = term! { (client, 0)[None]/SshBytes };
+
+    let our_kexinit = term! { fn_server_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let i_c = term! { fn_kexinit_payload((@client_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@our_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@client_banner_id), (fn_puffin_id), (@i_c), (@i_s),
+            (fn_server_rsa_pubkey_bytes), (@q_c), (fn_client_ecdh_pubkey), (@shared)
+        )
+    };
+    let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    // s2c: what we (the server) send; c2s: what the client sends, to read it back.
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+    let key_c2s = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv_c2s = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+
+    let svc_accept = term! {
+        fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let auth_success = term! {
+        fn_encrypt_packet_aesgcm((fn_user_auth_success), (@key), (@iv), (fn_u32_auto))
+    };
+
+    // The channel number the CLIENT chose, from its decrypted CHANNEL_OPEN.
+    let c2s = term! { (client, *)/RawSshMessageFlight };
+    let client_open = term! {
+        fn_decrypted_message((@c2s), (@key_c2s), (@iv_c2s), (fn_msg_channel_open), (fn_u32_0))
+    };
+    let client_chan = term! { fn_sender_channel((@client_open)) };
+
+    let chan_confirm = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open_confirmation((@client_chan), (fn_channel_id_0), (fn_u32_0x10000),
+                                          (fn_u32_0x10000), (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_success = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_success((@client_chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_packet((fn_kex_ecdh_reply(
+                        (fn_server_rsa_pubkey),
+                        (fn_client_ecdh_pubkey),
+                        (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
+                    )))
+                },
+            ),
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(client, term! { @svc_accept }),
+            InputAction::new_step(client, term! { @auth_success }),
+            InputAction::new_step(client, term! { @chan_confirm }),
+            InputAction::new_step(client, term! { @chan_success }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Legacy ChaCha20 s2c decryption recipe — COMMENTED OUT (kept for reference) ──
 //
 // `server_decryption_recipes` decrypted a server's first three encrypted outputs
@@ -3029,6 +3120,14 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_server_attacker_full_aesgcm(client),
             "seed_server_attacker_full_aesgcm",
         ),
+        // The same, continued into the connection protocol: the attacker reads the
+        // client's CHANNEL_OPEN from its decrypted c2s stream and answers on the
+        // channel number each client chose (confirmation + shell reply). 0-diff;
+        // both clients reach DONE.
+        (
+            seed_server_attacker_session_aesgcm(client),
+            "seed_server_attacker_session_aesgcm",
+        ),
         (
             auth_complete(seed_client_attacker_full_aesgcm(server)),
             "seed_client_attacker_full_aesgcm",
@@ -3412,7 +3511,10 @@ mod tests {
         let a = AgentName::first();
         let dir = std::path::Path::new("/tmp/roundtrip_seeds");
         std::fs::create_dir_all(dir).unwrap();
-        for (name, trace) in [("rekey_complete", seed_client_attacker_rekey_complete(a))] {
+        for (name, trace) in [
+            ("rekey_complete", seed_client_attacker_rekey_complete(a)),
+            ("server_session", seed_server_attacker_session_aesgcm(a)),
+        ] {
             trace
                 .to_file(dir.join(format!("{name}.trace")))
                 .unwrap_or_else(|e| panic!("write {name}: {e}"));
@@ -3511,6 +3613,35 @@ mod tests {
         );
     }
 
+    /// The data-dependent server-attacker session must take BOTH client PUTs all the
+    /// way to DONE (channel confirmed on the channel number each client chose, shell
+    /// request answered) — i.e. the attacker really read the client's CHANNEL_OPEN
+    /// from its encrypted stream and replied on the right channel.
+    #[cfg(all(has_put = "libssh0114", has_put = "wolfssh150"))]
+    #[test]
+    fn server_session_clients_reach_done() {
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::{Spawner, TraceContext};
+
+        use crate::put_registry::ssh_registry;
+
+        let client = AgentName::first();
+        let _exec = put_exec_lock();
+        for put in ["libssh0114", "wolfssh150"] {
+            let desc = PutDescriptor::new(put, PutOptions::default());
+            let spawner = Spawner::new(ssh_registry()).with_mapping(&[(client, desc)]);
+            let mut ctx = TraceContext::new(spawner);
+            seed_server_attacker_session_aesgcm(client)
+                .execute(&mut ctx, &mut 0, false)
+                .unwrap_or_else(|e| panic!("{put}: server-attacker session failed: {e}"));
+            assert!(
+                ctx.agents_successful(),
+                "{put}: client did not reach DONE: {:?}",
+                ctx.find_agent(client)
+            );
+        }
+    }
+
     /// Materialises the two-party relay seeds (a real client PUT against a real
     /// server PUT) to `/tmp/two_party/` for `-T <put> display-execute`, e.g. to
     /// check that a client-harness change did not shift their relay step
@@ -3572,6 +3703,7 @@ mod tests {
             "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
             "seed_client_attacker_multi_roundtrip", // several dependent round-trips
             "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
+            "seed_server_attacker_session_aesgcm", // replies built from the client's c2s
         ] {
             assert!(
                 names.contains(&want),

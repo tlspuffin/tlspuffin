@@ -376,6 +376,31 @@ pub fn fn_channel_id(id: &u32) -> Result<ChannelId, FnError> {
     Ok(ChannelId::new(*id))
 }
 
+/// The `sender_channel` of a CHANNEL_OPEN or CHANNEL_OPEN_CONFIRMATION: the channel
+/// number the PEER chose, which every later message on that channel must address
+/// (e.g. read from a client's decrypted CHANNEL_OPEN via `fn_decrypted_message`).
+pub fn fn_sender_channel(msg: &SshMessage) -> Result<ChannelId, FnError> {
+    match msg {
+        SshMessage::ChannelOpen(m) => Ok(ChannelId::new(m.sender_channel)),
+        SshMessage::ChannelOpenConfirmation(m) => Ok(ChannelId::new(m.sender_channel)),
+        _ => Err(FnError::Malformed(
+            "sender_channel: not a CHANNEL_OPEN / CHANNEL_OPEN_CONFIRMATION".into(),
+        )),
+    }
+}
+
+/// The `initial_window_size` the peer granted in a CHANNEL_OPEN or
+/// CHANNEL_OPEN_CONFIRMATION (how much data may be sent before a WINDOW_ADJUST).
+pub fn fn_initial_window_size(msg: &SshMessage) -> Result<u32, FnError> {
+    match msg {
+        SshMessage::ChannelOpen(m) => Ok(m.initial_window_size),
+        SshMessage::ChannelOpenConfirmation(m) => Ok(m.initial_window_size),
+        _ => Err(FnError::Malformed(
+            "initial_window_size: not a CHANNEL_OPEN / CHANNEL_OPEN_CONFIRMATION".into(),
+        )),
+    }
+}
+
 /// Channel id 0 — the fixed channel number the honest seeds address.
 pub fn fn_channel_id_0() -> Result<ChannelId, FnError> {
     Ok(ChannelId::new(0))
