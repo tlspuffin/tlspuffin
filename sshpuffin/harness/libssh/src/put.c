@@ -121,6 +121,9 @@ typedef enum
     PUT_STATE_ERROR,   /* unrecoverable error */
 } PutState;
 
+/* Session-channel slots of the SERVER role (see cb_channel_open). */
+#define LIBSSH_MAX_SERVER_CHANNELS 8
+
 struct AGENT_TYPE
 {
     uint8_t name;
@@ -162,8 +165,11 @@ struct AGENT_TYPE
      * libssh 0.10.4 and 0.11.4 — so it is set via ssh_set_callbacks(). */
     struct ssh_callbacks_struct session_cb;
     struct ssh_channel_callbacks_struct channel_cb;
-    ssh_event event;      /* event loop that dispatches the callbacks */
-    ssh_channel channel;  /* session channel the client opened, or NULL */
+    ssh_event event;     /* event loop that dispatches the callbacks */
+    ssh_channel channel; /* CLIENT role: the session channel it opened, or NULL */
+    /* SERVER role: every session channel the peer opened, in slot order (NULL =
+     * free slot). Owned by the session; freed in libssh_destroy. */
+    ssh_channel server_channels[LIBSSH_MAX_SERVER_CHANNELS];
     bool authenticated;   /* set by the auth callback */
     bool callbacks_ready; /* server callbacks registered (before KEX) */
 };
@@ -450,8 +456,17 @@ static void libssh_destroy(AGENT agent)
 
     close(agent->fuzz_fd);
 
-    /* Remove the session from the event before freeing either. The channel is
-     * owned by the session and freed by ssh_free below. */
+    /* Remove the session from the event before freeing either. Channels are
+     * owned by the session; free the server's explicitly (ssh_channel_free
+     * unlinks each from the session), the client's goes with ssh_free below. */
+    for (int i = 0; i < LIBSSH_MAX_SERVER_CHANNELS; ++i)
+    {
+        if (agent->server_channels[i] != NULL)
+        {
+            ssh_channel_free(agent->server_channels[i]);
+            agent->server_channels[i] = NULL;
+        }
+    }
     if (agent->event)
     {
         ssh_event_remove_session(agent->event, agent->session);
@@ -704,11 +719,34 @@ static void cb_channel_close(ssh_session session, ssh_channel channel, void *use
 static ssh_channel cb_channel_open(ssh_session session, void *userdata)
 {
     AGENT agent = (AGENT)userdata;
-    if (agent->channel != NULL)
-        return NULL; /* one session channel is enough */
-    agent->channel = ssh_channel_new(session);
-    if (agent->channel == NULL)
+    /* Mirror wolfSSH's session-channel policy exactly (internal.c DoChannelOpen:
+     * a session open is refused, ADMINISTRATIVELY_PROHIBITED, while one is already
+     * in its channel list, and accepted again once that one is closed). libssh
+     * itself has no such limit — it is the application's choice — so the harness
+     * makes the SAME choice: one OPEN session channel at a time, any number over
+     * the session's life. Refusing every later open (as this harness used to)
+     * made "open, close, open again" diverge on a harness choice; accepting
+     * concurrent opens would diverge the other way. */
+    int free_slot = -1;
+    for (int i = 0; i < LIBSSH_MAX_SERVER_CHANNELS; ++i)
+    {
+        ssh_channel c = agent->server_channels[i];
+        if (c != NULL && !ssh_channel_is_closed(c))
+            return NULL; /* a session channel is still open: refuse */
+        if (free_slot < 0 && (c == NULL || ssh_channel_is_closed(c)))
+            free_slot = i;
+    }
+    if (free_slot < 0)
         return NULL;
+    if (agent->server_channels[free_slot] != NULL) /* recycle a closed channel */
+        ssh_channel_free(agent->server_channels[free_slot]);
+
+    ssh_channel channel = ssh_channel_new(session);
+    agent->server_channels[free_slot] = channel;
+    if (channel == NULL)
+        return NULL;
+    /* One callback table serves every channel: the callbacks receive the channel
+     * they fire for. */
     ssh_callbacks_init(&agent->channel_cb);
     agent->channel_cb.userdata = agent;
     agent->channel_cb.channel_exec_request_function = cb_channel_exec;
@@ -716,8 +754,8 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     agent->channel_cb.channel_data_function = cb_channel_data;
     agent->channel_cb.channel_eof_function = cb_channel_eof;
     agent->channel_cb.channel_close_function = cb_channel_close;
-    ssh_set_channel_callbacks(agent->channel, &agent->channel_cb);
-    return agent->channel;
+    ssh_set_channel_callbacks(channel, &agent->channel_cb);
+    return channel;
 }
 
 #ifdef HAS_CLAIMS
