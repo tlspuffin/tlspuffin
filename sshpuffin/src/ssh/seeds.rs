@@ -2280,6 +2280,7 @@ pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProt
             InputAction::new_step(server, term! { @unknown_req }),
             OutputAction::new_step(server), // REQUEST_FAILURE
             InputAction::new_step(server, term! { @chan_eof }),
+            OutputAction::new_step(server), // the server's own CHANNEL_EOF
             InputAction::new_step(server, term! { @chan_close }),
             OutputAction::new_step(server), // CHANNEL_CLOSE
         ],
