@@ -413,6 +413,21 @@ pub fn fn_pk_ok_blob(msg: &SshMessage) -> Result<SshPublicKeyBlob, FnError> {
     Ok(SshPublicKeyBlob::new(blob.to_vec()))
 }
 
+/// How much a sender may put in ONE CHANNEL_DATA to this peer right after it
+/// opened / confirmed the channel (RFC 4254 §5.1-5.2): the smaller of the window it
+/// granted and its maximum packet size.
+pub fn fn_channel_send_budget(msg: &SshMessage) -> Result<u32, FnError> {
+    match msg {
+        SshMessage::ChannelOpen(m) => Ok(m.initial_window_size.min(m.maximum_packet_size)),
+        SshMessage::ChannelOpenConfirmation(m) => {
+            Ok(m.initial_window_size.min(m.maximum_packet_size))
+        }
+        _ => Err(FnError::Malformed(
+            "send budget: not a CHANNEL_OPEN / CHANNEL_OPEN_CONFIRMATION".into(),
+        )),
+    }
+}
+
 /// The `initial_window_size` the peer granted in a CHANNEL_OPEN or
 /// CHANNEL_OPEN_CONFIRMATION (how much data may be sent before a WINDOW_ADJUST).
 pub fn fn_initial_window_size(msg: &SshMessage) -> Result<u32, FnError> {

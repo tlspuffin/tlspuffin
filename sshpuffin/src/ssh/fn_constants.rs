@@ -566,6 +566,15 @@ pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
     Ok(b"testc".to_vec())
 }
 
+/// A channel payload of exactly `len` bytes (capped at 1 MiB so a mutated length
+/// cannot exhaust memory). Sized from a peer's advertised limits, e.g.
+/// `fn_channel_send_budget`, to exercise its window / packet-size accounting at
+/// the boundary.
+pub fn fn_bytes_of_len(len: &u32) -> Result<Vec<u8>, FnError> {
+    const CAP: u32 = 1 << 20;
+    Ok(vec![b'd'; (*len).min(CAP) as usize])
+}
+
 /// RFC 4252 §7 publickey method_data WITHOUT signature (the "is this key
 /// acceptable?" query the server answers with USERAUTH_PK_OK):
 ///   boolean FALSE

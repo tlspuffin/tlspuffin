@@ -237,6 +237,8 @@ define_signature!(
     fn_sender_channel [get]
     fn_initial_window_size [get]
     fn_pk_ok_blob [get]
+    fn_channel_send_budget [opaque]
+    fn_bytes_of_len [opaque]
     fn_derive_enc_key_c2s [opaque]
     fn_derive_enc_key_s2c [opaque]
     fn_encrypt_packet [opaque]

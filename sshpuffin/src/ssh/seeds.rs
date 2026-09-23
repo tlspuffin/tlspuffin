@@ -2073,6 +2073,117 @@ pub fn seed_client_attacker_pubkey_query(server: AgentName) -> Trace<SshProtocol
     }
 }
 
+/// Flow control from the server's own limits (RFC 4254 §5.1-5.2): open a session
+/// channel, read the server's CHANNEL_OPEN_CONFIRMATION back from the decrypted s2c
+/// stream, and send ONE CHANNEL_DATA of exactly min(window, max packet) it
+/// advertised (libssh 32000 = its whole window; wolfSSH 32768), addressed to its
+/// channel number. Each server's window / packet-size accounting is exercised at its
+/// real boundary, and a mutated confirmation or budget changes what is sent. Then
+/// EXTENDED_DATA, EOF, CLOSE as in `seed_client_attacker_channel_data` (the extended
+/// data makes wolfSSH credit the window immediately too). All counters auto.
+pub fn seed_client_attacker_flow_control(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_0x10000), (fn_u32_0x10000),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // The server's confirmation: its channel number and its send limits.
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let confirm = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_channel_open_confirmation), (fn_u32_0))
+    };
+    let chan = term! { fn_sender_channel((@confirm)) };
+    let budget = term! { fn_channel_send_budget((@confirm)) };
+
+    let chan_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_data((@chan), (fn_ssh_bytes((fn_bytes_of_len((@budget))))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_ext_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_extended_data((@chan), (fn_u32_1), (fn_ssh_bytes((fn_channel_payload))))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_eof = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_close = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_data }),
+            InputAction::new_step(server, term! { @chan_ext_data }),
+            InputAction::new_step(server, term! { @chan_eof }),
+            InputAction::new_step(server, term! { @chan_close }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// COMPLETED rekey (RFC 4253 §9): the `seed_client_attacker_rekey` handshake, then
 /// traffic under the NEW keys, which the attacker derives from what the server said
 /// during the re-exchange — a real data dependency on post-KEX server replies.
@@ -3350,6 +3461,12 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_client_attacker_pubkey_query(server),
             "seed_client_attacker_pubkey_query",
         ),
+        // Flow control from the server's own limits: one CHANNEL_DATA of exactly
+        // min(window, max packet) from its decrypted confirmation. 0-diff.
+        (
+            seed_client_attacker_flow_control(server),
+            "seed_client_attacker_flow_control",
+        ),
         // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
         // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
         // correctly reject the same (user, key) pairing, and — now that the
@@ -3619,6 +3736,7 @@ mod tests {
             ("rekey_complete", seed_client_attacker_rekey_complete(a)),
             ("server_session", seed_server_attacker_session_aesgcm(a)),
             ("pubkey_query", seed_client_attacker_pubkey_query(a)),
+            ("flow_control", seed_client_attacker_flow_control(a)),
         ] {
             trace
                 .to_file(dir.join(format!("{name}.trace")))
@@ -3810,6 +3928,7 @@ mod tests {
             "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
             "seed_server_attacker_session_aesgcm", // replies built from the client's c2s
             "seed_client_attacker_pubkey_query",  // signs the blob echoed in PK_OK
+            "seed_client_attacker_flow_control",  // data sized from the server's window
         ] {
             assert!(
                 names.contains(&want),
