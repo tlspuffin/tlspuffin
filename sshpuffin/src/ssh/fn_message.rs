@@ -11,8 +11,8 @@ use crate::ssh::message::{
     EncryptionAlgorithms, ExtInfoExtension, ExtInfoMessage, GlobalRequestMessage, IgnoreMessage,
     KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, MacAlgorithms,
     NameList, OnWireData, RawMessage, RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage,
-    ServiceName, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey,
-    SshPublicKeyBlob, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
+    ServiceName, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshMsgNumber,
+    SshPublicKey, SshPublicKeyBlob, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
     UserAuthFailureMessage, UserAuthRequestMessage, Username,
 };
 
@@ -59,38 +59,40 @@ pub fn fn_onwire_data(data: &Vec<u8>) -> Result<OnWireData, FnError> {
 // usable KEXINITs were the two fixed `fn_*_kexinit_aesgcm` (algorithm lists baked
 // in), and `fn_kex_init` was dead because its list-typed arguments
 // (KexAlgorithms / EncryptionAlgorithms / ...) had no producers. Now an algorithm
-// list is built bottom-up from algorithm-name `SshBytes` atoms (fn_algo_*) into a
+// list is built bottom-up from algorithm-name `AlgoName` atoms (fn_algo_*) into a
 // `NameList`, then wrapped into the per-field list type. Because `NameList` is the
 // shared intermediate, a mutation can splice a single algorithm name, swap a
 // whole list across fields (algorithm confusion), reorder/duplicate entries, or
 // drop to empty — exercising downgrade and negotiation-handling paths in the PUT.
 
-fn name_of(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+/// The name-list of `names`: their bytes joined by commas (RFC 4251 §5), so the
+/// list's encoding contains every name verbatim.
+fn namelist_of(names: &[&AlgoName]) -> NameList {
+    NameList::from_raw(
+        names
+            .iter()
+            .map(|n| n.0.as_slice())
+            .collect::<Vec<_>>()
+            .join(&b","[..]),
+    )
 }
 
 pub fn fn_namelist_empty() -> Result<NameList, FnError> {
     Ok(NameList::empty())
 }
 pub fn fn_namelist_1(a: &AlgoName) -> Result<NameList, FnError> {
-    Ok(NameList::from_strs(&[&name_of(&a.0)]))
+    Ok(namelist_of(&[a]))
 }
 pub fn fn_namelist_2(a: &AlgoName, b: &AlgoName) -> Result<NameList, FnError> {
-    Ok(NameList::from_strs(&[&name_of(&a.0), &name_of(&b.0)]))
+    Ok(namelist_of(&[a, b]))
 }
 pub fn fn_namelist_3(a: &AlgoName, b: &AlgoName, c: &AlgoName) -> Result<NameList, FnError> {
-    Ok(NameList::from_strs(&[
-        &name_of(&a.0),
-        &name_of(&b.0),
-        &name_of(&c.0),
-    ]))
+    Ok(namelist_of(&[a, b, c]))
 }
-/// Coerce a single raw byte blob into a NameList by splitting on commas — lets a
-/// bit-mutated / observed SshBytes become a (possibly malformed) algorithm list.
+/// A NameList whose wire bytes are exactly `raw` — lets a bit-mutated / observed
+/// SshBytes become a (possibly malformed) algorithm list.
 pub fn fn_namelist_from_bytes(raw: &SshBytes) -> Result<NameList, FnError> {
-    let joined = name_of(&raw.0);
-    let parts: Vec<&str> = joined.split(',').collect();
-    Ok(NameList::from_strs(&parts))
+    Ok(NameList::from_raw(raw.0.clone()))
 }
 
 pub fn fn_kex_algos(list: &NameList) -> Result<KexAlgorithms, FnError> {
@@ -125,10 +127,19 @@ pub fn fn_ssh_bytes_empty() -> Result<SshBytes, FnError> {
 
 // ── Constructor: SshPublicKey / SshSignature ─────────────────────────────────
 
+/// A public key of a single-string layout (`string algorithm || string key_data`,
+/// e.g. ssh-ed25519), so the encoding contains both arguments. `ssh-rsa` is refused:
+/// its blob is two mpints, which `SshPublicKey` stores unprefixed, so the result
+/// would not contain `key_data`'s encoding. The RSA host key is `fn_server_rsa_pubkey`.
 pub fn fn_ssh_public_key(
     algorithm: &AlgoName,
     key_data: &SshBytes,
 ) -> Result<SshPublicKey, FnError> {
+    if algorithm.0 == b"ssh-rsa" {
+        return Err(FnError::Malformed(
+            "fn_ssh_public_key: ssh-rsa keys have a two-mpint layout".into(),
+        ));
+    }
     Ok(SshPublicKey {
         algorithm: SshBytes::new(algorithm.0.clone()),
         key_data: key_data.clone(),
@@ -180,17 +191,22 @@ pub fn fn_unimplemented(packet_sequence_number: &u32) -> Result<SshMessage, FnEr
     }))
 }
 
-/// An ARBITRARY SSH message with an explicit type `number` (low byte of the u32,
-/// so the fuzzer can drive it with existing `fn_u32_*` atoms) and a verbatim
-/// `body`. The general "unknown/malformed message-type" primitive: pointing it at
+/// An ARBITRARY SSH message: the type byte `number` followed by `body` verbatim.
+/// The general "unknown/malformed message-type" primitive: pointing it at
 /// an unassigned number (RFC 4250 §4.1.2) makes the peer treat it as unrecognised,
 /// so each stack's RFC 4253 §11.4 handling (reply SSH_MSG_UNIMPLEMENTED vs
 /// bare-close) becomes a comparable, fuzzable objective.
-pub fn fn_raw_ssh_message(number: &u32, body: &SshBytes) -> Result<SshMessage, FnError> {
+pub fn fn_raw_ssh_message(number: &SshMsgNumber, body: &Vec<u8>) -> Result<SshMessage, FnError> {
     Ok(SshMessage::Raw(RawMessage {
-        number: (*number & 0xff) as u8,
-        body: body.clone(),
+        number: number.0,
+        body: SshBytes::new(body.clone()),
     }))
+}
+
+/// The message number in the low byte of `n`, so the `fn_u32_*` atoms can drive any
+/// message type (e.g. the transport messages 1-15) in `fn_raw_ssh_message`.
+pub fn fn_msg_number(n: &u32) -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new((*n & 0xff) as u8))
 }
 
 /// Convenience: a fixed unknown/high-numbered message (type 250 — "reserved for

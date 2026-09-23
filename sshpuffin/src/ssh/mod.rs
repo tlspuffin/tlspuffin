@@ -31,6 +31,16 @@ use puffin::define_signature;
 
 use crate::protocol::SshProtocolTypes;
 
+// Flags (see `FunctionAttributes`; they only steer where payloads can be placed):
+//   * no flag   — a builder whose encoding contains each argument's encoding; checked by
+//     `unflagged_symbols_contain_their_arguments` below;
+//   * [opaque]  — the encoding contains none of the arguments' (hash, KDF, DH, cipher, signature,
+//     decryption, and the filler generator `fn_bytes_of_len`), or only with separators in between
+//     (`fn_namelist_{2,3}`);
+//   * [get]     — an accessor returning a field of its argument (TLS convention; also a truncating
+//     conversion, like TLS's `fn_u32_to_u16`);
+//   * [no_gen]  — not generated at the top level (probe/reproducer atoms, recipe helpers).
+// No SSH symbol builds an element-by-element list, so none is `[list]`.
 define_signature!(
     SSH_SIGNATURE<SshProtocolTypes>,
     fn_true
@@ -144,7 +154,7 @@ define_signature!(
     fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty
-    fn_ssh_public_key [opaque]
+    fn_ssh_public_key
     fn_ssh_signature
     fn_raw_message
     fn_packet
@@ -156,9 +166,12 @@ define_signature!(
     fn_onwire_data
     fn_namelist_empty
     fn_namelist_1
+    // The names are joined by commas: their bytes are in the list, but puffin places a
+    // payload on a repeated name by its right siblings, which the commas separate. So
+    // a payload is applied to the name before joining (same bytes).
     fn_namelist_2 [opaque]
     fn_namelist_3 [opaque]
-    fn_namelist_from_bytes [opaque]
+    fn_namelist_from_bytes
     fn_kex_algos
     fn_enc_algos
     fn_mac_algos
@@ -171,9 +184,11 @@ define_signature!(
     fn_unimplemented
     // Arbitrary / unknown-type SSH message injection (RFC 4253 §11.4 probing;
     // issue #1047 item 7). `fn_raw_ssh_message(number, body)` is generator-usable
-    // (drives the type byte from fn_u32_* atoms); the fixed 250-type convenience is
-    // `no_gen` (a deterministic reproducer atom, not for blind generation).
-    fn_raw_ssh_message [opaque]
+    // (the type byte comes from an `fn_msg_*` atom or `fn_msg_number(fn_u32_*)`); the
+    // fixed 250-type convenience is `no_gen` (a deterministic reproducer atom, not for
+    // blind generation).
+    fn_raw_ssh_message
+    fn_msg_number [get] // the low byte of a u32
     fn_msg_unknown_highnumber [no_gen]
     fn_debug
     fn_service_request
@@ -214,62 +229,63 @@ define_signature!(
     fn_channel_id_0
     fn_client_ecdh_privkey
     fn_client_ecdh_pubkey
-    fn_ecdh_shared_secret [opaque]
-    fn_banner_id [get]
+    fn_ecdh_shared_secret [opaque] // X25519
+    fn_banner_id [get] // the banner line without its CR-LF
     fn_kexinit_payload
-    fn_server_ecdh_pubkey [get]
-    fn_server_hostkey [get]
-    fn_server_hostkey_raw [get]
-    fn_kex_exchange_hash [opaque]
+    fn_server_ecdh_pubkey [get] // Q_S field of a KEX_ECDH_REPLY
+    fn_server_hostkey [get] // K_S field of a KEX_ECDH_REPLY
+    fn_server_hostkey_raw [get] // K_S field, from the raw packet
+    fn_kex_exchange_hash [opaque] // SHA-256
     // Explicit ExchangeHash -> SessionId conversion; makes session-id-vs-exchange-hash
     // confusion (rekey / Terrapin) a first-class, well-typed DY mutation.
     fn_session_id_from_hash
     // Sources the exchange hash H from the server's completion claim (session id)
     // instead of reconstructing it from a hard-coded client KEXINIT. `no_gen`: a
     // decryption-recipe helper (reads a claim), not for term generation.
-    fn_claim_exchange_hash [get] [no_gen]
+    fn_claim_exchange_hash [get] [no_gen] // the session id carried by a claim
     // Extracts the server's assigned channel number from its decrypted
     // CHANNEL_OPEN_CONFIRMATION, so a client can re-address channel traffic to the
     // channel THIS stack owns (libssh vs wolfSSH pick different numbers). `no_gen`:
     // decryption helper, not for term generation.
-    fn_s2c_confirmation_sender_channel [opaque] [no_gen]
-    fn_decrypted_message [opaque] [no_gen]
-    fn_sender_channel [get]
-    fn_initial_window_size [get]
-    fn_pk_ok_blob [get]
-    fn_channel_send_budget [opaque]
-    fn_bytes_of_len [opaque]
-    fn_derive_enc_key_c2s [opaque]
-    fn_derive_enc_key_s2c [opaque]
-    fn_encrypt_packet [opaque]
-    fn_decrypt_packet [opaque]
-    fn_derive_aes_key_c2s [opaque]
-    fn_derive_aes_key_s2c [opaque]
-    fn_derive_iv_c2s [opaque]
-    fn_derive_iv_s2c [opaque]
-    fn_encrypt_packet_aesgcm [opaque]
-    fn_decrypt_packet_aesgcm [opaque]
-    fn_decrypt_flight_aesgcm [opaque]
+    fn_s2c_confirmation_sender_channel [opaque] [no_gen] // decryption
+    fn_decrypted_message [opaque] [no_gen] // decryption
+    fn_sender_channel [get] // sender_channel field
+    fn_initial_window_size [get] // initial_window_size field
+    fn_pk_ok_blob [get] // key blob field of a PK_OK
+    fn_channel_send_budget [get] // the smaller of two fields
+    fn_bytes_of_len [opaque] // `len` filler bytes, not the length itself
+    fn_derive_enc_key_c2s [opaque] // KDF
+    fn_derive_enc_key_s2c [opaque] // KDF
+    fn_encrypt_packet [opaque] // encryption
+    fn_decrypt_packet [opaque] // decryption
+    fn_derive_aes_key_c2s [opaque] // KDF
+    fn_derive_aes_key_s2c [opaque] // KDF
+    fn_derive_iv_c2s [opaque] // KDF
+    fn_derive_iv_s2c [opaque] // KDF
+    fn_encrypt_packet_aesgcm [opaque] // encryption
+    fn_decrypt_packet_aesgcm [opaque] // decryption
+    fn_decrypt_flight_aesgcm [opaque] // decryption
     // Single comparison recipe of the AES-GCM decryption differential: folds a
     // server flight into one key-aligned `AlignedTranscript` (see
     // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
-    fn_fold_s2c_transcript [opaque] [no_gen]
+    fn_fold_s2c_transcript [opaque] [no_gen] // decryption
+    // Joins two flights (not a list and one element, so not `[list]`).
     fn_concat_raw_flights
-    fn_derive_ctr_key_c2s [opaque]
-    fn_derive_ctr_key_s2c [opaque]
-    fn_derive_ctr_iv_c2s [opaque]
-    fn_derive_ctr_iv_s2c [opaque]
-    fn_derive_mac_key_c2s [opaque]
-    fn_derive_mac_key_s2c [opaque]
-    fn_encrypt_packet_ctr [opaque]
-    fn_decrypt_packet_ctr [opaque]
+    fn_derive_ctr_key_c2s [opaque] // KDF
+    fn_derive_ctr_key_s2c [opaque] // KDF
+    fn_derive_ctr_iv_c2s [opaque] // KDF
+    fn_derive_ctr_iv_s2c [opaque] // KDF
+    fn_derive_mac_key_c2s [opaque] // KDF
+    fn_derive_mac_key_s2c [opaque] // KDF
+    fn_encrypt_packet_ctr [opaque] // encryption + MAC
+    fn_decrypt_packet_ctr [opaque] // decryption
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
     // Signs the exchange hash with the embedded host key (server-attacker
     // seeds). `no_gen`: a signing helper that needs a specific private key and a
     // well-formed transcript; generating it blindly only yields useless terms.
-    fn_sign_exchange_hash [opaque] [no_gen]
+    fn_sign_exchange_hash [opaque] [no_gen] // RSA signature
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
     fn_client_b_pubkey_blob
@@ -278,9 +294,9 @@ define_signature!(
     // private key. `no_gen`: each needs its matching key and the session's
     // exchange hash, so they are only meaningful when hand-wired in a seed, not
     // synthesised by the mutator.
-    fn_sign_userauth [opaque] [no_gen]
-    fn_sign_userauth_b [opaque] [no_gen]
-    fn_sign_userauth_c [opaque] [no_gen]
+    fn_sign_userauth [opaque] [no_gen] // RSA signature
+    fn_sign_userauth_b [opaque] [no_gen] // RSA signature
+    fn_sign_userauth_c [opaque] [no_gen] // RSA signature
     fn_publickey_auth_data
     fn_publickey_query_data
 );
@@ -347,6 +363,77 @@ mod signature_tests {
         assert_eq!(
             stats.read_wrong, 0,
             "a value read back as its declared type but re-encoded differently: {stats:?}"
+        );
+    }
+
+    /// The claim behind every UNFLAGGED symbol of the signature: its encoding
+    /// contains the encoding of each of its arguments, so a payload placed in an
+    /// argument can be found in the parent's bytes. For each non-constant symbol
+    /// without `[opaque]` / `[get]` / `[list]`, over generated terms that evaluate,
+    /// every argument's encoding must be a sub-string of the term's encoding. A
+    /// symbol failing this needs a faithful encoding or a flag (see the flag legend
+    /// above `define_signature!`).
+    #[cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
+    #[test]
+    fn unflagged_symbols_contain_their_arguments() {
+        use puffin::algebra::{DYTerm, TermType};
+        use puffin::fuzzer::term_zoo::TermZoo;
+        use puffin::fuzzer::utils::TermConstraints;
+        use puffin::libafl_bolts::rands::StdRand;
+        use puffin::trace::{Spawner, TraceContext};
+
+        use crate::put_registry::ssh_registry;
+
+        fn contains(hay: &[u8], needle: &[u8]) -> bool {
+            needle.is_empty() || hay.windows(needle.len()).any(|w| w == needle)
+        }
+
+        let ctx = TraceContext::new(Spawner::new(ssh_registry()));
+        let sig = &*SSH_SIGNATURE;
+        let mut rand = StdRand::with_seed(7);
+        let (mut checked, mut failures) = (0usize, Vec::new());
+        for def in &sig.functions {
+            let attrs = sig.attrs_by_name[def.0.name];
+            if def.0.argument_types.is_empty() || attrs.is_opaque || attrs.is_get || attrs.is_list {
+                continue;
+            }
+            let zoo = TermZoo::<SshProtocolBehavior>::generate_many(
+                &ctx,
+                sig,
+                &mut rand,
+                100,
+                TermConstraints::default().zoo_max_depth,
+                Some(def),
+                false,
+                false,
+            );
+            for term in zoo.terms() {
+                let DYTerm::Application(_, args) = &term.term else {
+                    continue;
+                };
+                let Ok(out) = term.evaluate(&ctx) else {
+                    continue;
+                };
+                let Ok(args) = args
+                    .iter()
+                    .map(|a| a.evaluate(&ctx).map(Vec::<u8>::from))
+                    .collect::<Result<Vec<_>, _>>()
+                else {
+                    continue;
+                };
+                checked += 1;
+                if let Some(i) = args.iter().position(|a| !contains(&out, a)) {
+                    failures.push(format!("{} (argument {i}): {term}", def.0.name));
+                }
+            }
+        }
+        assert!(
+            checked > 1000,
+            "containment check was vacuous: {checked} terms"
+        );
+        assert!(
+            failures.is_empty(),
+            "unflagged symbols whose encoding lacks an argument: {failures:#?}"
         );
     }
 

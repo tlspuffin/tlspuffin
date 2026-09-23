@@ -115,6 +115,11 @@ pub struct NameList {
     // (a genuinely different set is real signal), not the order — so compare a
     // sorted copy and ignore the raw ordering. Encoding is unaffected (this only
     // changes the Comparable view, not Codec), so on-wire order is preserved.
+    //
+    // The list is stored as its raw comma-separated bytes, exactly as on the wire,
+    // so the encoding of a list built from names contains each name's bytes (a
+    // `fn_namelist_*` term needs no `[opaque]` flag) and a list built from
+    // arbitrary bytes (`fn_namelist_from_bytes`) keeps them verbatim.
     #[comparable_synthetic {
         let comparable_names = |x: &Self| -> Vec<String> {
             // Compare name-lists as an order-insensitive SET: preference ORDER is
@@ -146,48 +151,58 @@ pub struct NameList {
             // and excluded here. Every NEGOTIABLE algorithm is still compared, so a
             // genuine downgrade still surfaces.
             let mut names: Vec<String> = x
-                .names
-                .iter()
+                .names()
+                .into_iter()
                 .filter(|n| !n.starts_with("kex-strict-") && !n.starts_with("ext-info-"))
-                .cloned()
                 .collect();
             names.sort();
             names
         };
     }]
     #[comparable_ignore]
-    names: Vec<String>,
+    raw: Vec<u8>,
 }
 
 impl NameList {
     pub fn empty() -> NameList {
-        Self { names: vec![] }
+        Self { raw: vec![] }
     }
 
     pub fn from_strs(names: &[&str]) -> NameList {
         Self {
-            names: names.iter().map(|s| s.to_string()).collect(),
+            raw: names.join(",").into_bytes(),
         }
+    }
+
+    /// A list from its raw wire bytes (the names joined by commas), kept verbatim.
+    pub fn from_raw(raw: Vec<u8>) -> NameList {
+        Self { raw }
+    }
+
+    /// The names, split at the commas (non-UTF-8 bytes replaced).
+    pub fn names(&self) -> Vec<String> {
+        if self.raw.is_empty() {
+            return vec![];
+        }
+        String::from_utf8_lossy(&self.raw)
+            .split(',')
+            .map(str::to_string)
+            .collect()
     }
 }
 
 impl Codec for NameList {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let names = self.names.join(",");
-        let names_bytes = names.as_bytes(); // ASCII is valid UTF-8
-        (names_bytes.len() as u32).encode(bytes);
-        bytes.extend_from_slice(names_bytes);
+        (self.raw.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&self.raw);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         let length = u32::read(reader)?;
-        let names = if length > 0 {
-            let names = std::str::from_utf8(reader.take(length as usize)?).ok()?;
-            names.split(',').map(str::to_string).collect()
-        } else {
-            Vec::new()
-        };
-        Some(NameList { names })
+        let raw = reader.take(length as usize)?;
+        // RFC 4251 §5: names are US-ASCII; reject anything that is not UTF-8.
+        std::str::from_utf8(raw).ok()?;
+        Some(NameList { raw: raw.to_vec() })
     }
 }
 
@@ -258,9 +273,9 @@ impl Codec for SshBytes {
 //   * identity / negotiation — `VersionString` (V_C/V_S), `SshPublicKeyBlob` (publickey-auth blob:
 //     identity confusion), `AlgoName` (negotiation / downgrade), `Username` and `ServiceName`
 //     (credential / bad-service confusion).
-// `ChannelId` is the same idea for a bare u32 (hand-written below, since this
-// macro is byte-blob only). All are registered in `try_read_bytes` so payloads
-// under `[opaque]` parents can be re-typed (see that function).
+// `AlgoName` (a bare token, not length-prefixed) and `ChannelId` (a bare u32) are
+// hand-written below, since this macro only makes length-prefixed blobs. All are registered in
+// `try_read_bytes` so payloads under `[opaque]` parents can be re-typed (see that function).
 macro_rules! declare_typed_atom (
     ($name:ident) => {
         #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
@@ -311,9 +326,29 @@ declare_typed_atom!(SshPublicKeyBlob);
 // build the KEXINIT negotiation lists, and the `algorithm` field of a public key /
 // signature. This targets the negotiation/downgrade/algorithm-confusion surface
 // instead of letting an algo name land in any of the ~46 other `SshBytes` fields.
-// Consumed via `name_of(&.0)` into a NameList or copied into an `SshBytes`
-// struct field, so the wire form is unchanged.
-declare_typed_atom!(AlgoName);
+// Unlike the other role atoms, its wire form is the bare name, NOT length-prefixed:
+// inside a name-list the names are joined by commas without prefixes, and in a
+// public key / signature the name is the content of the `algorithm` string. So
+// every builder that takes an `AlgoName` contains its bytes verbatim.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct AlgoName(#[extractable_no_recursion] pub Vec<u8>);
+
+impl AlgoName {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+}
+
+impl Codec for AlgoName {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(AlgoName(reader.rest().to_vec()))
+    }
+}
 // The USERAUTH_REQUEST user name (RFC 4252 §5). Its own type — NOT `SshBytes` — so
 // `ReplaceMatchMutator` substitutes a user name only into the user slot (the
 // authorized/unauthorized-identity and empty/oversized-name class), never into an
@@ -1628,9 +1663,7 @@ mod tests {
     }
 
     fn nl(items: &[&str]) -> NameList {
-        NameList {
-            names: items.iter().map(|x| x.to_string()).collect(),
-        }
+        NameList::from_strs(items)
     }
 
     /// Documents + locks in the strict-kex / ext-info asymmetry as a KNOWN, BENIGN
