@@ -12,7 +12,11 @@ use std::path::PathBuf;
 
 use puffin_build::{harness, library, vendor_dir};
 
-const LIBSSH_PRESET: &str = "libssh0104";
+/// libssh preset built when no libssh vendor is present (e.g. a fresh CI
+/// checkout): 0.11.4, the version the evaluation, the differential corpus and the
+/// PUT-gated tests (`has_put = "libssh0114"`) use. It used to be 0.10.4, which
+/// silently compiled those tests out of the CI unit-test job.
+const LIBSSH_PRESET: &str = "libssh0114";
 
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
