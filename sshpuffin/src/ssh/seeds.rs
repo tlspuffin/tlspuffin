@@ -328,7 +328,10 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
-/// Banner/version probe builder (REPORT_triaging.md H2/H3). A completing
+/// Banner/version probe builder, written after the campaigns surfaced the banner
+/// divergence class (libssh "too large banner" vs wolfSSH carrying on), to test two
+/// hypotheses: H2, does each stack accept an over-long identification line; H3, do they
+/// treat a control byte inside it the same way. A completing
 /// AES-256-GCM client-attacker handshake (mirrors `seed_client_attacker_full_aesgcm`,
 /// truncated at USERAUTH_REQUEST) whose WIRE banner and H-input V_C are both
 /// replaced by a caller-supplied out-of-spec pair. Because puffin reconstructs H
@@ -896,17 +899,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 // completes on wolfSSH (which lacks chacha20-poly1305) as well as libssh. This
 // is the cross-vendor baseline for the entity-authentication / impersonation
 // oracle.
-/// MINIMAL REPRODUCER for the auth-outcome divergence (findings_phase3/
-/// AUTH_DIVERGENCE_ROOTCAUSE.md). Identical to `seed_client_attacker_pubkey_aesgcm`
-/// (authorized user "user" + key A, valid signature) EXCEPT the USERAUTH_REQUEST
-/// service-name field is `"ssh-userauth"` instead of `"ssh-connection"` — changed
-/// in BOTH the request and the signed blob, so the signature is valid over the
-/// bogus service. libssh 0.11.4 rejects it (`messages.c:819` strict
-/// `strcmp(service,"ssh-connection")`); wolfSSH accepts it (`internal.c:8352`
-/// parses but never validates the service). This isolates the DY-discovered class
-/// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
-/// single deliberate change, as a permanent regression fixture.
-///
+
 /// TCP/IP forwarding flow (RFC 4254 §7; issue #1047 items 2-4): publickey-A auth,
 /// then a `tcpip-forward` global request + a `direct-tcpip` channel open, BOTH
 /// accepted by both stacks (shared `ssh_creds_forward_authorized` boundary; wolfSSH
@@ -915,7 +908,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 /// REGISTERED in the differential corpus. It is post-filter 0-diff: the single
 /// genuine wolfSSH deviation it triggers — the REQUEST_SUCCESS bound-port echo for
 /// a non-zero requested port — is permanently shadowed
-/// (`is_fwd_reqsuccess_port_echo_diff`; WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). This
+/// (`is_fwd_reqsuccess_port_echo_diff`; wolfSSL/wolfssh#1246). This
 /// gives the forwarding accept path real campaign coverage; any OTHER forwarding
 /// divergence (accept-vs-reject, another changed message, a non-port-echo
 /// response_data delta) is NOT shadowed and surfaces as an objective.
@@ -1070,7 +1063,7 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
 /// for the password-change message format: it proves the constructor reaches both
 /// stacks' password handlers and gives the mutator a known-good baseline. (That
 /// both stacks are equally lax about the change semantics is a shared-conformance
-/// observation a *differential* oracle cannot flag — see RFC_CONFORMANCE_PROBES.md.)
+/// observation a *differential* oracle cannot flag.)
 pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -1134,8 +1127,8 @@ pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtoco
 /// unknown/high-numbered SSH message (type 250, "reserved for private use") via the
 /// new `fn_msg_unknown_highnumber` primitive. RFC 4253 §11.4 says the peer MUST
 /// reply SSH_MSG_UNIMPLEMENTED; a lax stack bare-closes. The differential compares
-/// the two stacks' handling of an unrecognised pre-auth message — the surface the
-/// Status-bucket re-scan (ITEM7_RESCAN.md) could only reach incidentally post-auth.
+/// the two stacks' handling of an unrecognised pre-auth message, which campaign
+/// objectives had only reached incidentally, post-auth.
 ///
 /// NOT registered in any corpus: it diverges by design (kept as a callable
 /// reproducer / regression fixture, like `seed_client_attacker_bad_service`). Run
@@ -1192,6 +1185,17 @@ pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// MINIMAL REPRODUCER for the USERAUTH service-name divergence (RFC 4252 §5; fixed
+/// upstream in wolfSSH 0068d52e). Identical to `seed_client_attacker_pubkey_aesgcm`
+/// (authorized user "user" + key A, valid signature) EXCEPT the USERAUTH_REQUEST
+/// service-name field is `"ssh-userauth"` instead of `"ssh-connection"` — changed
+/// in BOTH the request and the signed blob, so the signature is valid over the
+/// bogus service. libssh 0.11.4 rejects it (`messages.c:819` strict
+/// `strcmp(service,"ssh-connection")`); wolfSSH accepts it (`internal.c:8352`
+/// parses but never validates the service). This isolates the fuzzer-found class
+/// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
+/// single deliberate change, as a permanent regression fixture.
+///
 /// NOT registered in any corpus (see the NOTE in `create_corpus`): it is a
 /// NON-LEGIT trace that diverges by design, kept only as a callable reproducer for
 /// the finding. `#![allow(dead_code)]` (ssh/mod.rs) permits the unregistered
@@ -3359,8 +3363,8 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // global-request/message callbacks). It is post-filter 0-diff BECAUSE the
         // one genuine wolfSSH deviation it exercises — the REQUEST_SUCCESS port echo
         // for a non-zero requested port — is now permanently shadowed
-        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BENIGN; see
-        // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Registering it here
+        // (is_fwd_reqsuccess_port_echo_diff, gated behind SHADOW_KNOWN_BUGS; filed
+        // as wolfSSL/wolfssh#1246). Registering it here
         // gives the forwarding accept path real differential-campaign coverage while
         // the known, documented port-echo stays quiet. Any OTHER forwarding
         // divergence (accept-vs-reject, a second changed message, a non-port-echo
@@ -3514,12 +3518,12 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
             // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
             // state machine); the confirmed-correct behaviour was validated with a
-            // fresh-build TCP reproducer (wolfssh-repro/rekey_repro.py).
+            // fresh-build TCP reproducer outside the fuzzer.
             // DELIBERATELY kept out of the differential corpus: it diverges BY
             // DESIGN on the strict-kex / rekey-discipline difference (libssh
             // withholds userauth while the injected rekey is pending; wolfSSH
-            // proceeds) — a documented, NIL-impact conformance difference (see
-            // SSHPUFFIN_FINDINGS.md §4c; wolfSSH's lack of the Terrapin-affected
+            // proceeds) — a NIL-impact conformance difference, fixed upstream in
+            // wolfSSL/wolfssh#1200 (wolfSSH's lack of the Terrapin-affected
             // ciphers neutralises any exploitability). Including it differentially
             // would just re-report this closed finding on every run; legitimate
             // (0-diff) rekey coverage is already provided by the `rekey` seed.
@@ -3533,7 +3537,7 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             // rekey (§7.1), and `preprocess_trace` renumbers the shifted packets so
             // their GCM nonces stay valid — the mechanism that makes §7.1
             // fuzz-discoverable rather than only hand-reproducible. See the seed
-            // docstring and SSH_71_AUTODISCOVERY_PLAN.md.
+            // docstring.
             (
                 seed_client_attacker_rekey_channel_auto(server),
                 "seed_client_attacker_rekey_channel_auto",
@@ -3561,12 +3565,11 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
             // registered here — they diverge BY DESIGN and are kept only as
             // callable, documented reproducers / regression fixtures (see
-            // RFC_CONFORMANCE_PROBES.md and issue #1047):
+            // wolfSSL/wolfssh#1047):
             //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
-            //     libssh rejects; AUTH_DIVERGENCE_ROOTCAUSE.md).
+            //     libssh rejects; fixed upstream in wolfSSH 0068d52e).
             //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
-            //     tolerates→Success, wolfSSH "message not allowed before user authentication";
-            //     ITEM7_RESCAN.md).
+            //     tolerates→Success, wolfSSH "message not allowed before user authentication").
             //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
             //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
             //     because it is a REJECT-path edge case, not a legit handshake; a legit group14

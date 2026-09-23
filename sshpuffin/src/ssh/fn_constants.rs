@@ -283,7 +283,8 @@ pub fn fn_puffin_banner() -> Result<String, FnError> {
 }
 
 // ── Out-of-spec banner / version identification-string probes ────────────────
-// (REPORT_triaging.md hypotheses H2/H3/H4.) Each PAIR is a wire banner (String,
+// (hypotheses H2/H3 of `banner_probe_seed`, raised while triaging the banner
+// divergence class of the differential campaigns.) Each PAIR is a wire banner (String,
 // INCLUDING the CR-LF terminator, sent verbatim by `RawSshMessage::Banner`) and
 // its RFC 4253 §8-canonical V_C (SshBytes, ONLY the trailing CR-LF stripped, every
 // other byte kept). A probe seed sends the wire banner AND reconstructs the

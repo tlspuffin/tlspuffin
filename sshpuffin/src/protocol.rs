@@ -358,14 +358,14 @@ impl ProtocolTypes for SshProtocolTypes {
         // pattern rejected above) and the whole set is gated behind
         // SHADOW_KNOWN_BENIGN so it can be re-surfaced by flipping one flag.
         if shadow_known_benign() && is_banner_strictness_diff(diff) {
-            // Finding A — pre-auth banner/version strictness. Documented benign
-            // in BUG_HUNTING.md / REPORT_triaging.md: no memory-safety issue and
-            // no exchange-hash divergence; purely libssh's 127-byte identification
-            // cap vs wolfSSH's 255-byte WOLFSSH_PROTOID_LIMIT.
+            // Banner-length / version strictness (libssh-mirror#376): libssh's
+            // 129-byte identification cap vs wolfSSH's 255-byte
+            // WOLFSSH_PROTOID_LIMIT; no memory-safety issue and no exchange-hash
+            // divergence.
             return false;
         }
         if shadow_known_benign() && is_userauth_failure_only_diff(diff) {
-            // Finding 3 — one stack emits a USERAUTH_FAILURE (method-list
+            // USERAUTH_FAILURE-only delta: one stack emits a USERAUTH_FAILURE (method-list
             // advertisement) in its decrypted transcript that the other does not.
             // Investigated benign (2026-09-02, 272-objective scan): 0
             // success-asymmetry — in NO objective does either stack reach
@@ -378,16 +378,15 @@ impl ProtocolTypes for SshProtocolTypes {
             return false;
         }
         if shadow_known_bugs() && is_fwd_reqsuccess_port_echo_diff(diff) {
-            // wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (see
-            // findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks
-            // ACCEPT an authorized tcpip-forward, but wolfSSH appends the bound
-            // port to SSH_MSG_REQUEST_SUCCESS even for a non-zero (non-dynamic)
+            // wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (wolfSSL/wolfssh#1246).
+            // Both stacks ACCEPT an authorized tcpip-forward, but wolfSSH appends the
+            // bound port to SSH_MSG_REQUEST_SUCCESS even for a non-zero (non-dynamic)
             // requested port; RFC 4254 §7.1 returns that uint32 only for a port-0
-            // request (OpenSSH and libssh both send a bare reply). Documented,
-            // root-caused, still-live-on-master conformance deviation (LOW / not a
-            // MUST — §7.1 is descriptive). The `forwarding` seed + its PoC keep the
-            // finding on record; this shadow only stops long campaigns
-            // re-reporting it.
+            // request (OpenSSH and libssh both send a bare reply). A root-caused
+            // conformance deviation (LOW / not a MUST — §7.1 is descriptive), fixed
+            // on wolfSSH master (24c2139a) but still in the pinned v1.5.0. The
+            // `forwarding` seed keeps the finding on record; this shadow only stops
+            // long campaigns re-reporting it.
             //
             // Gated behind SHADOW_KNOWN_BUGS (NOT SHADOW_KNOWN_BENIGN): this is a
             // REAL, documented wolfSSH bug we suppress to avoid re-reporting a

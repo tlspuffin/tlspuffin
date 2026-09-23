@@ -17,8 +17,8 @@ use crate::ssh::fn_impl::*;
 /// Master switch for shadowing documented-BENIGN divergence classes — divergences
 /// investigated to a benign (non-bug) conclusion, so suppressing them removes
 /// NOISE, not findings (see `differential_fuzzing_filter_diff`). Currently:
-///   * `is_banner_strictness_diff`         — Finding A, pre-auth banner strictness;
-///   * `is_userauth_failure_only_diff`     — Finding 3, USERAUTH_FAILURE-only delta;
+///   * `is_banner_strictness_diff`         — libssh's banner-length / version strictness;
+///   * `is_userauth_failure_only_diff`     — a USERAUTH_FAILURE-only transcript delta;
 ///   * `is_banner_induced_transcript_presence` — the banner reject's induced transcript-presence
 ///     diff (context-aware co-drop, banner-gated).
 /// Set `SSHPUFFIN_SHADOW_KNOWN_BENIGN=0` in the environment (no rebuild) to re-surface
@@ -38,10 +38,9 @@ pub(crate) fn shadow_known_benign() -> bool {
 /// finding's writeup and be surgically guarded so it can never mask a NEW or
 /// more-dangerous divergence. Currently:
 ///   * `is_fwd_reqsuccess_port_echo_diff` — wolfSSH tcpip-forward REQUEST_SUCCESS bound-port echo
-///     for a non-zero requested port, RFC 4254 §7.1
-///     (findings_phase3/WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Still live on wolfSSH master; LOW
-///     severity. The diverging `forwarding` seed + PoC remain the permanent record; this switch
-///     only silences campaign re-reporting.
+///     for a non-zero requested port, RFC 4254 §7.1 (wolfSSL/wolfssh#1246; fixed on wolfSSH master
+///     in 24c2139a, still in the pinned v1.5.0). LOW severity. The diverging `forwarding` seed
+///     remains the permanent record; this switch only silences campaign re-reporting.
 /// `true` by default (documented, LOW-severity, already recorded). Set
 /// `SSHPUFFIN_SHADOW_KNOWN_BUGS=0` in the environment (no rebuild) to re-surface the filed
 /// known-bug classes as objectives — a bug-focused re-audit, or the port-echo shadow-off demo.
@@ -69,13 +68,12 @@ fn shadow_env(name: &str) -> bool {
     }
 }
 
-/// Finding A — pre-auth banner/version strictness (documented benign in
-/// BUG_HUNTING.md / REPORT_triaging.md). libssh caps the client identification
-/// string at 127 bytes and requires a usable version, rejecting banners that
-/// wolfSSH (255-byte `WOLFSSH_PROTOID_LIMIT`, bounded banner-lines) accepts.
-/// Investigated benign: wolfSSH's parsing is O(1)-bounded and RFC 4253 §4.2
-/// compliant (no memory-safety issue), and both stacks derive an identical
-/// V_C/V_S for any mutually-accepted banner (no exchange-hash divergence).
+/// Banner-length / version strictness (pre-auth). libssh rejects a client
+/// identification string longer than 129 bytes ("too large banner"; RFC 4253 §4.2
+/// allows 255, filed as libssh-mirror#376) or without a usable version, where wolfSSH
+/// (255-byte `WOLFSSH_PROTOID_LIMIT`) carries on. The largest divergence class of the
+/// early differential campaigns. No memory-safety issue, and both stacks derive the
+/// same V_C/V_S for any banner both accept (no exchange-hash divergence).
 ///
 /// Matched SURGICALLY so it cannot mask an unrelated bug: a `Status` diff where
 /// ONE side carries libssh's specific banner/version rejection string AND the
@@ -134,8 +132,8 @@ pub(crate) fn is_banner_induced_transcript_presence(
         || (second_type == "()" && is_transcript(first_type))
 }
 
-/// Finding 3 — one stack's decrypted transcript carries a USERAUTH_FAILURE
-/// (SSH msg 51: a method-list advertisement / auth rejection) that the other
+/// USERAUTH_FAILURE-only transcript delta: one stack's decrypted transcript carries a
+/// USERAUTH_FAILURE (SSH msg 51: a method-list advertisement / auth rejection) that the other
 /// does not. Investigated benign by a 272-objective auth-outcome scan
 /// (2026-09-02): 0 success-asymmetry — no objective reaches USERAUTH_SUCCESS on
 /// either stack, so this is never an accept-vs-reject (auth-policy) divergence;
@@ -163,8 +161,8 @@ pub(crate) fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDi
         && !diff.contains("UserAuthSuccess")
 }
 
-/// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (findings_phase3/
-/// WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md). Both stacks ACCEPT an authorized
+/// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo (wolfSSL/wolfssh#1246).
+/// Both stacks ACCEPT an authorized
 /// tcpip-forward (both emit SSH_MSG_REQUEST_SUCCESS), but wolfSSH appends the
 /// bound port even for a non-zero requested port, while libssh sends a bare reply;
 /// so the `comparable` transcript diff is a single `Changed` on the REQUEST_SUCCESS
@@ -172,7 +170,7 @@ pub(crate) fn is_userauth_failure_only_diff(diff: &puffin::differential::TraceDi
 /// echoed port). RFC 4254 §7.1 returns the port only for a port-0 dynamic request
 /// (OpenSSH + libssh agree); a documented, root-caused, LOW-severity conformance
 /// deviation. Shadowed so long campaigns stop re-reporting it; the diverging
-/// `forwarding` seed + PoC remain the record.
+/// `forwarding` seed remains the record.
 ///
 /// VERY STRICT — matches ONLY that exact shape, so it can never mask a real
 /// forwarding divergence:
@@ -436,9 +434,8 @@ mod filter_diff_tests {
         assert!(keep(&status("Success", "Unknown error code")));
     }
 
-    /// Finding A — pre-auth banner/version strictness — is documented benign
-    /// (BUG_HUNTING.md / REPORT_triaging.md) and deliberately SHADOWED so
-    /// campaigns stop re-reporting a closed finding. Pairs where one side rejects
+    /// Banner-length / version strictness (libssh-mirror#376) is deliberately
+    /// SHADOWED so campaigns stop re-reporting a known class. Pairs where one side rejects
     /// the banner/version and the other accepts/progresses MUST now be dropped.
     /// This is the single, precise exception to fail-closed; everything else
     /// (guarded by `cross_vendor_acceptance_divergences_are_all_kept`) is unchanged.
@@ -474,7 +471,7 @@ mod filter_diff_tests {
         })
     }
 
-    /// Finding 3 — a USERAUTH_FAILURE-only transcript delta (one stack emits an
+    /// A USERAUTH_FAILURE-only transcript delta (one stack emits an
     /// auth-method-advertisement / rejection the other does not) is documented
     /// benign (2026-09-02 auth scan: 0 success-asymmetry, auth fails on both) and
     /// SHADOWED. The CRITICAL companion assertion is `_kept` below: a delta that
@@ -508,8 +505,8 @@ mod filter_diff_tests {
 
     /// wolfSSH tcpip-forward REQUEST_SUCCESS port-echo — the EXACT diff produced by
     /// `seed_client_attacker_forwarding` (both accept the forward; wolfSSH appends
-    /// the bound port to REQUEST_SUCCESS, libssh sends a bare reply). Documented
-    /// benign (WOLFSSH_TCPIP_FORWARD_PORT_ECHO.md) and SHADOWED.
+    /// the bound port to REQUEST_SUCCESS, libssh sends a bare reply). Filed as
+    /// wolfSSL/wolfssh#1246 and SHADOWED.
     #[test]
     fn fwd_reqsuccess_port_echo_is_shadowed() {
         assert!(!keep(&transcript_inner_diff(
