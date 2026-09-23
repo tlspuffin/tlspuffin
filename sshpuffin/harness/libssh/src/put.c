@@ -165,7 +165,7 @@ struct AGENT_TYPE
     ssh_event event;      /* event loop that dispatches the callbacks */
     ssh_channel channel;  /* session channel the client opened, or NULL */
     bool authenticated;   /* set by the auth callback */
-    bool callbacks_ready; /* server callbacks + event registered (post-KEX) */
+    bool callbacks_ready; /* server callbacks registered (before KEX) */
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -889,6 +889,43 @@ static RESULT libssh_progress(AGENT agent)
 
     if (agent->descriptor.role == SSH_SERVER)
     {
+        /* Register the high-level server callbacks once, BEFORE the key
+         * exchange (as libssh's samplesshd-cb does). From here libssh's own state
+         * machine drives auth (publickey/password), service requests, channel
+         * open, and channel requests — including sending USERAUTH_PK_OK/FAILURE/
+         * SUCCESS and CHANNEL_SUCCESS/FAILURE per RFC 4252/4254 — instead of the
+         * harness re-implementing it. This keeps the harness thin and its
+         * behaviour close to a real libssh server (and symmetric with the wolfSSH
+         * harness, which delegates to wolfSSH_accept).
+         * They must exist before ssh_handle_key_exchange: a peer may send its
+         * SERVICE_REQUEST in the same write as its NEWKEYS (wolfSSH and libssh
+         * clients both do), and libssh then dispatches it from inside the key
+         * exchange. Registered only afterwards (as this harness used to), that
+         * request was parked with no callback and never answered — the session
+         * stalled on libssh while wolfSSH replied: a harness-made divergence. */
+        if (!agent->callbacks_ready)
+        {
+            ssh_callbacks_init(&agent->server_cb);
+            agent->server_cb.userdata = agent;
+            agent->server_cb.auth_pubkey_function = cb_auth_pubkey;
+            agent->server_cb.auth_password_function = cb_auth_password;
+            agent->server_cb.service_request_function = cb_service_request;
+            agent->server_cb.channel_open_request_session_function = cb_channel_open;
+            ssh_set_server_callbacks(agent->session, &agent->server_cb);
+            /* global_request_function (tcpip-forward) is a SESSION callback. */
+            ssh_callbacks_init(&agent->session_cb);
+            agent->session_cb.userdata = agent;
+            agent->session_cb.global_request_function = cb_global_request;
+            ssh_set_callbacks(agent->session, &agent->session_cb);
+            /* Fallback for messages the server callbacks don't handle (direct-tcpip
+             * channel open). Server callbacks run first, so existing seeds are
+             * unaffected; this only catches the fall-through. */
+            ssh_set_message_callback(agent->session, cb_message, agent);
+            ssh_set_auth_methods(agent->session,
+                                 SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
+            agent->callbacks_ready = true;
+        }
+
         if (agent->state == PUT_STATE_KEX)
         {
             for (int i = 0; i < 8; ++i)
@@ -913,33 +950,11 @@ static RESULT libssh_progress(AGENT agent)
                 return ok_result();
         }
 
-        /* Register the high-level server callbacks once, right after KEX. From
-         * here libssh's own state machine drives auth (publickey/password),
-         * service requests, channel open, and channel requests — including
-         * sending USERAUTH_PK_OK/FAILURE/SUCCESS and CHANNEL_SUCCESS/FAILURE per
-         * RFC 4252/4254 — instead of the harness re-implementing it. This keeps
-         * the harness thin and its behaviour close to a real libssh server (and
-         * symmetric with the wolfSSH harness, which delegates to wolfSSH_accept). */
-        if (!agent->callbacks_ready)
+        /* The event loop that dispatches post-KEX traffic is created once KEX
+         * is done (as in libssh's samplesshd-cb); the callbacks it dispatches
+         * to were registered before KEX (see above). */
+        if (agent->event == NULL)
         {
-            ssh_callbacks_init(&agent->server_cb);
-            agent->server_cb.userdata = agent;
-            agent->server_cb.auth_pubkey_function = cb_auth_pubkey;
-            agent->server_cb.auth_password_function = cb_auth_password;
-            agent->server_cb.service_request_function = cb_service_request;
-            agent->server_cb.channel_open_request_session_function = cb_channel_open;
-            ssh_set_server_callbacks(agent->session, &agent->server_cb);
-            /* global_request_function (tcpip-forward) is a SESSION callback. */
-            ssh_callbacks_init(&agent->session_cb);
-            agent->session_cb.userdata = agent;
-            agent->session_cb.global_request_function = cb_global_request;
-            ssh_set_callbacks(agent->session, &agent->session_cb);
-            /* Fallback for messages the server callbacks don't handle (direct-tcpip
-             * channel open). Server callbacks run first, so existing seeds are
-             * unaffected; this only catches the fall-through. */
-            ssh_set_message_callback(agent->session, cb_message, agent);
-            ssh_set_auth_methods(agent->session,
-                                 SSH_AUTH_METHOD_PUBLICKEY | SSH_AUTH_METHOD_PASSWORD);
             agent->event = ssh_event_new();
             if (agent->event == NULL)
             {
@@ -947,7 +962,6 @@ static RESULT libssh_progress(AGENT agent)
                 return error_result("ssh_event_new failed");
             }
             ssh_event_add_session(agent->event, agent->session);
-            agent->callbacks_ready = true;
         }
 
         /* Dispatch pending callbacks non-blocking (timeout 0). Each dopoll
