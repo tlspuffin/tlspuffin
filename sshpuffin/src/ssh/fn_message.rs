@@ -12,8 +12,8 @@ use crate::ssh::message::{
     KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, MacAlgorithms,
     NameList, OnWireData, RawMessage, RawSshMessage, RequestSuccessMessage, ServiceAcceptMessage,
     ServiceName, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage, SshPublicKey,
-    SshSignature, UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage,
-    UserAuthRequestMessage, Username,
+    SshPublicKeyBlob, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
+    UserAuthFailureMessage, UserAuthRequestMessage, Username,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -387,6 +387,30 @@ pub fn fn_sender_channel(msg: &SshMessage) -> Result<ChannelId, FnError> {
             "sender_channel: not a CHANNEL_OPEN / CHANNEL_OPEN_CONFIRMATION".into(),
         )),
     }
+}
+
+/// The public-key blob a server echoes in SSH_MSG_USERAUTH_PK_OK (RFC 4252 §7:
+/// string algorithm, string blob), decoded as `SshMessage::Raw` number 60. Lets a
+/// client sign for exactly the key the server said it would accept.
+pub fn fn_pk_ok_blob(msg: &SshMessage) -> Result<SshPublicKeyBlob, FnError> {
+    let SshMessage::Raw(raw) = msg else {
+        return Err(FnError::Malformed(
+            "pk_ok_blob: not a raw message 60".into(),
+        ));
+    };
+    if raw.number != 60 {
+        return Err(FnError::Malformed(
+            "pk_ok_blob: not USERAUTH_PK_OK (60)".into(),
+        ));
+    }
+    let body = &raw.body.0;
+    let take = |off: usize| -> Option<(&[u8], usize)> {
+        let len = u32::from_be_bytes(body.get(off..off + 4)?.try_into().ok()?) as usize;
+        Some((body.get(off + 4..off + 4 + len)?, off + 4 + len))
+    };
+    let (_alg, off) = take(0).ok_or_else(|| FnError::Malformed("PK_OK: algorithm".into()))?;
+    let (blob, _) = take(off).ok_or_else(|| FnError::Malformed("PK_OK: key blob".into()))?;
+    Ok(SshPublicKeyBlob::new(blob.to_vec()))
 }
 
 /// The `initial_window_size` the peer granted in a CHANNEL_OPEN or

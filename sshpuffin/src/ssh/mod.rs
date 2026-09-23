@@ -236,6 +236,7 @@ define_signature!(
     fn_decrypted_message [opaque] [no_gen]
     fn_sender_channel [get]
     fn_initial_window_size [get]
+    fn_pk_ok_blob [get]
     fn_derive_enc_key_c2s [opaque]
     fn_derive_enc_key_s2c [opaque]
     fn_encrypt_packet [opaque]
@@ -279,6 +280,7 @@ define_signature!(
     fn_sign_userauth_b [opaque] [no_gen]
     fn_sign_userauth_c [opaque] [no_gen]
     fn_publickey_auth_data
+    fn_publickey_query_data
 );
 
 #[cfg(test)]

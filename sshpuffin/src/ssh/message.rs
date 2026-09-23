@@ -1446,6 +1446,14 @@ impl Codec for SshMessage {
             100u8 => Some(SshMessage::ChannelFailure(ChannelFailureMessage::read(
                 reader,
             )?)),
+            // 60 is context-dependent (RFC 4252 §7 USERAUTH_PK_OK, §8
+            // PASSWD_CHANGEREQ, RFC 4256 INFO_REQUEST): keep it as the raw body so it
+            // still appears in decrypted transcripts (and can be read back, e.g. by
+            // `fn_pk_ok_blob`) instead of aborting the decode.
+            60u8 => Some(SshMessage::Raw(RawMessage {
+                number: 60,
+                body: SshBytes(reader.rest().to_vec()),
+            })),
             _ => None,
         }
     }

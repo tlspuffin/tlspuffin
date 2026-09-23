@@ -1975,6 +1975,104 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
     }
 }
 
+/// Publickey "query, then sign" (RFC 4252 §7), the flow real clients use: first a
+/// USERAUTH_REQUEST WITHOUT signature asking whether key A is acceptable; the
+/// server answers USERAUTH_PK_OK echoing the algorithm and key blob; the client
+/// then signs for exactly the blob the server echoed (read back from the
+/// decrypted s2c stream with `fn_decrypted_message` + `fn_pk_ok_blob`) and sends
+/// the signed request. A mutated PK_OK or query therefore changes what gets
+/// signed. Then a session channel is opened. AES-256-GCM, all counters auto.
+pub fn seed_client_attacker_pubkey_query(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    // 1. The query: no signature.
+    let query = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_query_data((fn_client_a_pubkey_blob)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    // 2. The key blob the server says it would accept, from its PK_OK.
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let pk_ok = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_userauth_pk_ok), (fn_u32_0))
+    };
+    let accepted_blob = term! { fn_pk_ok_blob((@pk_ok)) };
+    // 3. Sign for that blob.
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (@accepted_blob))
+    };
+    let signed = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((@accepted_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_0x10000), (fn_u32_0x10000),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @query }),
+            InputAction::new_step(server, term! { @signed }),
+            InputAction::new_step(server, term! { @chan_open }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// COMPLETED rekey (RFC 4253 §9): the `seed_client_attacker_rekey` handshake, then
 /// traffic under the NEW keys, which the attacker derives from what the server said
 /// during the re-exchange — a real data dependency on post-KEX server replies.
@@ -3246,6 +3344,12 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_client_attacker_rekey_complete(server),
             "seed_client_attacker_rekey_complete",
         ),
+        // Publickey query-then-sign: signs for the key blob the server echoed in its
+        // USERAUTH_PK_OK (decrypted from its s2c stream). 0-diff cross-vendor.
+        (
+            seed_client_attacker_pubkey_query(server),
+            "seed_client_attacker_pubkey_query",
+        ),
         // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
         // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
         // correctly reject the same (user, key) pairing, and — now that the
@@ -3514,6 +3618,7 @@ mod tests {
         for (name, trace) in [
             ("rekey_complete", seed_client_attacker_rekey_complete(a)),
             ("server_session", seed_server_attacker_session_aesgcm(a)),
+            ("pubkey_query", seed_client_attacker_pubkey_query(a)),
         ] {
             trace
                 .to_file(dir.join(format!("{name}.trace")))
@@ -3704,6 +3809,7 @@ mod tests {
             "seed_client_attacker_multi_roundtrip", // several dependent round-trips
             "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
             "seed_server_attacker_session_aesgcm", // replies built from the client's c2s
+            "seed_client_attacker_pubkey_query",  // signs the blob echoed in PK_OK
         ] {
             assert!(
                 names.contains(&want),

@@ -566,6 +566,20 @@ pub fn fn_password_c() -> Result<Vec<u8>, FnError> {
     Ok(b"testc".to_vec())
 }
 
+/// RFC 4252 §7 publickey method_data WITHOUT signature (the "is this key
+/// acceptable?" query the server answers with USERAUTH_PK_OK):
+///   boolean FALSE
+///   string  public key algorithm name ("rsa-sha2-256")
+///   string  public key blob
+pub fn fn_publickey_query_data(pubkey_blob: &SshPublicKeyBlob) -> Result<Vec<u8>, FnError> {
+    let mut data = vec![0x00]; // has-signature = FALSE
+    for s in [&b"rsa-sha2-256"[..], &pubkey_blob.0[..]] {
+        data.extend_from_slice(&(s.len() as u32).to_be_bytes());
+        data.extend_from_slice(s);
+    }
+    Ok(data)
+}
+
 /// RFC 4252 §7 publickey method_data, WITH signature:
 ///   boolean TRUE
 ///   string  public key algorithm name ("rsa-sha2-256")
