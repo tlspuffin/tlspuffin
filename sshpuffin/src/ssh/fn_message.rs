@@ -65,34 +65,30 @@ pub fn fn_onwire_data(data: &Vec<u8>) -> Result<OnWireData, FnError> {
 // whole list across fields (algorithm confusion), reorder/duplicate entries, or
 // drop to empty — exercising downgrade and negotiation-handling paths in the PUT.
 
-/// The name-list of `names`: their bytes joined by commas (RFC 4251 §5), so the
-/// list's encoding contains every name verbatim.
-fn namelist_of(names: &[&AlgoName]) -> NameList {
-    NameList::from_raw(
-        names
-            .iter()
-            .map(|n| n.0.as_slice())
-            .collect::<Vec<_>>()
-            .join(&b","[..]),
-    )
-}
+// A name-list (RFC 4251 §5) is built like the lists of tlspuffin: from the empty list
+// or a one-name list, by appending names one at a time. Its encoding is the names
+// joined by commas, so each list contains the list it extends and ends with the
+// appended name (both builders are `[list]`).
 
 pub fn fn_namelist_empty() -> Result<NameList, FnError> {
     Ok(NameList::empty())
 }
 pub fn fn_namelist_1(a: &AlgoName) -> Result<NameList, FnError> {
-    Ok(namelist_of(&[a]))
+    Ok(NameList::from_raw(a.0.clone()))
 }
-pub fn fn_namelist_2(a: &AlgoName, b: &AlgoName) -> Result<NameList, FnError> {
-    Ok(namelist_of(&[a, b]))
-}
-pub fn fn_namelist_3(a: &AlgoName, b: &AlgoName, c: &AlgoName) -> Result<NameList, FnError> {
-    Ok(namelist_of(&[a, b, c]))
+/// `list` followed by the name `a`, after a comma unless `list` is empty.
+pub fn fn_namelist_append(list: &NameList, a: &AlgoName) -> Result<NameList, FnError> {
+    let mut raw = list.raw().to_vec();
+    if !raw.is_empty() {
+        raw.push(b',');
+    }
+    raw.extend_from_slice(&a.0);
+    Ok(NameList::from_raw(raw))
 }
 /// A NameList whose wire bytes are exactly `raw` — lets a bit-mutated / observed
-/// SshBytes become a (possibly malformed) algorithm list.
-pub fn fn_namelist_from_bytes(raw: &SshBytes) -> Result<NameList, FnError> {
-    Ok(NameList::from_raw(raw.0.clone()))
+/// byte string become a (possibly malformed) algorithm list.
+pub fn fn_namelist_from_bytes(raw: &Vec<u8>) -> Result<NameList, FnError> {
+    Ok(NameList::from_raw(raw.clone()))
 }
 
 pub fn fn_kex_algos(list: &NameList) -> Result<KexAlgorithms, FnError> {

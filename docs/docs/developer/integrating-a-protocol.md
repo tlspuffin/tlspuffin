@@ -110,14 +110,18 @@ sub-term's bytes, placed by `MakeMessage`) can be placed:
   builder). puffin finds a payload's position in the parent's bytes.
 - `[opaque]` — the encoding contains none of the arguments' encodings: hashes, KDFs,
   DH, encryption, decryption, signatures. puffin applies a payload to the argument,
-  re-reads it with `try_read_bytes`, then applies the symbol. Use it too for a builder
-  that puts separators between its arguments (sshpuffin's `fn_namelist_{2,3}` join
-  names with commas), since puffin cannot position a repeated argument there.
+  re-reads it with `try_read_bytes`, then applies the symbol.
 - `[get]` — an accessor returning a field of its argument (`fn_server_ecdh_pubkey`),
   or a truncating conversion (TLS's `fn_u32_to_u16`); a payload under it that is not
   found in the output is dropped, not an error.
-- `[list]` — an element-by-element list builder (TLS's `fn_append_certificate`), for
-  which puffin uses a faster positioning.
+- `[list]` — an element-by-element list builder (TLS's `fn_append_certificate`,
+  sshpuffin's `fn_namelist_append`), and the empty list it starts from: puffin finds the
+  appended element at the end of the list. Encode the list type *without* its length
+  prefix (the message field holding it writes the prefix), so that a list's encoding is
+  inside the one it extends. Build a list this way rather than with a symbol taking
+  several elements at once: when an element's bytes occur more than once, puffin
+  positions it by its right-hand siblings, which separators between elements (commas in
+  an SSH name-list) break.
 - `[no_gen]` — never the root of a generated term. Use it for probe/reproducer atoms
   and recipe helpers (`fn_u32_auto`, `fn_decrypted_message`), and for every symbol the
   zoo cannot build an evaluable term for (sshpuffin: the KDFs need an exchange hash,

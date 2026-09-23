@@ -135,7 +135,6 @@ fn test_term_payloads_eval() {
 /// As `test_term_payloads_eval`, with a bit-level mutation of one payload.
 fn test_term_payloads_mutate_eval() {
     let zoo = ZooTest {
-        how_many: 5,
         ignored_functions: no_gen(),
         ..ssh_zoo()
     };

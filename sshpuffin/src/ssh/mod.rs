@@ -37,15 +37,15 @@ use crate::protocol::SshProtocolTypes;
 //   * no flag   — a builder whose encoding contains each argument's encoding
 //     (`unflagged_symbols_contain_their_arguments`);
 //   * [opaque]  — the encoding contains none of the arguments' (hash, KDF, DH, cipher, signature,
-//     decryption, and the filler generator `fn_bytes_of_len`), or only with separators in between
-//     (`fn_namelist_{2,3}`);
+//     decryption, and the filler generator `fn_bytes_of_len`);
 //   * [get]     — an accessor returning a field of its argument (TLS convention; also a truncating
 //     conversion, like TLS's `fn_u32_to_u16`);
 //   * [no_gen]  — not generated at the top level: probe/reproducer atoms, recipe helpers, and
 //     symbols the zoo cannot build an evaluable term for (the KDFs need an exchange hash, the
 //     decryptions a real ciphertext, `fn_encrypt_packet{,_ctr}` keys of an exact length); checked
 //     by `tests/term_zoo.rs::test_term_eval`.
-// No SSH symbol builds an element-by-element list, so none is `[list]`.
+//   * [list]    — a list built one element at a time, like tlspuffin's (`fn_namelist_empty`,
+//     `fn_namelist_append`); puffin finds the appended element at the end of the list.
 define_signature!(
     SSH_SIGNATURE<SshProtocolTypes>,
     fn_true
@@ -174,13 +174,9 @@ define_signature!(
     // round-trip through (de)serialization. `no_gen`: not for term generation.
     fn_raw_message_flight [no_gen]
     fn_onwire_data
-    fn_namelist_empty
+    fn_namelist_empty [list] // the empty name-list, start of fn_namelist_append
     fn_namelist_1
-    // The names are joined by commas: their bytes are in the list, but puffin places a
-    // payload on a repeated name by its right siblings, which the commas separate. So
-    // a payload is applied to the name before joining (same bytes).
-    fn_namelist_2 [opaque]
-    fn_namelist_3 [opaque]
+    fn_namelist_append [list] // a name-list and one more name
     fn_namelist_from_bytes
     fn_kex_algos
     fn_enc_algos

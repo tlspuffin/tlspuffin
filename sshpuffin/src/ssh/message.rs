@@ -117,9 +117,8 @@ pub struct NameList {
     // changes the Comparable view, not Codec), so on-wire order is preserved.
     //
     // The list is stored as its raw comma-separated bytes, exactly as on the wire,
-    // so the encoding of a list built from names contains each name's bytes (a
-    // `fn_namelist_*` term needs no `[opaque]` flag) and a list built from
-    // arbitrary bytes (`fn_namelist_from_bytes`) keeps them verbatim.
+    // so the encoding of a list built from names contains each name's bytes and a
+    // list built from arbitrary bytes (`fn_namelist_from_bytes`) keeps them verbatim.
     #[comparable_synthetic {
         let comparable_names = |x: &Self| -> Vec<String> {
             // Compare name-lists as an order-insensitive SET: preference ORDER is
@@ -179,6 +178,11 @@ impl NameList {
         Self { raw }
     }
 
+    /// The names joined by commas, as on the wire (without the length).
+    pub fn raw(&self) -> &[u8] {
+        &self.raw
+    }
+
     /// The names, split at the commas (non-UTF-8 bytes replaced).
     pub fn names(&self) -> Vec<String> {
         if self.raw.is_empty() {
@@ -191,18 +195,35 @@ impl NameList {
     }
 }
 
-impl Codec for NameList {
-    fn encode(&self, bytes: &mut Vec<u8>) {
+impl NameList {
+    /// The wire field (RFC 4251 §5): a uint32 length, then the names.
+    pub fn encode_field(&self, bytes: &mut Vec<u8>) {
         (self.raw.len() as u32).encode(bytes);
         bytes.extend_from_slice(&self.raw);
     }
 
-    fn read(reader: &mut Reader) -> Option<Self> {
+    pub fn read_field(reader: &mut Reader) -> Option<Self> {
         let length = u32::read(reader)?;
-        let raw = reader.take(length as usize)?;
+        Self::from_names_bytes(reader.take(length as usize)?)
+    }
+
+    fn from_names_bytes(raw: &[u8]) -> Option<Self> {
         // RFC 4251 §5: names are US-ASCII; reject anything that is not UTF-8.
         std::str::from_utf8(raw).ok()?;
         Some(NameList { raw: raw.to_vec() })
+    }
+}
+
+/// A name-list term encodes as its names only, like the list types of tlspuffin: the
+/// uint32 length is written by the message field that holds it (`encode_field`), so a
+/// list's encoding is found inside the one `fn_namelist_append` builds from it.
+impl Codec for NameList {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.raw);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Self::from_names_bytes(reader.rest())
     }
 }
 
@@ -456,11 +477,11 @@ macro_rules! declare_name_list (
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
-        NameList::encode(&self.0, bytes);
+        self.0.encode_field(bytes);
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(NameList::read(r)?))
+        Some($name(NameList::read_field(r)?))
       }
     }
   }
@@ -749,8 +770,8 @@ impl Codec for KexInitMessage {
         self.mac_algorithms_server_to_client.encode(bytes);
         self.compression_algorithms_client_to_server.encode(bytes);
         self.compression_algorithms_server_to_client.encode(bytes);
-        self.languages_client_to_server.encode(bytes);
-        self.languages_server_to_client.encode(bytes);
+        self.languages_client_to_server.encode_field(bytes);
+        self.languages_server_to_client.encode_field(bytes);
 
         (self.first_kex_packet_follows as u8).encode(bytes);
         0u32.encode(bytes);
@@ -769,8 +790,8 @@ impl Codec for KexInitMessage {
             mac_algorithms_server_to_client: MacAlgorithms::read(reader)?,
             compression_algorithms_client_to_server: CompressionAlgorithms::read(reader)?,
             compression_algorithms_server_to_client: CompressionAlgorithms::read(reader)?,
-            languages_client_to_server: NameList::read(reader)?,
-            languages_server_to_client: NameList::read(reader)?,
+            languages_client_to_server: NameList::read_field(reader)?,
+            languages_server_to_client: NameList::read_field(reader)?,
             first_kex_packet_follows: u8::read(reader)? != 0,
         };
 
@@ -950,13 +971,13 @@ pub struct UserAuthFailureMessage {
 
 impl Codec for UserAuthFailureMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.authentications_that_can_continue.encode(bytes);
+        self.authentications_that_can_continue.encode_field(bytes);
         (self.partial_success as u8).encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            authentications_that_can_continue: NameList::read(reader)?,
+            authentications_that_can_continue: NameList::read_field(reader)?,
             partial_success: u8::read(reader)? != 0,
         })
     }

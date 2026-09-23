@@ -925,7 +925,7 @@ pub fn seed_client_attacker_rekey_channel_auto(server: AgentName) -> Trace<SshPr
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1004,7 +1004,7 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1108,7 +1108,7 @@ pub fn seed_client_attacker_full_ctr(server: AgentName) -> Trace<SshProtocolType
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -1384,7 +1384,7 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
         fn_kex_init(
             (fn_placeholder_16bytes),
             (fn_kex_algos((fn_namelist_1((fn_algo_dh_group14_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -2357,7 +2357,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -2690,7 +2690,7 @@ pub fn seed_client_attacker_rekey_complete(server: AgentName) -> Trace<SshProtoc
         fn_kex_init(
             (fn_cookie_zeros),
             (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -2845,7 +2845,7 @@ pub fn seed_client_attacker_rekey_auto(server: AgentName) -> Trace<SshProtocolTy
             (fn_kex_init(
                 (fn_cookie_zeros),
                 (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
                 (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
@@ -2919,8 +2919,8 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
     let our_kexinit = term! {
         fn_kex_init(
             (fn_placeholder_16bytes),
-            (fn_kex_algos((fn_namelist_2((fn_algo_curve25519_sha256), (fn_algo_ext_info_c))))),
-            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_kex_algos((fn_namelist_append((fn_namelist_1((fn_algo_curve25519_sha256))), (fn_algo_ext_info_c))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
