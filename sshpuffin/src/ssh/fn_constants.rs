@@ -4,7 +4,7 @@
 use puffin::algebra::error::FnError;
 
 use crate::ssh::message::{
-    AlgoName, ServiceName, SshBytes, SshPublicKeyBlob, Username, VersionString,
+    AlgoName, ServiceName, SshBytes, SshMsgNumber, SshPublicKeyBlob, Username, VersionString,
 };
 
 pub fn fn_true() -> Result<bool, FnError> {
@@ -102,6 +102,32 @@ pub fn fn_u32_max() -> Result<u32, FnError> {
 /// 0x10000 — just past the typical 64 KiB channel-window / packet boundary.
 pub fn fn_u32_0x10000() -> Result<u32, FnError> {
     Ok(0x10000)
+}
+
+// ── SSH message numbers (RFC 4250 §4.1.2) ────────────────────────────────────
+// Select a message out of a decrypted flight (`fn_decrypted_message`), e.g. the
+// server's rekey KEX_ECDH_REPLY or the client's CHANNEL_OPEN.
+
+pub fn fn_msg_kexinit() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(20))
+}
+pub fn fn_msg_kex_ecdh_reply() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(31))
+}
+pub fn fn_msg_userauth_pk_ok() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(60))
+}
+pub fn fn_msg_channel_open() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(90))
+}
+pub fn fn_msg_channel_open_confirmation() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(91))
+}
+pub fn fn_msg_channel_window_adjust() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(93))
+}
+pub fn fn_msg_channel_request() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(98))
 }
 
 // ── SSH service names (RFC 4253 §10) ─────────────────────────────────────────

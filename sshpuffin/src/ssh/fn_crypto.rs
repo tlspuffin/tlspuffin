@@ -16,8 +16,8 @@ use crate::claim::SshClaimInner;
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, ServiceName,
-    SessionId, SharedSecret, SshBytes, SshMessage, SshPublicKey, SshPublicKeyBlob, SshSecretKey,
-    SshSignature, Username, VersionString,
+    SessionId, SharedSecret, SshBytes, SshMessage, SshMsgNumber, SshPublicKey, SshPublicKeyBlob,
+    SshSecretKey, SshSignature, Username, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -709,6 +709,34 @@ pub fn fn_s2c_confirmation_sender_channel(
         })
         .ok_or_else(|| {
             FnError::Malformed("no CHANNEL_OPEN_CONFIRMATION in decrypted s2c flight".into())
+        })
+}
+
+/// Decrypt a whole AES-256-GCM flight (the same peel as `fn_fold_s2c_transcript`,
+/// direction-agnostic) and return its `ordinal`-th message of type `msg_number`.
+/// This lets a seed build its NEXT message from what the peer actually said after
+/// the key exchange (a real round-trip dependency): e.g. derive the post-rekey keys
+/// from the server's second KEX_ECDH_REPLY, or answer a client's CHANNEL_OPEN on the
+/// channel number it chose. Channel-scoped messages are looked up on the first
+/// channel the transcript saw; non-channel messages on channel 0.
+pub fn fn_decrypted_message(
+    flight: &RawSshMessageFlight,
+    key: &SshBytes,
+    iv: &SshBytes,
+    msg_number: &SshMsgNumber,
+    ordinal: &u32,
+) -> Result<SshMessage, FnError> {
+    let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
+    transcript
+        .by_key
+        .iter()
+        .find(|(k, _)| k.msg_number == msg_number.0 && k.ordinal == *ordinal)
+        .map(|(_, m)| m.clone())
+        .ok_or_else(|| {
+            FnError::Malformed(format!(
+                "no message {} (ordinal {}) in the decrypted flight",
+                msg_number.0, ordinal
+            ))
         })
 }
 

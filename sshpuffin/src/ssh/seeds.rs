@@ -1975,6 +1975,155 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
     }
 }
 
+/// COMPLETED rekey (RFC 4253 §9): the `seed_client_attacker_rekey` handshake, then
+/// traffic under the NEW keys, which the attacker derives from what the server said
+/// during the re-exchange — a real data dependency on post-KEX server replies.
+///
+/// The server's rekey KEXINIT and its second KEX_ECDH_REPLY arrive encrypted under
+/// the FIRST keys; `fn_decrypted_message` recovers them from the s2c stream. From
+/// them: K2 = ECDH(our ephemeral, Q_S2), H2 = hash(V_C, V_S, I_C2, I_S2, K_S, Q_C,
+/// Q_S2, K2), and the new c2s key/IV from (K2, H2, session id = H1, unchanged by a
+/// rekey, RFC 4253 §7.2). After NEWKEYS the attacker opens a session channel and
+/// sends a want_reply global request with those keys (GCM counter restarts at 0).
+/// A server that did not actually switch keys fails the tag on both packets.
+/// AES-256-GCM, key A publickey login.
+pub fn seed_client_attacker_rekey_complete(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let sid = term! { fn_session_id_from_hash((@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@sid)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@sid)) };
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@sid)) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@sid)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((@sid), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Re-exchange under the first keys, same KEXINIT as
+    // `seed_client_attacker_rekey` (mutable name-lists).
+    let rekey_kexinit_msg = term! {
+        fn_kex_init(
+            (fn_cookie_zeros),
+            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm((@rekey_kexinit_msg), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_ecdh_init = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
+    };
+
+    // What the server said during the re-exchange, decrypted from its s2c stream
+    // under the FIRST keys (the fold stops where its NEWKEYS switches keys). The
+    // transcript also holds the cleartext first exchange, so the rekey KEXINIT and
+    // KEX_ECDH_REPLY are ordinal 1.
+    let s2c = term! { (server, *)/RawSshMessageFlight };
+    let server_kexinit2 = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_kexinit), (fn_u32_1))
+    };
+    let server_ecdh_reply2 = term! {
+        fn_decrypted_message((@s2c), (@key_s2c), (@iv_s2c), (fn_msg_kex_ecdh_reply), (fn_u32_1))
+    };
+    let server_ecdh_pub2 = term! { fn_server_ecdh_pubkey((@server_ecdh_reply2)) };
+    let shared2 = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub2)) };
+    let exch_hash2 = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id),
+            (fn_kexinit_payload((@rekey_kexinit_msg))), (fn_kexinit_payload((@server_kexinit2))),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub2), (@shared2)
+        )
+    };
+    let key2 = term! { fn_derive_aes_key_c2s((@shared2), (@exch_hash2), (@sid)) };
+    let iv2 = term! { fn_derive_iv_c2s((@shared2), (@exch_hash2), (@sid)) };
+
+    // Traffic under the NEW keys. Every c2s packet counter is the `fn_u32_auto`
+    // sentinel: `preprocess_trace` numbers each packet by its wire position within
+    // its key epoch (restarting after the encrypted rekey NEWKEYS), so deleting or
+    // reordering steps keeps every GCM nonce valid.
+    let chan_open2 = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_channel_id_0), (fn_u32_0x10000), (fn_u32_0x10000),
+                             (fn_empty_bytes_vec))),
+            (@key2), (@iv2), (fn_u32_auto))
+    };
+    let global_req2 = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_global_request((fn_request_unknown), (fn_true), (fn_empty_bytes_vec))),
+            (@key2), (@iv2), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+            InputAction::new_step(server, term! { @chan_open2 }),
+            InputAction::new_step(server, term! { @global_req2 }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// LEGIT (Tier-1) auto-discovery seed: the honest `seed_client_attacker_rekey`
 /// (pubkey-A auth + a COMPLETE client-initiated re-KEX, 0-diff) with every c2s
 /// counter as the `fn_u32_auto` sentinel and NO application traffic anywhere near
@@ -2991,6 +3140,13 @@ pub(crate) fn build_corpus() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
             seed_client_attacker_multi_roundtrip(server),
             "seed_client_attacker_multi_roundtrip",
         ),
+        // COMPLETED rekey: the new keys are derived from the server's own rekey
+        // KEXINIT / KEX_ECDH_REPLY (decrypted from its s2c stream), then traffic is
+        // sent under them. 0-diff cross-vendor; both stacks answer in the new epoch.
+        (
+            seed_client_attacker_rekey_complete(server),
+            "seed_client_attacker_rekey_complete",
+        ),
         // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
         // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
         // correctly reject the same (user, key) pairing, and — now that the
@@ -3247,6 +3403,23 @@ mod tests {
         println!("wrote /tmp/multi_roundtrip/{name}.trace");
     }
 
+    /// Materialises the data-dependent round-trip seeds to `/tmp/roundtrip_seeds/`
+    /// for `differential-execute`. `#[ignore]`: on-demand, not part of CI.
+    #[test]
+    #[ignore]
+    fn emit_roundtrip_seeds() {
+        use puffin::libafl::inputs::Input;
+        let a = AgentName::first();
+        let dir = std::path::Path::new("/tmp/roundtrip_seeds");
+        std::fs::create_dir_all(dir).unwrap();
+        for (name, trace) in [("rekey_complete", seed_client_attacker_rekey_complete(a))] {
+            trace
+                .to_file(dir.join(format!("{name}.trace")))
+                .unwrap_or_else(|e| panic!("write {name}: {e}"));
+            println!("wrote /tmp/roundtrip_seeds/{name}.trace");
+        }
+    }
+
     /// Every two-party / Terrapin relay seed must reach ITS verdict on each built
     /// PUT — not die on an unresolvable relay query first (they all used to):
     ///   * the honest relays (flight and packet granularity) complete, both agents DONE;
@@ -3398,6 +3571,7 @@ mod tests {
             "seed_client_attacker_forwarding",    // fwd flow (port-echo shadowed)
             "seed_server_attacker_full_aesgcm",   // CLIENT-parser differential (c2s)
             "seed_client_attacker_multi_roundtrip", // several dependent round-trips
+            "seed_client_attacker_rekey_complete", // keys from the server's rekey replies
         ] {
             assert!(
                 names.contains(&want),

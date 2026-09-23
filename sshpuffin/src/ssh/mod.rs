@@ -124,6 +124,14 @@ define_signature!(
     fn_request_tcpip_forward
     fn_request_cancel_tcpip_forward
     fn_request_unknown
+    // SSH message numbers selecting a message out of a decrypted flight.
+    fn_msg_kexinit
+    fn_msg_kex_ecdh_reply
+    fn_msg_userauth_pk_ok
+    fn_msg_channel_open
+    fn_msg_channel_open_confirmation
+    fn_msg_channel_window_adjust
+    fn_msg_channel_request
     fn_channel_type_direct_tcpip
     fn_channel_type_forwarded_tcpip
     fn_tcpip_forward_data
@@ -225,6 +233,7 @@ define_signature!(
     // channel THIS stack owns (libssh vs wolfSSH pick different numbers). `no_gen`:
     // decryption helper, not for term generation.
     fn_s2c_confirmation_sender_channel [opaque] [no_gen]
+    fn_decrypted_message [opaque] [no_gen]
     fn_derive_enc_key_c2s [opaque]
     fn_derive_enc_key_s2c [opaque]
     fn_encrypt_packet [opaque]

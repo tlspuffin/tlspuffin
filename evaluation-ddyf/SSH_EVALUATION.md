@@ -107,7 +107,7 @@ vendors — and the fuzzer:
 just mk_vendor libssh  libssh0114     # -> vendor/libssh0114
 just mk_vendor wolfssh wolfssh150     # -> vendor/wolfssh150
 cargo build -p sshpuffin --release    # -> target/release/sshpuffin
-target/release/sshpuffin seed         # dumps the honest corpus to ./seeds (13 traces)
+target/release/sshpuffin seed         # dumps the honest corpus to ./seeds (14 traces)
 ```
 
 The `sshpuffin` harness links the ASAN runtime even against the non-instrumented

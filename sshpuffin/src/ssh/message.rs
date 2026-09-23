@@ -361,6 +361,30 @@ impl Codec for ChannelId {
     }
 }
 
+// `SshMsgNumber` types an SSH message number (RFC 4250 §4.1.2) where a term SELECTS a
+// message, e.g. `fn_decrypted_message` picking the server's rekey KEX_ECDH_REPLY out
+// of a decrypted flight. Typed so type-directed mutation swaps it only for another
+// message number (reading a different reply), never into a window size or channel.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgNumber(#[extractable_no_recursion] pub u8);
+
+impl SshMsgNumber {
+    pub fn new(n: u8) -> Self {
+        Self(n)
+    }
+}
+
+impl Codec for SshMsgNumber {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgNumber(u8::read(reader)?))
+    }
+}
+
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
 fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {
@@ -1974,6 +1998,7 @@ pub fn try_read_bytes(
         ServiceName,
         SshSecretKey,
         ChannelId,
+        SshMsgNumber,
         // Name lists
         NameList,
         KexAlgorithms,
