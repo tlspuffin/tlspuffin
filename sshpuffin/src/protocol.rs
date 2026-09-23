@@ -252,7 +252,8 @@ impl ProtocolTypes for SshProtocolTypes {
                 // re-deframes, so libssh's and wolfSSH's different packetisation
                 // (1 vs 2 on-wire chunks) yields the SAME transcript.
                 //
-                // The legacy ChaCha20 recipe (`server_decryption_recipes`) is
+                // The legacy ChaCha20 recipe (`server_decryption_recipes`, now
+                // commented out in seeds.rs) is
                 // deliberately NOT emitted: it decrypts POSITIONALLY-indexed
                 // `(server, N)/OnWireData` chunks, a fragile pattern that binds to
                 // one PUT's chunk layout and misaligns against the other's — pure

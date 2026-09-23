@@ -2348,90 +2348,105 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
     }
 }
 
-/// Differential-fuzzing decryption recipes for a libssh **server** agent.
-///
-/// After NewKeys the server's responses are opaque `OnWire` ciphertext, so to
-/// compare two PUTs structurally we reconstruct the server→client (s2c) key
-/// from the server's observed KEX output (exactly as `seed_client_attacker_full`
-/// derives the c2s key, but for the 'D' direction) and decrypt each encrypted
-/// server output back into a typed `SshMessage`.
-///
-/// The s2c sequence number after NewKeys depends on whether the server enabled
-/// strict KEX (Terrapin mitigation): strict resets the counter to 0, otherwise
-/// it continues (KexInit=0, KexEcdhReply=1, NewKeys=2 → first encrypted = 3).
-/// We therefore emit a recipe at BOTH the strict (0,1,2) and non-strict (3,4,5)
-/// sequence numbers for each of the first three encrypted outputs; the wrong
-/// seqno fails the Poly1305 tag and is skipped during evaluation, so each PUT's
-/// decrypted store fills in message order and the two stores stay aligned.
-///
-/// NOTE: no longer emitted in the differential (chacha is never negotiated under
-/// `uniformise_put_config`; see `differential_fuzzing_terms_to_eval`). Its
-/// positional `(server, N)/OnWireData` queries are framing-fragile across PUTs.
-/// Retained for reference / potential single-PUT use and as the template to
-/// convert to a framing-independent `fn_fold_s2c_transcript_chacha` if the
-/// cipher set is ever widened.
-#[allow(dead_code)]
-pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
-    // Reconstruct the exchange hash from the server's KEX output (mirrors
-    // seed_client_attacker_full).
-    let server_banner_id =
-        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
-    let server_kexinit = term! { (server, 0)[None]/SshMessage };
-    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
-    let server_ecdh_reply_raw =
-        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
-    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
-    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
-    let shared = term! {
-        fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub))
-    };
-    let our_kexinit = term! {
-        fn_kex_init(
-            (fn_placeholder_16bytes),
-            ((server, 0)[None]/KexAlgorithms),
-            ((server, 0)[None]/SignatureSchemes),
-            ((server, 0)[None]/EncryptionAlgorithms),
-            ((server, 1)[None]/EncryptionAlgorithms),
-            ((server, 0)[None]/MacAlgorithms),
-            ((server, 1)[None]/MacAlgorithms),
-            ((server, 0)[None]/CompressionAlgorithms),
-            ((server, 1)[None]/CompressionAlgorithms)
-        )
-    };
-    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
-    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
-    let exch_hash = term! {
-        fn_kex_exchange_hash(
-            (fn_puffin_id),
-            (@server_banner_id),
-            (@i_c),
-            (@i_s),
-            (@server_hostkey),
-            (fn_client_ecdh_pubkey),
-            (@server_ecdh_pub),
-            (@shared)
-        )
-    };
-    let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
-
-    // Decrypt each of the first three encrypted server outputs at both the
-    // strict (0,1,2) and non-strict (3,4,5) s2c sequence numbers. The wrong
-    // seqno fails the Poly1305 tag during evaluation and is skipped, so both
-    // PUTs' decrypted stores fill in message order and stay aligned.
-    let mk = |idx_term: Term<SshProtocolTypes>, seqno: Term<SshProtocolTypes>| {
-        let key = key.clone();
-        term! { fn_decrypt_packet((@idx_term), (@key), (@seqno)) }
-    };
-
-    vec![
-        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
-        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_3 }),
-        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
-        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_4 }),
-        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
-        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_5 }),
-    ]
-}
+// ── Legacy ChaCha20 s2c decryption recipe — COMMENTED OUT (kept for reference) ──
+//
+// `server_decryption_recipes` decrypted a server's first three encrypted outputs
+// under chacha20-poly1305. It is not called anywhere: chacha is never negotiated
+// in the differential (`uniformise_put_config` pins AES-256-GCM; see
+// `differential_fuzzing_terms_to_eval` in protocol.rs), and the live recipe is the
+// framing-independent `server_decryption_recipes_aesgcm` below. It is also the
+// last code addressing encrypted output by raw POSITION, `(server, N)/OnWireData`,
+// which no longer resolves (encrypted chunks are `RawSshMessage` knowledge now,
+// matched with `[Some(SshQueryMatcher::OnWire)]`; see the two-party relay seeds).
+// To revive it for a ChaCha20 campaign: switch those queries to the `[OnWire]`
+// matcher (or better, write a `fn_fold_s2c_transcript_chacha` over the
+// concatenated `(server, *)` flight, as the AES-GCM recipe does), then uncomment.
+//
+// /// Differential-fuzzing decryption recipes for a libssh **server** agent.
+// ///
+// /// After NewKeys the server's responses are opaque `OnWire` ciphertext, so to
+// /// compare two PUTs structurally we reconstruct the server→client (s2c) key
+// /// from the server's observed KEX output (exactly as `seed_client_attacker_full`
+// /// derives the c2s key, but for the 'D' direction) and decrypt each encrypted
+// /// server output back into a typed `SshMessage`.
+// ///
+// /// The s2c sequence number after NewKeys depends on whether the server enabled
+// /// strict KEX (Terrapin mitigation): strict resets the counter to 0, otherwise
+// /// it continues (KexInit=0, KexEcdhReply=1, NewKeys=2 → first encrypted = 3).
+// /// We therefore emit a recipe at BOTH the strict (0,1,2) and non-strict (3,4,5)
+// /// sequence numbers for each of the first three encrypted outputs; the wrong
+// /// seqno fails the Poly1305 tag and is skipped during evaluation, so each PUT's
+// /// decrypted store fills in message order and the two stores stay aligned.
+// ///
+// /// NOTE: no longer emitted in the differential (chacha is never negotiated under
+// /// `uniformise_put_config`; see `differential_fuzzing_terms_to_eval`). Its
+// /// positional `(server, N)/OnWireData` queries are framing-fragile across PUTs.
+// /// Retained for reference / potential single-PUT use and as the template to
+// /// convert to a framing-independent `fn_fold_s2c_transcript_chacha` if the
+// /// cipher set is ever widened.
+// #[allow(dead_code)]
+// pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
+//     // Reconstruct the exchange hash from the server's KEX output (mirrors
+//     // seed_client_attacker_full).
+//     let server_banner_id =
+//         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+//     let server_kexinit = term! { (server, 0)[None]/SshMessage };
+//     let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+//     let server_ecdh_reply_raw =
+//         term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+//     let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+//     let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+//     let shared = term! {
+//         fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub))
+//     };
+//     let our_kexinit = term! {
+//         fn_kex_init(
+//             (fn_placeholder_16bytes),
+//             ((server, 0)[None]/KexAlgorithms),
+//             ((server, 0)[None]/SignatureSchemes),
+//             ((server, 0)[None]/EncryptionAlgorithms),
+//             ((server, 1)[None]/EncryptionAlgorithms),
+//             ((server, 0)[None]/MacAlgorithms),
+//             ((server, 1)[None]/MacAlgorithms),
+//             ((server, 0)[None]/CompressionAlgorithms),
+//             ((server, 1)[None]/CompressionAlgorithms)
+//         )
+//     };
+//     let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+//     let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+//     let exch_hash = term! {
+//         fn_kex_exchange_hash(
+//             (fn_puffin_id),
+//             (@server_banner_id),
+//             (@i_c),
+//             (@i_s),
+//             (@server_hostkey),
+//             (fn_client_ecdh_pubkey),
+//             (@server_ecdh_pub),
+//             (@shared)
+//         )
+//     };
+//     let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash),
+// (fn_session_id_from_hash((@exch_hash)))) };
+//
+//     // Decrypt each of the first three encrypted server outputs at both the
+//     // strict (0,1,2) and non-strict (3,4,5) s2c sequence numbers. The wrong
+//     // seqno fails the Poly1305 tag during evaluation and is skipped, so both
+//     // PUTs' decrypted stores fill in message order and stay aligned.
+//     let mk = |idx_term: Term<SshProtocolTypes>, seqno: Term<SshProtocolTypes>| {
+//         let key = key.clone();
+//         term! { fn_decrypt_packet((@idx_term), (@key), (@seqno)) }
+//     };
+//
+//     vec![
+//         mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
+//         mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_3 }),
+//         mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
+//         mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_4 }),
+//         mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
+//         mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_5 }),
+//     ]
+// }
 
 // ── Two-party relay seeds (a real client PUT against a real server PUT) ──────
 //
@@ -2707,7 +2722,8 @@ pub fn seed_handshake_two_party_packet_complete(
     }
 }
 
-/// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
+/// AES-256-GCM counterpart of the (commented-out, legacy ChaCha20)
+/// `server_decryption_recipes`, for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
 /// 0 at NewKeys, so it matches the per-direction packet index directly (no
