@@ -412,6 +412,88 @@ pub fn seed_bug_dead_session(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     }
 }
 
+pub fn seed_bad_nonce(server: AgentName) -> Trace<OpcuaProtocolTypes> {
+    let open_request = term! {
+        fn_service(
+            (fn_sequence_header(fn_seq_0, fn_seq_0)),
+            (fn_client_open(
+                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                fn_issue,
+                fn_mode_sign,
+                fn_no_nonce
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        metadata_trace: Default::default(),
+        descriptors: vec![ApplicationConfig::new_server(server)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_client_hello (
+                        fn_tcp_1,
+                        fn_bob_endpoint,
+                        fn_default_size,
+                        fn_default_size
+                    )}
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_open_message (
+                        fn_tcp_1,
+                        (fn_open_header(
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (@open_request)
+                        )),
+                        (fn_asym_header(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert
+                        )),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_bob_cert,
+                            (fn_data_to_encrypt(
+                                fn_basic256sha256,
+                                fn_bob_cert,
+                                (@open_request),
+                                (fn_sign(
+                                    (fn_data_to_sign(
+                                        (fn_open_header(
+                                            (fn_header(fn_open, fn_seq_0)),
+                                            fn_basic256sha256,
+                                            fn_mallory_cert,
+                                            fn_bob_cert,
+                                            (@open_request)
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_bob_cert,
+                                        (@open_request)
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                ))
+                           ))
+                        ))
+                    )
+                    }
+                }),
+            },
+        ],
+    }
+}
+
+
 pub fn seed_bad_switch(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     // Attack: switch presents user identity ALICE while the session was created/activated as
     // OSCAR (client stays MALLORY) -> user-identity mismatch -> OOB in Service_ActivateSession.

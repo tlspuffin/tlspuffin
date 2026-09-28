@@ -352,7 +352,7 @@ pub fn seed_b_client_open_secure_channel(server: AgentName) -> Trace<OpcuaProtoc
                             )),
                             (fn_mac(
                                 (fn_data_to_mac(
-                            fn_basic256sha256,
+                                    fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close, // needs channel id:
