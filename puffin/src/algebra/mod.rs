@@ -423,8 +423,8 @@ pub mod test_signature {
         fn_protocol_version12
         fn_new_session_id
         fn_new_random
-        fn_client_extensions_append
-        fn_client_extensions_new
+        fn_client_extensions_append [list]
+        fn_client_extensions_new [list]
         fn_support_group_extension
         fn_signature_algorithm_extension
         fn_ec_point_formats_extension
