@@ -1,6 +1,6 @@
 //! Stats to display both cumulative and per-client stats
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -16,7 +16,9 @@ use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::libafl_setup::MAP_FEEDBACK_NAME;
-use crate::fuzzer::stats_stage::{RuntimeStats, DUPLICATES, STATS};
+use crate::fuzzer::stats_stage::{
+    bucket_label, bucket_of_label, RuntimeStats, DUPLICATES, LENGTH_BUCKETS, PER_TYPE_SEP, STATS,
+};
 
 trait ClonableMonitor: Monitor + DynClone {}
 impl ClonableMonitor for TuiMonitor {}
@@ -134,6 +136,7 @@ impl StatsMonitor {
             let total_execs = client.executions();
 
             let trace = TraceStatistics::new(client);
+            let lists = ListStatistics::new(client);
             let mut error_counter = ErrorStatistics::new(total_execs);
 
             error_counter.count(client);
@@ -158,6 +161,7 @@ impl StatsMonitor {
                 id: id.0,
                 time: SystemTime::now(),
                 trace,
+                lists,
                 errors: error_counter,
                 #[cfg(feature = "introspection")]
                 intro: introspect_feature,
@@ -309,6 +313,7 @@ struct ClientStatistics {
     time: SystemTime,
     errors: ErrorStatistics,
     trace: TraceStatistics,
+    lists: ListStatistics,
     #[cfg(feature = "introspection")]
     intro: IntrospectStatistics,
     coverage: Option<CoverageStatistics>,
@@ -455,6 +460,53 @@ struct TraceStatistics {
     min_term_size: Option<u64>,
     max_term_size: Option<u64>,
     mean_term_size: Option<u64>,
+}
+
+/// The list metrics of one list type, as reported for one client.
+///
+/// The counts are raw sums, so the rates are computed here rather than aggregated: averaging the
+/// per-list rates of several clients would weight a client that saw ten lists like one that saw a
+/// million.
+#[derive(Serialize, Default)]
+struct ListTypeStatistics {
+    /// Lists of this type observed, empty ones included.
+    lists: u64,
+    /// Elements over all of them.
+    elements: u64,
+    /// Distinct elements, summed per list.
+    distinct: u64,
+    /// `elements / lists`.
+    mean_length: f64,
+    /// `distinct / elements`: the diversity of the population of lists taken as a whole, so a
+    /// long list weighs more than a short one.
+    pooled_diversity: f64,
+    /// The mean over non-empty lists of `distinct / length`: every list weighs the same.
+    mean_diversity: f64,
+    /// Lengths bucketed by power of two, indexed by bucket. See `length_bucket_labels` for the
+    /// lower bound each index stands for; the last bucket has no upper bound.
+    length_histogram: Vec<u64>,
+    /// Non-empty lists: the denominator of `mean_diversity`.
+    nonempty: u64,
+    /// `distinct / length` per list, in permille, summed: the numerator of `mean_diversity`.
+    /// Kept in the output so that several clients can be merged without averaging averages.
+    ratio_permille: u64,
+}
+
+impl ListTypeStatistics {
+    pub fn compute_values(&mut self) {
+        self.mean_length = ratio(self.elements, self.lists);
+        self.pooled_diversity = ratio(self.distinct, self.elements);
+        self.mean_diversity = ratio(self.ratio_permille, self.nonempty) / 1000.0;
+    }
+}
+
+/// The list metrics of every list type observed so far, keyed by the (shortened) `Vec<T>` name.
+#[derive(Serialize)]
+struct ListStatistics {
+    /// The lower bound of each `length_histogram` bucket, the same for every type.
+    length_bucket_labels: Vec<u64>,
+    per_type: BTreeMap<String, ListTypeStatistics>,
+    per_type_executable: BTreeMap<String, ListTypeStatistics>,
 }
 
 #[cfg(feature = "introspection")]
@@ -659,6 +711,8 @@ impl ErrorStatistics {
                 RuntimeStats::NbPayload(_) => {}
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
+                // Per-list-type stats are read by name prefix, in `ListStatistics`
+                RuntimeStats::PerType(_) => {}
             }
         }
     }
@@ -729,6 +783,101 @@ impl TraceStatistics {
         }
 
         trace_stats
+    }
+}
+
+impl ListStatistics {
+    /// Collects every `<metric>|<type>|<slot>` user stat back into one entry per list type.
+    ///
+    /// The list types are only known at link time, so they cannot be looked up by name the way
+    /// the other stats are: the keys are scanned instead.
+    pub fn new(user_stats: &ClientStats) -> Self {
+        let mut per_type: BTreeMap<String, ListTypeStatistics> = BTreeMap::new();
+        let mut per_type_executable: BTreeMap<String, ListTypeStatistics> = BTreeMap::new();
+
+        for (name, value) in user_stats.user_stats() {
+            // Routing on the metric first drops every stat that is not a list one -- most of them
+            // -- before any other work.
+            let mut fields = name.split(PER_TYPE_SEP);
+            let (target, is_length) = match fields.next() {
+                Some("list-length") => (&mut per_type, true),
+                Some("list-diversity") => (&mut per_type, false),
+                Some("executable-list-length") => (&mut per_type_executable, true),
+                Some("executable-list-diversity") => (&mut per_type_executable, false),
+                _ => continue,
+            };
+            let (Some(list_type), Some(slot), None) = (fields.next(), fields.next(), fields.next())
+            else {
+                log::warn!("[stats] malformed per-list-type stat name {name}");
+                continue;
+            };
+            let UserStatsValue::Number(count) = value.value() else {
+                continue;
+            };
+            let entry = Self::entry(target, list_type);
+
+            if is_length {
+                let Some(bucket) = slot.parse().ok().and_then(bucket_of_label) else {
+                    log::warn!("[stats] unknown list-length bucket {slot} in {name}");
+                    continue;
+                };
+                entry.length_histogram[bucket] += count;
+            } else {
+                match slot {
+                    "lists" => entry.lists += count,
+                    "nonempty" => entry.nonempty += count,
+                    "elements" => entry.elements += count,
+                    "distinct" => entry.distinct += count,
+                    "ratio-permille" => entry.ratio_permille += count,
+                    _ => log::warn!("[stats] unknown list-diversity slot {slot} in {name}"),
+                }
+            }
+        }
+
+        for entry in per_type.values_mut() {
+            entry.compute_values();
+        }
+
+        for entry in per_type_executable.values_mut() {
+            entry.compute_values();
+        }
+
+        Self {
+            length_bucket_labels: (0..LENGTH_BUCKETS)
+                .map(|bucket| bucket_label(bucket) as u64)
+                .collect(),
+            per_type,
+            per_type_executable,
+        }
+    }
+
+    /// The entry of `list_type`, allocating its key only the first time the type is seen.
+    fn entry<'a>(
+        per_type: &'a mut BTreeMap<String, ListTypeStatistics>,
+        list_type: &str,
+    ) -> &'a mut ListTypeStatistics {
+        if !per_type.contains_key(list_type) {
+            per_type.insert(
+                list_type.to_owned(),
+                ListTypeStatistics {
+                    length_histogram: vec![0; LENGTH_BUCKETS],
+                    ..Default::default()
+                },
+            );
+        }
+        per_type
+            .get_mut(list_type)
+            .expect("the entry was just inserted")
+    }
+}
+
+/// `numerator / denominator`, or `0.0` when nothing was observed.
+#[allow(clippy::cast_precision_loss)]
+fn ratio(numerator: u64, denominator: u64) -> f64 {
+    if denominator == 0 {
+        0.0
+    } else {
+        numerator as f64 / denominator as f64
     }
 }
 
