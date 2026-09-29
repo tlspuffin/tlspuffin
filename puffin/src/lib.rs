@@ -21,4 +21,4 @@ pub mod test_utils;
 pub mod trace;
 pub mod trace_helper;
 
-pub use {libafl, libafl_bolts};
+pub use {libafl, libafl_bolts, linkme, paste};

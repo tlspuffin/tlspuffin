@@ -74,7 +74,10 @@ pub struct FunctionAttributes {
     /// MAC, AEAD, Formally: all symbols whose concretization does not contain a single
     /// conretization of its arguments
     pub is_opaque: bool,
-    /// Whether the function symbol computes a list such as `fn_append_certificate`.
+    /// Whether the function symbol builds a list one element at a time, the shape a
+    /// [`crate::algebra::DYTerm::List`] replaces. Kept for signatures that still spell lists out
+    /// that way: their encoding is searched with a dedicated heuristic, see
+    /// [`crate::algebra::bitstrings::find_unique_match`].
     pub is_list: bool,
     /// Whether the function symbol computes a strict sub-term (accessed function symbols).
     /// Incidentally, its concretization does not contain all the conretizations of its arguments.

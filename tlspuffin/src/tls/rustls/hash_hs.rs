@@ -1,12 +1,21 @@
 use std::{fmt, mem};
 
 use comparable::Comparable;
-use puffin::codec;
 use puffin::codec::{Codec, Reader};
+use puffin::{codec, define_readable_types};
 use ring::digest;
 
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
 use crate::tls::rustls::msgs::message::{Message, MessagePayload};
+
+// `HandshakeHash` has a hand-written `Codec` and no `Constructor` derive, so the derive does not
+// register it.
+define_readable_types!(
+    crate::tls::TLS_SIGNATURE,
+    TLSProtocolTypes;
+    HandshakeHash,
+);
 
 /// Early stage buffering of handshake payloads.
 ///
