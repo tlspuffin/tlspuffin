@@ -27,6 +27,10 @@ if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
 endif()
 
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "4.8.0" AND VENDOR_VERSION VERSION_LESS_EQUAL "5.9.1")
+  declare_vulnerability("CVE-2026-6325")
+endif()
+
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")

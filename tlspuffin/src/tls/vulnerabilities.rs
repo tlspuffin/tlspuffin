@@ -1514,6 +1514,44 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// <https://www.cve.org/CVERecord?id=CVE-2026-6325>
+///
+/// Out-of-bounds heap write in wolfSSL's `SetSuitesHashSigAlgo()` (internal.c). The function
+/// parses a colon-separated "PUBKEY+DIGEST" signature algorithm list and appends 2 bytes per
+/// entry into `suites->hashSigAlgo`, a fixed `byte[WOLFSSL_MAX_SIGALGO]` buffer (38 bytes by
+/// default, 128 with post-quantum algos enabled) embedded in the heap-allocated `Suites`
+/// struct. Neither `SetSuitesHashSigAlgo` nor `AddSuiteHashSigAlgo` bounds-checks the running
+/// index against `WOLFSSL_MAX_SIGALGO`, so a list with more entries than the buffer can hold
+/// writes past its end. Fixed upstream in wolfSSL PR #10204 by rejecting the list once
+/// `idx + needed > WOLFSSL_MAX_SIGALGO`.
+///
+/// This is *not* a wire-protocol bug: `SetSuitesHashSigAlgo` is only reached from the local
+/// configuration APIs `wolfSSL_CTX_set1_sigalgs_list`/`wolfSSL_set1_sigalgs_list`, called once
+/// at agent/PUT setup time from `TLSDescriptorConfig::sigalgs` (see
+/// `harness/wolfssl/src/put.c`), never while parsing a peer's `signature_algorithms`
+/// extension off the wire. So the crash happens as soon as the agent is spawned, before any
+/// handshake step runs — this seed intentionally has zero steps.
+pub fn seed_cve_2026_6325(server: AgentName) -> Trace<TLSProtocolTypes> {
+    // 100 "RSA+SHA256" pairs = 200 bytes, well past WOLFSSL_MAX_SIGALGO (38, or 128 with
+    // post-quantum algos enabled), so this overflows `hashSigAlgo` regardless of build config.
+    let oversized_sigalgs_list = vec!["RSA+SHA256"; 100].join(":");
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                sigalgs: Some(oversized_sigalgs_list),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;

@@ -625,6 +625,24 @@ fn test_seed_cve_2022_39173_minimized(put: &str) {
     );
 }
 
+// Out-of-bounds heap write in SetSuitesHashSigAlgo() when wolfSSL_CTX_set1_sigalgs_list() is
+// given a signature algorithm list with more entries than fit in Suites::hashSigAlgo.
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_6325,
+        tls13,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_6325(put: &str) {
+    expect_trace_crash(
+        seed_cve_2026_6325.build_trace(),
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {
