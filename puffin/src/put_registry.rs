@@ -161,6 +161,7 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 
     fn rng_reseed(&self) {
-        log::warn!("[RNG] reseed failed ({}): not supported", self.name());
+        // called before every execution: keep it out of the warnings
+        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
     }
 }
