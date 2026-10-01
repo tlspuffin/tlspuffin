@@ -1514,6 +1514,88 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// <https://github.com/wolfSSL/wolfssl/pull/10167>
+///
+/// CVE-2026-6092: When `HAVE_ENCRYPT_THEN_MAC` is configured, `DoClientHello` makes its
+/// Encrypt-then-MAC decision for a resuming ClientHello *before* `MatchSuite`/`SetCipherSpecs`
+/// have populated `ssl->specs.cipher_type` (`internal.c`, inside the
+/// `if (ssl->options.resuming) { ... }` block, guarded by
+/// `HAVE_TLS_EXTENSIONS && HAVE_ENCRYPT_THEN_MAC`). Since `cipher_type` is still
+/// zero-initialized (`stream`, not `block`) at that point, the check
+/// `encThenMac && cipher_type == block` is false and the server permanently clears
+/// `ssl->options.encThenMac = 0`, even though `MatchSuite` goes on to negotiate a CBC (block)
+/// cipher suite right afterwards. The server then silently falls back to MAC-then-Encrypt
+/// instead of Encrypt-then-MAC, re-exposing CBC to the padding-oracle attacks (e.g. Lucky13)
+/// that ETM exists to prevent (CWE-757: Selection of Less-Secure Algorithm During Negotiation).
+///
+/// Reachability: wire-reachable from a single, self-contained ClientHello — no real prior
+/// session or successful resumption is required. Any session ID of exactly 32 bytes
+/// (`fn_new_session_id`) sets `ssl->options.resuming = 1` during ClientHello parsing; the
+/// wolfSSL test harness additionally disables its session cache
+/// (`wolfSSL_CTX_set_session_cache_mode(..., SSL_SESS_CACHE_OFF)`), so `HandleTlsResumption`
+/// always fails the lookup and clears `resuming` again without ever calling `SetCipherSpecs`.
+/// Combined with the empty `encrypt_then_mac` extension and a CBC-mode cipher suite, this is
+/// enough to trigger the bug. Fixed upstream by deferring the ETM decision until after
+/// `MatchSuite` has run.
+///
+/// We offer `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256` rather than a static-RSA CBC suite: this
+/// harness's wolfSSL build has no static (non-ephemeral) RSA key exchange support, so a
+/// static-RSA-only ClientHello leaves no cipher suite in common and the server aborts the
+/// handshake before `DoClientHello` even gets this far.
+///
+/// Detection: wolfSSL only marks the `encrypt_then_mac` extension for inclusion in the
+/// ServerHello from `TLSX_EncryptThenMac_Respond`, which is never reached once `encThenMac` has
+/// been cleared. So on a buggy server, the ServerHello silently omits the `encrypt_then_mac`
+/// extension despite having negotiated a CBC cipher suite — directly observable on the wire,
+/// without decrypting anything.
+pub fn seed_cve_2026_6092(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            // Any 32-byte session ID sets `ssl->options.resuming = 1` in DoClientHello. No real
+            // prior session is needed: the harness disables the session cache, so the lookup in
+            // HandleTlsResumption always "fails" and takes exactly the buggy code path.
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    // TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256: a CBC (block) cipher suite, so ETM
+                    // applies once negotiated.
+                    fn_ecdhe_rsa_cbc_cipher_suite12
+                )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    // Needed for the server to be able to pick a curve for the ECDHE suite above.
+                    (fn_support_group_extension_make(
+                        (fn_support_group_extension_append(
+                            fn_support_group_extension_new,
+                            fn_named_group_secp384r1
+                        ))
+                    ))
+                )),
+                fn_encrypt_then_mac_extension
+            ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_2)],
+        steps: vec![Step {
+            agent: server,
+            action: Action::Input(input_action! { term! {
+                    @client_hello
+                }
+            }),
+        }],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;

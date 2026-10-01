@@ -662,6 +662,7 @@ pub enum ClientExtension {
     PresharedKey(PresharedKeyOffer),
     Cookie(PayloadU16),
     ExtendedMasterSecretRequest,
+    EncryptThenMac,
     CertificateStatusRequest(CertificateStatusRequest),
     SignedCertificateTimestampRequest,
     TransportParameters(Vec<u8>),
@@ -687,6 +688,7 @@ impl ClientExtension {
             Self::PresharedKey(_) => ExtensionType::PreSharedKey,
             Self::Cookie(_) => ExtensionType::Cookie,
             Self::ExtendedMasterSecretRequest => ExtensionType::ExtendedMasterSecret,
+            Self::EncryptThenMac => ExtensionType::EncryptThenMac,
             Self::CertificateStatusRequest(_) => ExtensionType::StatusRequest,
             Self::SignedCertificateTimestampRequest => ExtensionType::SCT,
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
@@ -711,6 +713,7 @@ impl codec::Codec for ClientExtension {
             Self::ServerName(ref r) => r.encode(&mut sub),
             Self::SessionTicket(ClientSessionTicket::Request)
             | Self::ExtendedMasterSecretRequest
+            | Self::EncryptThenMac
             | Self::SignedCertificateTimestampRequest
             | Self::EarlyData => {}
             Self::SessionTicket(ClientSessionTicket::Offer(ref r)) => r.encode(&mut sub),
@@ -771,6 +774,7 @@ impl codec::Codec for ClientExtension {
             ExtensionType::ExtendedMasterSecret if !sub.any_left() => {
                 Self::ExtendedMasterSecretRequest
             }
+            ExtensionType::EncryptThenMac if !sub.any_left() => Self::EncryptThenMac,
             ExtensionType::StatusRequest => {
                 let csr = CertificateStatusRequest::read(&mut sub)?;
                 Self::CertificateStatusRequest(csr)
@@ -850,6 +854,7 @@ pub enum ServerExtension {
     KeyShare(KeyShareEntry),
     PresharedKey(u16),
     ExtendedMasterSecretAck,
+    EncryptThenMacAck,
     CertificateStatusAck,
     SignedCertificateTimestamp(SCTList),
     SupportedVersions(ProtocolVersion),
@@ -870,6 +875,7 @@ impl ServerExtension {
             Self::KeyShare(_) => ExtensionType::KeyShare,
             Self::PresharedKey(_) => ExtensionType::PreSharedKey,
             Self::ExtendedMasterSecretAck => ExtensionType::ExtendedMasterSecret,
+            Self::EncryptThenMacAck => ExtensionType::EncryptThenMac,
             Self::CertificateStatusAck => ExtensionType::StatusRequest,
             Self::SignedCertificateTimestamp(_) => ExtensionType::SCT,
             Self::SupportedVersions(_) => ExtensionType::SupportedVersions,
@@ -891,6 +897,7 @@ impl codec::Codec for ServerExtension {
             Self::ServerNameAck
             | Self::SessionTicketAck
             | Self::ExtendedMasterSecretAck
+            | Self::EncryptThenMacAck
             | Self::CertificateStatusAck
             | Self::EarlyData => {}
             Self::RenegotiationInfo(ref r) => r.encode(&mut sub),
@@ -928,6 +935,7 @@ impl codec::Codec for ServerExtension {
             ExtensionType::KeyShare => Self::KeyShare(KeyShareEntry::read(&mut sub)?),
             ExtensionType::PreSharedKey => Self::PresharedKey(u16::read(&mut sub)?),
             ExtensionType::ExtendedMasterSecret => Self::ExtendedMasterSecretAck,
+            ExtensionType::EncryptThenMac => Self::EncryptThenMacAck,
             ExtensionType::SCT => {
                 let scts = SCTList::read(&mut sub)?;
                 Self::SignedCertificateTimestamp(scts)

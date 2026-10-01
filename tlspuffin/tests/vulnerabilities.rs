@@ -1,3 +1,6 @@
+use puffin::agent::AgentName;
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::TermType;
 use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
 use puffin::fuzzer::bit_mutations::{havoc_mutations_dy, MakeMessage, ReadMessage};
 use puffin::fuzzer::mutations::MutationConfig;
@@ -11,9 +14,13 @@ use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::libafl_bolts::HasLen;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
+use puffin::term;
 use puffin::trace::{ConfigTrace, Spawner, Trace};
 use tlspuffin::protocol::{TLSProtocolTypes, TLSVersion};
+use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::test_utils::{create_state, test_mutations};
+use tlspuffin::tls::rustls::msgs::enums::HandshakeType;
+use tlspuffin::tls::rustls::msgs::handshake::{ServerExtension, ServerExtensions};
 #[allow(unused_imports)]
 use tlspuffin::{test_utils::prelude::*, tls::seeds::*, tls::vulnerabilities::*};
 
@@ -677,4 +684,45 @@ fn test_seed_cve_2024_5814(put: &str) {
     let trace = seed_cve_2024_5814.build_trace();
     let ctx = runner.execute(trace, &mut 0).unwrap();
     assert!(ctx.agents_successful());
+}
+
+// No crash and no claims-based security violation here: this is a silent negotiation downgrade,
+// not a memory-safety bug, and wolfSSL's claims FFI does not expose `ssl->options.encThenMac` or
+// any other record-layer MAC-construction state. The only wire-visible symptom is that a buggy
+// server selects a CBC cipher suite but omits `encrypt_then_mac` from its ServerHello, instead
+// of responding with it as RFC 7366 requires. So, unlike the other seeds above, we inspect the
+// captured ServerHello directly rather than relying on `expect_trace_crash` or `should_panic`.
+#[apply(test_puts,
+    attrs = [should_panic(expected = "server negotiated a CBC cipher suite without responding with encrypt_then_mac")],
+    filter = all(CVE_2026_6092, tls12)
+)]
+fn test_seed_cve_2026_6092(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2026_6092.build_trace();
+    // The trace only sends a ClientHello and inspects the server's response: it deliberately
+    // never drives the handshake to completion, so `ctx.agents_successful()` does not apply
+    // here (the server's handshake state stays "in progress").
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+
+    let server = AgentName::first();
+    let server_hello_extensions = term! {
+        (server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]
+            > TypeShape::of::<ServerExtensions>()
+    };
+    let extensions = server_hello_extensions
+        .evaluate_dy(&ctx)
+        .expect("ServerHello must be present and carry an extensions list");
+    let extensions = extensions
+        .as_any()
+        .downcast_ref::<ServerExtensions>()
+        .expect("expected a ServerExtensions value");
+
+    // RFC 7366 requires the server to include `encrypt_then_mac` in the ServerHello whenever it
+    // will actually use it. Pre-fix, wolfSSL negotiates the CBC cipher suite but silently omits
+    // the extension because `ssl->options.encThenMac` was cleared before `MatchSuite` ran: a
+    // wire-visible downgrade from Encrypt-then-MAC to MAC-then-Encrypt.
+    assert!(
+        extensions.0.contains(&ServerExtension::EncryptThenMacAck),
+        "server negotiated a CBC cipher suite without responding with encrypt_then_mac"
+    );
 }

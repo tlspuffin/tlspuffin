@@ -152,6 +152,8 @@ define_signature!(
     fn_signed_certificate_timestamp_extension
     fn_signed_certificate_timestamp_server_extension
     fn_signed_certificate_timestamp_certificate_extension
+    fn_encrypt_then_mac_extension
+    fn_encrypt_then_mac_server_extension
     fn_extended_master_secret_extension
     fn_extended_master_secret_server_extension
     fn_session_ticket_request_extension
@@ -225,6 +227,7 @@ define_signature!(
     fn_weak_export_cipher_suite
     fn_excluded_cipher_suite
     fn_secure_rsa_cipher_suite12
+    fn_ecdhe_rsa_cbc_cipher_suite12
     fn_support_group_extension_new [list]
     fn_support_group_extension_make
     fn_support_group_extension_append [list]

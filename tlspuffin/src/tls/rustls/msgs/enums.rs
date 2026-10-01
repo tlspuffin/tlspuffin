@@ -227,6 +227,7 @@ enum_builder! {
         ALProtocolNegotiation => 0x0010,
         SCT => 0x0012,
         Padding => 0x0015,
+        EncryptThenMac => 0x0016,
         ExtendedMasterSecret => 0x0017,
         SessionTicket => 0x0023,
         PreSharedKey => 0x0029,

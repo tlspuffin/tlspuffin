@@ -284,3 +284,9 @@ pub fn fn_excluded_cipher_suite() -> Result<CipherSuite, FnError> {
 pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
 }
+
+/// A CBC-mode (block cipher) TLS 1.2 suite using ECDHE, so it stays negotiable even when a PUT
+/// is built without support for static (non-ephemeral) RSA key exchange.
+pub fn fn_ecdhe_rsa_cbc_cipher_suite12() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256)
+}
