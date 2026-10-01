@@ -358,6 +358,9 @@ impl RustPut {
             peer_signature_algorithm: 0,           // TODO
             early_secret: Default::default(),      // TODO
             handshake_secret: Default::default(),  // TODO
+            encrypt_then_mac_offered: false,       // TODO
+            encrypt_then_mac_active: false,        // TODO
+            cbc_cipher_suite: false,               // TODO
         }))
     }
 }

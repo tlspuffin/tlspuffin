@@ -222,6 +222,20 @@ pub struct Finished {
 
     pub chosen_cipher: u16,
 
+    /// RFC 7366 Encrypt-then-MAC: whether this side's own hello/peer's hello carried the
+    /// `encrypt_then_mac` extension. See [`crate::tls::violation`] for the security property
+    /// built from this and the next two fields (CVE-2026-6092).
+    #[comparable_ignore]
+    pub encrypt_then_mac_offered: bool,
+    /// RFC 7366 Encrypt-then-MAC: whether this side will actually use Encrypt-then-MAC for
+    /// records, as opposed to the default MAC-then-Encrypt.
+    #[comparable_ignore]
+    pub encrypt_then_mac_active: bool,
+    /// Whether the negotiated cipher suite is CBC (block) mode, i.e. whether Encrypt-then-MAC
+    /// applies at all (it is meaningless for stream/AEAD ciphers).
+    #[comparable_ignore]
+    pub cbc_cipher_suite: bool,
+
     // We ignore the list of ciphers because OpenSSL shows TLS 1.2 and 1.3 ciphers while wolfSSL
     // shows only TLS 1.2 xor 1.3 ciphers
     #[comparable_ignore]
@@ -466,6 +480,9 @@ pub mod claims_helpers {
                     ),
                     signature_algorithm: claim.signature_algorithm,
                     peer_signature_algorithm: claim.peer_signature_algorithm,
+                    encrypt_then_mac_offered: claim.encrypt_then_mac_offered != 0,
+                    encrypt_then_mac_active: claim.encrypt_then_mac_active != 0,
+                    cbc_cipher_suite: claim.cbc_cipher_suite != 0,
                 })))
             }
             security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,

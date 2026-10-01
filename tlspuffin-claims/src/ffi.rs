@@ -48,6 +48,9 @@ impl fmt::Display for Claim {
             master_secret_12: {},\
             available_ciphers: {},\
             chosen_cipher: {},\
+            encrypt_then_mac_offered: {},\
+            encrypt_then_mac_active: {},\
+            cbc_cipher_suite: {},\
             transcript: {},\
             ",
             self.typ,
@@ -80,6 +83,9 @@ impl fmt::Display for Claim {
             self.master_secret_12,
             self.available_ciphers,
             self.chosen_cipher,
+            self.encrypt_then_mac_offered,
+            self.encrypt_then_mac_active,
+            self.cbc_cipher_suite,
             self.transcript,
         )
     }

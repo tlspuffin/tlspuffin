@@ -12,6 +12,33 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
     type C = TlsClaim;
 
     fn check_violation(claims: &[TlsClaim]) -> Option<&'static str> {
+        // RFC 7366 (Encrypt-then-MAC): whenever a CBC cipher suite is negotiated and a side's
+        // peer offered the `encrypt_then_mac` extension, that side MUST actually use
+        // Encrypt-then-MAC, never silently fall back to MAC-then-Encrypt (CVE-2026-6092).
+        //
+        // This check is independent of the client/server-pairing logic below: on the buggy
+        // wolfSSL server, the downgrade is self-consistent (a real peer never sees the
+        // extension echoed back, so it does not switch to ETM either), so comparing claims
+        // against each other -- as the checks below do -- can never catch it. A single agent's
+        // own claim is both necessary and sufficient here.
+        for claim in claims {
+            if let ClaimData::Message(ClaimDataMessage::Finished(data)) = &claim.data {
+                if data.encrypt_then_mac_offered
+                    && data.cbc_cipher_suite
+                    && !data.encrypt_then_mac_active
+                {
+                    return Some("Encrypt-then-MAC was silently downgraded to MAC-then-Encrypt");
+                }
+
+                // The converse: a side must never end up actually using Encrypt-then-MAC
+                // unless it was negotiated. If it were, the peer -- expecting the default
+                // MAC-then-Encrypt -- would misinterpret the record layer.
+                if data.encrypt_then_mac_active && !data.encrypt_then_mac_offered {
+                    return Some("Encrypt-then-MAC used without having been negotiated");
+                }
+            }
+        }
+
         if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
             if let Some(((_, client), (_, server))) = get_client_server(claim_a, claim_b) {
                 if client.tls_version != server.tls_version {
@@ -31,6 +58,18 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
 
                 if client.chosen_cipher != server.chosen_cipher {
                     return Some("Mismatching ciphers");
+                }
+
+                // Unlike the single-claim check above (which catches CVE-2026-6092's silent,
+                // self-consistent downgrade -- both sides quietly agreeing on
+                // MAC-then-Encrypt), this catches a genuine client/server desync: one side
+                // thinks it is doing Encrypt-then-MAC while the other does not, which would
+                // break MAC verification on the record layer.
+                if client.cbc_cipher_suite
+                    && server.cbc_cipher_suite
+                    && client.encrypt_then_mac_active != server.encrypt_then_mac_active
+                {
+                    return Some("Mismatching encrypt-then-MAC");
                 }
 
                 if client.signature_algorithm != server.peer_signature_algorithm

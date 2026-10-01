@@ -168,6 +168,13 @@ typedef struct Claim
     ClaimCiphers available_ciphers;
     ClaimCipher chosen_cipher;
 
+    // RFC 7366 Encrypt-then-MAC. These are raw facts about this side's own state; the actual
+    // security property (e.g. CVE-2026-6092's silent downgrade to MAC-then-Encrypt) is decided
+    // by the Rust security policy, not here.
+    uint8_t encrypt_then_mac_offered; /* peer's hello carried the encrypt_then_mac extension */
+    uint8_t encrypt_then_mac_active;  /* this side will actually use Encrypt-then-MAC for records */
+    uint8_t cbc_cipher_suite;         /* negotiated cipher is CBC (block) mode, where ETM applies */
+
     // Transcript
     ClaimTranscript transcript;
 } Claim;

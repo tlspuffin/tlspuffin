@@ -493,6 +493,17 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "wolfSSL_get_current_cipher returned NULL");
     }
 
+#if defined(HAVE_TLS_EXTENSIONS) && defined(HAVE_ENCRYPT_THEN_MAC) && !defined(WOLFSSL_AEAD_ONLY)
+    /* CVE-2026-6092: raw facts for the Encrypt-then-MAC downgrade oracle, read with the exact
+     * same guard and the exact same fields DoClientHello itself uses for the ETM decision
+     * (internal.c). Whether this amounts to a violation is decided by the Rust security policy,
+     * not here. */
+    claim->encrypt_then_mac_offered =
+        TLSX_Find(agent->ssl->extensions, TLSX_ENCRYPT_THEN_MAC) != NULL;
+    claim->encrypt_then_mac_active = agent->ssl->options.encThenMac;
+    claim->cbc_cipher_suite = agent->ssl->specs.cipher_type == block;
+#endif
+
     /* TLS 1.3: outbound CertificateVerify is sent as an encrypted application_data record
      * (content_type=23), so the message callback does not expose it with content_type=22.
      * Fall back to wolfssl internal fields which are reliable for TLS 1.3.
