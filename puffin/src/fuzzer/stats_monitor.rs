@@ -206,7 +206,13 @@ impl Monitor for StatsMonitor {
         _event_msg: &str,
         sender_id: ClientId,
     ) -> Result<(), Error> {
-        client_stats_manager.client_stats_insert(sender_id)?;
+        // LibAFL registers every client before showing its events. The only unregistered sender is
+        // the broker heartbeat (ClientId(0), sent when no client reported for 30 s): it is
+        // not a client, so it has no stats to log (registering it would count a phantom
+        // client in the global stats).
+        if client_stats_manager.get(sender_id).is_err() {
+            return Ok(());
+        }
 
         // Rate limit logging of stats to once every interval for each client (core) and global
         // Normalize event message name as filtering makes event names inconsistent and no longer
@@ -771,9 +777,28 @@ mod tests {
         let mut monitor =
             StatsMonitor::with_raw_output(PathBuf::from("/dev/null"), Duration::from_secs(1));
         let mut mgr = ClientStatsManager::default();
-        // Simule le broker heartbeat : ClientId(0) non encore enregistré
+        // broker heartbeat: ClientId(0) is not a registered client
         monitor
             .display(&mut mgr, "Broker Heartbeat", ClientId(0))
             .expect("display should not fail for unregistered ClientId(0)");
+        // and it is not registered as a (phantom) client
+        assert!(mgr.get(ClientId(0)).is_err());
+        assert_eq!(mgr.global_stats().client_stats_count, 0);
+    }
+
+    #[test]
+    fn test_display_with_registered_client() {
+        let mut monitor =
+            StatsMonitor::with_raw_output(PathBuf::from("/dev/null"), Duration::from_secs(1));
+        let mut mgr = ClientStatsManager::default();
+        // LibAFL registers a client before showing its events
+        mgr.client_stats_insert(ClientId(1)).unwrap();
+        monitor
+            .display(&mut mgr, "Testcase", ClientId(1))
+            .expect("display should not fail for a registered client");
+        monitor
+            .display(&mut mgr, "Broker Heartbeat", ClientId(0))
+            .expect("display should not fail for the broker heartbeat");
+        assert_eq!(mgr.global_stats().client_stats_count, 1);
     }
 }
