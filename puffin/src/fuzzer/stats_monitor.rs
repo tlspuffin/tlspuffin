@@ -206,9 +206,10 @@ impl Monitor for StatsMonitor {
         _event_msg: &str,
         sender_id: ClientId,
     ) -> Result<(), Error> {
-        // LibAFL registers every client before showing its events. The only unregistered sender is the
-        // broker heartbeat (ClientId(0), sent when no client reported for 30 s): it is not a client, so
-        // it has no stats to log (registering it would count a phantom client in the global stats).
+        // LibAFL registers every client before showing its events. The only unregistered sender is
+        // the broker heartbeat (ClientId(0), sent when no client reported for 30 s): it is
+        // not a client, so it has no stats to log (registering it would count a phantom
+        // client in the global stats).
         if client_stats_manager.get(sender_id).is_err() {
             return Ok(());
         }
