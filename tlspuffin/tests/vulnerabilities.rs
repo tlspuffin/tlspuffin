@@ -186,7 +186,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
     let mut mutant_tries = 0;
     let trace = seed_successful12_with_tickets.build_trace();
     let runner = default_runner_for(put);
-    let path_make_message = (9, vec![1, 0]);
+    let path_make_message = (9, vec![1, 0, 1, 0, 1, 0]);
     for _ in 0..50 {
         let _ = runner.execute(trace.clone(), &mut 0).unwrap();
     }
