@@ -340,6 +340,35 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available ciphers");
     }
 
+    /* The (hash, signature) pairs this agent would accept/advertise, e.g. a
+     * server's CertificateRequest.supported_signature_algorithms -- this is
+     * the exact array SupportedHashSigAlgo() checks a peer's CertificateVerify
+     * against (see CVE-2025-12889). */
+    if (ssl_suites != NULL)
+    {
+        int raw_len = ssl_suites->hashSigAlgoSz / 2;
+        claim->available_signature_algorithms.length = 0;
+        for (int i = 0; i < raw_len; ++i)
+        {
+            byte hash_algo = ssl_suites->hashSigAlgo[i * 2];
+            byte sig_algo = ssl_suites->hashSigAlgo[i * 2 + 1];
+
+            if (claim->available_signature_algorithms.length >= CLAIM_MAX_AVAILABLE_SIG_ALGOS)
+            {
+                _log(PUFFIN.warn, "not enough space in signature algorithms list in claim");
+                break;
+            }
+            claim->available_signature_algorithms
+                .sig_algos[claim->available_signature_algorithms.length]
+                .data = (unsigned short)(((unsigned short)hash_algo << 8) | sig_algo);
+            claim->available_signature_algorithms.length++;
+        }
+    }
+    else
+    {
+        _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available signature algorithms");
+    }
+
     // cert
     claim->cert.key_length = 0;
     claim->cert.data_length = 0;

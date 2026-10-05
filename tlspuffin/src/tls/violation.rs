@@ -119,6 +119,22 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Negotiated cipher is not in agent's configured ciphers list");
                 }
 
+                if finished.authenticate_peer
+                    && !finished.available_signature_algorithms.is_empty()
+                    && !finished
+                        .available_signature_algorithms
+                        .contains(&(finished.peer_signature_algorithm as u16))
+                {
+                    // available_signature_algorithms is the (hash, signature) set this agent
+                    // would accept/advertise (e.g. a server's CertificateRequest), only checked
+                    // when peer authentication actually happened; peer_signature_algorithm is
+                    // what the peer's CertificateVerify actually claimed. See CVE-2025-12889.
+                    return Some(
+                        "Peer signature algorithm is not in agent's configured signature \
+                         algorithms list",
+                    );
+                }
+
                 let violation = finished.authenticate_peer
                     && match claim.origin {
                         AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,

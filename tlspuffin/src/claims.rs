@@ -236,6 +236,10 @@ pub struct Finished {
     pub signature_algorithm: i32,
     #[comparable_ignore]
     pub peer_signature_algorithm: i32,
+    // The (hash, signature) pairs this agent would accept/advertise. Empty for PUTs that don't
+    // populate it (currently only wolfSSL does).
+    #[comparable_ignore]
+    pub available_signature_algorithms: SmallVec<[u16; 20]>,
     /* TODO: tmp_skey_type peer_tmp_skey_type
                    // TLS 1.2
                    if let Some(server_kex) = claims.iter().find(|(_agent, claim)| {
@@ -466,6 +470,12 @@ pub mod claims_helpers {
                     ),
                     signature_algorithm: claim.signature_algorithm,
                     peer_signature_algorithm: claim.peer_signature_algorithm,
+                    available_signature_algorithms: SmallVec::from_iter(
+                        claim.available_signature_algorithms.sig_algos
+                            [..claim.available_signature_algorithms.length as usize]
+                            .iter()
+                            .map(|sig_algo| sig_algo.data),
+                    ),
                 })))
             }
             security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,

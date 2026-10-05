@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #define CLAIM_MAX_AVAILABLE_CIPHERS 256
+#define CLAIM_MAX_AVAILABLE_SIG_ALGOS                                                              \
+    64                           /* wolfSSL caps its own list at WOLFSSL_MAX_SIGALGO/2 == 64 */
 #define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
 #define CLAIM_SESSION_ID_LENGTH 32
 #define CLAIM_MAX_CERTIFICATE_LENGTH 10240
@@ -91,6 +93,19 @@ typedef struct ClaimCiphers
     ClaimCipher ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
 } ClaimCiphers;
 
+typedef struct ClaimSigAlgo
+{
+    /* TLS wire format: (HashAlgorithm << 8) | SignatureAlgorithm, matching
+     * `signature_algorithm`/`peer_signature_algorithm` below. */
+    unsigned short data;
+} ClaimSigAlgo;
+
+typedef struct ClaimSigAlgos
+{
+    int length;
+    ClaimSigAlgo sig_algos[CLAIM_MAX_AVAILABLE_SIG_ALGOS];
+} ClaimSigAlgos;
+
 typedef struct ClaimVersion
 {
     TLSVersion data;
@@ -146,6 +161,10 @@ typedef struct Claim
 
     int signature_algorithm;
     int peer_signature_algorithm;
+    // The (hash, signature) pairs this agent would accept/advertise (e.g. a
+    // server's CertificateRequest.supported_signature_algorithms), to check
+    // peer_signature_algorithm against. Empty when a PUT does not populate it.
+    ClaimSigAlgos available_signature_algorithms;
 
     // The TLS1.3 secrets.
     ClaimSecret early_secret;

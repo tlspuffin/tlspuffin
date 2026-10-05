@@ -678,3 +678,25 @@ fn test_seed_cve_2024_5814(put: &str) {
     let ctx = runner.execute(trace, &mut 0).unwrap();
     assert!(ctx.agents_successful());
 }
+
+// This is a pure authentication-policy downgrade, not a crash: the TLS 1.2 client-authenticated
+// handshake completes successfully even though CertificateVerify used a (hash, signature) pair --
+// RSA_PKCS1_SHA384 -- that was never offered by the server's CertificateRequest (restricted to
+// RSA+SHA256 via `sigalgs`). The oracle is the "available_signature_algorithms" claim/violation
+// check added for this CVE (see violation.rs): a vulnerable server lets the handshake finish with
+// peer_signature_algorithm outside that list. A patched server would instead reject the message
+// with INVALID_PARAMETER before the handshake can finish, so no violation would be raised.
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Peer signature algorithm is not in agent's configured signature algorithms list")],
+    filter = all(
+        CVE_2025_12889,
+        tls12,
+        client_authentication_transcript_extraction
+    )
+)]
+fn test_seed_cve_2025_12889(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2025_12889.build_trace();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+    assert!(ctx.agents_successful());
+}

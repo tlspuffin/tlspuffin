@@ -259,6 +259,8 @@ define_signature!(
     fn_get_ticket_age_add [get]
     fn_get_ticket_nonce [get]
     fn_new_transcript12
+    fn_new_transcript12_client_auth
+    fn_get_raw_transcript12 [opaque]
     fn_decode_server_ecdh_pubkey [opaque]
     fn_decode_client_ecdh_pubkey [opaque]
     fn_sign_rsa_ecdhe_server_key_exchange12 [opaque]
@@ -312,6 +314,8 @@ define_signature!(
     fn_ecdsa_sign_server [opaque]
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm
+    fn_rsa_pkcs1_sha384_signature_algorithm
     fn_invalid_signature_algorithm
     fn_ecdsa_signature_algorithm
+    fn_rsa_sign_client12 [opaque]
 );

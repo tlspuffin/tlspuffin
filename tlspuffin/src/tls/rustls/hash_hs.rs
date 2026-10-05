@@ -129,6 +129,22 @@ impl HandshakeHash {
         }
     }
 
+    /// Like `new`, but also buffers the raw (unhashed) handshake message
+    /// bytes seen so far. TLS 1.2 client authentication needs this because
+    /// `CertificateVerify` may be signed under any hash algorithm the client
+    /// claims (RFC 5246 7.4.8: `sign(Hash_X(handshake_messages))`),
+    /// independent of this transcript's own fixed running-hash algorithm
+    /// (used for e.g. `Finished`'s PRF, which always uses the negotiated
+    /// cipher suite's hash).
+    pub fn new_client_auth(alg: &'static digest::Algorithm) -> HandshakeHash {
+        let ctx = digest::Context::new(alg);
+        HandshakeHash {
+            ctx,
+            client_auth: Some(Vec::new()),
+            override_buffer: None,
+        }
+    }
+
     /// We decided not to do client auth after all, so discard
     /// the transcript.
     pub fn abandon_client_auth(&mut self) {

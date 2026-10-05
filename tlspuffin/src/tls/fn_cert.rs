@@ -135,6 +135,23 @@ pub fn fn_rsa_pkcs1_signature_algorithm() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::RSA_PKCS1_SHA256)
 }
 
+pub fn fn_rsa_pkcs1_sha384_signature_algorithm() -> Result<SignatureScheme, FnError> {
+    Ok(SignatureScheme::RSA_PKCS1_SHA384)
+}
+
+/// Sign a raw TLS 1.2 handshake transcript directly: a single hash-and-sign
+/// over `raw_transcript` under `scheme` (RFC 5246 7.4.8). Unlike
+/// `fn_rsa_sign_client`, this does not wrap the input in TLS 1.3's
+/// context-string construction (RFC 8446 4.4.3), which would otherwise
+/// hash the already-finished transcript digest a second time.
+pub fn fn_rsa_sign_client12(
+    raw_transcript: &Vec<u8>,
+    private_key: &Vec<u8>,
+    scheme: &SignatureScheme,
+) -> Result<Vec<u8>, FnError> {
+    sign::rsa_sign(raw_transcript, private_key, scheme)
+}
+
 pub fn fn_invalid_signature_algorithm() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::Unknown(0x0100))
 }

@@ -705,6 +705,34 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     Ok(transcript)
 }
 
+/// Like `fn_new_transcript12`, but also buffers the raw (unhashed) message
+/// bytes seen so far. TLS 1.2 client authentication needs this because
+/// `CertificateVerify` may be signed under any hash algorithm the client
+/// claims (RFC 5246 7.4.8: `sign(Hash_X(handshake_messages))`), independent
+/// of this transcript's own fixed running-hash algorithm (used e.g. for
+/// `Finished`'s PRF, which always uses the negotiated cipher suite's hash).
+/// Use `fn_append_transcript` as usual to grow it, then
+/// `fn_get_raw_transcript12` to pull out the raw bytes for signing.
+pub fn fn_new_transcript12_client_auth() -> Result<HandshakeHash, FnError> {
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+
+    let transcript = HandshakeHash::new_client_auth(suite.hash_algorithm());
+    Ok(transcript)
+}
+
+/// Extract the raw (unhashed) handshake message bytes buffered so far by a
+/// transcript started with `fn_new_transcript12_client_auth`.
+pub fn fn_get_raw_transcript12(transcript: &HandshakeHash) -> Result<Vec<u8>, FnError> {
+    let mut transcript = transcript.clone();
+    transcript.take_handshake_buf().ok_or_else(|| {
+        FnError::Malformed(
+            "transcript has no client-auth buffer (was it started with \
+             fn_new_transcript12_client_auth?)"
+                .to_string(),
+        )
+    })
+}
+
 pub fn fn_decode_server_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
     let params = ServerECDHParams::read(&mut rd)
