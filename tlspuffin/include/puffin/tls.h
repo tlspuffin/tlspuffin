@@ -48,6 +48,13 @@ extern "C"
 
         const PEM *const *const store;
         const size_t store_length;
+
+        // RFC 7250 Raw Public Key. If `activate_rpk` is true, the harness
+        // configures its SSL_CTX in RPK mode: it presents the SPKI derived
+        // from `pkey` (no X.509 cert, no trust store). `expected_peer_rpk`
+        // is the peer's SPKI (PEM) to validate against, or NULL.
+        bool activate_rpk;
+        const PEM *expected_peer_rpk;
     } TLS_AGENT_DESCRIPTOR;
 
     typedef struct TLS_PUT_INTERFACE

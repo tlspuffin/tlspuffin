@@ -201,6 +201,160 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
     }
 }
 
+pub fn seed_successful_rpk_server(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Client,
+                    use_rpk: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Server,
+                    use_rpk: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    (client, 0)/MessageFlight
+                }}),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                    (server, 0)/MessageFlight
+                }}),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    (client, 1)/MessageFlight
+                }}),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+pub fn seed_client_attacker_rpk(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        fn_supported_signature_schemes_extension_new,
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
+                            )),
+                            (fn_key_share_extension_make(
+                                (fn_key_share_extension_append(
+                                    fn_key_share_extension_new,
+                                    (fn_key_share_deterministic(fn_named_group_secp384r1))
+                                ))
+                            ))
+                        )),
+                        fn_supported_versions13_extension
+                    )),
+                    (fn_server_certificate_type_extension(
+                        (fn_certificate_types_append(
+                            fn_certificate_types_new,
+                            fn_cert_type_raw_public_key
+                        ))
+                    ))
+                ))
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                use_rpk: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! { @client_hello } }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_encrypt_handshake(
+                        (@client_finished),
+                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_get_server_key_share(((server, 0)))),
+                        fn_no_psk,
+                        fn_named_group_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        fn_new_random,
+                        fn_cipher_suite13_aes_128_gcm_sha256
+                    )
+                }}),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
 pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
@@ -2811,6 +2965,9 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        //
+        seed_successful_rpk_server: put.supports("tls13"),
+        seed_client_attacker_rpk: put.supports("tls13"),
     )
 }
 
@@ -2834,6 +2991,17 @@ pub mod tests {
                 println!("    {}: {}", component, version);
             }
         }
+    }
+
+    #[test_log::test]
+    fn test_seed_successful_rpk_server_builds() {
+        // Does NOT execute the handshake - only verifies that:
+        //   - the seed compiles
+        //   - the signature knows every RPK DSL function used in it
+        //   - the use_rpk flag is set on the right descriptor
+        let trace = seed_successful_rpk_server.build_trace();
+        assert!(!trace.steps.is_empty());
+        assert!(trace.descriptors.iter().any(|d| d.protocol_config.use_rpk));
     }
 
     #[apply(test_puts, filter = tls12)]

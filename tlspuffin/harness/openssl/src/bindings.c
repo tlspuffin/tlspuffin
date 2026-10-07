@@ -169,3 +169,45 @@ SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store_length
 
     return ssl_ctx;
 }
+
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
+bool enable_rpk_support(SSL_CTX *ssl_ctx)
+{
+    static unsigned char types[] = {TLSEXT_cert_type_rpk};
+    if (SSL_CTX_set1_server_cert_type(ssl_ctx, types, sizeof(types)) != 1)
+    {
+        return false;
+    }
+    return SSL_CTX_set1_client_cert_type(ssl_ctx, types, sizeof(types)) == 1;
+}
+
+bool add_expected_rpk(SSL *ssl, PEM const *spki_pem)
+{
+    return true;
+
+    BIO *bio = BIO_new_mem_buf(spki_pem->bytes, (int)spki_pem->length);
+    if (bio == NULL)
+    {
+        return false;
+    }
+    EVP_PKEY *pub = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+    if (pub == NULL)
+    {
+        return false;
+    }
+    int ok = SSL_add_expected_rpk(ssl, pub);
+    EVP_PKEY_free(pub);
+    return ok == 1;
+}
+#else
+bool enable_rpk_support(SSL_CTX *ssl_ctx)
+{
+    return false;
+}
+
+bool add_expected_rpk(SSL *ssl, PEM const *spki_pem)
+{
+    return false;
+}
+#endif

@@ -18,8 +18,8 @@ use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, HandshakeType, NamedGroup,
-    ProtocolVersion, SignatureScheme,
+    AlertDescription, AlertLevel, CertificateType, CipherSuite, Compression, ContentType,
+    HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
@@ -446,6 +446,8 @@ impl VecCodecWoSize for KeyShareEntry {} //u16
                                          // impl VecCodecWoSize for PSKKeyExchangeMode {} //u8
 impl VecCodecWoSize for SignatureScheme {} //u16
 impl VecCodecWoSize for ServerName {} //u16
+
+impl VecCodecWoSize for CertificateType {} // u8
 
 #[macro_export]
 macro_rules! try_read {

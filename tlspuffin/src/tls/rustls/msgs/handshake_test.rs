@@ -320,6 +320,116 @@ fn can_roundtrip_single_proto() {
 }
 
 #[test_log::test]
+fn can_roundtrip_client_cert_types_in_clienthello() {
+    let ext = ClientExtension::ClientCertificateTypes(CertificateTypes(vec![
+        CertificateType::X509,
+        CertificateType::RawPublicKey,
+    ]));
+    let enc = ext.get_encoding();
+    let decoded = ClientExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ClientCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_server_cert_types_in_clienthello() {
+    let ext = ClientExtension::ServerCertificateTypes(CertificateTypes(vec![
+        CertificateType::X509,
+        CertificateType::RawPublicKey,
+    ]));
+    let enc = ext.get_encoding();
+    let decoded = ClientExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ServerCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_client_cert_type_in_serverext() {
+    let ext = ServerExtension::ClientCertificateType(CertificateType::X509);
+    let enc = ext.get_encoding();
+    let decoded = ServerExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ClientCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_client_cert_type_in_serverext_with_rpk() {
+    let ext = ServerExtension::ClientCertificateType(CertificateType::RawPublicKey);
+    let enc = ext.get_encoding();
+    let decoded = ServerExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ClientCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_server_cert_type_in_serverext() {
+    let ext = ServerExtension::ServerCertificateType(CertificateType::X509);
+    let enc = ext.get_encoding();
+    let decoded = ServerExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ServerCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_server_cert_type_in_serverext_with_rpk() {
+    let ext = ServerExtension::ServerCertificateType(CertificateType::RawPublicKey);
+    let enc = ext.get_encoding();
+    let decoded = ServerExtension::read(&mut Reader::init(&enc)).unwrap();
+    assert_eq!(decoded.get_type(), ExtensionType::ServerCertificateType);
+    assert_eq!(enc, decoded.get_encoding());
+}
+
+#[test_log::test]
+fn can_roundtrip_client_cert_types_wire_bytes() {
+    // ClientHello extension: client_certificate_type = [X509, RawPublicKey]
+    let bytes = [
+        0x00, 0x13, // ExtensionType::ClientCertificateType (0x0013)
+        0x00, 0x03, // extension length = 3
+        0x02, // CertificateType list length (u8) = 2
+        0x00, 0x02, // X509, RawPublicKey
+    ];
+    let ext = ClientExtension::read(&mut Reader::init(&bytes)).unwrap();
+    assert_eq!(ext.get_encoding(), bytes.to_vec());
+}
+
+#[test_log::test]
+fn can_roundtrip_server_cert_types_wire_bytes() {
+    // ClientHello extension: server_certificate_type = [RawPublicKey]
+    let bytes = [
+        0x00, 0x14, // ExtensionType::ServerCertificateType (0x0014)
+        0x00, 0x02, // extension length = 2
+        0x01, // CertificateType list length (u8) = 1
+        0x02, // RawPublicKey
+    ];
+    let ext = ClientExtension::read(&mut Reader::init(&bytes)).unwrap();
+    assert_eq!(ext.get_encoding(), bytes.to_vec());
+}
+
+#[test_log::test]
+fn can_roundtrip_client_cert_type_in_serverext_wire_bytes() {
+    // EncryptedExtensions: client_certificate_type = X509 (scalar)
+    let bytes = [
+        0x00, 0x13, // ExtensionType::ClientCertificateType (0x0013)
+        0x00, 0x01, // extension length = 1
+        0x00, // X509
+    ];
+    let ext = ServerExtension::read(&mut Reader::init(&bytes)).unwrap();
+    assert_eq!(ext.get_encoding(), bytes.to_vec());
+}
+
+#[test_log::test]
+fn can_roundtrip_server_cert_type_in_serverext_wire_bytes() {
+    // EncryptedExtensions: server_certificate_type = RawPublicKey (scalar)
+    let bytes = [
+        0x00, 0x14, // ExtensionType::ServerCertificateType (0x0014)
+        0x00, 0x01, // extension length = 1
+        0x02, // RawPublicKey
+    ];
+    let ext = ServerExtension::read(&mut Reader::init(&bytes)).unwrap();
+    assert_eq!(ext.get_encoding(), bytes.to_vec());
+}
+
+#[test_log::test]
 fn decomposed_signature_scheme_has_correct_mappings() {
     assert_eq!(
         SignatureScheme::make(SignatureAlgorithm::RSA, HashAlgorithm::SHA1),
@@ -392,6 +502,10 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
             ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp()),
             ClientExtension::SignedCertificateTimestampRequest,
             ClientExtension::TransportParameters(vec![1, 2, 3]),
+            ClientExtension::ClientCertificateTypes(CertificateTypes(vec![CertificateType::X509])),
+            ClientExtension::ServerCertificateTypes(CertificateTypes(vec![
+                CertificateType::RawPublicKey,
+            ])),
             ClientExtension::Unknown(UnknownExtension {
                 typ: ExtensionType::Unknown(12345),
                 payload: Payload(vec![1, 2, 3]),
@@ -773,6 +887,8 @@ fn get_sample_serverhellopayload() -> ServerHelloPayload {
             )])),
             ServerExtension::SupportedVersions(ProtocolVersion::TLSv1_2),
             ServerExtension::TransportParameters(vec![1, 2, 3]),
+            ServerExtension::ClientCertificateType(CertificateType::X509),
+            ServerExtension::ServerCertificateType(CertificateType::RawPublicKey),
             ServerExtension::Unknown(UnknownExtension {
                 typ: ExtensionType::Unknown(12345),
                 payload: Payload(vec![1, 2, 3]),

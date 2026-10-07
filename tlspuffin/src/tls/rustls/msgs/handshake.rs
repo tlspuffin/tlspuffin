@@ -12,9 +12,10 @@ use crate::protocol::TLSProtocolTypes;
 use crate::tls::fn_impl::fn_hello_retry_request_random;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::enums::{
-    CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
-    ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest, NamedGroup,
-    PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm, SignatureScheme,
+    CertificateStatusType, CertificateType, CipherSuite, ClientCertificateType, Compression,
+    ECCurveType, ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest,
+    NamedGroup, PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm,
+    SignatureScheme,
 };
 use crate::tls::rustls::{key, rand};
 
@@ -669,6 +670,8 @@ pub enum ClientExtension {
     EarlyData,
     RenegotiationInfo(PayloadU8),
     SignatureAlgorithmsCert(SupportedSignatureSchemes),
+    ClientCertificateTypes(CertificateTypes),
+    ServerCertificateTypes(CertificateTypes),
     Unknown(UnknownExtension),
 }
 
@@ -694,6 +697,8 @@ impl ClientExtension {
             Self::EarlyData => ExtensionType::EarlyData,
             ClientExtension::RenegotiationInfo(_) => ExtensionType::RenegotiationInfo,
             Self::SignatureAlgorithmsCert(_) => ExtensionType::SignatureAlgorithmsCert,
+            Self::ClientCertificateTypes(_) => ExtensionType::ClientCertificateType,
+            Self::ServerCertificateTypes(_) => ExtensionType::ServerCertificateType,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -726,6 +731,9 @@ impl codec::Codec for ClientExtension {
             }
             Self::RenegotiationInfo(ref r) => r.encode(&mut sub),
             Self::SignatureAlgorithmsCert(ref r) => r.encode(&mut sub),
+            Self::ClientCertificateTypes(ref r) | Self::ServerCertificateTypes(ref r) => {
+                r.encode(&mut sub)
+            }
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
 
@@ -792,6 +800,12 @@ impl codec::Codec for ClientExtension {
                 ClientExtension::SignatureAlgorithmsCert(schemes)
             }
             ExtensionType::EarlyData if !sub.any_left() => Self::EarlyData,
+            ExtensionType::ClientCertificateType => {
+                Self::ClientCertificateTypes(CertificateTypes::read(&mut sub)?)
+            }
+            ExtensionType::ServerCertificateType => {
+                Self::ServerCertificateTypes(CertificateTypes::read(&mut sub)?)
+            }
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -856,6 +870,8 @@ pub enum ServerExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
+    ClientCertificateType(CertificateType),
+    ServerCertificateType(CertificateType),
     Unknown(UnknownExtension),
 }
 
@@ -876,6 +892,8 @@ impl ServerExtension {
             Self::TransportParameters(_) => ExtensionType::TransportParameters,
             Self::TransportParametersDraft(_) => ExtensionType::TransportParametersDraft,
             Self::EarlyData => ExtensionType::EarlyData,
+            Self::ClientCertificateType(_) => ExtensionType::ClientCertificateType,
+            Self::ServerCertificateType(_) => ExtensionType::ServerCertificateType,
             Self::Unknown(ref r) => r.typ,
         }
     }
@@ -901,6 +919,9 @@ impl codec::Codec for ServerExtension {
             Self::SupportedVersions(ref r) => r.encode(&mut sub),
             Self::TransportParameters(ref r) | Self::TransportParametersDraft(ref r) => {
                 sub.extend_from_slice(r)
+            }
+            Self::ClientCertificateType(ref r) | Self::ServerCertificateType(ref r) => {
+                r.encode(&mut sub)
             }
             Self::Unknown(ref r) => r.encode(&mut sub),
         }
@@ -940,6 +961,12 @@ impl codec::Codec for ServerExtension {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
             ExtensionType::EarlyData => Self::EarlyData,
+            ExtensionType::ClientCertificateType => {
+                Self::ClientCertificateType(CertificateType::read(&mut sub)?)
+            }
+            ExtensionType::ServerCertificateType => {
+                Self::ServerCertificateType(CertificateType::read(&mut sub)?)
+            }
             _ => Self::Unknown(UnknownExtension::read(typ, &mut sub)),
         };
 
@@ -970,6 +997,8 @@ impl ServerExtension {
 declare_u16_vec_empty!(ClientExtensions, ClientExtension);
 declare_u16_vec!(CipherSuites, CipherSuite);
 declare_u8_vec!(Compressions, Compression);
+
+declare_u8_vec!(CertificateTypes, CertificateType);
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]

@@ -4,7 +4,7 @@ use security_claims::ClaimTLSVersion;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
 use crate::protocol::AgentType;
-use crate::static_certs::{ALICE_CERT, BOB_CERT};
+use crate::static_certs::{ALICE_CERT, ALICE_SPKI, BOB_CERT, BOB_SPKI};
 
 pub struct TlsSecurityViolationPolicy;
 
@@ -39,11 +39,23 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("mismatching signature algorithms");
                 }
 
-                if server.authenticate_peer && server.peer_certificate.as_slice() != BOB_CERT.1 {
+                let server_expected = if server.use_rpk {
+                    BOB_SPKI.1
+                } else {
+                    BOB_CERT.1
+                };
+                if server.authenticate_peer && server.peer_certificate.as_slice() != server_expected
+                {
                     return Some("Authentication bypass");
                 }
 
-                if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT.1 {
+                let client_expected = if client.use_rpk {
+                    ALICE_SPKI.1
+                } else {
+                    ALICE_CERT.1
+                };
+                if client.authenticate_peer && client.peer_certificate.as_slice() != client_expected
+                {
                     return Some("Authentication bypass");
                 }
 
@@ -119,10 +131,24 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Negotiated cipher is not in agent's configured ciphers list");
                 }
 
+                let server_expected = if finished.use_rpk {
+                    BOB_SPKI.1
+                } else {
+                    BOB_CERT.1
+                };
+                let client_expected = if finished.use_rpk {
+                    ALICE_SPKI.1
+                } else {
+                    ALICE_CERT.1
+                };
                 let violation = finished.authenticate_peer
                     && match claim.origin {
-                        AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,
-                        AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT.1,
+                        AgentType::Server => {
+                            finished.peer_certificate.as_slice() != server_expected
+                        }
+                        AgentType::Client => {
+                            finished.peer_certificate.as_slice() != client_expected
+                        }
                     };
 
                 if violation {

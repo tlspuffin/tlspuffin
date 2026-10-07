@@ -260,6 +260,8 @@ pub struct Finished {
                         return Some("Mismatching groups");
                     }
     */
+    #[comparable_ignore]
+    pub use_rpk: bool,
 }
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Finished);
 
@@ -466,6 +468,7 @@ pub mod claims_helpers {
                     ),
                     signature_algorithm: claim.signature_algorithm,
                     peer_signature_algorithm: claim.peer_signature_algorithm,
+                    use_rpk: claim.use_rpk,
                 })))
             }
             security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,

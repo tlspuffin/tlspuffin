@@ -314,4 +314,15 @@ define_signature!(
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
     fn_ecdsa_signature_algorithm
+    // RPK
+    fn_certificate_types_new [list]
+    fn_certificate_types_append [list]
+    fn_cert_type_x509
+    fn_cert_type_raw_public_key
+    fn_client_certificate_type_extension
+    fn_client_certificate_type_server_extension
+    fn_server_certificate_type_extension
+    fn_server_certificate_type_server_extension
+    fn_alice_raw_public_key
+    fn_bob_raw_public_key
 );

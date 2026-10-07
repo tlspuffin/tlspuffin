@@ -62,3 +62,17 @@ pub const RANDOM_EC_CERT: PEMDER = (
     include_str!("../assets/random-ec.pem"),
     include_bytes!("../assets/random-ec.der"),
 );
+
+/// Subject Public Key Info (DER-encoded) for [`ALICE_PRIVATE_KEY`].
+/// Suitable as a Raw Public Key certificate payload per RFC 7250.
+pub const ALICE_SPKI: PEMDER = (
+    include_str!("../assets/alice-spki.pem"),
+    include_bytes!("../assets/alice-spki.der"),
+);
+
+/// Subject Public Key Info (DER-encoded) for [`BOB_PRIVATE_KEY`].
+/// Suitable as a Raw Public Key certificate payload per RFC 7250.
+pub const BOB_SPKI: PEMDER = (
+    include_str!("../assets/bob-spki.pem"),
+    include_bytes!("../assets/bob-spki.der"),
+);

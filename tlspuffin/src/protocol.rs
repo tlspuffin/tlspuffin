@@ -348,6 +348,8 @@ pub struct TLSDescriptorConfig {
     /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
     /// If `None`, use the default PUT signature algorithms.
     pub sigalgs: Option<String>,
+
+    pub use_rpk: bool,
 }
 
 impl TLSDescriptorConfig {
@@ -634,6 +636,7 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
             sigalgs: None,
+            use_rpk: false,
         }
     }
 }

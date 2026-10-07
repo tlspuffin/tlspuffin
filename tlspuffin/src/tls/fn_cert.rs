@@ -3,8 +3,8 @@
 use puffin::algebra::error::FnError;
 
 use crate::static_certs::{
-    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
-    RANDOM_EC_PRIVATE_KEY_PKCS8,
+    ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_SPKI, BOB_CERT, BOB_PRIVATE_KEY, BOB_SPKI, EVE_CERT,
+    RANDOM_EC_CERT, RANDOM_EC_PRIVATE_KEY_PKCS8,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
@@ -32,6 +32,14 @@ pub fn fn_alice_cert() -> Result<Vec<u8>, FnError> {
 
 pub fn fn_alice_key() -> Result<Vec<u8>, FnError> {
     Ok(ALICE_PRIVATE_KEY.1.into())
+}
+
+pub fn fn_alice_raw_public_key() -> Result<Vec<u8>, FnError> {
+    Ok(ALICE_SPKI.1.into())
+}
+
+pub fn fn_bob_raw_public_key() -> Result<Vec<u8>, FnError> {
+    Ok(BOB_SPKI.1.into())
 }
 
 pub fn fn_eve_cert() -> Result<Vec<u8>, FnError> {
