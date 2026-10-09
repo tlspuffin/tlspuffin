@@ -174,6 +174,23 @@ impl MessageEncrypter for Tls13MessageEncrypter {
             payload: Payload::new(payload),
         })
     }
+
+    fn encrypt_raw(&self, raw: &[u8], seq: u64) -> Result<OpaqueMessage, Error> {
+        let total_len = raw.len() + self.enc_key.algorithm().tag_len();
+        let mut payload = Vec::with_capacity(total_len);
+        payload.extend_from_slice(raw);
+        let nonce = make_nonce(&self.iv, seq);
+        let aad = make_tls13_aad(total_len);
+        self.enc_key
+            .seal_in_place_append_tag(nonce, aad, &mut payload)
+            .map_err(|_| Error::General("encrypt failed".to_string()))?;
+        Ok(OpaqueMessage {
+            typ: ContentType::ApplicationData,
+            version: ProtocolVersion::TLSv1_2,
+            payload: Payload::new(payload),
+        })
+    }
+
 }
 
 impl MessageDecrypter for Tls13MessageDecrypter {

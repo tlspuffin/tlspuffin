@@ -314,4 +314,14 @@ define_signature!(
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
     fn_ecdsa_signature_algorithm
+    //
+    fn_encrypt_handshake_raw [opaque]
+    fn_encrypt_application_raw [opaque]
+    fn_tls13_inner_plaintext_handshake
+    fn_tls13_inner_plaintext_alert
+    fn_tls13_inner_plaintext_appdata
+    fn_tls13_inner_plaintext_unknown
+    fn_tls13_inner_plaintext_notype
+    fn_tls13_empty_inner_plaintext
+
 );

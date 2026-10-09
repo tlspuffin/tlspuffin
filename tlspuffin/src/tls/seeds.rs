@@ -1468,6 +1468,41 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+pub fn seed_client_attacker_malformed_inner(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let mut trace = seed_client_attacker(server);
+
+    trace.steps[1] = Step {
+        agent: server,
+        action: Action::Input(input_action! { term! {
+            fn_encrypt_handshake_raw(
+                (fn_tls13_inner_plaintext_handshake(
+                    (fn_finished(
+                        (fn_verify_data(
+                            (fn_server_finished_transcript(((server, 0)))),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        ))
+                    ))
+                )),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_true,
+                fn_seq_0,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )
+        }}),
+    };
+
+    trace
+}
+
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker12(server).0
 }
@@ -2811,6 +2846,8 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        //
+        seed_client_attacker_malformed_inner: put.supports("tls13"),
     )
 }
 

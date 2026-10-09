@@ -12,7 +12,7 @@ use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
-use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup, SignatureScheme};
+use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup, SignatureScheme, ContentType};
 use crate::tls::rustls::msgs::handshake::{
     CertificateEntries, CertificateEntry, ClientECDHParams, DigitallySignedStruct,
     ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
@@ -538,6 +538,34 @@ pub fn fn_encrypt_handshake_opaque(
     Ok(application_data)
 }
 
+pub fn fn_encrypt_handshake_raw(
+    inner_plaintext: &Vec<u8>,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
+        server_hello, server_key_share, psk, *client, group, client_random, &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+
+    let application_data = encrypter
+        .encrypt_raw(inner_plaintext, *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake_raw".to_string()))?;
+    Ok(application_data)
+}
+
+
 pub fn fn_encrypt_application(
     some_message: &Message,
     server_hello_transcript: &HandshakeHash,
@@ -569,6 +597,41 @@ pub fn fn_encrypt_application(
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
         .map_err(|_err| {
             FnError::Crypto("Failed to encrypt it fn_encrypt_application".to_string())
+        })?;
+    Ok(application_data)
+}
+
+pub fn fn_encrypt_application_raw(
+    inner_plaintext: &Vec<u8>,
+    server_hello_transcript: &HandshakeHash,
+    server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_application_traffic_secret(
+        server_hello_transcript,
+        server_finished_transcript,
+        server_key_share,
+        psk,
+        group,
+        true,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt_raw(inner_plaintext, *sequence)
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_application_raw".to_string())
         })?;
     Ok(application_data)
 }
@@ -903,4 +966,36 @@ pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {
 
 pub fn fn_u32_to_u16(input: &u32) -> Result<u16, FnError> {
     Ok(*input as u16)
+}
+
+pub fn fn_tls13_inner_plaintext_handshake(fragment: &Message) -> Result<Vec<u8>, FnError> {
+    let mut v = PlainMessage::from(fragment.clone()).payload.0;
+    ContentType::Handshake.encode(&mut v);
+    Ok(v)
+}
+
+pub fn fn_tls13_inner_plaintext_alert(fragment: &Message) -> Result<Vec<u8>, FnError> {
+    let mut v = PlainMessage::from(fragment.clone()).payload.0;
+    ContentType::Alert.encode(&mut v);
+    Ok(v)
+}
+
+pub fn fn_tls13_inner_plaintext_appdata(fragment: &Message) -> Result<Vec<u8>, FnError> {
+    let mut v = PlainMessage::from(fragment.clone()).payload.0;
+    ContentType::ApplicationData.encode(&mut v);
+    Ok(v)
+}
+
+pub fn fn_tls13_inner_plaintext_unknown(fragment: &Message) -> Result<Vec<u8>, FnError> {
+    let mut v = PlainMessage::from(fragment.clone()).payload.0;
+    ContentType::Unknown(0xff).encode(&mut v);
+    Ok(v)
+}
+
+pub fn fn_tls13_inner_plaintext_notype(fragment: &Message) -> Result<Vec<u8>, FnError> {
+    Ok(PlainMessage::from(fragment.clone()).payload.0)
+}
+
+pub fn fn_tls13_empty_inner_plaintext() -> Result<Vec<u8>, FnError> {
+    Ok(Vec::new())
 }

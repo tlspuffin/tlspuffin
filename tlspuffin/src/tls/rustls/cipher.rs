@@ -14,6 +14,12 @@ pub trait MessageDecrypter: Send + Sync {
 /// Objects with this trait can encrypt TLS messages.
 pub trait MessageEncrypter: Send + Sync {
     fn encrypt(&self, m: BorrowedPlainMessage, seq: u64) -> Result<OpaqueMessage, Error>;
+
+    fn encrypt_raw(&self, _raw: &[u8], _seq: u64) -> Result<OpaqueMessage, Error> {
+        Err(Error::General(
+            "encrypt_raw is only supported for TLS 1.3".to_string(),
+        ))
+    }
 }
 
 impl dyn MessageEncrypter {
