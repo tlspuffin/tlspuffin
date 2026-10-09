@@ -678,3 +678,30 @@ fn test_seed_cve_2024_5814(put: &str) {
     let ctx = runner.execute(trace, &mut 0).unwrap();
     assert!(ctx.agents_successful());
 }
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2025-11934>
+///
+/// The client under test offers only RSA-PSS+SHA256 in its `signature_algorithms` extension
+/// (see `seed_cve_2025_11934`'s `sigalgs` PUT config). The attacker-crafted `CertificateVerify`
+/// is genuinely signed with an EC private key under ECDSA_NISTP256_SHA256 (wire value 0x0403) -
+/// an algorithm the client never offered. On vulnerable wolfSSL 5.8.2/5.8.3,
+/// `DoTls13CertificateVerify` only checks that the client holds *some* ECC key (it does, since
+/// the attacker also supplied the matching EC certificate), never that 0x0403 is actually a
+/// member of the offered list, so the handshake completes and the downgrade succeeds.
+///
+/// Detection goes through `TlsSecurityViolationPolicy::check_violation` (`tls/violation.rs`),
+/// which compares the client's `Finished` claim's `peer_signature_algorithm` against its own
+/// `available_signature_algorithms` (populated straight from `ssl->suites->hashSigAlgo`, the
+/// exact list the official patch validates against). `runner.execute(..).unwrap()` panics with
+/// that violation's message when the mismatch is detected, hence `should_panic` below, mirroring
+/// `test_seed_cve_2024_5814`'s cipher-downgrade check rather than asserting on the claim directly.
+#[apply(test_puts,
+     attrs = [should_panic(expected = "Negotiated signature algorithm is not in agent's configured signature algorithms list")],
+     filter = all(CVE_2025_11934, tls13)
+)]
+fn test_seed_cve_2025_11934(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2025_11934.build_trace();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+    assert!(ctx.agents_successful());
+}

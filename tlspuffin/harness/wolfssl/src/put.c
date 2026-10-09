@@ -346,6 +346,33 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available ciphers");
     }
 
+    /* Signature algorithms offered in our own `signature_algorithms` extension
+     * (TLS wire format pairs, stored as-is by wolfSSL), independently of version -
+     * see DoTls13CertificateVerify()'s use of WOLFSSL_SUITES(ssl)->hashSigAlgo. */
+    if (ssl_suites != NULL)
+    {
+        int sig_algs_len = ssl_suites->hashSigAlgoSz / 2;
+        claim->available_sig_algs.length = 0;
+        for (int i = 0; i < sig_algs_len; ++i)
+        {
+            byte hash_algo = ssl_suites->hashSigAlgo[i * 2];
+            byte sig_algo = ssl_suites->hashSigAlgo[i * 2 + 1];
+
+            if (claim->available_sig_algs.length >= CLAIM_MAX_AVAILABLE_CIPHERS)
+            {
+                _log(PUFFIN.warn, "not enough space in sig algs list in claim");
+                break;
+            }
+            claim->available_sig_algs.ciphers[claim->available_sig_algs.length].data =
+                (unsigned short)(((unsigned short)hash_algo << 8) | sig_algo);
+            claim->available_sig_algs.length++;
+        }
+    }
+    else
+    {
+        _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available sig algs");
+    }
+
     // cert
     claim->cert.key_length = 0;
     claim->cert.data_length = 0;

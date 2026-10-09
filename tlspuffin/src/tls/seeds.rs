@@ -707,6 +707,18 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
             TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Client,
+                // Restricted to exactly the algorithm this seed's CertificateVerify already uses
+                // (RSA-PSS+SHA256). The baseline trace stays valid (nothing is "downgraded" yet),
+                // but it narrows the client's accepted signature_algorithms below wolfSSL's
+                // permissive default, which otherwise always includes every algorithm the Mapper
+                // can produce (see InitSuitesHashSigAlgo) - making a CVE-2025-11934-style
+                // downgrade structurally undetectable. With this restriction in place, a mutation
+                // campaign that swaps `fn_rsa_pss_signature_algorithm`/`fn_rsa_sign_server` below
+                // for a different algorithm/signing function pair has a chance to land outside
+                // this list and get caught by the `available_signature_algorithms` oracle in
+                // `tls/violation.rs`, instead of the restriction being structurally unreachable by
+                // mutators (AgentDescriptor fields are outside the mutable term/trace DAG).
+                sigalgs: Some("RSA-PSS+SHA256".to_string()),
                 ..TLSDescriptorConfig::default()
             },
         )],

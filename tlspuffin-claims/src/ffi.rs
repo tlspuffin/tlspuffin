@@ -33,6 +33,7 @@ impl fmt::Display for Claim {
             tmp_skey_group_id: {},\
             signature_algorithm: {},\
             peer_signature_algorithm: {},\
+            available_sig_algs: {},\
             early_secret: {},\
             handshake_secret: {},\
             master_secret: {},\
@@ -65,6 +66,7 @@ impl fmt::Display for Claim {
             self.tmp_skey_group_id,
             self.signature_algorithm,
             self.peer_signature_algorithm,
+            self.available_sig_algs,
             self.early_secret,
             self.handshake_secret,
             self.master_secret,

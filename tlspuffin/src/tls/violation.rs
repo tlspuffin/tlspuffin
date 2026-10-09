@@ -117,6 +117,35 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Negotiated cipher is not in agent's configured ciphers list");
                 }
 
+                if finished.peer_signature_algorithm != 0
+                    && !finished.available_signature_algorithms.is_empty()
+                    && !finished
+                        .available_signature_algorithms
+                        .contains(&finished.peer_signature_algorithm)
+                {
+                    // available_signature_algorithms is the list of signature algorithms we
+                    // ourselves offered (signature_algorithms extension); peer_signature_algorithm
+                    // is the one the peer's CertificateVerify actually claims to use.
+                    //
+                    // peer_signature_algorithm is only populated (non-zero) once a
+                    // CertificateVerify from the peer has actually been received - see
+                    // wolfssl_message_callback in harness/wolfssl/src/put.c, which fills
+                    // peer_sig_wire_value only on a read (write_p == 0) of a CertificateVerify
+                    // message. Wire value 0 (hash=none, sig=anonymous) is never produced by a
+                    // real CertificateVerify, so it safely doubles as "no peer CertificateVerify
+                    // was observed in this handshake" (e.g. no client auth, or a PSK-resumption
+                    // handshake with no certificates at all) - without this guard the check would
+                    // false-positive on any such trace, since available_signature_algorithms can
+                    // be non-empty while peer_signature_algorithm is just its zero-initialized
+                    // default.
+                    //
+                    // A peer should never be able to authenticate with an algorithm we never
+                    // offered (see CVE-2025-11934).
+                    return Some(
+                        "Negotiated signature algorithm is not in agent's configured signature algorithms list",
+                    );
+                }
+
                 let violation = finished.authenticate_peer
                     && match claim.origin {
                         AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,

