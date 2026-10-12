@@ -20,7 +20,7 @@ use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes, ALL_CORPORA};
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, ConfigTrace, ExecutionResult, Source, Spawner, Trace, TraceContext};
@@ -74,8 +74,8 @@ where
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
                 .arg(arg!(-D --differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
-                .arg(arg!(-c --corpus [c] "Corpus list used to generate the seed (comma separated names)"))
-                .arg(arg!(--puts [p] "PUTs to generate for (comma separated names); emits the intersection of supported seeds"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to generate the seed (comma separated names, or `all`)").value_delimiter(','))
+                .arg(arg!(--puts [p] "PUTs to generate for (comma separated names); emits the intersection of supported seeds").value_delimiter(','))
             ,
             Command::new("plot")
                 .about("Plots a trace stored in a file")
@@ -285,20 +285,17 @@ where
     };
 
     if let Some(matches) = matches.subcommand_matches("seed") {
-        let default_corpus = "default".to_string();
         let default_puts = put_registry.default_put_name().to_string();
 
         let is_differential = matches.get_flag("differential");
         let corpus: Vec<&str> = matches
-            .get_one::<String>("corpus")
-            .unwrap_or(&default_corpus)
-            .split(',')
-            .collect();
+            .get_many::<String>("corpus")
+            .map(|vals| vals.map(String::as_str).collect())
+            .unwrap_or_else(|| vec!["default"]);
         let puts: Vec<&str> = matches
-            .get_one::<String>("puts")
-            .unwrap_or(&default_puts)
-            .split(',')
-            .collect();
+            .get_many::<String>("puts")
+            .map(|vals| vals.map(String::as_str).collect())
+            .unwrap_or_else(|| vec![default_puts.as_str()]);
 
         if let Err((available_puts, non_available_puts)) =
             check_if_puts_exist(&put_registry, puts.as_slice())
@@ -810,8 +807,9 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 /// Validate the requested corpus names against the protocol's registered
-/// corpuses. On failure returns `(available, unknown)` for error reporting,
-/// mirroring [`check_if_puts_exist`].
+/// corpuses. [`ALL_CORPORA`] is always accepted, since it is expanded to the
+/// full registry by [`build_corpus`]. On failure returns `(available,
+/// unknown)` for error reporting, mirroring [`check_if_puts_exist`].
 fn check_if_corpora_exist<'a, PB: ProtocolBehavior>(
     corpus_list: &[&'a str],
 ) -> Result<(), (Vec<&'static str>, Vec<&'a str>)> {
@@ -822,7 +820,7 @@ fn check_if_corpora_exist<'a, PB: ProtocolBehavior>(
 
     let unknown: Vec<&str> = corpus_list
         .iter()
-        .filter(|name| !available.iter().any(|a| a == *name))
+        .filter(|name| **name != ALL_CORPORA && !available.iter().any(|a| a == *name))
         .copied()
         .collect();
 

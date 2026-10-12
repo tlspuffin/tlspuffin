@@ -270,6 +270,10 @@ pub trait ProtocolTypes:
 pub type CorpusBuilder<PB> =
     fn(&dyn Factory<PB>) -> Vec<(Trace<<PB as ProtocolBehavior>::ProtocolTypes>, &'static str)>;
 
+/// Name of the pseudo-corpus that expands to every corpus registered for the
+/// protocol (see [`build_corpus`]).
+pub const ALL_CORPORA: &str = "all";
+
 /// Build the seeds for the requested `corpus_list`, restricted to the
 /// intersection of what every PUT in `puts` supports.
 ///
@@ -277,7 +281,9 @@ pub type CorpusBuilder<PB> =
 /// kept only if it is present for *every* requested PUT (matched by name). When
 /// the same seed name appears in more than one requested corpus, the first
 /// occurrence (in `corpus_list` order) wins. Traces are PUT-independent, so the
-/// trace built for the first PUT is used.
+/// trace built for the first PUT is used. [`ALL_CORPORA`] (`"all"`) expands to
+/// every corpus registered via [`ProtocolBehavior::corpus_registry`], in
+/// registry order.
 pub fn build_corpus<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     puts: &[PutDescriptor],
@@ -304,10 +310,21 @@ fn build_corpus_with<PB: ProtocolBehavior>(
         })
         .collect();
 
+    let expanded_corpus_list: Vec<&str> = corpus_list
+        .iter()
+        .flat_map(|name| {
+            if name == ALL_CORPORA {
+                builders.iter().map(|(n, _)| *n).collect::<Vec<_>>()
+            } else {
+                vec![name.as_str()]
+            }
+        })
+        .collect();
+
     let mut seen = std::collections::HashSet::new();
     let mut corpus = Vec::new();
-    for name in corpus_list {
-        let Some(builder) = builders.iter().find(|(n, _)| n == name).map(|(_, b)| *b) else {
+    for name in expanded_corpus_list {
+        let Some(builder) = builders.iter().find(|(n, _)| *n == name).map(|(_, b)| *b) else {
             log::warn!("unknown corpus '{name}', skipping");
             continue;
         };
@@ -622,5 +639,21 @@ mod tests {
             &["does_not_exist".to_string()],
         );
         assert!(corpus.is_empty());
+    }
+
+    #[test]
+    fn build_corpus_all_expands_to_every_registered_corpus() {
+        let reg = registry(vec![CapFactory {
+            name: "p".into(),
+            caps: vec!["cap_alpha"],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["p"]),
+            &[ALL_CORPORA.to_string()],
+        );
+        // Same result as explicitly listing every registered corpus.
+        assert_eq!(seed_names(&corpus), vec!["common", "t_alpha", "t_beta"]);
     }
 }
