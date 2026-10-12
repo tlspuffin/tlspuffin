@@ -506,7 +506,7 @@ mod tests {
     /// list, so tests can vary which seeds each PUT supports.
     struct CapFactory {
         name: String,
-        caps: Vec<&'static str>,
+        capabilities: Vec<&'static str>,
     }
 
     impl Factory<TestProtocolBehavior> for CapFactory {
@@ -528,34 +528,37 @@ mod tests {
         }
 
         fn supports(&self, capability: &str) -> bool {
-            self.caps.iter().any(|c| *c == capability)
+            self.capabilities.iter().any(|c| *c == capability)
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(CapFactory {
                 name: self.name.clone(),
-                caps: self.caps.clone(),
+                capabilities: self.capabilities.clone(),
             })
         }
     }
 
-    /// Corpus "alpha": always yields `common`, plus `t_alpha` when the PUT
-    /// supports the `cap_alpha` capability.
+    /// Corpus "alpha": always yields `common_seed`, plus `alpha_seed` when the
+    /// PUT supports the `cap_alpha` capability.
     fn corpus_alpha(
         put: &dyn Factory<TestProtocolBehavior>,
     ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
-        let mut seeds = vec![(Trace::default(), "common")];
+        let mut seeds = vec![(Trace::default(), "common_seed")];
         if put.supports("cap_alpha") {
-            seeds.push((Trace::default(), "t_alpha"));
+            seeds.push((Trace::default(), "alpha_seed"));
         }
         seeds
     }
 
-    /// Corpus "beta": yields `common` (same name as alpha) and `t_beta`.
+    /// Corpus "beta": yields `common_seed` (same name as alpha) and `beta_seed`.
     fn corpus_beta(
         _put: &dyn Factory<TestProtocolBehavior>,
     ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
-        vec![(Trace::default(), "common"), (Trace::default(), "t_beta")]
+        vec![
+            (Trace::default(), "common_seed"),
+            (Trace::default(), "beta_seed"),
+        ]
     }
 
     const BUILDERS: &[(&str, CorpusBuilder<TestProtocolBehavior>)] = &[
@@ -591,51 +594,54 @@ mod tests {
     #[test]
     fn build_corpus_unions_and_dedups_first_wins() {
         let reg = registry(vec![CapFactory {
-            name: "p".into(),
-            caps: vec!["cap_alpha"],
+            name: "put_with_alpha".into(),
+            capabilities: vec!["cap_alpha"],
         }]);
         let corpus = build_corpus_with(
             BUILDERS,
             &reg,
-            &descriptors(&["p"]),
+            &descriptors(&["put_with_alpha"]),
             &["alpha".to_string(), "beta".to_string()],
         );
-        // `common` comes from alpha (listed first) and is not duplicated by beta.
-        assert_eq!(seed_names(&corpus), vec!["common", "t_alpha", "t_beta"]);
+        // `common_seed` comes from alpha (listed first) and is not duplicated by beta.
+        assert_eq!(
+            seed_names(&corpus),
+            vec!["common_seed", "alpha_seed", "beta_seed"]
+        );
     }
 
     #[test]
     fn build_corpus_intersects_across_puts() {
         let reg = registry(vec![
             CapFactory {
-                name: "with_alpha".into(),
-                caps: vec!["cap_alpha"],
+                name: "put_with_alpha".into(),
+                capabilities: vec!["cap_alpha"],
             },
             CapFactory {
-                name: "no_alpha".into(),
-                caps: vec![],
+                name: "put_without_alpha".into(),
+                capabilities: vec![],
             },
         ]);
         let corpus = build_corpus_with(
             BUILDERS,
             &reg,
-            &descriptors(&["with_alpha", "no_alpha"]),
+            &descriptors(&["put_with_alpha", "put_without_alpha"]),
             &["alpha".to_string()],
         );
-        // `t_alpha` is only supported by `with_alpha`, so the intersection drops it.
-        assert_eq!(seed_names(&corpus), vec!["common"]);
+        // `alpha_seed` is only supported by `put_with_alpha`, so the intersection drops it.
+        assert_eq!(seed_names(&corpus), vec!["common_seed"]);
     }
 
     #[test]
     fn build_corpus_skips_unknown_corpus() {
         let reg = registry(vec![CapFactory {
-            name: "p".into(),
-            caps: vec![],
+            name: "put".into(),
+            capabilities: vec![],
         }]);
         let corpus = build_corpus_with(
             BUILDERS,
             &reg,
-            &descriptors(&["p"]),
+            &descriptors(&["put"]),
             &["does_not_exist".to_string()],
         );
         assert!(corpus.is_empty());
@@ -644,16 +650,19 @@ mod tests {
     #[test]
     fn build_corpus_all_expands_to_every_registered_corpus() {
         let reg = registry(vec![CapFactory {
-            name: "p".into(),
-            caps: vec!["cap_alpha"],
+            name: "put_with_alpha".into(),
+            capabilities: vec!["cap_alpha"],
         }]);
         let corpus = build_corpus_with(
             BUILDERS,
             &reg,
-            &descriptors(&["p"]),
+            &descriptors(&["put_with_alpha"]),
             &[ALL_CORPORA.to_string()],
         );
         // Same result as explicitly listing every registered corpus.
-        assert_eq!(seed_names(&corpus), vec!["common", "t_alpha", "t_beta"]);
+        assert_eq!(
+            seed_names(&corpus),
+            vec!["common_seed", "alpha_seed", "beta_seed"]
+        );
     }
 }
