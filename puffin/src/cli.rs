@@ -74,6 +74,8 @@ where
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
                 .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+            Command::new("trace").about("Show information about a trace")
+                .arg(arg!(<input> "The file which stores a trace, or a folder containing traces")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -287,6 +289,28 @@ where
         if let Err(err) = seed(&put_registry, is_differential) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
+        }
+    } else if let Some(matches) = matches.subcommand_matches("trace") {
+        let input: &String = matches.get_one("input").unwrap();
+
+        if Path::new(input).is_dir() {
+            if let Err(err) = trace_folder_stats::<PB>(Path::new(input)) {
+                log::error!("Failed to compute trace stats for {}: {:?}", input, err);
+                return ExitCode::FAILURE;
+            }
+        } else {
+            let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
+                t
+            } else {
+                log::error!("Invalid trace file {}", input);
+
+                return ExitCode::FAILURE;
+            };
+
+            println!("Trace: {}", input);
+            println!("Steps: {}", trace.steps.len());
+            println!("Size: {}", trace.size());
+            println!("Depth: {}", trace.max_term_height());
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
@@ -705,6 +729,63 @@ where
     }
 
     ExitCode::SUCCESS
+}
+
+/// Prints stats for every trace in `folder` (non-recursive) and print
+/// aggregated statistics (mean, min, max, standard deviation) over all traces.
+fn trace_folder_stats<PB: ProtocolBehavior>(
+    folder: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut paths: Vec<PathBuf> = fs::read_dir(folder)?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|p| p.is_file())
+        .collect();
+    paths.sort();
+
+    let mut steps: Vec<f64> = Vec::new();
+    let mut sizes: Vec<f64> = Vec::new();
+    let mut depths: Vec<f64> = Vec::new();
+
+    for path in &paths {
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(path) {
+            Ok(t) => t,
+            Err(_) => {
+                log::warn!("Skipping invalid trace file {}", path.display());
+                continue;
+            }
+        };
+
+        let (s, z, d) = (trace.steps.len(), trace.size(), trace.max_term_height());
+        println!("Trace: {}", path.display());
+        println!("  Steps: {}", s);
+        println!("  Size: {}", z);
+        println!("  Depth: {}", d);
+
+        steps.push(s as f64);
+        sizes.push(z as f64);
+        depths.push(d as f64);
+    }
+
+    if steps.is_empty() {
+        return Err(format!("no valid traces found in {}", folder.display()).into());
+    }
+
+    println!();
+    println!("Summary over {} traces:", steps.len());
+    for (name, values) in [("Steps", &steps), ("Size", &sizes), ("Depth", &depths)] {
+        let n = values.len() as f64;
+        let mean = values.iter().sum::<f64>() / n;
+        let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        // Population standard deviation
+        let std_dev = (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n).sqrt();
+        println!(
+            "  {}: mean={:.3} min={} max={} std_dev={:.3}",
+            name, mean, min, max, std_dev
+        );
+    }
+
+    Ok(())
 }
 
 fn plot<PB: ProtocolBehavior>(

@@ -671,6 +671,23 @@ pub struct Trace<PT: ProtocolTypes> {
     pub metadata_trace: MetadataTrace,
 }
 
+impl<PT: ProtocolTypes> Trace<PT> {
+    pub fn max_term_height(&self) -> usize {
+        self.steps
+            .iter()
+            .filter_map(|step| {
+                if let Action::Input(input_action) = &step.action {
+                    Some(input_action)
+                } else {
+                    None
+                }
+            })
+            .map(|action| action.recipe.height())
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 /// Identify a step and a (prior) trace
 #[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq, Comparable)]
 pub struct StepNumber {
@@ -1448,7 +1465,8 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in precomputation recipes
+            let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in
+                                                                // precomputation recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
                 eval,
                 None,
