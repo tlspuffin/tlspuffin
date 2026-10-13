@@ -338,12 +338,59 @@ pub fn fn_signed_certificate_timestamp_certificate_extension(
         VecU16OfPayloadU16(vec![PayloadU16::new(Vec::from([42u8; 128]))]),
     ))
 }
-nyi_fn! {
-    /// client_certificate_type => 0x0013,
+
+/// client_certificate_type => 0x0013,
+pub fn fn_certificate_types_new() -> Result<Vec<CertificateType>, FnError> {
+    Ok(vec![])
 }
-nyi_fn! {
-    /// server_certificate_type => 0x0014,
+
+pub fn fn_certificate_types_append(
+    types: &Vec<CertificateType>,
+    cert_type: &CertificateType,
+) -> Result<Vec<CertificateType>, FnError> {
+    let mut new_types = types.clone();
+    new_types.push(cert_type.clone());
+
+    Ok(new_types)
 }
+
+pub fn fn_cert_type_x509() -> Result<CertificateType, FnError> {
+    Ok(CertificateType::X509)
+}
+
+pub fn fn_cert_type_raw_public_key() -> Result<CertificateType, FnError> {
+    Ok(CertificateType::RawPublicKey)
+}
+
+pub fn fn_client_certificate_type_extension(
+    types: &Vec<CertificateType>,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::ClientCertificateTypes(CertificateTypes(
+        types.clone(),
+    )))
+}
+
+pub fn fn_client_certificate_type_server_extension(
+    selected: &CertificateType,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ClientCertificateType(selected.clone()))
+}
+
+/// server_certificate_type => 0x0014,
+pub fn fn_server_certificate_type_extension(
+    types: &Vec<CertificateType>,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::ServerCertificateTypes(CertificateTypes(
+        types.clone(),
+    )))
+}
+
+pub fn fn_server_certificate_type_server_extension(
+    selected: &CertificateType,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ServerCertificateType(selected.clone()))
+}
+
 nyi_fn! {
     /// Padding => 0x0015,
 }

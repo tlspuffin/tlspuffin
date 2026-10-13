@@ -40,4 +40,7 @@ int BIO_read_ex(BIO *b, void *data, size_t dlen, size_t *readbytes);
 #define HAS_TLS1_3_VERSION
 #endif
 
+bool enable_rpk_support(SSL_CTX *ssl_ctx);
+bool add_expected_rpk(SSL *ssl, PEM const *spki_pem);
+
 #endif // PUFFIN_HARNESS_TLS_OPENSSL_BINDINGS_H

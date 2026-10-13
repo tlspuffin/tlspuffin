@@ -406,12 +406,12 @@ where
             log::info!("Execution without payload evaluations...");
         }
 
-        let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
-            t
-        } else {
-            log::error!("Invalid trace file {}", input);
-
-            return ExitCode::FAILURE;
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(input) {
+            Ok(t) => t,
+            Err(e) => {
+                log::error!("Invalid trace file {}: {:?}", input, e);
+                return ExitCode::FAILURE;
+            }
         };
 
         log::info!("Agents: {:?}", &trace.descriptors);

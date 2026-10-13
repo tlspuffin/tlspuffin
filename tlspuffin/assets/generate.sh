@@ -24,3 +24,9 @@ openssl x509 -in alice.pem -out alice.der -outform DER
 openssl x509 -in random-ec.pem -out random-ec.der -outform DER
 
 openssl dgst -sha1 -sign eve-key.pem -out eve-signature
+
+echo "Extract SPKI (Raw Public Keys) for RFC 7250"
+openssl x509 -in alice.pem -pubkey -noout > alice-spki.pem
+openssl pkey -pubin -in alice-spki.pem -outform DER -out alice-spki.der
+openssl x509 -in bob.pem -pubkey -noout > bob-spki.pem
+openssl pkey -pubin -in bob-spki.pem -outform DER -out bob-spki.der

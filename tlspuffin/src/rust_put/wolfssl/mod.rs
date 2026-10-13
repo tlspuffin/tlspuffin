@@ -464,6 +464,7 @@ impl RustPut {
                                 peer_signature_algorithm: 0,           // TODO
                                 early_secret: Default::default(),      // TODO
                                 handshake_secret: Default::default(),  // TODO
+                                use_rpk: false,
                             })),
                             step: None,
                         });

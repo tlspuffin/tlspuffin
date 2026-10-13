@@ -23,7 +23,9 @@ use crate::protocol::{
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_SPKI, BOB_CERT, BOB_PRIVATE_KEY, BOB_SPKI, EVE_CERT,
+};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 
 /// Static configuration for creating a new agent state for the PUT
@@ -181,6 +183,8 @@ impl CAgent {
         let client_cert = pem!(BOB_CERT);
         let client_pkey = pem!(BOB_PRIVATE_KEY);
         let other_cert = pem!(EVE_CERT);
+        let alice_rpk = pem!(ALICE_SPKI);
+        let bob_rpk = pem!(BOB_SPKI);
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
@@ -203,6 +207,16 @@ impl CAgent {
             .clone()
             .map(|x| CString::new(x.clone()).unwrap());
 
+        let expected_peer = match config.descriptor.protocol_config.typ {
+            AgentType::Server => &bob_rpk,
+            AgentType::Client => &alice_rpk,
+        };
+        let expected_peer_rpk_ptr: *const PEM = if config.descriptor.protocol_config.use_rpk {
+            expected_peer
+        } else {
+            std::ptr::null()
+        };
+
         let descriptor = match config.descriptor.protocol_config.typ {
             AgentType::Server => make_descriptor(
                 &config,
@@ -214,6 +228,8 @@ impl CAgent {
                 &ciphers_tlsboth,
                 &groups,
                 &sigalgs,
+                config.descriptor.protocol_config.use_rpk,
+                expected_peer_rpk_ptr,
             ),
             AgentType::Client => make_descriptor(
                 &config,
@@ -225,6 +241,8 @@ impl CAgent {
                 &ciphers_tlsboth,
                 &groups,
                 &sigalgs,
+                config.descriptor.protocol_config.use_rpk,
+                expected_peer_rpk_ptr,
             ),
         };
 
@@ -397,6 +415,8 @@ fn make_descriptor(
     ciphers_tlsboth: &CString,
     groups: &Option<CString>,
     sigalgs: &Option<CString>,
+    activate_rpk: bool,
+    expected_peer_rpk: *const PEM,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -436,6 +456,9 @@ fn make_descriptor(
 
         store: store.as_ptr(),
         store_length: store.len() as libc::size_t,
+
+        activate_rpk,
+        expected_peer_rpk,
     }
 }
 
