@@ -863,6 +863,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     else
     {
         wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
         agent->descriptor.name = new_name;
         agent = make_agent(agent, &(agent->descriptor));
         if (agent == NULL)
@@ -987,6 +988,9 @@ static void wolfssl_destroy(AGENT agent)
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
     }
+#ifdef USE_CUSTOM_PRNG
+    wc_CryptoCb_UnRegisterDevice(1);
+#endif
     if (agent->ctx != NULL)
     {
         wolfSSL_CTX_free(agent->ctx);
