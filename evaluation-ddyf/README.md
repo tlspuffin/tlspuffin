@@ -1,11 +1,13 @@
 # DDYF
 
-This is the companion artifact for the paper "DDYF: Differential Dolev-Yao Fuzzing of Cryptographic Protocols". We provide in this artifact:
+This is the companion artifact for the paper "DDYF: Differential Dolev-Yao Fuzzing of Cryptographic Protocols" [link](https://ia.cr/2026/991). We provide in this artifact:
 
 - The code of our implementation of DDYF, a differential fuzzer for cryptographic protocols, which is based on the Puffin DY fuzzer
 - Various scripts to reproduce the experiments and claims presented in Section 5
 
 **This artifact only reproduces experiment related to TLS, we provide a second artifact to reproduce SSH related experiments**
+
+The current code of the Puffin fuzzer, including the differential fuzzing capabilities shown in this artifact is available at [https://github.com/tlspuffin/tlspuffin](https://github.com/tlspuffin/tlspuffin)
 
 > Experiments presented in the paper were run on a machine with 48 AMD EPYC 9275F cores (96 threads) with hyperthreading enabled and 768 GiB of RAM. The machine was running Debian GNU/Linux 13.7 (trixie) with kernel 6.12. Expect some variability in the results when running on a different machine.
 
@@ -290,17 +292,6 @@ campaign: number of empty and non-empty buckets, total objectives, objectives le
 untriaged and their proportion), and a summary is written to `experiments/logs/summary.md`
 and printed on the standard output:
 
-```
-## Aggregated over 3 campaigns
-
-| Metric | Mean | Std dev | Min | Max |
-| --- | ---: | ---: | ---: | ---: |
-| Empty buckets | 43.33 | 4.04 | 41.00 | 48.00 |
-| Non-empty buckets | 102.67 | 4.04 | 98.00 | 105.00 |
-| Total objectives | 25750.67 | 12203.90 | 11659.00 | 32859.00 |
-| Non triaged | 77.67 | 38.28 | 37.00 | 113.00 |
-| Non triaged (%) | 0.30 | 0.05 | 0.25 | 0.34 |
-```
 
 ### Scaled down experiment (< 24h)
 
@@ -322,8 +313,19 @@ statistics.
 ```
 
 The script should output which bucket (corresponding to a bug or behavior) are populated and < 1% of the total number of traces should be left non triaged (i.e. not in a bucket).
-Keep in minde that the campaigns are only 4h long instead of 24h in the paper experiment so all buckets won't be populated.
+Keep in mind that the campaigns are only 4h long instead of 24h in the paper experiment so all buckets won't be populated.
 
+```
+## Aggregated over 3 campaigns
+
+| Metric | Mean | Std dev | Min | Max |
+| --- | ---: | ---: | ---: | ---: |
+| Empty buckets | 43.33 | 4.04 | 41.00 | 48.00 |
+| Non-empty buckets | 102.67 | 4.04 | 98.00 | 105.00 |
+| Total objectives | 25750.67 | 12203.90 | 11659.00 | 32859.00 |
+| Non triaged | 77.67 | 38.28 | 37.00 | 113.00 |
+| Non triaged (%) | 0.30 | 0.05 | 0.25 | 0.34 |
+```
 
 ## Claim 3: Deduplication statistics
 
