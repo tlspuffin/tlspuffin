@@ -369,6 +369,10 @@ ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
 
+rsa = "0.9"
+num-bigint-dig = "0.8"
+sha2 = "0.10"
+
 # OpenSSL
 
 # Up to version 111

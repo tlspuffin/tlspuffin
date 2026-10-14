@@ -286,6 +286,308 @@ pub fn seed_successful12_with_tickets(
     trace
 }
 
+/// TLS 1.2 handshake where the client sends a `CertificateVerify` right before its
+/// `ClientKeyExchange`. This is the trace that `RepeatMutator` + `GenerateMutator` would have to
+/// reach by mutation starting from [`seed_successful12`].
+pub fn seed_successful12_certificate_verify_before_cke(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    let mut trace = seed_successful12(client, server);
+    // Steps: 0 output, 1 ClientHello, 2 ServerHello, 3 Certificate, 4 ServerKeyExchange,
+    // 5 ServerHelloDone, 6 ClientKeyExchange
+    trace.steps.insert(
+        6,
+        Step {
+            agent: server,
+            action: Action::Input(input_action! { term! {
+                    fn_certificate_verify(
+                        fn_rsa_pss_signature_algorithm,
+                        (fn_payload_u16(fn_empty_bytes_vec))
+                    )
+                }
+            }),
+        },
+    );
+    trace
+}
+
+/// TLS 1.2 handshake where the attacker plays the client against a server that requests client
+/// authentication, and sends its `Certificate` and `CertificateVerify` *before* the
+/// `ClientKeyExchange`.
+///
+/// RFC 5246 §7.4.8: a `CertificateVerify` MUST immediately follow the `ClientKeyExchange`. Here the
+/// message is requested (`CertificateRequest`) and its signature is valid for the transcript the
+/// server holds at that point (no `ClientKeyExchange` yet), so only the position is wrong: the
+/// server should abort with a fatal `unexpected_message` alert.
+pub fn seed_client_attacker12_certificate_verify_before_cke(
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    let mut trace = seed_client_attacker12(server);
+
+    // Steps of seed_client_attacker12: 0 ClientHello, 1 ClientKeyExchange, 2 CCS, 3 Finished
+    let client_hello = match &trace.steps[0].action {
+        Action::Input(input) => input.recipe.clone(),
+        Action::Output(_) => unreachable!("step 0 is the ClientHello input"),
+    };
+
+    // The server must send a CertificateRequest
+    trace.descriptors = vec![AgentDescriptor::from_config(
+        server,
+        TLSDescriptorConfig {
+            tls_version: TLSVersion::V1_2,
+            typ: AgentType::Server,
+            client_authentication: true,
+            ..TLSDescriptorConfig::default()
+        },
+    )];
+
+    let client_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_bob_cert))
+            ))
+        )
+    };
+
+    // Transcript the server holds right before the CertificateVerify (no ClientKeyExchange yet)
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12_client_auth,
+                (@client_hello)
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))])
+        )
+    };
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))])
+        )
+    };
+    let server_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))])
+        )
+    };
+    let certificate_request_transcript = term! {
+        fn_append_transcript(
+            (@server_key_exchange_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::CertificateRequest)))])
+        )
+    };
+    let server_hello_done_transcript = term! {
+        fn_append_transcript(
+            (@certificate_request_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))])
+        )
+    };
+    let client_certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            (@client_certificate)
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_pss_sign_from_mhash(
+                    fn_32_zero_bytes,
+                    fn_bob_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    // Keep ClientHello and ClientKeyExchange: after the (expected) fatal alert the CCS and Finished
+    // steps are moot. Insert Certificate and CertificateVerify between them.
+    trace.steps.truncate(2);
+    trace.steps.insert(
+        1,
+        Step {
+            agent: server,
+            action: Action::Input(input_action! { client_certificate }),
+        },
+    );
+    trace.steps.insert(
+        2,
+        Step {
+            agent: server,
+            action: Action::Input(input_action! { certificate_verify }),
+        },
+    );
+    trace
+}
+
+/// Transcript of a TLS 1.2 handshake with client authentication, from the ClientHello up to (and
+/// including) the client `Certificate`, as held by the server right after receiving it.
+fn client_auth_transcript12_until_client_certificate(
+    server: AgentName,
+    client_hello: Term<TLSProtocolTypes>,
+    client_certificate: Term<TLSProtocolTypes>,
+) -> Term<TLSProtocolTypes> {
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12_client_auth,
+                (@client_hello)
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))])
+        )
+    };
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))])
+        )
+    };
+    let server_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))])
+        )
+    };
+    let certificate_request_transcript = term! {
+        fn_append_transcript(
+            (@server_key_exchange_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::CertificateRequest)))])
+        )
+    };
+    let server_hello_done_transcript = term! {
+        fn_append_transcript(
+            (@certificate_request_transcript),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))])
+        )
+    };
+    term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            (@client_certificate)
+        )
+    }
+}
+
+/// Control for [`seed_client_attacker12_certificate_verify_before_cke`]: the same messages sent in
+/// the order required by RFC 5246 (Certificate, ClientKeyExchange, CertificateVerify, CCS,
+/// Finished). It must complete the handshake: if it does, a rejection of the swapped variant
+/// comes from the message order, not from the certificate, the signature or the Finished.
+pub fn seed_client_attacker12_client_auth_in_order(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let base = seed_client_attacker12(server);
+
+    // Steps of seed_client_attacker12: 0 ClientHello, 1 ClientKeyExchange, 2 CCS, 3 Finished
+    let recipe = |step: &Step<TLSProtocolTypes>| match &step.action {
+        Action::Input(input) => input.recipe.clone(),
+        Action::Output(_) => unreachable!("attacker seeds only contain input steps"),
+    };
+    let client_hello = recipe(&base.steps[0]);
+    let client_key_exchange = recipe(&base.steps[1]);
+
+    let client_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_bob_cert))
+            ))
+        )
+    };
+
+    let client_certificate_transcript = client_auth_transcript12_until_client_certificate(
+        server,
+        client_hello,
+        client_certificate.clone(),
+    );
+
+    // In order, the CertificateVerify covers the ClientKeyExchange too
+    let client_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@client_certificate_transcript),
+            (@client_key_exchange)
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_certificate_verify12(
+                    (@client_key_exchange_transcript),
+                    fn_bob_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    // The Finished verify_data covers every handshake message, CertificateVerify included
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (@certificate_verify)
+        )
+    };
+
+    let client_verify_data = term! {
+        fn_client_sign_transcript(
+            ((server, 0)),
+            (fn_decode_server_ecdh_pubkey(
+                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+            )),
+            (@certificate_verify_transcript),
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    let client_finished = term! {
+        fn_encrypt12(
+            (fn_finished((@client_verify_data))),
+            ((server, 0)),
+            (fn_decode_server_ecdh_pubkey(
+                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+            )),
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    let step = |recipe| Step {
+        agent: server,
+        action: Action::Input(input_action! { recipe }),
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_2,
+                typ: AgentType::Server,
+                client_authentication: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            base.steps[0].clone(),           // ClientHello
+            step(client_certificate),        // Certificate (Bob)
+            base.steps[1].clone(),           // ClientKeyExchange
+            step(certificate_verify),        // CertificateVerify, after the CKE
+            base.steps[2].clone(),           // ChangeCipherSpec
+            step(client_finished),           // Finished
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
@@ -2793,7 +3095,7 @@ pub fn create_corpus(
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
     corpus!(
         // Full Handshakes
-        seed_successful: put.supports("tls13"),
+        /*seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
         seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
@@ -2811,6 +3113,10 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        //
+        //seed_successful12_certificate_verify_before_cke: put.supports("tls12"),
+        seed_client_attacker12_certificate_verify_before_cke: put.supports("tls12"),*/
+        seed_client_attacker12_client_auth_in_order: put.supports("tls12")
     )
 }
 

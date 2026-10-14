@@ -314,4 +314,9 @@ define_signature!(
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
     fn_ecdsa_signature_algorithm
+    //
+    fn_new_transcript12_client_auth
+    fn_rsa_sign_certificate_verify12 [opaque]
+    fn_rsa_pss_sign_from_mhash [opaque]
+    fn_32_zero_bytes
 );

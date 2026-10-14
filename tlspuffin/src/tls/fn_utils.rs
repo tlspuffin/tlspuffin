@@ -705,6 +705,14 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     Ok(transcript)
 }
 
+pub fn fn_new_transcript12_client_auth() -> Result<HandshakeHash, FnError> {
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+
+    let transcript = HandshakeHash::new_with_client_auth(suite.hash_algorithm());
+    Ok(transcript)
+}
+
+
 pub fn fn_decode_server_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
     let params = ServerECDHParams::read(&mut rd)

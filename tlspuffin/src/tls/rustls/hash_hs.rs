@@ -129,6 +129,15 @@ impl HandshakeHash {
         }
     }
 
+    pub fn new_with_client_auth(alg: &'static digest::Algorithm) -> HandshakeHash {
+        let ctx = digest::Context::new(alg);
+        HandshakeHash { 
+            ctx, 
+            client_auth: Some(Vec::new()),
+            override_buffer: None 
+        }
+    }
+
     /// We decided not to do client auth after all, so discard
     /// the transcript.
     pub fn abandon_client_auth(&mut self) {
@@ -206,6 +215,10 @@ impl HandshakeHash {
     /// to empty.
     pub fn take_handshake_buf(&mut self) -> Option<Vec<u8>> {
         self.client_auth.take()
+    }
+
+    pub fn handshake_buf(&self) -> Option<&[u8]> {
+        self.client_auth.as_deref()
     }
 
     /// The digest algorithm
