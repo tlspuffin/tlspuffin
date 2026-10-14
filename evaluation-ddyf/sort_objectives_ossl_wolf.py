@@ -1313,7 +1313,7 @@ buckets: dict[str, BucketCondition] = {
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — InnerKnowledgeC prefix match on
     #   "BothAlert([Level(BothUnknown" captures non-standard alert level bytes
     #   in both PUTs; specific named pattern; single root cause.
-    "wolf_both_unknown_alert/": InnerKnowledgeC("BothAlert([Level(BothUnknown"),
+    "wolf_both_unknown_alert/": InnerKnowledgeC("Level(BothUnknown("),
 
     # Sub-buckets for claim_finished_wolf_only: wolfssl finishes but OSSL fails
     # with specific named OSSL errors. Placed before the generic bucket so that
@@ -1404,14 +1404,14 @@ buckets: dict[str, BucketCondition] = {
     #   "tls_process_client_certificate:ASN1 lib"); both conditions root-cause-grounded;
     #   specific OSSL error function narrows root cause; 12,048 traces.
     "knowledge_msg_ossl_asn1_lib/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="tls_process_client_certificate:ASN1 lib", first_to_fail=False),
     ),
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — multi-condition AllC:
     #   KnowledgeDiffC(MessagePayload, ()) + StatusC(OSSL,
     #   "final_key_share:no suitable key share"); both root-cause-grounded.
     "knowledge_msg_ossl_final_key_share/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="final_key_share:no suitable key share", first_to_fail=False),
     ),
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — multi-condition AllC:
@@ -1428,28 +1428,28 @@ buckets: dict[str, BucketCondition] = {
     #   KnowledgeDiffC(MessagePayload, ()) + StatusC(OSSL,
     #   "final_sig_algs:missing sigalgs extension"); both root-cause-grounded.
     "knowledge_msg_ossl_missing_sigalgs/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="final_sig_algs:missing sigalgs extension", first_to_fail=False),
     ),
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — multi-condition AllC:
     #   KnowledgeDiffC(MessagePayload, ()) + StatusC(OSSL,
     #   "ssl_cache_cipherlist:no ciphers specified"); both root-cause-grounded.
     "knowledge_msg_ossl_no_ciphers/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="ssl_cache_cipherlist:no ciphers specified", first_to_fail=False),
     ),
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — multi-condition AllC:
     #   KnowledgeDiffC(MessagePayload, ()) + StatusC(OSSL,
     #   "tls_get_message_header:bad change cipher spec"); both root-cause-grounded.
     "knowledge_msg_ossl_bad_ccs/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="tls_get_message_header:bad change cipher spec", first_to_fail=False),
     ),
     # AUDITED: C1 ✓ / C2 ✓ / C3 ✓ / C4 ✓ — multi-condition AllC:
     #   KnowledgeDiffC(MessagePayload, ()) + StatusC(OSSL,
     #   "tls_early_post_process_client_hello:no shared cipher"); both root-cause-grounded.
     "knowledge_msg_ossl_no_shared_cipher/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         StatusC(OSSL, in_error="tls_early_post_process_client_hello:no shared cipher", first_to_fail=False),
     ),
     # --------------------------------------------------------------------------
@@ -1471,7 +1471,7 @@ buckets: dict[str, BucketCondition] = {
     #   errors match AnyC conditions; 0 harness pollution; 0 unclassified errors.
     #   Anti-pattern A resolved by AnyC(22 specific OSSL StatusC).
     "knowledge_msg_ossl_vs_none_wolf/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload", "()"),
         AnyC(
             StatusC(OSSL, in_error="ssl3_read_bytes:unexpected message", first_to_fail=False),
             StatusC(OSSL, in_error="tls_process_server_hello:bad extension", first_to_fail=False),
@@ -1508,7 +1508,7 @@ buckets: dict[str, BucketCondition] = {
     #   errors: OSSL version-negotiation failures (unsupported protocol / wrong ssl
     #   version). Single root cause. No harness pollution.
     "knowledge_none_ossl_unsupported_proto/": AllC(
-        KnowledgeDiffC("()", "tlspuffin::tls::rustls::msgs::message::MessagePayload"),
+        KnowledgeDiffC("()", "tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload"),
         AnyC(
             StatusC(OSSL, in_error="tls_early_post_process_client_hello:unsupported protocol", first_to_fail=False),
             StatusC(OSSL, in_error="ssl_choose_client_version:unsupported protocol", first_to_fail=False),
@@ -1530,7 +1530,7 @@ buckets: dict[str, BucketCondition] = {
     #   malformed buffer 134, record layer version 108, Out of order 12; 0 harness
     #   artifacts (NotC filter confirmed). Optional future: sub-bucket OSSL errors.
     "knowledge_none_vs_msg_wolf/": AllC(
-        KnowledgeDiffC("()", "tlspuffin::tls::rustls::msgs::message::MessagePayload"),
+        KnowledgeDiffC("()", "tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload"),
         NotC(AnyC(
             StatusC(OSSL, in_error="error evaluating a term", first_to_fail=False),
             StatusC(OSSL, in_error="error executing a function symbol", first_to_fail=False),
