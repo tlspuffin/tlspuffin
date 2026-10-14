@@ -32,7 +32,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_banner(
-                        ((client, 0))
+                        K((client, 0))
                     )
                 },
             ),
@@ -41,7 +41,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_banner(
-                        ((server, 0))
+                        K((server, 0))
                     )
                 },
             ),
@@ -50,15 +50,15 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_kex_init(
-                        ((client, 0)[None]/[u8; 16]),
-                        ((client, 0)[None]/KexAlgorithms),
-                        ((client, 0)[None]/SignatureSchemes),
-                        ((client, 0)[None]/EncryptionAlgorithms),
-                        ((client, 1)[None]/EncryptionAlgorithms),
-                        ((client, 0)[None]/MacAlgorithms),
-                        ((client, 1)[None]/MacAlgorithms),
-                        ((client, 0)[None]/CompressionAlgorithms),
-                        ((client, 1)[None]/CompressionAlgorithms)
+                        K((client, 0)[None]/[u8; 16]),
+                        K((client, 0)[None]/KexAlgorithms),
+                        K((client, 0)[None]/SignatureSchemes),
+                        K((client, 0)[None]/EncryptionAlgorithms),
+                        K((client, 1)[None]/EncryptionAlgorithms),
+                        K((client, 0)[None]/MacAlgorithms),
+                        K((client, 1)[None]/MacAlgorithms),
+                        K((client, 0)[None]/CompressionAlgorithms),
+                        K((client, 1)[None]/CompressionAlgorithms)
                     )
                 },
             ),
@@ -67,15 +67,15 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_kex_init(
-                        ((server, 0)[None]/[u8; 16]),
-                        ((server, 0)[None]/KexAlgorithms),
-                        ((server, 0)[None]/SignatureSchemes),
-                        ((server, 0)[None]/EncryptionAlgorithms),
-                        ((server, 1)[None]/EncryptionAlgorithms),
-                        ((server, 0)[None]/MacAlgorithms),
-                        ((server, 1)[None]/MacAlgorithms),
-                        ((server, 0)[None]/CompressionAlgorithms),
-                        ((server, 1)[None]/CompressionAlgorithms)
+                        K((server, 0)[None]/[u8; 16]),
+                        K((server, 0)[None]/KexAlgorithms),
+                        K((server, 0)[None]/SignatureSchemes),
+                        K((server, 0)[None]/EncryptionAlgorithms),
+                        K((server, 1)[None]/EncryptionAlgorithms),
+                        K((server, 0)[None]/MacAlgorithms),
+                        K((server, 1)[None]/MacAlgorithms),
+                        K((server, 0)[None]/CompressionAlgorithms),
+                        K((server, 1)[None]/CompressionAlgorithms)
                     )
                 },
             ),
@@ -84,7 +84,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_raw_message(
-                        ((client, 2)[None]/RawSshMessage)  // ECDH Init
+                        K((client, 2)[None]/RawSshMessage)  // ECDH Init
                     )
                 },
             ),
@@ -93,9 +93,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_kex_ecdh_reply(
-                        ((server, 0)[None]/Vec<u8>),
-                        ((server, 1)[None]/Vec<u8>),
-                        ((server, 2)[None]/Vec<u8>)
+                        K((server, 0)[None]/Vec<u8>),
+                        K((server, 1)[None]/Vec<u8>),
+                        K((server, 2)[None]/Vec<u8>)
                     )
                 },
             ),
@@ -103,7 +103,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_raw_message(
-                        ((client, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
+                        K((client, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
                     )
                 },
             ),
@@ -113,7 +113,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_raw_message(
-                        ((server, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
+                        K((server, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
                     )
                 },
             ),
@@ -121,7 +121,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_onwire_message(
-                        ((server, 0)[None]/OnWireData)  // option data??
+                        K((server, 0)[None]/OnWireData)  // option data??
                     )
                 },
             ),
@@ -129,7 +129,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_onwire_message(
-                        ((client, 0)[None]/OnWireData)  // Auth request??
+                        K((client, 0)[None]/OnWireData)  // Auth request??
                     )
                 },
             ),
@@ -137,7 +137,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_onwire_message(
-                        ((server, 1)[None]/OnWireData)  // Auth response??
+                        K((server, 1)[None]/OnWireData)  // Auth response??
                     )
                 },
             ),
@@ -145,7 +145,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 server,
                 term! {
                     fn_onwire_message(
-                        ((client, 1)[None]/OnWireData)  // ?
+                        K((client, 1)[None]/OnWireData)  // ?
                     )
                 },
             ),
@@ -153,7 +153,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 client,
                 term! {
                     fn_onwire_message(
-                        ((server, 2)[None]/OnWireData)  // ??
+                        K((server, 2)[None]/OnWireData)  // ??
                     )
                 },
             ),
