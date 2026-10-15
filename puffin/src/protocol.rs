@@ -8,15 +8,16 @@ use serde::Serialize;
 
 use crate::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use crate::algebra::signature::Signature;
-use crate::algebra::Matcher;
+use crate::algebra::{Matcher, TermType};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
 use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::fuzzer::term_zoo;
+use crate::fuzzer::utils::TermConstraints;
 use crate::put::PutDescriptor;
 use crate::put_registry::{Factory, PutRegistry};
-use crate::trace::{Knowledge, Source, Trace};
+use crate::trace::{Action, Knowledge, Source, Trace};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -292,6 +293,25 @@ pub fn build_corpus<PB: ProtocolBehavior>(
     build_corpus_with(&PB::corpus_registry(), put_registry, puts, corpus_list)
 }
 
+/// First input step of `trace` whose recipe reaches `max_result_term_size` nodes, as
+/// `(step index, size)`.
+fn oversized_step<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    max_result_term_size: usize,
+) -> Option<(usize, usize)> {
+    trace
+        .steps
+        .iter()
+        .enumerate()
+        .find_map(|(i, step)| match &step.action {
+            Action::Input(input) => {
+                let size = input.recipe.size();
+                (size >= max_result_term_size).then_some((i, size))
+            }
+            Action::Output(_) => None,
+        })
+}
+
 /// Core of [`build_corpus`], parameterized on the corpus `builders` so the
 /// selection/intersection/dedup logic can be unit-tested with synthetic
 /// corpuses independently of any concrete [`ProtocolBehavior::corpus_registry`].
@@ -321,6 +341,7 @@ fn build_corpus_with<PB: ProtocolBehavior>(
         })
         .collect();
 
+    let max_result_term_size = TermConstraints::default().max_result_term_size;
     let mut seen = std::collections::HashSet::new();
     let mut corpus = Vec::new();
     for name in expanded_corpus_list {
@@ -338,6 +359,14 @@ fn build_corpus_with<PB: ProtocolBehavior>(
                 .iter()
                 .all(|seeds| seeds.iter().any(|(_, n)| n == seed_name));
             if supported_by_all && seen.insert(*seed_name) {
+                if let Some((step, size)) = oversized_step(trace, max_result_term_size) {
+                    // Warn that we are generating a seed that has a step that exceeds the max term
+                    // size
+                    log::warn!(
+                        "seed '{seed_name}' is above the max term size: step {step} has {size} \
+                         nodes (max_result_term_size = {max_result_term_size})"
+                    );
+                }
                 corpus.push((trace.clone(), *seed_name));
             }
         }

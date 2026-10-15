@@ -814,7 +814,11 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Wipe previously generated seeds so the directory reflects exactly the
     // requested corpuses/PUTs. Ignore the error when it does not exist yet.
-    let _ = fs::remove_dir_all("./seeds");
+    match fs::remove_dir_all("./seeds") {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
     fs::create_dir_all("./seeds")?;
 
     for (mut trace, name) in build_corpus(put_registry, &puts, &corpus) {
