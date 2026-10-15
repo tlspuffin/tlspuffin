@@ -56,6 +56,7 @@ where
             .value_parser(value_parser!(u64).range(1..=3_600_000)))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
             Command::new("mapper")
                 .about("Debugging information about the mapper")
@@ -71,6 +72,7 @@ where
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
                 .arg(arg!(-D --differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
@@ -125,12 +127,14 @@ where
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
                 .arg(arg!(<first_target> "The first target to fuzz"))
-                .arg(arg!(<second_target> "The second target to fuzz")),
+                .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(',')),
             Command::new("differential-experiment").about("Starts a new differential fuzzing experiment and writes the results out")
                 .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
         ])
 }
@@ -725,7 +729,29 @@ where
             FuzzingTarget::Single(None)
         };
 
+        // `None` means the flag was not passed: the fuzzer should fall back to
+        // `./seeds` if it exists, or the `"default"` corpus otherwise. `Some(_)` means
+        // `--corpus` was given explicitly.
+        let requested_corpora: Option<Vec<String>> = matches
+            .subcommand_matches("experiment")
+            .or(matches.subcommand_matches("quick-experiment"))
+            .or(matches.subcommand_matches("differential"))
+            .or(matches.subcommand_matches("differential-experiment"))
+            .and_then(|submatches| submatches.get_many::<String>("corpus"))
+            .map(|values| values.cloned().collect());
+
+        if let Some(corpora) = &requested_corpora {
+            if let Err((available_corpora, unknown_corpora)) = check_if_corpora_exist::<PB>(
+                &corpora.iter().map(String::as_str).collect::<Vec<_>>(),
+            ) {
+                log::error!("Corpus not found : {}", unknown_corpora.join(","));
+                log::error!("Available corpuses: {}", available_corpora.join(","));
+                return ExitCode::FAILURE;
+            }
+        }
+
         config.target = target;
+        config.initial_corpus = requested_corpora;
 
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
