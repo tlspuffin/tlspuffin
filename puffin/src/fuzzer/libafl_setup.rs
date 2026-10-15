@@ -21,7 +21,8 @@ use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes};
+use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
@@ -158,6 +159,7 @@ where
 
         let FuzzerConfig {
             initial_corpus_dir,
+            initial_corpus,
             max_iters,
             mutation_config,
             ..
@@ -383,7 +385,7 @@ where
 
         // In case the corpus is empty (on first run), reset
         if state.corpus().is_empty() {
-            if initial_corpus_dir.exists() {
+            if initial_corpus.is_none() && initial_corpus_dir.exists() {
                 state
                     .load_initial_inputs(
                         &mut fuzzer,
@@ -399,7 +401,14 @@ where
                     });
                 log::info!("Imported {} inputs from disk.", state.corpus().count());
             } else {
-                log::info!("Initial seed corpus not found. Using embedded seeds.");
+                if initial_corpus.is_some() {
+                    log::info!(
+                        "--corpus given: using the requested seed corpus instead of {:?}.",
+                        &initial_corpus_dir
+                    );
+                } else {
+                    log::info!("Initial seed corpus not found. Using embedded `default` seeds.");
+                }
 
                 for (seed, name) in self.initial_inputs.unwrap() {
                     log::info!("Using seed {}", name);
@@ -544,6 +553,7 @@ where
         log_folder,
         verbosity,
         target,
+        initial_corpus,
         ..
     } = &config;
 
@@ -591,9 +601,21 @@ where
 
         let harness_fn = &mut (|input: &_| boxed_harness_fn(input));
 
+        // The PUT(s) that will actually run the fuzzing campaign are already known from
+        // `target`, so the initial seed corpus is restricted to what they support instead of
+        // always checking against the registry's default PUT.
+        let requested_puts: Vec<PutDescriptor> = match target {
+            FuzzingTarget::Single(put) => vec![put.clone().unwrap_or_else(|| default_put.clone())],
+            FuzzingTarget::Differential(first, second) => vec![first.clone(), second.clone()],
+        };
+
+        // Only used if no `--corpus` was given and `initial_corpus_dir` does not exist
+        let default_corpus = vec!["default".to_string()];
+        let corpus_list: &[String] = initial_corpus.as_deref().unwrap_or(&default_corpus);
+
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
+            .with_initial_inputs(build_corpus(put_registry, &requested_puts, corpus_list))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

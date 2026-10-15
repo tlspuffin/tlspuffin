@@ -2,17 +2,48 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::put_registry::Factory;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolTypes, TLSVersion,
+    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
 use crate::tls::rustls::msgs::message::OpaqueMessage;
 use crate::tls::seeds::*;
+
+/// The `vulnerabilities` corpus: known CVE reproducers
+pub fn create_corpus(
+    put: &dyn Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        // Descriptor sets `client_authentication: true` (client-cert authentication bypass).
+        seed_cve_2022_25638: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        seed_cve_2022_25640: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        seed_cve_2022_25640_simple: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+
+        // TLS 1.2 only, no resumption, no client authentication.
+        seed_cve_2021_3449: put.supports("tls12"),
+        seed_freak: put.supports("tls12"),
+
+        // Relies on TLS 1.2 session tickets (`fn_new_session_ticket`).
+        seed_cve_2022_38153: put.supports("tls12") && put.supports("tls12_session_resumption"),
+        seed_cve_simple_2022_38153: put.supports("tls12") && put.supports("tls12_session_resumption"),
+
+        // Relies on TLS 1.3 session tickets (`fn_new_session_ticket13`).
+        seed_cve_2022_39173: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        // Seed too large
+        seed_cve_2022_39173_full: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_cve_2022_39173_minimized: put.supports("tls13") && put.supports("tls13_session_resumption"),
+
+        // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
+        seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+    )
+}
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
