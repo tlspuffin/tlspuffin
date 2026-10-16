@@ -22,6 +22,8 @@ pub mod seeds;
 pub mod violation;
 pub mod vulnerabilities;
 
+pub mod rfc5246;
+
 /// This module contains all the concrete implementations of function symbols.
 #[path = "."]
 pub mod fn_impl {

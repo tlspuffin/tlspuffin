@@ -186,6 +186,13 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     pub fn put_mut(&mut self) -> &mut dyn Put<PB> {
         self.put.as_mut()
     }
+
+    #[must_use]
+    pub const fn descriptor(
+        &self,
+    ) -> &AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig> {
+        &self.descriptor
+    }
 }
 
 impl<PB: ProtocolBehavior> Stream<PB> for Agent<PB> {

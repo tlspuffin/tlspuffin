@@ -45,6 +45,9 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
+use puffin::trace::TraceContext;
+
+
 #[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
@@ -810,5 +813,9 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         try_read_bytes(bitstring, ty)
+    }
+
+    fn check_conformance(ctx: &TraceContext<Self>) -> Option<&'static str> {
+        crate::tls::rfc5246::check(ctx)
     }
 }

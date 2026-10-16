@@ -444,6 +444,9 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     phantom: PhantomData<PB>,
     /// The number of steps that have been successfully executed
     pub executed_until: usize,
+
+
+    wire_log: Vec<WireEvent>,
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
@@ -490,6 +493,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             spawner,
             phantom: Default::default(),
             executed_until: 0,
+
+            wire_log: vec![],
         }
     }
 
@@ -503,6 +508,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             // end
             return Err(Error::SecurityClaim(msg));
         }
+
+        if let Some(msg) = PB::check_conformance(self) {
+            return Err(Error::SecurityClaim(msg));
+        }
+
         Ok(())
     }
 
@@ -653,6 +663,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
         res
     }
+
+    pub fn wire_log(&self) -> &[WireEvent] { &self.wire_log }
+    pub fn agents(&self) -> &[Agent<PB>] { &self.agents }
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash, Default)]
@@ -1284,7 +1297,7 @@ impl<PT: ProtocolTypes> Step<PT> {
     {
         match &self.action {
             Action::Input(input) => {
-                let exec = input.execute(self.agent, ctx);
+                let exec = input.execute(self.agent, step_number.clone(), ctx);
                 // NOTE force output after each InputAction step
                 let _ = (OutputAction {
                     phantom: Default::default(),
@@ -1377,6 +1390,12 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
         let res = agent.take_message_from_outbound(&mut flight);
 
         if let Some(opaque_flight) = flight {
+            ctx.wire_log.push(WireEvent {
+                agent: agent_name,
+                step: step.clone(),
+                direction: Direction::Outbound,
+                bytes: crate::codec::Codec::get_encoding(&opaque_flight),
+            });
             ctx.knowledge_store.add_raw_knowledge(
                 opaque_flight.clone(),
                 Some(step.clone()),
@@ -1443,7 +1462,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         }
     }
 
-    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB>(&self, agent_name: AgentName, step: StepNumber, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -1458,6 +1477,14 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         }
 
         let message = self.recipe.evaluate(ctx)?;
+
+        ctx.wire_log.push(WireEvent {
+            agent: agent_name,
+            step,
+            direction: Direction::Inbound,
+            bytes: message.clone(),
+        });
+
         let agent = ctx.find_agent_mut(agent_name)?;
 
         agent.add_to_inbound(&message);
@@ -1673,4 +1700,19 @@ mod tests {
         assert_eq!(action5.precomputations[6].label, Some("d".into()));
         assert_eq!(action5.precomputations[7].label, Some("e".into()));
     }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Inbound,
+    Outbound,
+}
+
+#[derive(Debug, Clone)]
+pub struct WireEvent {
+    pub agent: AgentName,
+    pub step: StepNumber,
+    pub direction: Direction,
+    pub bytes: Vec<u8>,
 }

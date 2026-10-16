@@ -310,6 +310,14 @@ pub trait ProtocolBehavior: 'static {
         bitstring: &[u8],
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+
+
+    fn check_conformance(_ctx: &crate::trace::TraceContext<Self>) -> Option<&'static str> 
+    where 
+    Self: Sized, 
+    {
+        None
+    }
 }
 
 impl<T: ProtocolTypes> Extractable<T> for () {
