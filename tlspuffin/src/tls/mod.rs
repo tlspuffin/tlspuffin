@@ -319,6 +319,5 @@ define_signature!(
     //
     fn_new_transcript12_client_auth
     fn_rsa_sign_certificate_verify12 [opaque]
-    fn_rsa_pss_sign_from_mhash [opaque]
-    fn_32_zero_bytes
+    fn_rsa_sign_empty_transcript12 [opaque]
 );

@@ -158,14 +158,11 @@ pub fn fn_ecdsa_signature_algorithm() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::ECDSA_NISTP256_SHA256)
 }
 
-pub fn fn_32_zero_bytes() -> Result<Vec<u8>, FnError> {
-    Ok(vec![0u8; 32])
-}
-
-pub fn fn_rsa_pss_sign_from_mhash(
-    mhash: &Vec<u8>,
+pub fn fn_rsa_sign_empty_transcript12(
+    transcript: &HandshakeHash,
     private_key: &Vec<u8>,
-    _scheme: &SignatureScheme,
+    scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    sign::rsa_pss_sign_from_mhash(mhash, private_key)
+    let empty_transcript_hash = vec![0u8; 32];
+    sign::rsa_pss_sign_from_mhash(&empty_transcript_hash, private_key)
 }

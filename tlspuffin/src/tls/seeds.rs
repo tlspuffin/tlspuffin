@@ -396,8 +396,8 @@ pub fn seed_client_attacker12_certificate_verify_before_cke(
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_pss_sign_from_mhash(
-                    fn_32_zero_bytes,
+                (fn_rsa_sign_empty_transcript12(
+                    (@client_certificate_transcript),
                     fn_bob_key,
                     fn_rsa_pss_signature_algorithm
                 ))
