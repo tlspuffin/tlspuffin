@@ -96,6 +96,10 @@ struct State {
     sent_cert_req: bool,
     // ce que l'agent a reçu
     recv_ch: Option<ClientHelloPayload>,
+    /// un ClientHello a été reçu (type reconnu par peek), que son corps ait pu être
+    /// entièrement décodé ou non ; distinct de `recv_ch`, qui ne porte que le contenu
+    /// structuré, nécessaire aux contrôles de cohérence avec le ServerHello.
+    recv_ch_seen: bool,
     recv_shd: bool,
     recv_cert_req: bool,
     recv_cert: bool,
@@ -122,6 +126,7 @@ impl State {
             sent_fatal: false,
             sent_cert_req: false,
             recv_ch: None,
+            recv_ch_seen: false,
             recv_shd: false,
             recv_cert_req: false,
             recv_cert: false,
@@ -141,47 +146,62 @@ impl State {
             // Après CCS tout est chiffré : on suppose que le 1er handshake est Finished.
             ContentType::Handshake if self.recv_ccs => self.recv_finished = true,
             ContentType::Handshake => {
-                if let Ok(Message { payload: MessagePayload::Handshake(hs), .. }) =
-                    Message::try_from(rec)
-                {
-                    match hs.payload {
-                        HandshakePayload::ClientHello(ch) => self.recv_ch = Some(ch),
-                        HandshakePayload::ServerHello(sh)
-                            if sh.legacy_version == ProtocolVersion::TLSv1_2 =>
-                        {
-                            self.negotiated = Some(sh.legacy_version)
+                // Reconnaissance du type par le premier octet (HandshakeType), indépendante
+                // du succès du décodage complet du corps : un message dont le cadrage
+                // (longueurs des champs/listes) est valide mais dont une extension non
+                // utilisée est mal formée reste un message reconnaissable et conforme
+                // (RFC5246 §7.4.1.4 autorise à ignorer une telle extension), alors que notre
+                // décodeur strict (dérivé de rustls) échouerait sur l'ensemble du message et
+                // produirait un faux positif (ex. "ServerHello without ClientHello" alors
+                // qu'un ClientHello bien cadré, mais avec une extension ALPN corrompue, a
+                // bien été reçu et accepté par le PUT).
+                let peeked = rec.payload.0.first().map(|&b| HandshakeType::from(b));
+                let full = Message::try_from(rec).ok();
+                let hs_payload = full.as_ref().and_then(|m| match &m.payload {
+                    MessagePayload::Handshake(hs) => Some(&hs.payload),
+                    _ => None,
+                });
+
+                match peeked {
+                    Some(HandshakeType::ClientHello) => {
+                        self.recv_ch_seen = true;
+                        if let Some(HandshakePayload::ClientHello(ch)) = hs_payload {
+                            self.recv_ch = Some(ch.clone());
                         }
-                        HandshakePayload::CertificateRequest(_) => self.recv_cert_req = true,
-                        HandshakePayload::ServerHelloDone => self.recv_shd = true,
-                        // §7.4.6 : seulement après une CertificateRequest, avant le CKE
-                        HandshakePayload::Certificate(_) if self.role == AgentType::Server => {
-                            if !self.sent_cert_req || !self.sent_shd || self.recv_cke {
-                                self.peer_violation = true;
-                            }
-                            self.recv_cert = true;
-                        }
-                        // §7.4.7 : après ServerHelloDone, et après Certificate si demandé
-                        HandshakePayload::ClientKeyExchange(_)
-                            if self.role == AgentType::Server =>
-                        {
-                            if !self.sent_shd
-                                || (self.sent_cert_req && !self.recv_cert)
-                                || self.recv_cke
-                            {
-                                self.peer_violation = true;
-                            }
-                            self.recv_cke = true;
-                        }
-                        // §7.4.8 : MUST immediately follow the client key exchange message
-                        HandshakePayload::CertificateVerify(_)
-                            if self.role == AgentType::Server =>
-                        {
-                            if !self.recv_cke || !self.recv_cert {
-                                self.peer_violation = true;
-                            }
-                        }
-                        _ => {}
                     }
+                    Some(HandshakeType::ServerHello) => {
+                        if let Some(HandshakePayload::ServerHello(sh)) = hs_payload {
+                            if sh.legacy_version == ProtocolVersion::TLSv1_2 {
+                                self.negotiated = Some(sh.legacy_version);
+                            }
+                        }
+                    }
+                    Some(HandshakeType::CertificateRequest) => self.recv_cert_req = true,
+                    Some(HandshakeType::ServerHelloDone) => self.recv_shd = true,
+                    // §7.4.6 : seulement après une CertificateRequest, avant le CKE
+                    Some(HandshakeType::Certificate) if self.role == AgentType::Server => {
+                        if !self.sent_cert_req || !self.sent_shd || self.recv_cke {
+                            self.peer_violation = true;
+                        }
+                        self.recv_cert = true;
+                    }
+                    // §7.4.7 : après ServerHelloDone, et après Certificate si demandé
+                    Some(HandshakeType::ClientKeyExchange) if self.role == AgentType::Server => {
+                        if !self.sent_shd
+                            || (self.sent_cert_req && !self.recv_cert)
+                            || self.recv_cke
+                        {
+                            self.peer_violation = true;
+                        }
+                        self.recv_cke = true;
+                    }
+                    // §7.4.8 : MUST immediately follow the client key exchange message
+                    Some(HandshakeType::CertificateVerify) if self.role == AgentType::Server => {
+                        if !self.recv_cke || !self.recv_cert {
+                            self.peer_violation = true;
+                        }
+                    }
+                    _ => {}
                 }
             }
             ContentType::Alert if !self.recv_ccs => {
@@ -308,8 +328,15 @@ impl State {
 
     /// §7.4.1.3 / §7.4.1.4 : le ServerHello doit être cohérent avec le ClientHello reçu.
     fn check_server_hello(&self, sh: &ServerHelloPayload) -> Result<(), Violation> {
-        let Some(ch) = &self.recv_ch else {
+        if !self.recv_ch_seen {
             return Err("RFC5246 §7.4.1.3: ServerHello without ClientHello");
+        }
+        // Un ClientHello a bien été reçu (peek sur le HandshakeType), mais son corps n'a
+        // pas pu être entièrement décodé (ex. extension non utilisée mal formée, cf.
+        // RFC5246 §7.4.1.4 : le PUT a le droit de l'ignorer). On ne peut alors pas comparer
+        // le ServerHello à son contenu : ce n'est pas une violation, faute de donnée fiable.
+        let Some(ch) = &self.recv_ch else {
+            return Ok(());
         };
         if sh.legacy_version.get_u16() > ch.client_version.get_u16() {
             return Err("RFC5246 §7.4.1.3: server_version higher than client_version");
