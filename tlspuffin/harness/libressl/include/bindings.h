@@ -8,6 +8,14 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
+
+// LibreSSL 3.x only exposes its TLS 1.3 API (TLS1_3_VERSION, SSL_CTX_set_ciphersuites, ...)
+// when this macro is defined; it must be set before including <openssl/ssl.h> and after including
+// <openssl/opensslv.h>.
+#if defined(LIBRESSL_VERSION_NUMBER) && !defined(LIBRESSL_HAS_TLS1_3)
+#define LIBRESSL_HAS_TLS1_3
+#endif
+
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 
