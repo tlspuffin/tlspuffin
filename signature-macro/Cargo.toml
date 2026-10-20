@@ -1,0 +1,25 @@
+[package]
+name = "signature-macro"
+version = "0.0.1"
+authors = ["Tom Gouville"]
+edition = "2021"
+include = ["src/*.rs"]
+description = "This crate provides the #[signature] attribute macro, which applies the whole set of derives a protocol message type needs to take part in the term algebra"
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+proc-macro2 = { workspace = true }
+
+[dev-dependencies]
+puffin = { path = "../puffin" }
+constructor-macro = { path = "../constructor-macro" }
+extractable-macro = { path = "../extractable-macro" }
+comparable = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+linkme = { workspace = true }
+log = { workspace = true }

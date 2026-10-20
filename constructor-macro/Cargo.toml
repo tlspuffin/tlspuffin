@@ -1,0 +1,23 @@
+[package]
+name = "constructor-macro"
+version = "0.0.1"
+authors = ["Tom Gouville"]
+edition = "2021"
+include = ["src/*.rs"]
+description = "This crate provide the Constructor derive macro, that generates constructor function symbols for structs, enum and unions and adds them to the signature"
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+proc-macro2 = { workspace = true }
+
+[dev-dependencies]
+puffin = { path = "../puffin" }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+comparable = { workspace = true, features = ["derive"] }
+linkme = { workspace = true }

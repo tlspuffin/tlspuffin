@@ -4,6 +4,7 @@
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
+use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::signature::{FunctionDefinition, Signature};
 use crate::algebra::{DYTerm, Term, TermType};
 use crate::fuzzer::utils::Choosable;
@@ -28,6 +29,9 @@ pub const DEFAULT_MAX_DEPTH: u16 = 14;
 pub const DEFAULT_MAX_SIZE: usize = 64;
 /// See [`DEFAULT_MAX_DEPTH`].
 pub const DEFAULT_MAX_TRIES: usize = 140_000;
+
+/// How many elements a generated [`DYTerm::List`] may hold.
+const MAX_LIST_LENGTH: usize = 4;
 
 pub struct TermZoo<PB: ProtocolBehavior> {
     terms: Vec<Term<PB::ProtocolTypes>>,
@@ -96,6 +100,25 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
                     filter_evaluated,
                 );
             }
+            // A list is no function symbol, so it would otherwise never be a term of the zoo --
+            // and the mutations that draw a whole term from it could never build one.
+            let list_types: Vec<_> = signature
+                .list_types
+                .shapes()
+                .map(|(list, _)| list.clone())
+                .collect();
+            for typ in list_types {
+                Self::generate_lists_for(
+                    &mut acc,
+                    ctx,
+                    signature,
+                    rand,
+                    &typ,
+                    how_many,
+                    max_depth,
+                    filter_evaluated,
+                );
+            }
         }
 
         Self { terms: acc }
@@ -131,6 +154,98 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
                 }
             }
         }
+    }
+
+    /// Appends up to `how_many` list terms of type `typ` to `acc`, the list counterpart of
+    /// [`Self::generate_for`].
+    #[allow(clippy::too_many_arguments)]
+    fn generate_lists_for<R: Rand>(
+        acc: &mut Vec<Term<PB::ProtocolTypes>>,
+        ctx: &TraceContext<PB>,
+        signature: &Signature<PB::ProtocolTypes>,
+        rand: &mut R,
+        typ: &TypeShape<PB::ProtocolTypes>,
+        how_many: usize,
+        max_depth: u16,
+        filter_evaluated: bool,
+    ) {
+        let mut counter = PB::ZOO_MAX_TRIES;
+        let mut many = 0;
+
+        while counter > 0 && many < how_many {
+            counter -= 1;
+
+            if let Some(term) =
+                Self::generate_list(signature, typ, max_depth, PB::ZOO_MAX_SIZE, rand)
+            {
+                if !filter_evaluated || term.evaluate(ctx).is_ok() {
+                    many += 1;
+                    counter = PB::ZOO_MAX_TRIES;
+                    acc.push(term);
+                }
+            }
+        }
+    }
+
+    /// Builds a random closed term of the given type, within both budgets: either a
+    /// [`DYTerm::List`] when the type is a list type, or a term rooted at a symbol returning it.
+    ///
+    /// A list counts as one alternative among the symbols returning the type, so it is certain
+    /// for a type only a list can build (`Vec<Extension>`) and rare for one many symbols return
+    /// (`Vec<u8>`, which 25 symbols produce as a bitstring and no symbol produces element-wise).
+    fn generate_of_type<R: Rand>(
+        signature: &Signature<PB::ProtocolTypes>,
+        typ: &TypeShape<PB::ProtocolTypes>,
+        depth: u16,
+        max_size: usize,
+        rand: &mut R,
+    ) -> Option<Term<PB::ProtocolTypes>> {
+        if signature.is_list_type(typ) {
+            let symbols = signature
+                .functions_by_typ
+                .get(typ)
+                .map_or(0, |functions| functions.len());
+            if rand.below_or_zero(symbols + 1) == 0 {
+                return Self::generate_list(signature, typ, depth, max_size, rand);
+            }
+        }
+
+        match signature.choose_function_within(typ, depth, max_size, rand) {
+            Some(definition) => Self::generate_term(signature, definition, depth, max_size, rand),
+            // No symbol returns that type at this budget, but a list of it is always buildable.
+            None if signature.is_list_type(typ) => {
+                Self::generate_list(signature, typ, depth, max_size, rand)
+            }
+            None => None,
+        }
+    }
+
+    /// Builds a random closed [`DYTerm::List`] of the given type, of up to [`MAX_LIST_LENGTH`]
+    /// elements, stopping early when the budgets no longer allow one more element.
+    fn generate_list<R: Rand>(
+        signature: &Signature<PB::ProtocolTypes>,
+        typ: &TypeShape<PB::ProtocolTypes>,
+        depth: u16,
+        max_size: usize,
+        rand: &mut R,
+    ) -> Option<Term<PB::ProtocolTypes>> {
+        let element_type = signature.list_element_type(typ)?.clone();
+        let budget = depth.saturating_sub(1);
+        let mut size_left = max_size.checked_sub(1)?; // this node
+        let how_many = rand.below_or_zero(MAX_LIST_LENGTH + 1);
+
+        let mut elements = Vec::with_capacity(how_many);
+        for _ in 0..how_many {
+            let Some(element) =
+                Self::generate_of_type(signature, &element_type, budget, size_left, rand)
+            else {
+                break;
+            };
+            size_left -= element.size();
+            elements.push(element);
+        }
+
+        Some(Term::from(DYTerm::List(typ.clone(), elements)))
     }
 
     /// Builds a random closed term rooted at the given symbol, using at most `depth` levels and
@@ -183,10 +298,7 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
             // Restricting the choice rather than recursing and failing keeps an attempt alive
             // instead of throwing away the whole term (and with it one of the `PB::ZOO_MAX_TRIES`
             // attempts); with a depth budget of 1 it leaves exactly the constants.
-            let possibility =
-                signature.choose_function_within(typ, budget, child_max_size, rand)?;
-            let subterm =
-                Self::generate_term(signature, possibility, budget, child_max_size, rand)?;
+            let subterm = Self::generate_of_type(signature, typ, budget, child_max_size, rand)?;
 
             size_left -= subterm.size();
             subterms.push(subterm);

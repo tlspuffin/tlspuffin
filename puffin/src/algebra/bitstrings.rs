@@ -1,15 +1,19 @@
+use std::any::TypeId;
 use std::fmt::Display;
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
+use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
 use crate::error::Error;
 use crate::error::Error::TermBug;
+use crate::fuzzer::stats_stage::{
+    DECONSTRUCTOR_EVAL, DECONSTRUCTOR_EVAL_FAIL, VARIABLE_EVAL, VARIABLE_EVAL_FAIL,
+};
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
-use crate::trace::{Source, TraceContext};
+use crate::trace::{Knowledge, Source, TraceContext};
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -196,7 +200,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // Getting child information
         let parent_tp = term.get_type_shape();
         let parent_is_get = term.is_get();
-        let parent_is_list = term.is_list();
+        // Only the cons-shaped `[list]` symbols: a flat `DYTerm::List` encodes its elements back
+        // to back, which the generic search below already positions exactly.
+        let parent_is_list = matches!(&term.term, DYTerm::Application(func, _) if func.is_list());
         let nb_children = eval_tree.args.len();
         let child_arg_number = path_to_search[0];
         log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg_number}");
@@ -403,21 +409,32 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 }
             }
         } else {
-            // right_sibling could not be found --> warning
-            #[cfg(any(debug_assertions, feature = "debug"))]
-            {
-                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
-                return if parent_is_get {
-                    // This case is to be expected: we are looking for a child encoding that might
-                    // just not been present in the encoding because the
-                    // function symbol is a `get` symbol. No relevant payload
-                    // replacement is possible --> We returns a simple error in that
-                    // case.
-                    Err(Error::Term(format!("{ft}")))
-                } else {
-                    Err(Error::TermBug(format!("{ft}")))
-                };
-            }
+            // The right siblings' encodings do not appear as one contiguous run in the parent, so
+            // this heuristic cannot say which of `all_matches` is the child.
+            //
+            // This is a limitation of the search, not a malformed term, so it is a recoverable
+            // `Error::Term` for every parent -- not just `get` symbols. The concatenation above
+            // assumes a parent encodes exactly its children back to back, and a parent is free to
+            // emit bytes of its own in between. `OpaqueMessage` does, writing a `u16` payload
+            // length between `version` and `payload`:
+            //
+            //     typ.encode()                       -> 20
+            //     version.encode()                   -> fe ff
+            //     (payload.0.len() as u16).encode()  -> 01 9c   <-- owned by no child
+            //     payload.encode()                   -> 30 82 01 98 ..
+            //
+            // so looking for `fe ff ++ 30 82 ..` contiguously never matches. Raising `TermBug`
+            // here made that a panic, which took down every `term_zoo` payload test that happened
+            // to build such a term -- and since the trigger is a *subterm*, it reached any symbol
+            // able to contain an `OpaqueMessage`, not merely the ones constructing it.
+            //
+            // Note this branch used to be compiled out unless `debug_assertions` (or the `debug`
+            // feature) was on, so release builds fell through and returned a *wrong* `start_pos`
+            // instead of failing -- silently writing payloads at the wrong offset. It now reports
+            // the failure in every profile; the caller's business is to skip that payload.
+            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
+            log::debug!("{ft}");
+            return Err(Error::Term(ft));
         }
     }
 
@@ -479,9 +496,13 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             false
         } else {
             let path_parent = &path_payload[0..path_payload.len() - 1];
-            term.get(path_parent)
-                .expect("[replace_payload] Should never happen")
-                .is_list()
+            matches!(
+                &term
+                    .get(path_parent)
+                    .expect("[replace_payload] Should never happen")
+                    .term,
+                DYTerm::Application(func, _) if func.is_list()
+            )
         };
         let (pos_start, encountered_get_symbol) =
             find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
@@ -550,6 +571,94 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 }
 
 impl<PT: ProtocolTypes> Term<PT> {
+    /// Evaluates the sub-terms of an [`DYTerm::Application`] or a [`DYTerm::List`], returning
+    /// their values, the payload contexts collected along the way and their eval trees.
+    fn eval_args<'a, PB>(
+        &'a self,
+        args: &'a [Term<PT>],
+        eval_tree: &EvalTree,
+        ctx: &TraceContext<PB>,
+        with_payloads: bool,
+    ) -> Result<
+        (
+            Vec<Box<dyn EvaluatedTerm<PT>>>,
+            Vec<PayloadContext<'a, PT>>,
+            Vec<EvalTree>,
+        ),
+        Error,
+    >
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
+        let mut all_payloads = vec![];
+        let mut eval_tree_args = vec![];
+        let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
+        for (i, ti) in args.iter().enumerate() {
+            log::trace!(
+                "  + Treating argument # {i} from path {:?}...",
+                eval_tree.path
+            );
+            if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
+                // Fully evaluate this sub-term and consume the payloads
+                log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
+                let typei = ti.get_type_shape();
+                let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
+                let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
+                    .map_err(|e| {
+                        if !ti.is_symbolic() {
+                            log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
+                        } else {
+                            log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
+                        }
+                        e
+                    })?; // This may fail for good or bad reasons, we don't distinguish for now
+                         // We must make sure that we read correctly and avoided cases where read and
+                         // encode are not inverse of each other.
+                         // Otherwise, later payload replacements will fail.
+                if &di.get_encoding()[..] != &bi[..] {
+                    return Err(Error::Term(format!(
+                        "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
+                        - bi (first eval)  : {bi:?}\n\
+                        - read.encode:     : {:?}",
+                        ti.is_symbolic(),
+                        typei,
+                        di.get_encoding(),
+                    )));
+                }
+
+                dynamic_args.push(di); // no need to add payloads to all_p as they were
+                                       // consumed (opaque function symbol)
+            } else {
+                let mut path_i = eval_tree.path.clone();
+                path_i.push(i); // adding `i` for i-th argument
+                let mut eval_tree_i = if with_payloads {
+                    EvalTree::with_path(path_i.clone())
+                } else {
+                    EvalTree::with_path(vec![]) // dummy eval_tree
+                };
+                let (di, mut p_s) = ti.eval_until_opaque(
+                    &mut eval_tree_i,
+                    ctx,
+                    with_payloads,
+                    self_has_payloads_wo_root,
+                    &ti.get_type_shape(),
+                )?;
+                dynamic_args.push(di); // add the evaluation (Boc<dyn Any>) to the list of arguments
+                if with_payloads {
+                    eval_tree_args.push(eval_tree_i);
+                    all_payloads.append(p_s.as_mut()); // collect the payloads
+                }
+                log::trace!(
+                    "  + Ending treating argument # {i} from path {:?}...",
+                    eval_tree.path
+                );
+            }
+        }
+
+        Ok((dynamic_args, all_payloads, eval_tree_args))
+    }
+
     /// Evaluate a term without replacing the payloads (returning the payloads with the
     /// corresponding paths instead, i.e., a `Vec<PayloadContext>` accumulator), except when
     /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
@@ -641,20 +750,34 @@ impl<PT: ProtocolTypes> Term<PT> {
 
         match &self.term {
             DYTerm::Variable(variable) => {
-                let d = ctx
-                    .find_variable(variable.typ.clone(), &variable.query)
-                    .map(|data| data.boxed())
-                    .or_else(|| {
-                        if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                            ctx.find_claim(*agent_name, variable.typ.clone())
-                        } else {
-                            // Claims doesn't have precomputations as source
-                            None
-                        }
-                    })
+                VARIABLE_EVAL.increment();
+                let d = if variable.query.is_claim {
+                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                        ctx.find_claim(*agent_name, variable.typ.clone())
+                    } else {
+                        None
+                    }
                     .ok_or_else(|| {
-                        Error::Term(format!("--> Unable to find variable {variable}!"))
-                    })?;
+                        VARIABLE_EVAL_FAIL.increment();
+                        Error::Term(format!("--> Unable to find claim {variable}!"))
+                    })?
+                } else {
+                    ctx.find_variable(variable.typ.clone(), &variable.query)
+                        .map(|data| data.boxed())
+                        .or_else(|| {
+                            if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                                ctx.find_claim(*agent_name, variable.typ.clone())
+                            } else {
+                                // Claims doesn't have precomputations as source
+                                None
+                            }
+                        })
+                        .ok_or_else(|| {
+                            VARIABLE_EVAL_FAIL.increment();
+                            Error::Term(format!("--> Unable to find variable {variable}!"))
+                        })?
+                };
+
                 if with_payloads {
                     // TODO: we might want to relax this a bit and only do this for nodes that are
                     // in the paths towards a payload or a right sibling of such a node. Not sure
@@ -682,73 +805,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                     "[eval_until_opaque] [App]: Application from path={:?}",
                     eval_tree.path
                 );
-                let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
-                                                                                    // implementation
-                let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
-                                               // function symbols)
-                let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
-                let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
-                for (i, ti) in args.iter().enumerate() {
-                    log::trace!(
-                        "  + Treating argument # {i} from path {:?}...",
-                        eval_tree.path
-                    );
-                    if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
-                        // Fully evaluate this sub-term and consume the payloads
-                        log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
-                        let typei = ti.get_type_shape();
-                        let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
-                        let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
-                            .map_err(|e| {
-                                if !ti.is_symbolic() {
-                                    log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
-                                } else {
-                                    log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
-                                }
-                                e
-                            })?; // This may fail for good or bad reasons, we don't distinguish for now
-                                 // We must make sure that we read correctly and avoided cases where read and
-                                 // encode are not inverse of each other.
-                                 // Otherwise, later payload replacements will fail.
-                        if &di.get_encoding()[..] != &bi[..] {
-                            return Err(Error::Term(format!(
-                                "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
-                                - bi (first eval)  : {bi:?}\n\
-                                - read.encode:     : {:?}",
-                                ti.is_symbolic(),
-                                typei,
-                                di.get_encoding(),
-                            )));
-                        }
-
-                        dynamic_args.push(di); // no need to add payloads to all_p as they were
-                                               // consumed (opaque function symbol)
-                    } else {
-                        let mut path_i = eval_tree.path.clone();
-                        path_i.push(i); // adding `i` for i-th argument
-                        let mut eval_tree_i = if with_payloads {
-                            EvalTree::with_path(path_i.clone())
-                        } else {
-                            EvalTree::with_path(vec![]) // dummy eval_tree
-                        };
-                        let (di, mut p_s) = ti.eval_until_opaque(
-                            &mut eval_tree_i,
-                            ctx,
-                            with_payloads,
-                            self_has_payloads_wo_root,
-                            &ti.get_type_shape(),
-                        )?;
-                        dynamic_args.push(di); // add the evaluation (Boc<dyn Any>) to the list of arguments
-                        if with_payloads {
-                            eval_tree_args.push(eval_tree_i);
-                            all_payloads.append(p_s.as_mut()); // collect the payloads
-                        }
-                        log::trace!(
-                            "  + Ending treating argument # {i} from path {:?}...",
-                            eval_tree.path
-                        );
-                    }
-                }
+                let (dynamic_args, mut all_payloads, eval_tree_args) =
+                    self.eval_args(args, eval_tree, ctx, with_payloads)?;
                 log::trace!("[eval_until_opaque] Now calling the function symbol {} implementation and then updating payloads...", func.name());
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Box<dyn EvaluatedTerm<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
@@ -794,6 +852,140 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
 
                 Ok((result, all_payloads))
+            }
+            DYTerm::List(typ, elements) => {
+                log::trace!(
+                    "[eval_until_opaque] [List]: List of {} from path={:?}",
+                    typ.name,
+                    eval_tree.path
+                );
+                let (values, mut all_payloads, eval_tree_args) =
+                    self.eval_args(elements, eval_tree, ctx, with_payloads)?;
+                let result: Box<dyn EvaluatedTerm<PT>> =
+                    PT::signature().build_list(typ, &values)?;
+
+                if with_payloads && self.payloads.is_some() {
+                    all_payloads.push(PayloadContext {
+                        of_term: self,
+                        payloads: self.payloads.as_ref().unwrap(),
+                        path: eval_tree.path.clone(),
+                    });
+                }
+
+                if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
+                    eval_tree.args = eval_tree_args;
+                    eval_tree.encode = Some(PB::any_get_encoding(result.as_ref()));
+                }
+
+                Ok((result, all_payloads))
+            }
+            DYTerm::Deconstructor(target_type, inner, query) => {
+                // Count every deconstructor evaluation; the matching `DECONSTRUCTOR_EVAL_FAIL`
+                // below is incremented only on the deconstructor's own failure mode (no matching
+                // sub-value), so `fail / eval` is the symbol's extraction-failure rate.
+                DECONSTRUCTOR_EVAL.increment();
+                log::trace!(
+                    "[eval_until_opaque] [Deconstructor]: from path={:?} with query {}",
+                    eval_tree.path,
+                    query
+                );
+                // A `Deconstructor` is the symmetric operation of a constructor `Application`: it
+                // first builds a concretized term by evaluating its inner (source) term, then uses
+                // `query` to extract, out of the knowledge reachable from that concretized term, a
+                // sub-value whose type matches `target_type` (the deconstructor's result type).
+                let target_type_id: TypeId = target_type.clone().into();
+                let local_source = Source::Label(None);
+
+                // A deconstructor is opaque w.r.t. its source, so a payload-bearing source is
+                // treated as an opaque symbol's argument is above: evaluated down to bytes so the
+                // payloads apply, then read back. Symbolic evaluation would silently discard them.
+                let source: Box<dyn EvaluatedTerm<PT>> = if with_payloads
+                    && inner.has_payload_to_replace()
+                {
+                    let inner_type = inner.get_type_shape();
+                    // Not `evaluate`: it defers to `ctx.config_trace.with_bit_level`, which can be
+                    // false even here. `_wrap` keeps the error counters consistent.
+                    let bytes = inner.evaluate_config_wrap(ctx, true)?.0; // payloads consumed here
+                    let read = PB::try_read_bytes(&bytes, inner_type.clone().into()).map_err(|e| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to read back the mutated source of type {inner_type}: {e}"
+                        ))
+                    })?;
+                    // As in the opaque-argument path: if read and encode disagree, the value we
+                    // extract from is not the one on the wire.
+                    if read.get_encoding()[..] != bytes[..] {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        return Err(Error::Term(format!(
+                            "--> [Deconstructor] Failed consistency check for read.encode of the source of type {inner_type}:\n\
+                            - evaluated  : {bytes:?}\n\
+                            - read.encode: {:?}",
+                            read.get_encoding(),
+                        )));
+                    }
+                    read
+                } else {
+                    let mut inner_eval_tree = EvalTree::with_path(vec![]);
+                    inner
+                        .eval_until_opaque(
+                            &mut inner_eval_tree,
+                            ctx,
+                            false,
+                            false,
+                            &inner.get_type_shape(),
+                        )?
+                        .0
+                };
+
+                // Gather all the knowledge reachable from the concretized term.
+                let mut knowledges: Vec<Knowledge<PT>> = vec![];
+                source.extract_knowledge(&mut knowledges, None, &local_source)?;
+
+                // Keep only the knowledge of the target type whose matcher matches the query, and
+                // pick the `query.counter`-th most specific one (same selection strategy as
+                // `TraceContext::find_variable`).
+                let mut possibilities: Vec<&Knowledge<PT>> = knowledges
+                    .iter()
+                    .filter(|knowledge| {
+                        knowledge.data.type_id() == target_type_id
+                            && knowledge.matcher.matches(&query.matcher)
+                    })
+                    .collect();
+                possibilities.sort_by_key(|knowledge| knowledge.specificity());
+
+                let result = possibilities
+                    .get(query.counter as usize)
+                    .map(|knowledge| knowledge.data.boxed())
+                    .ok_or_else(|| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to find a value of type {} matching query {} in the concretized term:\n{}",
+                            remove_prefix(target_type.name),
+                            query,
+                            self
+                        ))
+                    })?;
+
+                if with_payloads {
+                    let eval = PB::any_get_encoding(result.as_ref());
+                    eval_tree.encode = Some(eval);
+
+                    // As for a variable: the node's own payload has to be handed up. The fast path
+                    // at the top only catches it when the source holds no variable. The source's
+                    // own payloads were consumed above, so they are not propagated.
+                    if let Some(payloads) = &self.payloads {
+                        return Ok((
+                            result,
+                            vec![PayloadContext {
+                                of_term: self,
+                                payloads,
+                                path: eval_tree.path.clone(),
+                            }],
+                        ));
+                    }
+                }
+
+                Ok((result, vec![]))
             }
         }
     }

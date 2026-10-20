@@ -127,8 +127,11 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     ReplaceReuseMutator<S>,
     ReplaceMatchMutator<S, PT>,
     RemoveAndLiftMutator<S>,
+    MakeDeconstructorMutator<S>,
+    MakeKnowledgeQueryMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
+    ListMutator<'harness, S, PB>,
     MakeMessage<'harness, PB>,
     ReadMessage<'harness, PB>,
     BitFlipMutatorDY<S, PT>,
@@ -312,8 +315,8 @@ where
             // (might have an impact later). TODO: balance out this trade-off
             must_payload_in_subterm: no_more_new_payloads, /* change to true when there are too
                                                             * many payloads already */
-            not_inside_list: true, /* true means we are not picking terms inside list (like
-                                    * fn_append in the middle) */
+            not_inside_list: true, /* true means we are not picking list terms, whose encoding
+                                    * is the concatenation of their elements */
             // we set it to true since it would otherwise be redundant with picking each of the item
             // as mutated term
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
@@ -484,7 +487,8 @@ fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
         t, t.get_type_shape(), t.term.type_id()
     );
     // Evaluate the term and try to read it into the term type
-    let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less costly than trace execution)
+    let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less
+                                 // costly than trace execution)
     let read_term = PB::try_read_bytes(&eval, t.get_type_shape().clone().into())?; // skip if try_read fails
 
     // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
@@ -526,8 +530,8 @@ where
         let mut constraints_read_message = TermConstraints {
             no_payload_in_subterm: false, /* change to true to exclude picking a term with a
                                            * payload in a sub-term */
-            not_inside_list: true, /* true means we are not picking terms inside list (like
-                                    * fn_append in the middle) */
+            not_inside_list: true, /* true means we are not picking list terms, whose encoding
+                                    * is the concatenation of their elements */
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             not_readable: true,
@@ -666,7 +670,8 @@ use paste::paste;
 use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
-    dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    dy_mutations, GenerateMutator, ListMutator, MakeDeconstructorMutator,
+    MakeKnowledgeQueryMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
     ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
 use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
