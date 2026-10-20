@@ -179,8 +179,10 @@
       "preset": "libressl333"
     },
     "cargo": {
-      "name": "libressl333",
-      "features": []
+      "name": "",
+      "features": [
+        "cputs"
+      ]
     }
   },
   {
