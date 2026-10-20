@@ -24,6 +24,10 @@
 #define thread_local _Thread_local
 #endif
 
+#if LIBWOLFSSL_VERSION_HEX < 0x04004000
+#error "wolfssl < 4.4.0 is not supported by this harness"
+#endif
+
 #if LIBWOLFSSL_VERSION_HEX >= 0x05005001
 #define TYPETIME sword64
 #else
@@ -89,14 +93,16 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
         return CLAIM_KEY_TYPE_UNKNOWN;
     case ED25519k:
         return CLAIM_KEY_TYPE_ED25519;
-    case X25519k:
-        return CLAIM_KEY_TYPE_X25519;
-    case ED448k:
-        return CLAIM_KEY_TYPE_ED448;
-    case X448k:
-        return CLAIM_KEY_TYPE_X448;
     case DHk:
         return CLAIM_KEY_TYPE_DH;
+    case ED448k:
+        return CLAIM_KEY_TYPE_ED448;
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+    case X25519k:
+        return CLAIM_KEY_TYPE_X25519;
+    case X448k:
+        return CLAIM_KEY_TYPE_X448;
+#endif
 #if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     case FALCON_LEVEL1k:
         return CLAIM_KEY_TYPE_UNKNOWN;
@@ -791,8 +797,10 @@ char const *map_state_statestr(enum states state)
         return "SERVER_ENCRYPTED_EXTENSIONS_COMPLETE";
     case SERVER_CERT_COMPLETE:
         return "SERVER_CERT_COMPLETE";
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     case SERVER_CERT_VERIFY_COMPLETE:
         return "SERVER_CERT_VERIFY_COMPLETE";
+#endif
     case SERVER_KEYEXCHANGE_COMPLETE:
         return "SERVER_KEYEXCHANGE_COMPLETE";
     case SERVER_HELLODONE_COMPLETE:
@@ -863,6 +871,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     else
     {
         wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
         agent->descriptor.name = new_name;
         agent = make_agent(agent, &(agent->descriptor));
         if (agent == NULL)
@@ -987,6 +996,9 @@ static void wolfssl_destroy(AGENT agent)
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
     }
+#ifdef USE_CUSTOM_PRNG
+    wc_CryptoCb_UnRegisterDevice(1);
+#endif
     if (agent->ctx != NULL)
     {
         wolfSSL_CTX_free(agent->ctx);
@@ -1168,6 +1180,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         goto ERROR__wolfssl_create_agent;
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* stubs returning failure before; per-SSL callback is set in make_agent */
     int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
     if (int_retval != WOLFSSL_SUCCESS)
     {
@@ -1180,6 +1193,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         strncpy(error_msg, "wolfSSL_CTX_set_msg_callback_arg failed", 128);
         goto ERROR__wolfssl_create_agent;
     }
+#endif
 
 #ifdef USE_CUSTOM_PRNG
     // Register a device to provide seed (for determinism)
@@ -1289,7 +1303,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 
     if (is_server || descriptor->client_authentication)
     {
-#if 1
+#if WOLFSSL_VERSION_HEX >= 0x05000000
         // Mimic rust harness
         WOLFSSL_X509 *x509 = NULL;
         WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
@@ -1338,6 +1352,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         }
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     if (is_server)
     {
         int_retval = wolfSSL_CTX_set_num_tickets(agent->ctx, 2);
@@ -1347,6 +1362,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             goto ERROR__wolfssl_create_agent;
         }
     }
+#endif
 
     agent = make_agent(agent, descriptor);
     if (agent == NULL)

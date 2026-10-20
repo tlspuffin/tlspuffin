@@ -52,6 +52,7 @@ fn main() {
         .collect();
 
     let bundle = harness::bundle(puts).build(out_dir);
+    println!("cargo:rustc-link-arg=-no-pie");
     bundle.print_cargo_metadata();
 
     // Compile the deterministic RNG shim for OpenSSL bindings (but NOT LibreSSL,
@@ -104,8 +105,23 @@ fn harness(library: &library::Library) -> Option<Put> {
             return None;
         }
 
+        if library.metadata().vendor == "wolfssl" && version_lt(&library.metadata().version, (4, 4, 0)) {
+            return None;
+        }
+
         harness::Kind::C
     };
 
     Harness::harness_for("tls", library.clone(), kind).map(|harness| harness.wrap(out_dir).unwrap())
+}
+
+fn version_lt(version: &str, min: (u32, u32, u32)) -> bool {
+    let core = version.split(['-', '+']).next().unwrap_or("");
+    let core = core.strip_prefix('v').unwrap_or(core);
+
+    let parts: Option<Vec<u32>> = core.split('.').map(|p| p.parse().ok()).collect();
+    match parts.as_deref() {
+        Some([x, y, z]) => (*x, *y, *z) < min,
+        _ => false,
+    }
 }
