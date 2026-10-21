@@ -5,8 +5,8 @@ use puffin::trace::Query;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::tls::rustls::msgs::enums::{CipherSuite, NamedGroup};
 
-#[cfg(not(feature = "wolfssl430"))]
-#[apply(test_puts, filter = all(tls13))]
+// wolfSSL 4.3.0 has no `wolfSSL_CTX_set1_groups_list`: the groups configuration has no effect
+#[apply(test_puts, filter = all(tls13, not(wolfssl430)))]
 fn test_group_selection_secp384r1(put: &str) {
     use tlspuffin::tls::seeds::seed_successful;
 
@@ -39,8 +39,8 @@ fn test_group_selection_secp384r1(put: &str) {
     }
 }
 
-#[cfg(not(feature = "wolfssl430"))]
-#[apply(test_puts,  filter = tls13)]
+// wolfSSL 4.3.0 would pass this test only because P-256 is its default group
+#[apply(test_puts, filter = all(tls13, not(wolfssl430)))]
 fn test_group_selection_secp256r1(put: &str) {
     use tlspuffin::tls::seeds::seed_successful;
 

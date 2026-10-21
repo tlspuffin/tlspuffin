@@ -578,9 +578,6 @@ pub fn seed_successful_with_tickets(
         }),
     });
 
-    // FIXME: don't rely on cargo feature to set the number of session tickets
-    // Ticket (wolfSSL 4.4.0 only sends a single ticket)
-    #[cfg(not(feature = "wolfssl430"))]
     trace.steps.push(Step {
         agent: client,
         action: Action::Input(input_action! { term! {
@@ -3047,8 +3044,7 @@ pub mod tests {
     /// Verify that cipher and sigalgs configuration actually takes effect.
     /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
     /// For openssl we only test versions 3.4.x as they are the only ones that have the right claims
-    /// added by our claims instrumentation. Wolfssl430 does not have a C harness
-    #[cfg(not(feature = "wolfssl430"))]
+    /// added by our claims instrumentation.
     #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340, openssl341), not(libressl))
     )]
     fn test_cipher_config_takes_effect(put: &str) {
@@ -3515,8 +3511,8 @@ pub mod tests {
     }
 
     /// Check if Messages sent at a failing step are captured
-    #[cfg(not(feature = "wolfssl430"))]
-    #[apply(test_puts, filter = all(tls13))]
+    // Not captured with wolfSSL 4.3.0 (cause not investigated)
+    #[apply(test_puts, filter = all(tls13, not(wolfssl430)))]
     fn test_trigger_alert(put: &str) {
         // sending an incorrect message
         let trace = Trace {

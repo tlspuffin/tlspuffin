@@ -37,7 +37,12 @@ set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
 set(require_define_xtime "$<AND:$<AND:${CPUT},${v500_or_later}>,${before_v520}>")
 
-set(require_user_ticks "$<AND:${CPUT},${v500_or_later}>")
+set(require_user_ticks "${CPUT}")
+
+# The RDSEED/RDRAND inline assembly does not mark its output as early-clobber: the compiler may
+# reuse the output register to address the status flag, which crashes the library when it is
+# built with ASAN. The constraint is fixed in every version that has it (present in 4.3.0 and 5.x).
+patch(PATTERN [===[s/"=r"\\((\\*\\w+)\\), "=qm"\\(ok\\)/"=&r"($1), "=qm"(ok)/]===] <SOURCE_DIR>/wolfcrypt/src/random.c)
 
 foreach(CVE IN LISTS fix)
   if(NOT HAS_${CVE})

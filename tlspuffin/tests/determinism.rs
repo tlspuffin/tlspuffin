@@ -9,9 +9,9 @@ use tlspuffin::test_utils::prelude::*;
 OpenSSL is currently excuded because:
   (i) we currently don't have a working RNG reseed for the OpenSSL CPUT (see Issue #393),
   (ii) we don't have a time hook at the moment for the OpenSSL CPUT.
+wolfSSL 4.3.0 is also excluded: its PRNG cannot be seeded (no crypto callbacks before 5.0.0).
 */
-#[cfg(not(feature = "wolfssl430"))]
-#[apply(test_puts, filter = not(openssl))]
+#[apply(test_puts, filter = all(not(openssl), not(wolfssl430)))]
 fn test_attacker_full_det_recreate(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
@@ -35,8 +35,7 @@ fn test_attacker_full_det_recreate(put: &str) {
 
 /// Check PUT determinism by checking that the first flight of the server
 /// (ServerHello + extensions) is the same
-#[cfg(not(feature = "wolfssl430"))]
-#[apply(test_puts, filter = all(tls13))]
+#[apply(test_puts, filter = all(tls13, not(wolfssl430)))]
 fn test_attacker_full_det_recreate_no_tickets(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
