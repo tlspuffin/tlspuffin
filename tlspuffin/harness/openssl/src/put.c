@@ -105,6 +105,16 @@ AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
          version_str[descriptor->tls_version],
          type_str[descriptor->role]);
 
+    // `Both` means "TLS 1.2 and 1.3 when available": libraries without TLS 1.3 negotiate 1.2 only.
+    // It allows for vendors that only support TLS 1.2 to be fuzzed by tls1.2 seeds that creates
+    // agent with Both
+    TLS_AGENT_DESCRIPTOR effective_descriptor = *descriptor;
+    if (effective_descriptor.tls_version == Both && TLS1_3_VERSION == TLS_UNSUPPORTED_VERSION)
+    {
+        effective_descriptor.tls_version = V1_2;
+        descriptor = &effective_descriptor;
+    }
+
     if ((descriptor->tls_version == V1_3 || descriptor->tls_version == Both) &&
         TLS1_3_VERSION == TLS_UNSUPPORTED_VERSION)
     {
@@ -318,6 +328,7 @@ static TLSVersion openssl_get_tls_version(SSL *ssl)
     return CLAIM_TLS_VERSION_UNDEFINED;
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
 {
     switch (version)
@@ -338,6 +349,39 @@ void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
         _log(PUFFIN.error, "unknown TLS version: %u", version);
     }
 }
+#endif
+
+// Settings that do not exist before OpenSSL 1.1.1 (1.0.2 for sigalgs): they are ignored on older
+// versions.
+static void openssl_set_ciphersuites(SSL_CTX *ssl_ctx, const char *ciphersuites)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    SSL_CTX_set_ciphersuites(ssl_ctx, ciphersuites);
+#else
+    (void)ssl_ctx;
+    (void)ciphersuites;
+#endif
+}
+
+static void openssl_set_groups_list(SSL_CTX *ssl_ctx, const char *groups)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    SSL_CTX_set1_groups_list(ssl_ctx, groups);
+#else
+    (void)ssl_ctx;
+    (void)groups;
+#endif
+}
+
+static void openssl_set_sigalgs_list(SSL_CTX *ssl_ctx, const char *sigalgs)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+    SSL_CTX_set1_sigalgs_list(ssl_ctx, sigalgs);
+#else
+    (void)ssl_ctx;
+    (void)sigalgs;
+#endif
+}
 
 AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
@@ -357,12 +401,12 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
     }
     else if (descriptor->tls_version == V1_3)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
@@ -372,12 +416,12 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
+        openssl_set_groups_list(ssl_ctx, descriptor->group_list);
     }
 
     if (descriptor->sigalgs_list != NULL)
     {
-        SSL_CTX_set1_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
+        openssl_set_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -441,12 +485,12 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
     }
     else if (descriptor->tls_version == V1_3)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
@@ -456,12 +500,12 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
+        openssl_set_groups_list(ssl_ctx, descriptor->group_list);
     }
 
     if (descriptor->sigalgs_list != NULL)
     {
-        SSL_CTX_set1_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
+        openssl_set_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -561,6 +605,7 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#ifdef SSL_ERROR_WANT_ASYNC
     case SSL_ERROR_WANT_ASYNC:
         error_type = strdup("SSL_ERROR_WANT_ASYNC");
         if (!allow_would_block)
@@ -568,6 +613,8 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#endif
+#ifdef SSL_ERROR_WANT_ASYNC_JOB
     case SSL_ERROR_WANT_ASYNC_JOB:
         error_type = strdup("SSL_ERROR_WANT_ASYNC_JOB");
         if (!allow_would_block)
@@ -575,9 +622,12 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#endif
+#ifdef SSL_ERROR_WANT_CLIENT_HELLO_CB
     case SSL_ERROR_WANT_CLIENT_HELLO_CB:
         error_type = strdup("SSL_ERROR_WANT_CLIENT_HELLO_CB");
         break;
+#endif
     case SSL_ERROR_SYSCALL:
         error_type = strdup("SSL_ERROR_SYSCALL");
         break;

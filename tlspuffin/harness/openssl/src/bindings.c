@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include <openssl/conf.h>
+
 void openssl_init()
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -71,7 +73,7 @@ char *get_error_reason()
 
 X509 *load_inmem_cert(const PEM *pem)
 {
-    BIO *cert_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    BIO *cert_bio = BIO_new_mem_buf((void *)pem->bytes, pem->length);
     if (cert_bio == NULL)
     {
         return NULL;
@@ -85,7 +87,7 @@ X509 *load_inmem_cert(const PEM *pem)
 
 EVP_PKEY *load_inmem_pkey(const PEM *pem)
 {
-    BIO *pkey_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    BIO *pkey_bio = BIO_new_mem_buf((void *)pem->bytes, pem->length);
     EVP_PKEY *pkey = PEM_read_bio_PrivateKey(pkey_bio, NULL, NULL, NULL);
     BIO_free(pkey_bio);
     return pkey;
