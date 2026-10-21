@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use crate::harness;
 use crate::harness::Harness;
 use crate::library::Library;
 use crate::utils::{clang, make_rust_identifier};
@@ -43,15 +42,10 @@ impl Put {
         self.objects.clone()
     }
 
-    pub fn rust_registration(&self) -> String {
-        let registration_macro = match self.harness.kind {
-            harness::Kind::Rust => "registration_rust",
-            harness::Kind::C => "registration_c",
-        };
-
+    pub fn registration(&self) -> String {
         format!(
             r###"
-            {registration_macro}!(
+            registration_c!(
                 {id},
                 r#"{name}"#,
                 r#"{harness_name} {harness_version}"#,
@@ -88,13 +82,6 @@ impl Put {
             "cargo:rerun-if-changed={}",
             self.library.path().join("..").display()
         );
-
-        if matches!(self.harness.kind, harness::Kind::Rust) {
-            println!("cargo:rustc-check-cfg=cfg(has_instr, values(\"sancov\", \"asan\", \"gcov\", \"llvm_cov\", \"claimer\"))");
-            for instrumentation_type in self.library.metadata().instrumentation.iter() {
-                println!("cargo:rustc-cfg=has_instr=\"{instrumentation_type}\"");
-            }
-        }
 
         for instrumentation_type in self.library.metadata().instrumentation.iter() {
             println!(
