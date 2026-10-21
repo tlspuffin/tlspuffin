@@ -506,21 +506,20 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "wolfSSL_get_current_cipher returned NULL");
     }
 
-    /* TLS 1.3: outbound CertificateVerify is sent as an encrypted application_data record
-     * (content_type=23), so the message callback does not expose it with content_type=22.
-     * Fall back to wolfssl internal fields which are reliable for TLS 1.3.
+    /* TLS 1.3: outbound CertificateVerify is encrypted, and the message callback receives the
+     * ciphertext of sent messages (see wolfssl_message_callback), so it cannot be read from the
+     * wire. Use the wolfssl internal fields, which are reliable for TLS 1.3.
      * TLS 1.2: those same internal fields are populated via the ServerKeyExchange path
      * even without a CertificateVerify, producing a spurious non-zero value; use only
-     * the wire-captured value to stay symmetric with peer_signature_algorithm. */
+     * the wire-captured value (the outbound CertificateVerify is sent in clear) to stay
+     * symmetric with peer_signature_algorithm. */
     if (strcmp(tls_version, "TLSv1.2") == 0)
     {
         claim->signature_algorithm = (int)agent->local_sig_wire_value;
     }
     else
     {
-        claim->signature_algorithm = agent->local_sig_wire_value
-                                         ? (int)agent->local_sig_wire_value
-                                         : wolfssl_get_sig_wire_value(agent->ssl);
+        claim->signature_algorithm = wolfssl_get_sig_wire_value(agent->ssl);
     }
     claim->peer_signature_algorithm = (int)agent->peer_sig_wire_value;
 
@@ -697,6 +696,18 @@ static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
 }
 #endif
 
+// Length of the body of a handshake message: [type(1)][len(3)][body]
+static size_t handshake_length(const uint8_t *msg)
+{
+    return ((size_t)msg[1] << 16) | ((size_t)msg[2] << 8) | msg[3];
+}
+
+// Check if handshake length matches size of buffer
+static int handshake_length_correct(const uint8_t *msg, size_t len)
+{
+    return len >= 4 && 4 + handshake_length(msg) == len;
+}
+
 static void wolfssl_message_callback(int write_p,
                                      int version,
                                      int content_type,
@@ -741,7 +752,15 @@ static void wolfssl_message_callback(int write_p,
         }
     }
 
-    if (write_p == 1) // packet being sent
+    // Sent messages: the callback gets the buffer as written to the wire, announced with
+    // content_type=22 whether it is encrypted or not.
+    //  - clear:     ClientHello, ServerHello, TLS 1.2 handshake up to the CCS (incl.
+    //  CertificateVerify)
+    //  - encrypted: TLS 1.3 handshake after ServerHello, TLS 1.2 Finished
+    // To be able to find CVEs we want to be able to send out of order messages. Therefore we cannot
+    // make verifications based on earlier messages like CCS. Instead we only accept a buffer whose
+    // handshake length field matches its size. It rarely does but it can happen.
+    if (write_p == 1 && handshake_length_correct((const uint8_t *)buf, len))
     {
         switch (type)
         {
