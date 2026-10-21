@@ -88,8 +88,6 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                         }
                     }
                     ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
-                        // WARNING: remove filter once RUST PUTS are removed
-                        #[cfg(not(feature = "openssl_binding"))]
                         return Some("Version undefined after handshake");
                     }
                 }
