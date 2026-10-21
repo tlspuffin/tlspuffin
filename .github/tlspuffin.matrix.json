@@ -39,9 +39,9 @@
       "preset": "openssl101f-asan"
     },
     "cargo": {
-      "name": "openssl101f",
+      "name": "",
       "features": [
-        "asan"
+        "cputs"
       ]
     }
   },
@@ -55,8 +55,10 @@
       "preset": "openssl102u"
     },
     "cargo": {
-      "name": "openssl102u",
-      "features": []
+      "name": "",
+      "features": [
+        "cputs"
+      ]
     }
   },
   {
