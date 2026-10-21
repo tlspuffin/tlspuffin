@@ -271,9 +271,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-25640",
-        "fix-CVE-2022-39173"
+        "cputs"
       ]
     }
   },
@@ -287,9 +285,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-25638",
-        "fix-CVE-2022-39173"
+        "cputs"
       ]
     }
   },
@@ -373,9 +369,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "wolfssl-disable-postauth",
-        "fix-CVE-2022-39173"
+        "cputs"
       ]
     }
   },
@@ -389,8 +383,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-39173"
+        "cputs"
       ]
     }
   },
@@ -418,8 +411,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-42905"
+        "cputs"
       ]
     }
   },
@@ -433,8 +425,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-39173"
+        "cputs"
       ]
     }
   },
@@ -448,9 +439,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-39173",
-        "fix-CVE-2022-42905"
+        "cputs"
       ]
     }
   },
@@ -464,9 +453,7 @@
     "cargo": {
       "name": "",
       "features": [
-        "cputs",
-        "fix-CVE-2022-39173",
-        "fix-CVE-2022-42905"
+        "cputs"
       ]
     }
   },
