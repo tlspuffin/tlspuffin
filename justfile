@@ -61,16 +61,6 @@ install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN
 check-workspace: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   cargo clippy
 
-# run clippy on a vendored crate (e.g. libressl-src)
-check-crate NAME FEATURES: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
-  #!/usr/bin/env bash
-  cleanup() {
-    find {{ justfile_directory() / "crates" }} -name Cargo.lock -exec rm -f '{}' +
-  }
-  trap cleanup EXIT
-
-  cp Cargo.lock crates/{{ NAME }} && cd crates/{{ NAME }} && cargo clippy --features={{ FEATURES }}
-
 check PROJECT ARCH FEATURES CARGO_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 

@@ -13,15 +13,7 @@ members = [
 ]
 
 exclude = [
-    "crates/openssl-src-111",
-    "crates/libressl-src",
-    "crates/wolfssl",
-    "crates/wolfssl-sys",
-    "crates/wolfssl-src",
     "crates/libssh-sys",
-    "crates/boringssl-src",
-    "crates/boringssl-sys",
-    "crates/boring",
 ]
 
 
@@ -81,10 +73,6 @@ trybuild = "< 1.0.91"
 comparable = "0.5.7"
 
 [patch.crates-io]
-wolfssl-sys = { path = "crates/wolfssl-sys" }
-wolfssl-src = { path = "crates/wolfssl-src" }
-openssl-src = { path = "crates/openssl-src-111" }
-libressl-src = { path = "crates/libressl-src" }
 libssh-sys = { path = "crates/libssh-sys" }
 security-claims = { path = "tlspuffin-claims" }
 
