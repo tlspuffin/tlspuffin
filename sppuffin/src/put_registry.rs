@@ -14,6 +14,19 @@ use puffin::stream::MemoryStream;
 use crate::protocol::{SwissPUTConfig, SwissProtocolBehavior};
 use crate::swisspost::{JmsConfig, JmsProducer};
 
+fn check_postgres_connection() -> Result<(), PuffinError> {
+    let database_url = std::env::var("SPP_POSTGRES_URL").unwrap_or_else(|_| {
+        "host=127.0.0.1 port=5432 user=control_component password=control_component dbname=control_component"
+            .to_string()
+    });
+    let mut client = postgres::Client::connect(&database_url, postgres::NoTls)
+        .map_err(|e| PuffinError::Put(format!("failed to connect to PostgreSQL for reset: {e}")))?;
+    client
+        .query_one("SELECT 1", &[])
+        .map_err(|e| PuffinError::Put(format!("PostgreSQL reset query failed: {e}")))?;
+    Ok(())
+}
+
 // Minimal Rust factory and Put implementation to integrate with puffin's fuzzer.
 struct SppRustFactory;
 
@@ -115,8 +128,7 @@ impl Put<SwissProtocolBehavior> for SppPut {
     }
 
     fn reset(&mut self, _new_name: puffin::agent::AgentName) -> Result<(), PuffinError> {
-        // No-op
-        Ok(())
+        check_postgres_connection()
     }
 
     fn descriptor(&self) -> &AgentDescriptor<SwissPUTConfig> {
