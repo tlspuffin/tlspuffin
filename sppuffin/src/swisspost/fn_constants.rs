@@ -1,8 +1,8 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use puffin::algebra::error::FnError;
 use crate::protocol::SppU64;
+use puffin::algebra::error::FnError;
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
