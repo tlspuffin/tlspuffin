@@ -12,6 +12,7 @@ use puffin::put_registry::PutRegistry;
 use puffin::stream::MemoryStream;
 
 use crate::protocol::{SwissPUTConfig, SwissProtocolBehavior};
+use crate::swisspost::{JmsConfig, JmsProducer};
 
 // Minimal Rust factory and Put implementation to integrate with puffin's fuzzer.
 struct SppRustFactory;
@@ -47,30 +48,28 @@ impl Factory<SwissProtocolBehavior> for SppRustFactory {
 struct SppPut {
     descriptor: AgentDescriptor<SwissPUTConfig>,
     stream: MemoryStream,
-    socket: Option<std::net::TcpStream>,
+    jms: Option<JmsProducer>,
 }
 
 impl SppPut {
     fn new(descriptor: AgentDescriptor<SwissPUTConfig>) -> Self {
-        // Try to connect to the Lua server on localhost:40138
-        let socket = std::net::TcpStream::connect("127.0.0.1:40138")
-            .ok()
-            .and_then(|s| {
-                s.set_read_timeout(Some(std::time::Duration::from_secs(5)))
-                    .ok();
-                s.set_write_timeout(Some(std::time::Duration::from_secs(5)))
-                    .ok();
-                Some(s)
-            });
-
-        if socket.is_none() {
-            eprintln!("Warning: Could not connect to Lua server at 127.0.0.1:40138");
-        }
+        let config = JmsConfig::from_env();
+        let jms = JmsProducer::connect(config.clone())
+            .map_err(|e| {
+                log::warn!(
+                    "Could not connect to JMS broker at {} destination {}: {}",
+                    config.broker_url,
+                    config.destination,
+                    e
+                );
+                e
+            })
+            .ok();
 
         Self {
             descriptor,
             stream: MemoryStream::new(),
-            socket,
+            jms,
         }
     }
 }
@@ -82,10 +81,10 @@ impl Stream<SwissProtocolBehavior> for SppPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         log::debug!("{:?}", message);
         // disambiguate the generic Stream impl
-        if let Some(ref mut sock) = self.socket {
-            if let Err(e) = sock.write_all(&message) {
-                log::error!("Error writing to socket: {}", e);
-                self.socket = None;
+        if let Some(jms) = self.jms.as_mut() {
+            if let Err(e) = jms.send_bytes(message) {
+                log::error!("Error sending JMS message: {}", e);
+                self.jms = None;
             }
         }
 
@@ -97,7 +96,9 @@ impl Stream<SwissProtocolBehavior> for SppPut {
 
     fn take_message_from_outbound(
         &mut self,
-        output_flight: &mut Option<<SwissProtocolBehavior as puffin::protocol::ProtocolBehavior>::OpaqueProtocolMessageFlight>,
+        _output_flight: &mut Option<
+            <SwissProtocolBehavior as puffin::protocol::ProtocolBehavior>::OpaqueProtocolMessageFlight,
+        >,
     ) -> Result<(), PuffinError> {
         // <MemoryStream as puffin::stream::Stream<SwissProtocolBehavior>>::take_message_from_outbound(
         //     &mut self.stream,
@@ -107,21 +108,9 @@ impl Stream<SwissProtocolBehavior> for SppPut {
     }
 }
 
-use std::io::Write;
-
 impl Put<SwissProtocolBehavior> for SppPut {
     fn progress(&mut self) -> Result<(), PuffinError> {
         log::debug!("PROGRESS");
-
-        // Send data to the Lua server if connected
-        if let Some(ref mut sock) = self.socket {
-            let msg = b"\n"; // \n flushes the tcp socket so it is proccessed
-            if let Err(e) = sock.write_all(msg) {
-                eprintln!("Error writing to socket: {}", e);
-                self.socket = None;
-            }
-        }
-
         Ok(())
     }
 
@@ -143,6 +132,9 @@ impl Put<SwissProtocolBehavior> for SppPut {
     }
 
     fn shutdown(&mut self) -> String {
+        if let Some(jms) = self.jms.take() {
+            jms.close();
+        }
         "sppuffin: shutdown".to_string()
     }
 
