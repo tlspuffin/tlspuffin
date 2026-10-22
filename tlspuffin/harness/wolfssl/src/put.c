@@ -953,7 +953,6 @@ static RESULT wolfssl_progress(AGENT agent)
     else
     {
         // not connected yet -> do handshake
-#if 1
         // int ret = wolfSSL_SSL_do_handshake(agent->ssl);
         int ret = WOLFSSL_FAILURE;
         WOLFSSL_TIMEVAL wi;
@@ -967,11 +966,6 @@ static RESULT wolfssl_progress(AGENT agent)
         {
             ret = wolfSSL_connect_ex(agent->ssl, NULL, MyTimeoutCallBack, wi);
         }
-
-#else
-        // Rust harness use it, but not working for now in C harness
-        int ret = wolfSSL_accept(agent->ssl);
-#endif
         if (ret == WOLFSSL_SUCCESS)
         {
             agent->handshake_done = true;
@@ -1338,7 +1332,6 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         // wolfSSL 4.x keeps the X509 given to wolfSSL_CTX_use_certificate in the context without
         // copying it: it must not be freed, so the certificate is loaded from its buffer instead.
 #if LIBWOLFSSL_VERSION_HEX >= 0x05000000
-        // Mimic rust harness
         WOLFSSL_X509 *x509 = NULL;
         WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
         if (bio == NULL)
