@@ -7,12 +7,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl111k"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -21,12 +15,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl111j"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -37,12 +25,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl101f-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -53,12 +35,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl102u"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -69,10 +45,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl312"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -83,10 +55,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl312-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -96,10 +64,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl320"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -109,10 +73,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl320-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -123,10 +83,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl340"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -137,10 +93,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl340-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -151,12 +103,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl341"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -167,12 +113,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl341-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -183,12 +123,6 @@
     "mk_vendor": {
       "vendor": "libressl",
       "preset": "libressl333"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -199,10 +133,6 @@
     "mk_vendor": {
       "vendor": "libressl",
       "preset": "libressl421"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -213,12 +143,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl430"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -227,12 +151,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl430-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -243,10 +161,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -255,12 +169,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510-sig"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -269,12 +177,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510-skip"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -283,10 +185,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl520"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -295,12 +193,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl520-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -311,10 +203,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -325,12 +213,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -341,10 +223,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -353,12 +231,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-sdos2"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -367,12 +239,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530-cdos"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -381,12 +247,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -395,12 +255,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-buf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -409,12 +263,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-heap"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -423,12 +271,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-asan-perf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -437,12 +279,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-perf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -453,12 +289,6 @@
     "mk_vendor": {
       "vendor": "boringssl",
       "preset": "boringssl20260508"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -467,12 +297,6 @@
     "mk_vendor": {
       "vendor": "boringssl",
       "preset": "boringssl20260508-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   }
 ]
