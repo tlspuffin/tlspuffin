@@ -18,16 +18,14 @@ pub fn seed_simple_three_terms() -> Trace<SwissProtocolTypes> {
             Step {
                 agent,
                 action: Action::Input(input_action! { term! {
-                    fn_immutable_byte_array_length(
-                       (fn_immutable_byte_array_concat(
+                       fn_immutable_byte_array_concat(
                                (fn_new_immutable_byte_array(
                                     fn_seq_2
                                )),
                                (fn_new_immutable_byte_array(
                                     fn_seq_7
                                ))
-                        ))
-                    )
+                        )
                     }
                 }),
             },
