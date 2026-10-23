@@ -178,6 +178,34 @@ pub fn fn_verify_data_server(
     Ok(vec)
 }
 
+// `fn_verify_data_server` but derives the handshake keys from a zero IKM of length `ikm_len`
+pub fn fn_verify_data_server_zero_ikm(
+    server_finished: &HandshakeHash,
+    server_hello: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
+    client_random: &Random,
+    suite: &CipherSuite,
+    ikm_len: &u64,
+) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+    let psk = psk
+        .as_ref()
+        .ok_or_else(|| FnError::Malformed("fn_verify_data_server_zero_ikm requires a PSK".into()))?;
+
+    let (_key, hs) = crate::tls::key_schedule::tls13_handshake_traffic_secret_zero_ikm(
+        server_hello,
+        psk,
+        false,
+        client_random,
+        &supported_suite,
+        *ikm_len as usize,
+    )?;
+
+    let tag = hs.sign_server_finish_raw(&server_finished.get_current_hash_raw());
+    let vec = Vec::from(tag.as_ref());
+    Ok(vec)
+}
+
 // ----
 // seed_client_attacker12()
 // ----

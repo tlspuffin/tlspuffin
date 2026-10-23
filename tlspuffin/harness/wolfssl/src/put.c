@@ -197,12 +197,12 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
 //   ed25519_sa_algo (9) : wire = 0x0807
 //   ed448_sa_algo  (11) : wire = 0x0808
 //   default (ECDSA=3, RSA-PKCS1=1): wire = (hashAlgo << 8) | sigAlgo
-// Field location changed between versions: Suites (< 5.8) → Options (>= 5.8).
+// Field location changed between versions: Suites (< 5.6) → Options (>= 5.6).
 static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
 {
     byte sigAlgo, hashAlgo;
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05008000 /* 5.8.0: fields moved from Suites to Options */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000 /* 5.6.0: fields moved from Suites to Options */
     sigAlgo = ssl->options.sigAlgo;
     hashAlgo = ssl->options.hashAlgo;
 #else
@@ -846,6 +846,11 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
                                   "fatal error wolfssl_reset called with agent == NULL");
     }
 
+    WOLFSSL_SESSION *session = NULL;
+    if (agent->descriptor.try_reuse) {
+        session = wolfSSL_get1_session(agent->ssl);
+    }
+
     wolfssl_register_claimer(agent, NULL);
     if (use_clear)
     {
@@ -863,6 +868,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     else
     {
         wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
         agent->descriptor.name = new_name;
         agent = make_agent(agent, &(agent->descriptor));
         if (agent == NULL)
@@ -870,6 +876,21 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
             _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
             return PUFFIN.make_result(RESULT_ERROR_OTHER,
                                       "fatal error in wolfssl_reset, make_agent returned NULL");
+        }
+    }
+
+    if (session != NULL)
+    {
+        int ret = wolfSSL_set_session(agent->ssl, session);
+        wolfSSL_SESSION_free(session);
+        if (ret != WOLFSSL_SUCCESS)
+        {
+            char *reason = get_result_information(agent->ssl, ret, NULL);
+            _log(PUFFIN.error, "fatal error in wolfssl_reset, wolfSSL_set_session returned error: %s", 
+                reason);
+            RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
+            free(reason);
+            return result;
         }
     }
 
@@ -987,6 +1008,9 @@ static void wolfssl_destroy(AGENT agent)
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
     }
+#ifdef USE_CUSTOM_PRNG
+    wc_CryptoCb_UnRegisterDevice(1);
+#endif
     if (agent->ctx != NULL)
     {
         wolfSSL_CTX_free(agent->ctx);
@@ -1197,11 +1221,38 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-    int_retval = wolfSSL_CTX_set_session_cache_mode(agent->ctx, SSL_SESS_CACHE_OFF);
+    int_retval = wolfSSL_CTX_set_session_cache_mode(agent->ctx, descriptor->try_reuse ? SSL_SESS_CACHE_BOTH : SSL_SESS_CACHE_OFF);
     if (int_retval != WOLFSSL_SUCCESS)
     {
         strncpy(error_msg, "wolfssl set session cache mode failed", 128);
         goto ERROR__wolfssl_create_agent;
+    }
+
+    if (descriptor->psk_modes != PSK_MODES_DEFAULT)
+    {
+        switch (descriptor->psk_modes)
+        {
+        case PSK_MODES_KE_ONLY:
+            int_retval = wolfSSL_CTX_no_dhe_psk(agent->ctx);
+            break;
+        case PSK_MODES_DHE_KE_ONLY:
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000
+            int_retval = wolfSSL_CTX_only_dhe_psk(agent->ctx);
+#else
+            /* The library cannot be told to offer psk_dhe_ke only */
+            strncpy(error_msg, "psk_dhe_ke only is not supported by this wolfSSL version", 128);
+            goto ERROR__wolfssl_create_agent;
+#endif
+            break;
+        default:
+            int_retval = WOLFSSL_FAILURE;
+            break;
+        }
+        if (int_retval != 0)
+        {
+            strncpy(error_msg, "wolfssl set psk key exchange modes failed", 128);
+            goto ERROR__wolfssl_create_agent;
+        }
     }
 
     char const *cipher_string = NULL;

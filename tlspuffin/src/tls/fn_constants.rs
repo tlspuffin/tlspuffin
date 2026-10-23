@@ -76,3 +76,13 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
 pub fn fn_large_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![42; 700])
 }
+
+pub fn fn_128_bytes_vec() -> Result<Vec<u8>, FnError> {
+    Ok(vec![42; 128])
+}
+
+// wolfSSL `ENCRYPT_LEN` matching vendored builds: 
+//   the size of the uninitialised `preMasterSecret` buffer
+pub fn fn_wolfssl_encrypt_len() -> Result<u64, FnError> {
+    Ok(2050)
+}

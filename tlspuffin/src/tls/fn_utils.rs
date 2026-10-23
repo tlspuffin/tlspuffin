@@ -573,6 +573,79 @@ pub fn fn_encrypt_application(
     Ok(application_data)
 }
 
+/// Same as [`fn_encrypt_application`] but with the server application traffic secret, to be used
+/// when the attacker plays the server.
+pub fn fn_encrypt_application_server(
+    some_message: &Message,
+    server_hello_transcript: &HandshakeHash,
+    server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_application_traffic_secret(
+        server_hello_transcript,
+        server_finished_transcript,
+        server_key_share,
+        psk,
+        group,
+        false,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_application_server".to_string())
+        })?;
+    Ok(application_data)
+}
+
+// Like [`fn_encrypt_handshake`] but derives the handshake keys from a zero IKM of length `ikm_len`
+pub fn fn_encrypt_handshake_zero_ikm(
+    some_message: &Message,
+    server_hello: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+    ikm_len: &u64,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+    let psk = psk
+        .as_ref()
+        .ok_or_else(|| FnError::Malformed("fn_encrypt_handshake_zero_ikm requires a PSK".into()))?;
+
+    let (key, _) = tls13_handshake_traffic_secret_zero_ikm(
+        server_hello,
+        psk,
+        *client,
+        client_random,
+        &supported_suite,
+        *ikm_len as usize,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_handshake_zero_ikm".to_string())
+        })?;
+    Ok(application_data)
+}
+
 pub fn fn_derive_psk(
     server_hello: &HandshakeHash,
     server_finished: &HandshakeHash,

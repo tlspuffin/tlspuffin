@@ -315,6 +315,21 @@ pub enum TLSVersion {
     Both,
 }
 
+/// TLS 1.3 PSK key exchange modes a client PUT offers in `psk_key_exchange_modes`.
+///
+/// Only meaningful for client agents. Not every PUT supports every mode: a PUT must fail to spawn
+/// the agent if it cannot honour the requested mode.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum PskKeModes {
+    /// Whatever the PUT offers by default (usually both `psk_ke` and `psk_dhe_ke`).
+    #[default]
+    Default,
+    /// Offer only `psk_ke` (PSK alone, no forward secrecy).
+    PskKeOnly,
+    /// Offer only `psk_dhe_ke` (PSK with (EC)DHE, forward secrecy).
+    PskDheKeOnly,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct TLSDescriptorConfig {
     /// Whether the agent which holds this descriptor is a server.
@@ -337,6 +352,9 @@ pub struct TLSDescriptorConfig {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
+    /// PSK key exchange modes offered by a client (default: those of the PUT).
+    #[serde(default)]
+    pub psk_modes: PskKeModes,
     /// List of available TLS ciphers - public for default() to be used
     /// Not supposed to be used outside the public methods to manage 1.2/1.3/both
     pub _cipher_string_tls13: String,
@@ -430,6 +448,8 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
             && self.sigalgs == other.sigalgs
+            && self.try_reuse == other.try_reuse
+            && self.psk_modes == other.psk_modes
     }
 }
 
@@ -629,6 +649,7 @@ impl Default for TLSDescriptorConfig {
             client_authentication: false,
             server_authentication: true,
             try_reuse: false,
+            psk_modes: PskKeModes::Default,
             typ: AgentType::Server,
             _cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),

@@ -17,11 +17,12 @@ use security_claims::Claim;
 
 use crate::claims::TlsClaim;
 use crate::protocol::{
-    AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
-    TLSVersion,
+    AgentType, OpaqueMessageFlight, PskKeModes, TLSDescriptorConfig, TLSProtocolBehavior,
+    TLSProtocolTypes, TLSVersion,
 };
 use crate::put_registry::bindings::{
-    AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
+    AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PSK_KE_MODES,
+    TLS_PUT_INTERFACE, TLS_VERSION,
 };
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
@@ -436,6 +437,13 @@ fn make_descriptor(
 
         store: store.as_ptr(),
         store_length: store.len() as libc::size_t,
+
+        try_reuse: config.descriptor.protocol_config.try_reuse,
+        psk_modes: match config.descriptor.protocol_config.psk_modes {
+            PskKeModes::Default => TLS_PSK_KE_MODES::PSK_MODES_DEFAULT,
+            PskKeModes::PskKeOnly => TLS_PSK_KE_MODES::PSK_MODES_KE_ONLY,
+            PskKeModes::PskDheKeOnly => TLS_PSK_KE_MODES::PSK_MODES_DHE_KE_ONLY,
+        },
     }
 }
 

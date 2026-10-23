@@ -24,6 +24,14 @@ extern "C"
         SERVER
     } TLS_AGENT_ROLE;
 
+    /* PSK key exchange modes offered by a client (psk_key_exchange_modes extension) */
+    typedef enum
+    {
+        PSK_MODES_DEFAULT,      /* whatever the library offers by default */
+        PSK_MODES_KE_ONLY,      /* psk_ke only: no forward secrecy */
+        PSK_MODES_DHE_KE_ONLY   /* psk_dhe_ke only: forward secrecy */
+    } TLS_PSK_KE_MODES;
+
     typedef struct
     {
         const uint8_t *const bytes;
@@ -48,6 +56,9 @@ extern "C"
 
         const PEM *const *const store;
         const size_t store_length;
+
+        bool const try_reuse;
+        TLS_PSK_KE_MODES const psk_modes;
     } TLS_AGENT_DESCRIPTOR;
 
     typedef struct TLS_PUT_INTERFACE

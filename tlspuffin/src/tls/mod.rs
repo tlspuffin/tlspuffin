@@ -314,4 +314,10 @@ define_signature!(
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
     fn_ecdsa_signature_algorithm
+
+    fn_128_bytes_vec [no_bit]
+    fn_wolfssl_encrypt_len
+    fn_verify_data_server_zero_ikm [opaque]
+    fn_encrypt_handshake_zero_ikm [opaque]
+    fn_encrypt_application_server [opaque]
 );

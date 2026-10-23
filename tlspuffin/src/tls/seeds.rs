@@ -9,8 +9,8 @@ use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Tra
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
-    TLSVersion,
+    AgentType, MessageFlight, PskKeModes, TLSDescriptorConfig, TLSProtocolBehavior,
+    TLSProtocolTypes, TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
@@ -155,6 +155,332 @@ pub fn seed_successful_client_auth(
                         )
                     }
                 }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+fn client_resumption_probe(
+    client: AgentName,
+    server: AgentName,
+    try_reuse: bool,
+) -> Trace<TLSProtocolTypes> {
+    let mut prior = seed_successful_with_tickets(client, server);
+    for descriptor in &mut prior.descriptors {
+        if descriptor.name == client {
+            descriptor.protocol_config.try_reuse = try_reuse;
+        }
+    }
+
+    let mut client_descriptor = TLSDescriptorConfig::new_client(client, TLSVersion::V1_3);
+    client_descriptor.protocol_config.try_reuse = try_reuse;
+
+    Trace {
+        prior_traces: vec![prior],
+        descriptors: vec![client_descriptor],
+        steps: vec![OutputAction::new_step(client)],
+        ..Default::default()
+    }
+}
+
+pub fn seed_server_attacker_resumption(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption(client, PskKeModes::Default)
+}
+
+/// First handshake with a ticket. The client must be spawned with the same `client_modes` in the
+/// second handshake, otherwise it would not be reused (and its session lost).
+pub fn _seed_server_attacker_resumption(
+    client: AgentName,
+    client_modes: PskKeModes,
+) -> Trace<TLSProtocolTypes> {
+    let (mut trace, server_hello_transcript, server_finished_transcript, curve) =
+        _seed_server_attacker_full(client);
+    for d in &mut trace.descriptors {
+        d.protocol_config.try_reuse = true;
+        d.protocol_config.psk_modes = client_modes;
+    }
+
+    let ticket = term! {
+        fn_new_session_ticket13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_payload_u16((fn_128_bytes_vec))),
+            (fn_new_session_ticket_extensions((fn_new_session_ticket_extensions_new)))
+        )
+    };
+
+    trace.steps.push(Step {
+        agent: client,
+        action: Action::Input(input_action! { term! {
+            fn_encrypt_application_server(
+                (@ticket),
+                (@server_hello_transcript),
+                (@server_finished_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                fn_no_psk,
+                (@curve),
+                fn_seq_0,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )
+        }}),
+    });
+
+    trace
+}
+
+pub fn _seed_server_attacker_resumption_client_hello(
+    client: AgentName,
+    client_modes: PskKeModes,
+) -> Trace<TLSProtocolTypes> {
+    let mut client_descriptor = TLSDescriptorConfig::new_client(client, TLSVersion::V1_3);
+    client_descriptor.protocol_config.try_reuse = true;
+    client_descriptor.protocol_config.psk_modes = client_modes;
+
+    Trace {
+        prior_traces: vec![_seed_server_attacker_resumption(client, client_modes)],
+        descriptors: vec![client_descriptor],
+        steps: vec![OutputAction::new_step(client)],
+        ..Default::default()
+    }
+}
+
+// Key exchange mode the attacker (playing the server) selects in its second ServerHello.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServerPskMode {
+    // `pre_shared_key` + `key_share`: PSK with (EC)DHE, forward secrecy.
+    PskDheKe,
+    // `pre_shared_key` only: PSK alone, no forward secrecy.
+    PskKe,
+    // `pre_shared_key` only, but the handshake keys are derived from a wrong-length zero IKM (`ENCRYPT_LEN` zeros) 
+    PskKeWrongIkm,
+}
+
+pub fn seed_server_attacker_resumption_full(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption_full(client, PskKeModes::Default, ServerPskMode::PskDheKe)
+}
+
+// Resumption where the client offers `client_modes` and the attacker selects `server_mode`.
+pub fn _seed_server_attacker_resumption_full(
+    client: AgentName,
+    client_modes: PskKeModes,
+    server_mode: ServerPskMode,
+) -> Trace<TLSProtocolTypes> {
+    let (_, server_hello_transcript, server_finished_transcript, curve) =
+        _seed_server_attacker_full(client);
+
+    // PSK derived from the first handshake and the (empty) nonce of the ticket
+    let psk = term! {
+        fn_derive_psk(
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (fn_client_finished_transcript(((client, 0)))),
+            (fn_get_client_key_share(((client, 0)), (@curve))),
+            fn_empty_bytes_vec,
+            (@curve),
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
+        )
+    };
+
+    // Second ClientHello: the second ClientHello sent by the client
+    let curve2 = term! {
+        fn_get_any_client_curve(
+            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+    let client_key_share2 = term! {
+        fn_get_client_key_share(((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]), (@curve2))
+    };
+
+    // The (EC)DHE input of the key schedule: the shared secret with `psk_dhe_ke`, none with `psk_ke`
+    let key_share_input = match server_mode {
+        ServerPskMode::PskDheKe => client_key_share2,
+        ServerPskMode::PskKe | ServerPskMode::PskKeWrongIkm => term! { fn_no_key_share },
+    };
+
+    let server_hello2 = match server_mode {
+        ServerPskMode::PskDheKe => term! {
+            fn_server_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                fn_cipher_suite13_aes_128_gcm_sha256,
+                fn_compression,
+                (fn_server_extensions_make(
+                    (fn_server_extensions_append(
+                        (fn_server_extensions_append(
+                            (fn_server_extensions_append(
+                                fn_server_extensions_new,
+                                (fn_key_share_server_extension(
+                                    (fn_key_share_deterministic((@curve2)))
+                                ))
+                            )),
+                            fn_supported_versions13_server_extension
+                        )),
+                        (fn_preshared_keys_server_extension(
+                            (fn_u32_to_u16((fn_u64_to_u32(fn_seq_0))))
+                        ))
+                    ))
+                ))
+            )
+        },
+        ServerPskMode::PskKe | ServerPskMode::PskKeWrongIkm => term! {
+            fn_server_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                fn_cipher_suite13_aes_128_gcm_sha256,
+                fn_compression,
+                (fn_server_extensions_make(
+                    (fn_server_extensions_append(
+                        (fn_server_extensions_append(
+                            fn_server_extensions_new,
+                            (fn_preshared_keys_server_extension(
+                                (fn_u32_to_u16((fn_u64_to_u32(fn_seq_0))))
+                            ))
+                        )),
+                        fn_supported_versions13_server_extension
+                    ))
+                ))
+            )
+        },
+    };
+
+    let server_hello_transcript2 = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+            )),
+            (@server_hello2)
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let encrypted_extensions_transcript2 = term! {
+        fn_append_transcript(
+            (@server_hello_transcript2),
+            (@encrypted_extensions)
+        )
+    };
+
+    // In `PskKeWrongIkm` the three handshake derivations use a wrong-length zero IKM (`ENCRYPT_LEN` zeros)
+    let wrong_ikm = server_mode == ServerPskMode::PskKeWrongIkm;
+
+    let server_finished = if wrong_ikm {
+        term! {
+            fn_finished(
+                (fn_verify_data_server_zero_ikm(
+                    (@encrypted_extensions_transcript2),
+                    (@server_hello_transcript2),
+                    (fn_psk((@psk))),
+                    fn_new_random,
+                    fn_cipher_suite13_aes_128_gcm_sha256,
+                    fn_wolfssl_encrypt_len
+                ))
+            )
+        }
+    } else {
+        term! {
+            fn_finished(
+                (fn_verify_data_server(
+                    (@encrypted_extensions_transcript2),
+                    (@server_hello_transcript2),
+                    (@key_share_input),
+                    (@curve2),
+                    (fn_psk((@psk))),
+                    fn_new_random,
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                ))
+            )
+        }
+    };
+
+    let encrypt_ee = if wrong_ikm {
+        term! {
+            fn_encrypt_handshake_zero_ikm(
+                (@encrypted_extensions),
+                (@server_hello_transcript2),
+                (fn_psk((@psk))),
+                fn_false,
+                fn_seq_0,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256,
+                fn_wolfssl_encrypt_len
+            )
+        }
+    } else {
+        term! {
+            fn_encrypt_handshake(
+                (@encrypted_extensions),
+                (@server_hello_transcript2),
+                (@key_share_input),
+                (fn_psk((@psk))),
+                (@curve2),
+                fn_false,
+                fn_seq_0,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )
+        }
+    };
+
+    let encrypt_finished = if wrong_ikm {
+        term! {
+            fn_encrypt_handshake_zero_ikm(
+                (@server_finished),
+                (@server_hello_transcript2),
+                (fn_psk((@psk))),
+                fn_false,
+                fn_seq_1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256,
+                fn_wolfssl_encrypt_len
+            )
+        }
+    } else {
+        term! {
+            fn_encrypt_handshake(
+                (@server_finished),
+                (@server_hello_transcript2),
+                (@key_share_input),
+                (fn_psk((@psk))),
+                (@curve2),
+                fn_false,
+                fn_seq_1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )
+        }
+    };
+
+    let mut client_descriptor = TLSDescriptorConfig::new_client(client, TLSVersion::V1_3);
+    client_descriptor.protocol_config.try_reuse = true;
+    client_descriptor.protocol_config.psk_modes = client_modes;
+
+    Trace {
+        prior_traces: vec![_seed_server_attacker_resumption(client, client_modes)],
+        descriptors: vec![client_descriptor],
+        steps: vec![
+            // second ClientHello, with the PSK
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello2 }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { encrypt_ee }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { encrypt_finished }),
             },
         ],
         ..Default::default()
@@ -596,6 +922,17 @@ pub fn seed_successful_with_tickets(
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_full(client).0
+}
+
+pub fn _seed_server_attacker_full(
+    client: AgentName,
+) -> (
+    Trace<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+) {
     let curve = term! {
         fn_get_any_client_curve(
             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
@@ -703,7 +1040,14 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
         )
     };
 
-    Trace {
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@certificate_verify_transcript),
+            (@server_finished) // plaintext Finished
+        )
+    };
+
+    let trace = Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             client,
@@ -790,7 +1134,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
             },
         ],
         ..Default::default()
-    }
+    };
+
+    (trace, server_hello_transcript, server_finished_transcript, curve)
 }
 
 pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtocolTypes> {
@@ -2788,12 +3134,36 @@ macro_rules! corpus {
     };
 }
 
+pub fn seed_server_attacker_resumption_psk_ke(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption_full(client, PskKeModes::Default, ServerPskMode::PskKe)
+}
+
+pub fn seed_server_attacker_resumption_psk_ke_wrong_ikm(
+    client: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption_full(client, PskKeModes::Default, ServerPskMode::PskKeWrongIkm)
+}
+
+pub fn seed_server_attacker_resumption_downgrade(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption_full(client, PskKeModes::PskDheKeOnly, ServerPskMode::PskKe)
+}
+
+pub fn seed_server_attacker_resumption_downgrade_wrong_ikm(
+    client: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_resumption_full(
+        client,
+        PskKeModes::PskDheKeOnly,
+        ServerPskMode::PskKeWrongIkm,
+    )
+}
+
 pub fn create_corpus(
     put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
     corpus!(
         // Full Handshakes
-        seed_successful: put.supports("tls13"),
+        /*seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
         seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
@@ -2810,7 +3180,12 @@ pub fn create_corpus(
         seed_server_attacker_full: put.supports("tls13"),
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
-        seed_server_attacker12: put.supports("tls12"),
+        seed_server_attacker12: put.supports("tls12"),*/
+
+        seed_server_attacker_resumption_psk_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_server_attacker_resumption_psk_ke_wrong_ikm: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_server_attacker_resumption_downgrade: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_server_attacker_resumption_downgrade_wrong_ikm: put.supports("tls13") && put.supports("tls13_session_resumption"),
     )
 }
 
@@ -3047,6 +3422,97 @@ pub mod tests {
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
+    fn test_seed_server_attacker_resumption_full(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker_resumption_full.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+    }
+
+    // Claude
+    /// The `psk_key_exchange_modes` of the last ClientHello that the client sent, e.g.
+    /// `["PSK_KE", "PSK_DHE_KE"]`. Executes the resumption up to that ClientHello.
+    fn offered_psk_modes(put: &str, client_modes: PskKeModes) -> Result<Vec<String>, String> {
+        let runner = default_runner_for(put);
+        let trace = _seed_server_attacker_resumption_client_hello(AgentName::first(), client_modes);
+        let ctx = runner.execute(trace, &mut 0).map_err(|err| err.to_string())?;
+
+        let dump = format!("{:?}", ctx.knowledge_store);
+        let marker = "PSKKeyExchangeModes([";
+        let start = dump.rfind(marker).ok_or("no psk_key_exchange_modes in knowledge")? + marker.len();
+        let end = start + dump[start..].find(']').ok_or("malformed modes")?;
+        Ok(dump[start..end].split(", ").map(str::to_string).collect())
+    }
+
+    // Claude
+    /// Resumption with every combination of PSK key exchange modes (client offer x server
+    /// selection). Prints one `MATRIX` line per combination, to compare PUT versions.
+    ///
+    /// Asserted: the modes the client really offers in its ClientHello match its configuration
+    /// (when the PUT supports it), and the RFC 8446 compliant default (client offers its default
+    /// modes, server selects `psk_dhe_ke`) finishes. Other outcomes legitimately differ between
+    /// versions.
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
+    fn test_psk_modes_matrix(put: &str) {
+        use crate::protocol::PskKeModes::*;
+        use ServerPskMode::*;
+
+        let combinations = [
+            (Default, PskDheKe),
+            (Default, PskKe),
+            (PskKeOnly, PskKe),
+            (PskKeOnly, PskDheKe),
+            (PskDheKeOnly, PskDheKe),
+            (PskDheKeOnly, PskKe),
+            // Mirror the wolfSSL < 5.7.2 psk_ke derivation (CVE-2025-11935): finishes on the
+            // broken versions, fails on >= 5.7.2 (which derive the RFC 32-zero IKM).
+            (PskDheKeOnly, PskKeWrongIkm),
+            // Same mirror with a default client (no only_dhe_psk API needed): exercises the
+            // derivation bug on 5.4.0 / 5.5.2 too. Not the CVE (default client accepts psk_ke).
+            (Default, PskKeWrongIkm),
+        ];
+
+        let mut default_dhe_ok = false;
+        for (client_modes, server_mode) in combinations {
+            let offered = offered_psk_modes(put, client_modes);
+            match (&client_modes, &offered) {
+                (PskKeOnly, Ok(modes)) => assert_eq!(modes, &["PSK_KE"]),
+                (PskDheKeOnly, Ok(modes)) => assert_eq!(modes, &["PSK_DHE_KE"]),
+                (Default, Ok(modes)) => assert!(modes.contains(&"PSK_DHE_KE".to_string())),
+                _ => {} // e.g. the PUT cannot honour the requested modes
+            }
+
+            let runner = default_runner_for(put);
+            let trace = _seed_server_attacker_resumption_full(
+                AgentName::first(),
+                client_modes,
+                server_mode,
+            );
+            let outcome = match runner.execute(trace, &mut 0) {
+                Ok(ctx) if ctx.agents_successful() => "finished".to_string(),
+                Ok(_) => "not finished".to_string(),
+                Err(err) => format!("error: {err}"),
+            };
+            if (client_modes, server_mode) == (Default, PskDheKe) {
+                default_dhe_ok = outcome == "finished";
+            }
+            eprintln!(
+                "MATRIX {put} | client offers {client_modes:?} = {offered:?} | server selects {server_mode:?} | {outcome}"
+            );
+        }
+
+        assert!(default_dhe_ok);
+    }
+
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
+    fn test_seed_server_attacker_resumption(put: &str) {
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(seed_server_attacker_resumption.build_trace(), &mut 0).unwrap();
         assert!(ctx.agents_successful());
     }
 

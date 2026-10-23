@@ -87,6 +87,35 @@ pub fn tls13_application_traffic_secret(
     Ok((if client { client_secret } else { server_secret }, pending))
 }
 
+// Handshake traffic secret derived from a zero IKM of an *explicit* length, instead of the
+// RFC 8446 section 7.1 `Hash.length` zeros used for a PSK-only (`psk_ke`) handshake.
+pub fn tls13_handshake_traffic_secret_zero_ikm(
+    server_hello: &HandshakeHash,
+    psk: &[u8],
+    client: bool,
+    client_random: &Random,
+    suite: &SupportedCipherSuite,
+    ikm_len: usize,
+) -> Result<(Prk, KeyScheduleHandshake), FnError> {
+    let hkdf_algorithm = suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .hkdf_algorithm;
+
+    let zeroes = vec![0u8; ikm_len];
+    let early = KeyScheduleEarly::new(hkdf_algorithm, psk);
+    let pre: KeySchedulePreHandshake = early.into();
+    let key_schedule = pre.into_handshake(&zeroes);
+
+    let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
+        &server_hello.get_current_hash_raw(),
+        &NoKeyLog {},
+        &client_random.0,
+    );
+
+    Ok((if client { client_secret } else { server_secret }, hs))
+}
+
 pub fn tls13_derive_psk(
     server_hello: &HandshakeHash,
     server_finished: &HandshakeHash,
