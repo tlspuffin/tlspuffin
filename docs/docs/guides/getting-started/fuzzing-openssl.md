@@ -12,8 +12,6 @@ cargo build --release --bin=tlspuffin --features=cputs
 By setting `--cputs`, the build process will automatically select all the fuzz targets located in `./vendor/`; a specific fuzz target can then be selected at runtime (see below).
 The build process creates the fuzzer at `./target/release/tlspuffin`.
 
-Use different features with ``--features`` for other targets (see  [support matrix](../../references/support-matrix).)
-
 ## Generating Seeds
 
 *tlspuffin* comes with a set of standard seeds for TLS (handshake, session resumption, ...) that can serve as the initial corpus for the fuzzing process, rather than letting the fuzzer rediscover the details of the TLS protocol.
