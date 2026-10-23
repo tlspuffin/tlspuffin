@@ -9,7 +9,8 @@ Now that we have the OpenSSL library to serve as a fuzz target, we can create th
 cargo build --release --bin=tlspuffin --features=cputs
 ```
 
-By setting `--cputs`, the build process will automatically select all the fuzz targets located in `./vendor/`; a specific fuzz target can then be selected at runtime (see below).
+By setting the `cputs` features with `--features=cputs`, the build process will automatically select all the fuzz
+targets located in `./vendor/`; a specific fuzz target can then be selected at runtime (see below).
 The build process creates the fuzzer at `./target/release/tlspuffin`.
 
 ## Generating Seeds
