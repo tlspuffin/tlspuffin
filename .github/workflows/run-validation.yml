@@ -151,8 +151,6 @@ jobs:
       name: ${{ matrix.name }}
       vendor: ${{ matrix.mk_vendor.vendor }}
       preset: ${{ matrix.mk_vendor.preset }}
-      cargo_name: ${{ toJson(matrix.cargo.name) }}
-      cargo_features: ${{ toJson(matrix.cargo.features) }}
 
   differential-openssl-wolfssl:
     needs: [configure]
