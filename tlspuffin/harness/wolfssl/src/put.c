@@ -203,12 +203,12 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
 //   ed25519_sa_algo (9) : wire = 0x0807
 //   ed448_sa_algo  (11) : wire = 0x0808
 //   default (ECDSA=3, RSA-PKCS1=1): wire = (hashAlgo << 8) | sigAlgo
-// Field location changed between versions: Suites (< 5.8) → Options (>= 5.8).
+// Field location changed between versions: Suites (< 5.6) → Options (>= 5.6).
 static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
 {
     byte sigAlgo, hashAlgo;
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05008000 /* 5.8.0: fields moved from Suites to Options */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000 /* 5.6.0: fields moved from Suites to Options */
     sigAlgo = ssl->options.sigAlgo;
     hashAlgo = ssl->options.hashAlgo;
 #else
@@ -1180,7 +1180,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         goto ERROR__wolfssl_create_agent;
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* stubs returning failure before; per-SSL callback is set in make_agent */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
     if (int_retval != WOLFSSL_SUCCESS)
     {
@@ -1303,7 +1303,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 
     if (is_server || descriptor->client_authentication)
     {
-#if WOLFSSL_VERSION_HEX >= 0x05000000
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
         // Mimic rust harness
         WOLFSSL_X509 *x509 = NULL;
         WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());

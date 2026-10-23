@@ -3000,6 +3000,8 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        //
+        //seed_server_attacker_full_cve_2021_3336: put.supports("tls13"),
     )
 }
 
