@@ -1,6 +1,7 @@
 #ifndef TLSPUFFIN_CLAIM_INTERFACE_H
 #define TLSPUFFIN_CLAIM_INTERFACE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define CLAIM_MAX_AVAILABLE_CIPHERS 256
@@ -170,6 +171,9 @@ typedef struct Claim
 
     // Transcript
     ClaimTranscript transcript;
+
+    bool use_rpk;
+    ClaimCertData rpk;
 } Claim;
 
 typedef void (*claim_t)(Claim claim, void *ctx);

@@ -92,6 +92,8 @@ fn test_enums() {
         KeyUpdateRequest::UpdateRequested,
     );
     test_enum8::<CertificateStatusType>(CertificateStatusType::OCSP, CertificateStatusType::OCSP);
+
+    test_enum8::<CertificateType>(CertificateType::X509, CertificateType::RawPublicKey);
 }
 
 #[test_log::test]

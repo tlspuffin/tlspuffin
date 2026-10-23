@@ -226,6 +226,8 @@ enum_builder! {
         Heartbeat => 0x000f,
         ALProtocolNegotiation => 0x0010,
         SCT => 0x0012,
+        ClientCertificateType => 0x0013,
+        ServerCertificateType => 0x0014,
         Padding => 0x0015,
         ExtendedMasterSecret => 0x0017,
         SessionTicket => 0x0023,
@@ -800,5 +802,17 @@ enum_builder! {
     EnumName: CertificateStatusType;
     EnumVal{
         OCSP => 0x01
+    }
+}
+
+enum_builder! {
+    /// The `CertificateType` TLS protocol enum carried by the RFC 7250 `client_certificate_type` and `server_certificate_type` extensions (ExtensionType 0x0013 / 0x0014).
+    ///
+    /// Values in this enum are taken from the various RFCs covering TLS, and are listed by IANA. The `Unknown` item is used when processing unrecognised ordinals.
+    @U8
+    EnumName: CertificateType;
+    EnumVal{
+        X509 => 0x00,
+        RawPublicKey => 0x02
     }
 }
