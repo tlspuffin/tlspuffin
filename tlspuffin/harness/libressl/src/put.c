@@ -9,6 +9,14 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
+
+// LibreSSL 3.x only exposes its TLS 1.3 API (TLS1_3_VERSION, SSL_CTX_set_ciphersuites, ...)
+// when this macro is defined; it must be set before including <openssl/ssl.h> and after including
+// <openssl/opensslv.h>.
+#if defined(LIBRESSL_VERSION_NUMBER) && !defined(LIBRESSL_HAS_TLS1_3)
+#define LIBRESSL_HAS_TLS1_3
+#endif
+
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -25,6 +33,13 @@
 #define __END_HIDDEN_DECLS
 #endif
 #include <libressl_internal/ssl_local.h>
+
+// The handshake state moved from s3->internal->hs (3.x) to s3->hs (4.x).
+#if LIBRESSL_VERSION_NUMBER < 0x40000000L
+#define PUT_SSL_HS(ssl) ((ssl)->s3->internal->hs)
+#else
+#define PUT_SSL_HS(ssl) ((ssl)->s3->hs)
+#endif
 
 #include "bindings.h"
 #include "rng.h"
@@ -643,9 +658,11 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             case EVP_PKEY_EC:
                 claim->cert.key_type = CLAIM_KEY_TYPE_EC;
                 break;
+#ifdef EVP_PKEY_ED25519
             case EVP_PKEY_ED25519:
                 claim->cert.key_type = CLAIM_KEY_TYPE_ED25519;
                 break;
+#endif
             default:
                 claim->cert.key_type = CLAIM_KEY_TYPE_UNKNOWN;
                 break;
@@ -680,9 +697,11 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             case EVP_PKEY_EC:
                 claim->peer_cert.key_type = CLAIM_KEY_TYPE_EC;
                 break;
+#ifdef EVP_PKEY_ED25519
             case EVP_PKEY_ED25519:
                 claim->peer_cert.key_type = CLAIM_KEY_TYPE_ED25519;
                 break;
+#endif
             default:
                 claim->peer_cert.key_type = CLAIM_KEY_TYPE_UNKNOWN;
                 break;
@@ -708,7 +727,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     else if (claim->version.data == CLAIM_TLS_VERSION_V1_3)
     {
         // TLS 1.3 secrets from LibreSSL internal state
-        SSL_HANDSHAKE *hs = &agent->ssl->s3->hs;
+        SSL_HANDSHAKE *hs = &PUT_SSL_HS(agent->ssl);
         struct tls13_secrets *secrets = hs->tls13.secrets;
 
         if (secrets != NULL)
@@ -851,7 +870,7 @@ static void libressl_msg_callback(int write_p,
     // (extracted_early, extracted_handshake, extracted_master).
     // The `insecure` flag disables explicit_bzero in tls13_key_schedule.c.
     {
-        struct tls13_secrets *secrets = agent->ssl->s3->hs.tls13.secrets;
+        struct tls13_secrets *secrets = PUT_SSL_HS(agent->ssl).tls13.secrets;
         if (secrets != NULL)
         {
             secrets->insecure = 1;
@@ -1354,12 +1373,12 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     }
     else
     {
-        // LibreSSL 4.2.1 may offer post-quantum or non-standard groups by default.
+        // LibreSSL 4.x may offer post-quantum or non-standard groups by default.
         // Constrain to groups the fuzzer's Rust code supports.
         SSL_CTX_set1_groups_list(ssl_ctx, "X25519:P-256:P-384");
     }
 
-    // LibreSSL 4.2.1 does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
+    // LibreSSL does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
     // The sigalgs_list field from the descriptor is therefore ignored here.
     // Sigalgs preference is instead patched at build time (see patch_sigalgs.cmake).
 
@@ -1438,7 +1457,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
         SSL_CTX_set1_groups_list(ssl_ctx, "X25519:P-256:P-384");
     }
 
-    // LibreSSL 4.2.1 does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
+    // LibreSSL does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
     // The sigalgs_list field from the descriptor is therefore ignored here.
     // Sigalgs preference is instead patched at build time (see patch_sigalgs.cmake).
 
