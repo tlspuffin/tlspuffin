@@ -53,21 +53,27 @@ We answer in [1] by proposing a novel and effective technique called DY model-gu
 
 ### Implementation
 
-[tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 8 CVEs (see table below), including five new ones (including a critical one) that were all acknowledged and patched.
+[tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built
+modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated
+the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 12 CVEs (see table
+below), including five new ones (including a critical one) that were all acknowledged and patched.
 Interestingly and as a witness to the claims above,
 those five newly found bugs are not currently found by state-of-the-art fuzzers [1].
 
-
-| CVE ID                                                             | CVSS | Type         | Novel                                   | Version   |
-|--------------------------------------------------------------------|-----|--------------|-----------------------------------------|---------|
-| [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449)        | 5.9 | Server DoS | ❌                                       | 1.1.1j   |
-| [2022-25638](https://www.cve.org/CVERecord?id=CVE-2022-25638)      | 6.5 | Auth. Bypass | ❌                                       | 5.1.0   |
-| [2022-25640](https://www.cve.org/CVERecord?id=CVE-2022-25640)      | ️7.5❗ | Auth. Bypass | ❌                                      | 5.1.0     |
-| [2022-38152](https://www.cve.org/CVERecord?id=CVE-2022-38152)      | 7.5❗ | Server DoS | ✅                                       | 5.4.0     |
-| [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153)      | 5.9 | Client DoS | ✅ | 5.3.0     |
-| [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173)      | 7.5❗ | Server DoS | ✅ | 5.5.0    |
-| [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905)      | 9.1❗ | Info. Leak | ✅ | 5.5.0   |
-| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)      | 5.3 | Info. Leak | ✅ | 5.6.6     |
+| CVE ID                                                        | CVSS  | Type            | Novel | Version | Target  | Oracle     | AFL-like? | DYF? | DDYF? |
+|---------------------------------------------------------------|-------|-----------------|-------|---------|---------|------------|-----------|------|-------|
+| [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449)   | 5.9   | Server DoS      | ❌     | 1.1.1j  | OpenSSL | ASAN       | ❌         | ✅    | ❌     |
+| [2022-25638](https://www.cve.org/CVERecord?id=CVE-2022-25638) | 6.5   | Auth. Bypass    | ❌     | 5.1.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
+| [2022-25640](https://www.cve.org/CVERecord?id=CVE-2022-25640) | ️7.5❗ | Auth. Bypass    | ❌     | 5.1.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
+| [2022-38152](https://www.cve.org/CVERecord?id=CVE-2022-38152) | 7.5❗  | Server DoS      | ✅     | 5.4.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153) | 5.9   | Client DoS      | ✅     | 5.3.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173) | 7.5❗  | Server DoS      | ✅     | 5.5.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905) | 9.1❗  | Info. Leak      | ✅     | 5.5.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)   | 5.3   | Info. Leak      | ✅     | 5.6.6   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2024-5814](https://www.cve.org/CVERecord?id=CVE-2024-5814)   | 5.1   | Downgrade       | ❌     | 5.7.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
+| [2023-3724](https://www.cve.org/CVERecord?id=CVE-2023-3724)   | 9.1❗  | Weak key        | ❌     | 5.6.0   | WolfSSL | Diff       | ❌         | ❌    | ✅     |
+| [2023-6937](https://www.cve.org/CVERecord?id=CVE-2023-6937)   | 5.3   | Confidentiality | ❌     | 5.6.4   | WolfSSL | Diff       | ❌         | ❌    | ✅     |
+| [2021-3336](https://www.cve.org/CVERecord?id=CVE-2021-3336)   | 8.1❗  | Info. Leak      | ❌     | 4.6.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
 
 
 Some features:
@@ -75,12 +81,11 @@ Some features:
 * Fuzzer which is inspired by the [Dolev-Yao models](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
 * Domain specific mutators for Protocol Fuzzing!
 * Supported Libraries Under Test:
-  * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
-  * LibreSSL 3.3.3
-  * wolfSSL 5.1.0 - 5.4.0
-  * BoringSSL (last commit tested 368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)
-    - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
-* Reproducible for each LUT. We use sources from fresh git clone of vendor libraries.
+  * OpenSSL
+  * LibreSSL
+  * wolfSSL
+  * BoringSSL
+* Reproducible for each PUT. We use sources from fresh git clone of vendor libraries.
 * 70% Test Coverage
 * Written in Rust!
 
@@ -88,11 +93,24 @@ Some features:
 
 ## Team
 
-- [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Max Ammann](https://github.com/maxammann)
+Active members:
+
+- [Tom Gouville](https://github.com/aeyno) - PhD student - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Lucca Hirschi](https://members.loria.fr/LHirschi/) -
+  researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Steve Kremer](https://members.loria.fr/SKremer/) - senior
+  researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Olivier Demengeon](https://sed-nge.inria.fr/team/olivierd/index.html) - research
+  engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Nataël Baffou](https://github.com/nataelbaffou) - research
+  engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+
+Contributed in the past:
+
+- [Max Ammann](https://github.com/maxammann) - master's student then security
+  engineer - [Trails of Bits](https://www.trailofbits.com/)
+- [Michael Mera](https://github.com/michaelmera) - research
+  engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr) at the time
 
 This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
 We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.

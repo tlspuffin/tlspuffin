@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
             items: [
                 'references/support-matrix',
                 'references/mk_vendor',
+                'references/executable-cli'
             ],
         },
         {

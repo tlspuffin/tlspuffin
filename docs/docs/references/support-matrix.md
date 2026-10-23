@@ -46,14 +46,17 @@ The ASAN variants are separate presets (e.g. `openssl:openssl340-asan`).
   <TabItem value="wolfssl" label="wolfSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]                             |
     | :--------: | :---------------: | :-------------: | :-------------------: | ------------------------------------------------ |
-    | 4.3.0      | yes               | no              | yes                   | `wolfssl:wolfssl430`  |
-    | 5.1.0      | yes               | yes             | yes                   | `wolfssl:wolfssl510`  |
-    | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |    
-    | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |    
-    | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |    
-    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`, WARNING: not fully functional |    
-    | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |    
+    | 5.8.4      | yes               | yes             | yes                   | `wolfssl:wolfssl584`  |
     | 5.8.0      | yes               | yes             | yes                   | `wolfssl:wolfssl580`  |
+    | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |
+    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`  |
+    | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |
+    | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |   
+    | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |
+    | 5.1.1      | yes               | yes             | yes                   | `wolfssl:wolfssl511`  |
+    | 5.1.0      | yes               | yes             | yes                   | `wolfssl:wolfssl510`  |
+    | 5.0.0      | yes               | yes             | yes                   | `wolfssl:wolfssl500`  |
+    | 4.3.0      | yes               | no              | yes                   | `wolfssl:wolfssl430`  |
 </TabItem>
  
 
