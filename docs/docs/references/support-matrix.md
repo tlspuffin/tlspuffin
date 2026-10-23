@@ -49,7 +49,7 @@ The ASAN variants are separate presets (e.g. `openssl:openssl340-asan`).
     | 5.8.4      | yes               | yes             | yes                   | `wolfssl:wolfssl584`  |
     | 5.8.0      | yes               | yes             | yes                   | `wolfssl:wolfssl580`  |
     | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |
-    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`, WARNING: not fully functional |
+    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`  |
     | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |
     | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |   
     | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |
