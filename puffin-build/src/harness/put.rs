@@ -135,6 +135,15 @@ impl Put {
         );
         println!("cargo:rustc-cfg=has_put=\"{}\"", self.name());
 
+        // One cfg per PUT, named after its preset without the `-asan` suffix: a test filter can
+        // then select a version whatever its ASAN variant (`openssl340` matches both `openssl340`
+        // and `openssl340-asan`).
+        println!(
+            "cargo:rustc-cfg={}=\"{}\"",
+            make_rust_identifier(self.name().replace("-asan", "")),
+            self.name()
+        );
+
         if lib.vendor == "boringssl" {
             if cfg!(target_os = "macos") {
                 println!("cargo:rustc-link-lib=c++");

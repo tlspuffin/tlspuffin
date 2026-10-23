@@ -97,7 +97,7 @@ mk_vendor VENDOR PRESET EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAI
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 
 benchmark: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
-  cargo bench -p tlspuffin --features "openssl111k"
+  cargo bench -p tlspuffin --features "cputs"
 
 fmt-rust: (install-rust-toolchain NIGHTLY_TOOLCHAIN "--quiet")
   RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt --all
