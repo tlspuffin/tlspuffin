@@ -152,7 +152,7 @@ buckets: dict[str, BucketCondition] = {
 }
 ```
 
-To understand all the types of query, see their documentation in the `|diff-analyzer` Python module.
+To understand all the types of query, see their documentation in the `diff-analyzer` Python module.
 
 To start the triaging:
 
