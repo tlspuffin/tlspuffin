@@ -735,7 +735,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
+    #[apply(test_puts, filter = all(tls12, tls13))]
     fn test_seed_error_12_13(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_error_12_13.build_trace();
@@ -758,7 +758,7 @@ pub mod tests {
         );
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
+    #[apply(test_puts, filter = all(tls12, tls13))]
     fn test_seed_error_13_12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_error_13_12.build_trace();
