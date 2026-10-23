@@ -32,6 +32,7 @@ will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
   <TabItem value="openssl" label="OpenSSL" default>
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]   |
     | :--------: | :---------------: | :-------------: | :-------------------: | ---------------------- |
+    | 3.4.1      | yes               | yes             | yes                   | `openssl:openssl341`   |
     | 3.4.0      | yes               | yes             | yes                   | `openssl:openssl340`   |
     | 3.2.0      | yes               | yes             | yes                   | `openssl:openssl320`   |
     | 3.1.2      | yes               | yes             | yes                   | `openssl:openssl312`   |

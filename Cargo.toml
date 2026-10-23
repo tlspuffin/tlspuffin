@@ -49,6 +49,7 @@ log4rs = { version = "1.2.0", features = ["gzip"] }
 test-log = "0.2"
 env_logger = "0.10"
 tempfile = "3.3.0"
+sha256 = { version = "1.6.0", default-features = false }
 chrono = "0.4.19"
 criterion = "0.5"
 itertools = "0.13"
