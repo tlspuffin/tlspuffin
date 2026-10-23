@@ -15,6 +15,7 @@ pub const MIN_BIT_CORPUS: usize = 200; // on 1 core
 #[derive(Clone, Debug)]
 pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
+    pub initial_corpus: Option<Vec<String>>,
     pub static_seed: Option<u64>,
     pub max_iters: Option<u64>,
     pub core_definition: String,
@@ -40,6 +41,7 @@ impl Default for FuzzerConfig {
         let current = std::env::current_dir().unwrap();
         Self {
             initial_corpus_dir: current.join("./seeds"),
+            initial_corpus: None,
             static_seed: None,
             max_iters: None,
             core_definition: "1".to_string(),

@@ -20,8 +20,8 @@ use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::PutDescriptor;
+use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes, ALL_CORPORA};
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, ConfigTrace, ExecutionResult, Source, Spawner, Trace, TraceContext};
 
@@ -56,6 +56,7 @@ where
             .value_parser(value_parser!(u64).range(1..=3_600_000)))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
             Command::new("mapper")
                 .about("Debugging information about the mapper")
@@ -71,9 +72,13 @@ where
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
-                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+                .arg(arg!(-D --differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to generate the seed (comma separated names, or `all`)").value_delimiter(','))
+                .arg(arg!(--puts [p] "PUTs to generate for (comma separated names); emits the intersection of supported seeds").value_delimiter(','))
+            ,
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -122,12 +127,14 @@ where
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
                 .arg(arg!(<first_target> "The first target to fuzz"))
-                .arg(arg!(<second_target> "The second target to fuzz")),
+                .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(',')),
             Command::new("differential-experiment").about("Starts a new differential fuzzing experiment and writes the results out")
                 .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to build the initial seed corpus (comma separated). If not provided, uses the ./seed corpus. If neither then uses 'default'").value_delimiter(','))
             ,
         ])
 }
@@ -282,9 +289,41 @@ where
     };
 
     if let Some(matches) = matches.subcommand_matches("seed") {
-        let is_differential = matches.get_flag("differential");
+        let default_puts = put_registry.default_put_name().to_string();
 
-        if let Err(err) = seed(&put_registry, is_differential) {
+        let is_differential = matches.get_flag("differential");
+        let corpus: Vec<&str> = matches
+            .get_many::<String>("corpus")
+            .map(|vals| vals.map(String::as_str).collect())
+            .unwrap_or_else(|| vec!["default"]);
+        let puts: Vec<&str> = matches
+            .get_many::<String>("puts")
+            .map(|vals| vals.map(String::as_str).collect())
+            .unwrap_or_else(|| vec![default_puts.as_str()]);
+
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, puts.as_slice())
+        {
+            log::error!("PUT not found : {}", non_available_puts.join(","));
+            log::error!("Available PUTs: {}", available_puts.join(","));
+            return ExitCode::FAILURE;
+        }
+
+        if let Err((available_corpora, unknown_corpora)) =
+            check_if_corpora_exist::<PB>(corpus.as_slice())
+        {
+            log::error!("Corpus not found : {}", unknown_corpora.join(","));
+            log::error!("Available corpuses: {}", available_corpora.join(","));
+            return ExitCode::FAILURE;
+        }
+
+        let puts: Vec<PutDescriptor> = puts
+            .into_iter()
+            .map(|name| PutDescriptor::new(name, PutOptions::default()))
+            .collect();
+        let corpus: Vec<String> = corpus.into_iter().map(String::from).collect();
+
+        if let Err(err) = seed(&put_registry, is_differential, corpus, puts) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -690,7 +729,29 @@ where
             FuzzingTarget::Single(None)
         };
 
+        // `None` means the flag was not passed: the fuzzer should fall back to
+        // `./seeds` if it exists, or the `"default"` corpus otherwise. `Some(_)` means
+        // `--corpus` was given explicitly.
+        let requested_corpora: Option<Vec<String>> = matches
+            .subcommand_matches("experiment")
+            .or(matches.subcommand_matches("quick-experiment"))
+            .or(matches.subcommand_matches("differential"))
+            .or(matches.subcommand_matches("differential-experiment"))
+            .and_then(|submatches| submatches.get_many::<String>("corpus"))
+            .map(|values| values.cloned().collect());
+
+        if let Some(corpora) = &requested_corpora {
+            if let Err((available_corpora, unknown_corpora)) = check_if_corpora_exist::<PB>(
+                &corpora.iter().map(String::as_str).collect::<Vec<_>>(),
+            ) {
+                log::error!("Corpus not found : {}", unknown_corpora.join(","));
+                log::error!("Available corpuses: {}", available_corpora.join(","));
+                return ExitCode::FAILURE;
+            }
+        }
+
         config.target = target;
+        config.initial_corpus = requested_corpora;
 
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
@@ -748,9 +809,19 @@ fn plot<PB: ProtocolBehavior>(
 fn seed<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     differential_fuzzing: bool,
+    corpus: Vec<String>,
+    puts: Vec<PutDescriptor>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Wipe previously generated seeds so the directory reflects exactly the
+    // requested corpuses/PUTs. Ignore the error when it does not exist yet.
+    match fs::remove_dir_all("./seeds") {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
     fs::create_dir_all("./seeds")?;
-    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+
+    for (mut trace, name) in build_corpus(put_registry, &puts, &corpus) {
         if differential_fuzzing {
             trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
@@ -763,6 +834,31 @@ fn seed<PB: ProtocolBehavior>(
 
     log::info!("Generated seed traces into the directory ./seeds");
     Ok(())
+}
+
+/// Validate the requested corpus names against the protocol's registered
+/// corpuses. [`ALL_CORPORA`] is always accepted, since it is expanded to the
+/// full registry by [`build_corpus`]. On failure returns `(available,
+/// unknown)` for error reporting, mirroring [`check_if_puts_exist`].
+fn check_if_corpora_exist<'a, PB: ProtocolBehavior>(
+    corpus_list: &[&'a str],
+) -> Result<(), (Vec<&'static str>, Vec<&'a str>)> {
+    let available: Vec<&'static str> = PB::corpus_registry()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+
+    let unknown: Vec<&str> = corpus_list
+        .iter()
+        .filter(|name| **name != ALL_CORPORA && !available.iter().any(|a| a == *name))
+        .copied()
+        .collect();
+
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err((available, unknown))
+    }
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
