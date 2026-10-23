@@ -273,6 +273,7 @@ void _inner_claimer(Claim claim, void *ctx)
     AGENT agent = (AGENT)(ctx);
     claim.version.data = openssl_get_tls_version(agent->ssl);
 
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
     int neg = SSL_get_negotiated_server_cert_type(agent->ssl);
     claim.use_rpk = (neg == TLSEXT_cert_type_rpk);
     if (claim.use_rpk)
@@ -290,6 +291,9 @@ void _inner_claimer(Claim claim, void *ctx)
             OPENSSL_free(der);
         }
     }
+#else
+    claim.use_rpk = false;
+#endif
 
     agent->claimer->notify(agent->claimer->context, &claim);
 }

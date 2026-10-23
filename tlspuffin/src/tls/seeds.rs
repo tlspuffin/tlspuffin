@@ -249,7 +249,51 @@ pub fn seed_successful_rpk_server(client: AgentName, server: AgentName) -> Trace
     }
 }
 
-pub fn seed_client_attacker_rpk(server: AgentName) -> Trace<TLSProtocolTypes> {
+fn rpk_client_extensions() -> Term<TLSProtocolTypes> {
+    term! {
+        fn_client_extensions_append(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                fn_supported_signature_schemes_extension_new,
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
+                )),
+                fn_supported_versions13_extension
+            )),
+            (fn_server_certificate_type_extension(
+                (fn_certificate_types_append(
+                    fn_certificate_types_new,
+                    fn_cert_type_raw_public_key
+                ))
+            ))
+        )
+    }
+}
+
+fn client_attacker_rpk_with_extensions(
+    server: AgentName,
+    extensions: Term<TLSProtocolTypes>,
+) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
         fn_client_hello(
             fn_protocol_version12,
@@ -262,44 +306,7 @@ pub fn seed_client_attacker_rpk(server: AgentName) -> Trace<TLSProtocolTypes> {
                 ))
             )),
             fn_compressions,
-            (fn_client_extensions_make(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    fn_client_extensions_new,
-                                    (fn_support_group_extension_make(
-                                        (fn_support_group_extension_append(
-                                            fn_support_group_extension_new,
-                                            fn_named_group_secp384r1
-                                        ))
-                                    ))
-                                )),
-                                (fn_signature_algorithm_extension(
-                                    (fn_supported_signature_schemes_extension_append(
-                                        fn_supported_signature_schemes_extension_new,
-                                        fn_sig_scheme_rsa_pss_sha256
-                                    ))
-                                ))
-                            )),
-                            (fn_key_share_extension_make(
-                                (fn_key_share_extension_append(
-                                    fn_key_share_extension_new,
-                                    (fn_key_share_deterministic(fn_named_group_secp384r1))
-                                ))
-                            ))
-                        )),
-                        fn_supported_versions13_extension
-                    )),
-                    (fn_server_certificate_type_extension(
-                        (fn_certificate_types_append(
-                            fn_certificate_types_new,
-                            fn_cert_type_raw_public_key
-                        ))
-                    ))
-                ))
-            ))
+            (fn_client_extensions_make((@extensions)))
         )
     };
 
@@ -354,6 +361,24 @@ pub fn seed_client_attacker_rpk(server: AgentName) -> Trace<TLSProtocolTypes> {
         ..Default::default()
     }
 }
+
+pub fn seed_client_attacker_rpk(server: AgentName) -> Trace<TLSProtocolTypes> {
+    client_attacker_rpk_with_extensions(server, rpk_client_extensions())
+}
+
+pub fn seed_client_attacker_rpk_cve_2026_14457(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let extensions = rpk_client_extensions();
+    client_attacker_rpk_with_extensions(
+        server,
+        term! {
+            fn_client_extensions_append(
+                (@extensions),
+                fn_signature_algorithm_cert_extension
+            )
+        },
+    )
+}
+
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
 pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
@@ -2966,8 +2991,9 @@ pub fn create_corpus(
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
         //
-        seed_successful_rpk_server: put.supports("tls13"),
-        seed_client_attacker_rpk: put.supports("tls13"),
+        seed_successful_rpk_server: put.supports("tls13") && put.supports("rpk"),
+        seed_client_attacker_rpk: put.supports("tls13") && put.supports("rpk"),
+        //seed_client_attacker_rpk_cve_2026_14457: put.supports("tls13") && put.supports("rpk"),
     )
 }
 

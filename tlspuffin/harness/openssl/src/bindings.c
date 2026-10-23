@@ -178,12 +178,19 @@ bool enable_rpk_support(SSL_CTX *ssl_ctx)
     {
         return false;
     }
-    return SSL_CTX_set1_client_cert_type(ssl_ctx, types, sizeof(types)) == 1;
+    if (SSL_CTX_set1_client_cert_type(ssl_ctx, types, sizeof(types)) != 1)
+    {
+        return false;
+    }
+    return SSL_CTX_dane_enable(ssl_ctx) > 0;
 }
 
 bool add_expected_rpk(SSL *ssl, PEM const *spki_pem)
 {
-    return true;
+    if (SSL_dane_enable(ssl, NULL) <= 0)
+    {
+        return false;
+    }
 
     BIO *bio = BIO_new_mem_buf(spki_pem->bytes, (int)spki_pem->length);
     if (bio == NULL)
