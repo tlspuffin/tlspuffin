@@ -84,7 +84,7 @@ fn download_url(url: &str, hash: Option<&str>, dest_dir: &Path) -> io::Result<Pa
 
     if let Some(expected) = hash {
         let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
-        let actual = sha256_of(&archive_file)?;
+        let actual = sha256::try_digest(&archive_file)?;
 
         if !actual.eq_ignore_ascii_case(expected) {
             return Err(io::Error::other(format!(
@@ -94,27 +94,6 @@ fn download_url(url: &str, hash: Option<&str>, dest_dir: &Path) -> io::Result<Pa
     }
 
     Ok(archive_file)
-}
-
-fn sha256_of(file: &Path) -> io::Result<String> {
-    // NOTE `sha256sum` is not available on every platform (e.g. macOS ships `shasum`)
-    let output = [("sha256sum", &[][..]), ("shasum", &["-a", "256"][..])]
-        .into_iter()
-        .find_map(|(program, args)| {
-            Command::new(program)
-                .args(args)
-                .arg(file)
-                .output()
-                .ok()
-                .filter(|output| output.status.success())
-        })
-        .ok_or_else(|| io::Error::other("neither `sha256sum` nor `shasum` could be run"))?;
-
-    String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .map(str::to_owned)
-        .ok_or_else(|| io::Error::other("unexpected output from sha256 tool"))
 }
 
 #[cfg(test)]
@@ -129,7 +108,7 @@ mod tests {
         let file = dir.path().join("hello.txt");
         std::fs::write(&file, "hello\n").unwrap();
 
-        assert_eq!(sha256_of(&file).unwrap(), HELLO_SHA256);
+        assert_eq!(sha256::try_digest(&file).unwrap(), HELLO_SHA256);
     }
 
     #[test]
