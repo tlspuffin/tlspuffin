@@ -12,7 +12,6 @@ use crate::error::Error;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-
 pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
     type R;
