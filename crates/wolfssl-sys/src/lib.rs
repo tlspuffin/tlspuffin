@@ -9,5 +9,6 @@ pub extern "C" fn put_rng_init() {
 
 #[no_mangle]
 pub extern "C" fn put_rng_reseed(buffer: *const u8, length: libc::size_t) {
-    log::warn!("[RNG] reseed failed: not implemented for wolfssl");
+    // called before every execution: keep it out of the warnings
+    log::debug!("[RNG] reseed failed: not implemented for wolfssl");
 }
