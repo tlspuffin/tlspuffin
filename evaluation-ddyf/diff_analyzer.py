@@ -596,9 +596,9 @@ def sort_obj(
                 print(f"{file} checked {bucket} conditions")
                 trace_and_metadata = [
                     filepath,
-                    f"{filepath}_ossl.json",
-                    f"{filepath}_wolf.json",
-                    f"{filepath}_diff.json",
+                    f"{os.path.dirname(filepath)}/metadata_diff_{os.path.basename(filepath)}.log",
+                    f"{os.path.dirname(filepath)}/metadata_openssl340_{os.path.basename(filepath)}.log",
+                    f"{os.path.dirname(filepath)}/metadata_libressl421_{os.path.basename(filepath)}.log",
                 ]
                 for file_path in trace_and_metadata:
                     try:
