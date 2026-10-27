@@ -33,9 +33,9 @@ elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-550.patch)
 endif()
 
-set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
+set(v440_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
-set(require_define_xtime "$<AND:$<AND:${CPUT},${v500_or_later}>,${before_v520}>")
+set(require_define_xtime "$<AND:$<AND:${CPUT},${v440_or_later}>,${before_v520}>")
 
 set(require_user_ticks "${CPUT}")
 
@@ -76,7 +76,7 @@ autotools_builder(
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-cryptocb>
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>:--enable-cryptocb>
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-dtls-mtu>
@@ -97,8 +97,8 @@ autotools_builder(
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
     $<${require_user_ticks}:-DUSER_TICKS>         # to ensure deterministic behaviour
-    $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DHAVE_SECRET_CALLBACK>
+    $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 4.4.0 and < 5.2.0
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>:-DHAVE_SECRET_CALLBACK>
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
     # FIXME broken: -DWOLFSSL_GENSEED_FORTEST     # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism

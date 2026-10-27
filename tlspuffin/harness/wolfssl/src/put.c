@@ -24,8 +24,8 @@
 #define thread_local _Thread_local
 #endif
 
-#if LIBWOLFSSL_VERSION_HEX < 0x05000000
-// the timeout type of wolfSSL_accept_ex / wolfSSL_connect_ex was renamed in 5.x
+#if LIBWOLFSSL_VERSION_HEX < 0x04004000
+// the timeout type of wolfSSL_accept_ex / wolfSSL_connect_ex was renamed in 4.4
 #define WOLFSSL_TIMEVAL Timeval
 #endif
 
@@ -94,15 +94,17 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
         return CLAIM_KEY_TYPE_UNKNOWN;
     case ED25519k:
         return CLAIM_KEY_TYPE_ED25519;
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* not defined in 4.x */
-    case X25519k:
-        return CLAIM_KEY_TYPE_X25519;
-    case ED448k:
-        return CLAIM_KEY_TYPE_ED448;
-    case X448k:
-        return CLAIM_KEY_TYPE_X448;
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
     case DHk:
         return CLAIM_KEY_TYPE_DH;
+    case ED448k:
+        return CLAIM_KEY_TYPE_ED448;
+#endif
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+    case X25519k:
+        return CLAIM_KEY_TYPE_X25519;
+    case X448k:
+        return CLAIM_KEY_TYPE_X448;
 #endif
 #if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     case FALCON_LEVEL1k:
@@ -204,12 +206,12 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
 //   ed25519_sa_algo (9) : wire = 0x0807
 //   ed448_sa_algo  (11) : wire = 0x0808
 //   default (ECDSA=3, RSA-PKCS1=1): wire = (hashAlgo << 8) | sigAlgo
-// Field location changed between versions: Suites (< 5.8) → Options (>= 5.8).
+// Field location changed between versions: Suites (< 5.6) → Options (>= 5.6).
 static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
 {
     byte sigAlgo, hashAlgo;
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05008000 /* 5.8.0: fields moved from Suites to Options */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000 /* 5.6.0: fields moved from Suites to Options */
     sigAlgo = ssl->options.sigAlgo;
     hashAlgo = ssl->options.hashAlgo;
 #else
@@ -228,8 +230,8 @@ static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
         return (sigAlgo << 8) | hashAlgo;
     case ed25519_sa_algo: /* 9 → 0x0807 */
         return 0x0807;
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* not defined in 4.x */
-    case ed448_sa_algo:                  /* 11 → 0x0808 */
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
+    case ed448_sa_algo: /* 11 → 0x0808 */
         return 0x0808;
 #endif
     default: /* ecc_dsa_sa_algo=3, rsa_sa_algo=1 → (hashAlgo<<8)|sigAlgo */
@@ -368,7 +370,6 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             // buffer");
         }
         wolfSSL_Free(data);
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* wolfSSL_X509_get_pubkey crashes on 4.x certificates */
         int key_type = wolfSSL_X509_get_pubkey_type(cert);
         if (key_type != WOLFSSL_FAILURE)
         {
@@ -387,7 +388,6 @@ static void fill_claim(AGENT agent, struct Claim *claim)
                 //_log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
             }
         }
-#endif
     }
     else
     {
@@ -413,7 +413,6 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             // buffer");
         }
         wolfSSL_Free(data);
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* wolfSSL_X509_get_pubkey crashes on 4.x certificates */
         int key_type = wolfSSL_X509_get_pubkey_type(peer_cert);
         if (key_type != WOLFSSL_FAILURE)
         {
@@ -432,7 +431,6 @@ static void fill_claim(AGENT agent, struct Claim *claim)
                 //_log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
             }
         }
-#endif
         wolfSSL_X509_free(peer_cert);
     }
     else
@@ -613,9 +611,9 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return result;
 }
 
-// The TLS 1.3 secret callback (HAVE_SECRET_CALLBACK) is only available from wolfSSL 5.0.0: TLS 1.3
+// The TLS 1.3 secret callback (HAVE_SECRET_CALLBACK) is only available from wolfSSL 4.4.0: TLS 1.3
 // secrets cannot be retrieved with older versions.
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
 // Callback to retrieve TLS 1.3 secrets.
 // This function is called when the `handshake_secret` is available
 // in the `ssl` structure, allowing its retrieval.
@@ -827,7 +825,7 @@ char const *map_state_statestr(enum states state)
         return "SERVER_ENCRYPTED_EXTENSIONS_COMPLETE";
     case SERVER_CERT_COMPLETE:
         return "SERVER_CERT_COMPLETE";
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* not defined in 4.x */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     case SERVER_CERT_VERIFY_COMPLETE:
         return "SERVER_CERT_VERIFY_COMPLETE";
 #endif
@@ -901,6 +899,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     else
     {
         wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
         agent->descriptor.name = new_name;
         agent = make_agent(agent, &(agent->descriptor));
         if (agent == NULL)
@@ -1079,7 +1078,7 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
         goto ERROR__make_agent;
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
     if (descriptor->tls_version != V1_2)
     {
         int_retval = wolfSSL_set_tls13_secret_cb(agent->ssl, wolfssl_tls13secrets_callback, agent);
@@ -1139,7 +1138,7 @@ ERROR__make_agent:
 
 // Crypto callbacks (used to provide the seed of the PRNG) are only built from wolfSSL 5.0.0: the
 // PRNG of older versions is not deterministic.
-#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x05000000
+#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x04004000
 // Callback used by wolfssl to to create seeds
 static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
 {
@@ -1210,7 +1209,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         goto ERROR__wolfssl_create_agent;
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* stubs in 4.x: the callback is set on the SSL object */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
     if (int_retval != WOLFSSL_SUCCESS)
     {
@@ -1225,7 +1224,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x05000000
+#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x04004000
     // Register a device to provide seed (for determinism)
     int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, agent->ctx);
     if (int_retval != 0)
@@ -1279,7 +1278,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         _log(PUFFIN.warn, "wolfssl warning no cipher string");
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* wolfSSL_CTX_set1_groups_list: not in 4.x */
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000 /* wolfSSL_CTX_set1_groups_list: not in 4.3 and below */
     // WolfSSL rejects set_groups on TLS 1.2-only contexts
     if (descriptor->group_list != NULL && descriptor->tls_version != V1_2)
     {
@@ -1335,8 +1334,10 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 
     if (is_server || descriptor->client_authentication)
     {
-        // wolfSSL 4.x keeps the X509 given to wolfSSL_CTX_use_certificate in the context without
-        // copying it: it must not be freed, so the certificate is loaded from its buffer instead.
+        // wolfSSL < 5.0 stores the X509 given to wolfSSL_CTX_use_certificate in ctx->ourCert
+        // without taking a reference: freeing it leaves a dangling pointer that
+        // wolfSSL_get_certificate returns in fill_claim (use-after-free). The certificate is
+        // therefore loaded from its buffer, so wolfSSL builds and owns its own copy.
 #if LIBWOLFSSL_VERSION_HEX >= 0x05000000
         // Mimic rust harness
         WOLFSSL_X509 *x509 = NULL;
@@ -1386,7 +1387,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         }
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05000000 /* wolfSSL_CTX_set_num_tickets: not in 4.x */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     if (is_server)
     {
         int_retval = wolfSSL_CTX_set_num_tickets(agent->ctx, 2);
