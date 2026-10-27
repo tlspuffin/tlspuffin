@@ -1,8 +1,3 @@
-/* Known issues:
- * wolfssl 5.5.X test_seed_client_attacker12 and test_seed_successful12
-   fail with "can't match cipher suite"
-******************************************************************************/
-
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
 
