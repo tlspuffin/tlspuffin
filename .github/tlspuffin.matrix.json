@@ -236,6 +236,18 @@
     }
   },
   {
+    "labels": ["fast"],
+    "name": "wolfssl440",
+    "mk_vendor": { "vendor": "wolfssl", "preset": "wolfssl440" },
+    "cargo": { "name": "", "features": ["cputs"] }
+  },
+  {
+    "labels": [],
+    "name": "wolfssl440-asan",
+    "mk_vendor": { "vendor": "wolfssl", "preset": "wolfssl440-asan" },
+    "cargo": { "name": "", "features": ["cputs"] }
+  },
+  {
     "labels": [
       "fast"
     ],
