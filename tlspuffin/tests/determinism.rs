@@ -9,7 +9,8 @@ use tlspuffin::test_utils::prelude::*;
 OpenSSL is currently excuded because:
   (i) we currently don't have a working RNG reseed for the OpenSSL CPUT (see Issue #393),
   (ii) we don't have a time hook at the moment for the OpenSSL CPUT.
-wolfSSL 4.3.0 is also excluded: its PRNG cannot be seeded (no crypto callbacks before 5.0.0).
+wolfSSL 4.3.0 is also excluded: its PRNG cannot be seeded (crypto callbacks are only enabled from
+4.4.0).
 */
 #[apply(test_puts, filter = all(not(openssl), not(wolfssl430)))]
 fn test_attacker_full_det_recreate(put: &str) {

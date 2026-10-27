@@ -2886,10 +2886,10 @@ pub mod tests {
     // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
     // (incompatible patch applied) than using client_authentication_transcript_extraction and
     // not(disable_postauth) in the next 3 tests
-    // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
-    // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption
-    // tests.
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
+    // Exclude wolfssl430 (no TLS 1.3 secret callback before 4.4.0, so no handshake secret to
+    // decrypt with) and wolfssl540-sdos2 (incompatible patch, has disable_postauth) from
+    // differential decryption tests.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth), not(wolfssl430)))]
     fn test_seeds_differential_decryption(put: &str) {
         let traces = vec![
             seed_client_attacker.build_trace(),
@@ -3512,8 +3512,9 @@ pub mod tests {
     }
 
     /// Check if Messages sent at a failing step are captured
-    // Not captured with wolfSSL 4.3.0 (cause not investigated)
-    #[apply(test_puts, filter = all(tls13, not(wolfssl430)))]
+    // wolfSSL < 5.0 rejects a ClientHello without supported_versions on a TLS 1.3-only server
+    // without sending any alert, so there is nothing to capture.
+    #[apply(test_puts, filter = all(tls13, not(any(wolfssl430, wolfssl440))))]
     fn test_trigger_alert(put: &str) {
         // sending an incorrect message
         let trace = Trace {

@@ -180,6 +180,17 @@ sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.0.0-st
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 
+[wolfssl440-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.4.0-stable", version = "4.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+
+[wolfssl440]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.4.0-stable", version = "4.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
 [wolfssl430-asan]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.3.0-stable", version = "4.3.0" }
 builder = { type = "builtin", name = "wolfssl" }

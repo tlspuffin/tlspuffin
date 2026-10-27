@@ -1059,6 +1059,21 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
                     128);
             goto ERROR__make_agent;
         }
+
+#if LIBWOLFSSL_VERSION_HEX < 0x05000000
+        // By default wolfSSL 5.x creates its first key share for the first configured group,
+        // while wolfSSL 4.x always uses P-256 whatever the configured groups. To mimic 5.x,
+        // wolfSSL_UseKeyShare must be called with the first configured group.
+        if (agent->ssl->numGroups > 0)
+        {
+            int_retval = wolfSSL_UseKeyShare(agent->ssl, agent->ssl->group[0]);
+            if (int_retval != WOLFSSL_SUCCESS)
+            {
+                snprintf(error_msg, 128, "wolfSSL_UseKeyShare failed: %d", int_retval);
+                goto ERROR__make_agent;
+            }
+        }
+#endif
     }
 
     int_retval = wolfSSL_set_msg_callback(agent->ssl, wolfssl_message_callback);
@@ -1179,6 +1194,58 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
 }
 #endif
 
+#if LIBWOLFSSL_VERSION_HEX < 0x05000000
+// wolfSSL_CTX_set1_groups_list appeared in 4.4 and does not behave like in 5.x.
+// It stores the curve NIDs (e.g. 415 for P-256) as TLS group ids
+static int wolfssl_set_groups_list(WOLFSSL_CTX *ctx, const char *list)
+{
+    static const struct
+    {
+        const char *name;
+        int group;
+    } group_names[] = {
+        {"P-256", WOLFSSL_ECC_SECP256R1},
+        {"P-384", WOLFSSL_ECC_SECP384R1},
+        {"P-521", WOLFSSL_ECC_SECP521R1},
+#ifdef HAVE_CURVE25519
+        {"X25519", WOLFSSL_ECC_X25519},
+#endif
+#ifdef HAVE_CURVE448
+        {"X448", WOLFSSL_ECC_X448},
+#endif
+    };
+    const size_t group_names_count = sizeof(group_names) / sizeof(group_names[0]);
+    int groups[WOLFSSL_MAX_GROUP_COUNT];
+    int count = 0;
+
+    for (const char *name = list; *name != '\0';)
+    {
+        const char *end = strchr(name, ':');
+        size_t len = (end != NULL) ? (size_t)(end - name) : strlen(name);
+        size_t i = 0;
+
+        while (i < group_names_count &&
+               (strlen(group_names[i].name) != len || strncmp(name, group_names[i].name, len) != 0))
+        {
+            i++;
+        }
+        if (i == group_names_count || count == WOLFSSL_MAX_GROUP_COUNT)
+        {
+            return WOLFSSL_FAILURE;
+        }
+        groups[count++] = group_names[i].group;
+
+        if (end == NULL)
+        {
+            break;
+        }
+        name = end + 1;
+    }
+
+    return wolfSSL_CTX_set_groups(ctx, groups, count);
+}
+#endif
+
 static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
                                   WOLFSSL_METHOD *tls_method,
                                   bool peer_authentication)
@@ -1278,18 +1345,20 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         _log(PUFFIN.warn, "wolfssl warning no cipher string");
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x04004000 /* wolfSSL_CTX_set1_groups_list: not in 4.3 and below */
     // WolfSSL rejects set_groups on TLS 1.2-only contexts
     if (descriptor->group_list != NULL && descriptor->tls_version != V1_2)
     {
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
         int_retval = wolfSSL_CTX_set1_groups_list(agent->ctx, (char *)(descriptor->group_list));
+#else
+        int_retval = wolfssl_set_groups_list(agent->ctx, descriptor->group_list);
+#endif
         if (int_retval != WOLFSSL_SUCCESS)
         {
             snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
             goto ERROR__wolfssl_create_agent;
         }
     }
-#endif
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     if (descriptor->sigalgs_list != NULL)
