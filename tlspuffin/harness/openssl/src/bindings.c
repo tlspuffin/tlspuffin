@@ -53,6 +53,61 @@ int BIO_read_ex(BIO *b, void *data, size_t dlen, size_t *readbytes)
 }
 #endif
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+// Emulated with SSL_OP_NO_* options. As in OpenSSL >= 1.1.0, version 0 means no bound.
+int SSL_CTX_set_min_proto_version(SSL_CTX *ctx, int version)
+{
+    if (version != 0 && (version < SSL3_VERSION || version > TLS1_2_VERSION))
+    {
+        return 0;
+    }
+
+    long options = SSL_OP_NO_SSLv2;
+    if (version > SSL3_VERSION)
+    {
+        options |= SSL_OP_NO_SSLv3;
+    }
+    if (version > TLS1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1;
+    }
+    if (version > TLS1_1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_1;
+    }
+    SSL_CTX_set_options(ctx, options);
+    return 1;
+}
+
+int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, int version)
+{
+    if (version == 0)
+    {
+        return 1;
+    }
+    if (version < SSL3_VERSION || version > TLS1_2_VERSION)
+    {
+        return 0;
+    }
+
+    long options = 0;
+    if (version < TLS1_2_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_2;
+    }
+    if (version < TLS1_1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_1;
+    }
+    if (version < TLS1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1;
+    }
+    SSL_CTX_set_options(ctx, options);
+    return 1;
+}
+#endif
+
 char *get_error_reason()
 {
     BIO *bio = BIO_new(BIO_s_mem());

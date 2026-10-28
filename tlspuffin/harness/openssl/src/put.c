@@ -328,7 +328,6 @@ static TLSVersion openssl_get_tls_version(SSL *ssl)
     return CLAIM_TLS_VERSION_UNDEFINED;
 }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
 {
     switch (version)
@@ -349,10 +348,9 @@ void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
         _log(PUFFIN.error, "unknown TLS version: %u", version);
     }
 }
-#endif
 
-// Settings that do not exist before OpenSSL 1.1.1 (1.0.2 for sigalgs): they are ignored on older
-// versions.
+// Settings that do not exist before OpenSSL 1.0.2 (1.1.1 for ciphersuites): they are ignored
+// on older versions.
 static void openssl_set_ciphersuites(SSL_CTX *ssl_ctx, const char *ciphersuites)
 {
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
@@ -367,6 +365,8 @@ static void openssl_set_groups_list(SSL_CTX *ssl_ctx, const char *groups)
 {
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
     SSL_CTX_set1_groups_list(ssl_ctx, groups);
+#elif OPENSSL_VERSION_NUMBER >= 0x10002000L
+    SSL_CTX_set1_curves_list(ssl_ctx, groups);
 #else
     (void)ssl_ctx;
     (void)groups;
@@ -395,9 +395,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
     openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
-#endif
 
     if (descriptor->tls_version == Both)
     {
@@ -467,9 +465,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
     openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
-#endif
 
 #if OPENSSL_VERSION_NUMBER > 0x10002000L
     SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
