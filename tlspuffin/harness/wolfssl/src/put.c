@@ -895,9 +895,10 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     {
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
         agent->descriptor.name = new_name;
-        agent = make_agent(agent, &(agent->descriptor));
-        if (agent == NULL)
+        if (make_agent(agent, &(agent->descriptor)) == NULL)
         {
             _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
             return PUFFIN.make_result(RESULT_ERROR_OTHER,
@@ -1018,6 +1019,8 @@ static void wolfssl_destroy(AGENT agent)
     {
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
     }
     if (agent->ctx != NULL)
     {
@@ -1142,7 +1145,21 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
 
 ERROR__make_agent:
     _log(PUFFIN.error, "fatal error in make_agent: %s", error_msg);
-    wolfssl_destroy(agent);
+    if (agent->ssl != NULL)
+    {
+        wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
+    }
+    if (agent->in != NULL)
+    {
+        wolfSSL_BIO_free(agent->in);
+        agent->in = NULL;
+    }
+    if (agent->out != NULL)
+    {
+        wolfSSL_BIO_free(agent->out);
+        agent->out = NULL;
+    }
     return NULL;
 }
 
@@ -1463,8 +1480,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-    agent = make_agent(agent, descriptor);
-    if (agent == NULL)
+    if (make_agent(agent, descriptor) == NULL)
     {
         strncpy(error_msg, "creating wolfssl agent failed", 128);
         goto ERROR__wolfssl_create_agent;
