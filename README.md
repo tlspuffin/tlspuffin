@@ -4,9 +4,9 @@
 
 ## What is `puffin`?
 
-The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/57)).
+The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/057)).
 It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and
-preliminary versions of a harness for OpenSSH. We built `puffin` so that new protocols and protocol implementations can be added.
+preliminary versions of a harness for libssh. We built `puffin` so that new protocols and protocol implementations can be added.
 Internally, `puffin` uses the library [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
 
 We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this project. This is because the first protocol we implemented was TLS. However, `puffin` and DY fuzzing in general are not limited to the TLS protocol.

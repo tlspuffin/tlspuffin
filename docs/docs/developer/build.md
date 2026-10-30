@@ -65,7 +65,7 @@ flowchart LR;
 - a vendor library is built from upstream sources (e.g. OpenSSL, BoringSSL, ...)
 - stored in **VENDOR_DIR** (defaults to `./vendor`)
 - **mk_vendor** is a binary from the `puffin-build` crate to build vendor libraries using **presets**
-- presets are located in `puffin-build/vendor/<library>/presets.toml`
+- presets are located in `puffin-build/vendors/<library>/presets.toml`
 
 ### mk_vendor
 
