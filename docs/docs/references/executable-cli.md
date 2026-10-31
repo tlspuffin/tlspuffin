@@ -207,17 +207,17 @@ Executes a trace and displays information about its execution.
 `tlspuffin [OPTIONS] display-execute [OPTIONS] <INPUT>`
 ```
 
-| Argument / Option                             | Description                                                                        |
-|-----------------------------------------------|------------------------------------------------------------------------------------|
-| `<input>`                                     | The file which stores a trace.                                                     |
-| `-s, --max_step <n>`                          | The step at which to stop.                                                         |
-| `-t, --show_terms <bool>`                     | Show the terms computed at each input step.                                        |
-| `-c, --show_claims <bool>`                    | Show the claims emitted at each input step.                                        |
-| `-k, --show_knowledges <bool>`                | Show the knowledge gathered at each output step.                                   |
-| `-r, --show_raw <bool>`                       | Show the computed terms as raw hex (e.g. for use with `netcat`).                   |
-| `-p, --differential_post_computations <bool>` | Evaluate the post-execution terms used in differential fuzzing (e.g. decryptions). |
-| `-j, --json <bool>`                           | Export the trace execution as JSON.                                                |
-| `-C, --disable_security_oracle <bool>`        | Disable the protocol security oracle.                                              |
+| Argument / Option                      | Description                                                                        |
+|----------------------------------------|------------------------------------------------------------------------------------|
+| `<input>`                              | The file which stores a trace.                                                     |
+| `-s, --max_step <n>`                   | The step at which to stop.                                                         |
+| `-t, --show_terms`                     | Show the terms computed at each input step.                                        |
+| `-c, --show_claims`                    | Show the claims emitted at each input step.                                        |
+| `-k, --show_knowledges`                | Show the knowledge gathered at each output step.                                   |
+| `-r, --show_raw`                       | Show the computed terms as raw hex (e.g. for use with `netcat`).                   |
+| `-p, --differential_post_computations` | Evaluate the post-execution terms used in differential fuzzing (e.g. decryptions). |
+| `-j, --json`                           | Export the trace execution as JSON.                                                |
+| `-C, --disable_security_oracle`        | Disable the protocol security oracle.                                              |
 
 The exit code is `0` if the execution succeeded, `1` otherwise.
 
@@ -229,13 +229,13 @@ Executes a trace on two PUTs and returns the differences between the executions.
 `tlspuffin differential-execute [OPTIONS] <FIRST_TARGET> <SECOND_TARGET> <INPUT>`
 ```
 
-| Argument / Option                     | Description                          |
-|---------------------------------------|--------------------------------------|
-| `<first_target>`                      | First PUT.                           |
-| `<second_target>`                     | Second PUT.                          |
-| `<input>`                             | Input trace.                         |
-| `-S, --enable-security-oracle <bool>` | Enable the protocol security oracle. |
-| `-j, --json <bool>`                   | Export the differences as JSON.      |
+| Argument / Option              | Description                          |
+|--------------------------------|--------------------------------------|
+| `<first_target>`               | First PUT.                           |
+| `<second_target>`              | Second PUT.                          |
+| `<input>`                      | Input trace.                         |
+| `-S, --enable-security-oracle` | Enable the protocol security oracle. |
+| `-j, --json`                   | Export the differences as JSON.      |
 
 The PUT configuration of the trace is uniformised first, and all the agents of the trace (including the ones of prior
 traces) are mapped to the given PUTs. The exit code is `0` if there is no difference, `1` otherwise.
