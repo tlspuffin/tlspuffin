@@ -735,8 +735,6 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    // LibreSSL333 supports TLS1.3 but not the 1.3 API, therefore we cannot set an agent only on 1.3
-    // There is no error raised if the agent can communicate in 1.2
     #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
     fn test_seed_error_12_13(put: &str) {
         let runner = default_runner_for(put);
@@ -760,8 +758,6 @@ pub mod tests {
         );
     }
 
-    // LibreSSL333 supports TLS1.3 but not the 1.3 API, therefore we cannot set an agent only on 1.3
-    // There is no error raised if the agent can communicate in 1.2
     #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
     fn test_seed_error_13_12(put: &str) {
         let runner = default_runner_for(put);

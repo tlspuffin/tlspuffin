@@ -46,7 +46,8 @@ will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
   <TabItem value="libressl" label="LibreSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]                             |
     | :--------: | :---------------: | :-------------: | :-------------------: | ------------------------------------------------ |
-    | 3.3.3      | yes               | no              | no                    | *work in progress* (cargo preset: `libressl333`) |
+    | 4.2.1      | yes               | yes             | yes                   | `libressl:libressl421`                           |
+    | 3.3.3      | yes               | yes             | yes                   | `libressl:libressl333`                           |
   </TabItem>
 
   <TabItem value="wolfssl" label="wolfSSL">

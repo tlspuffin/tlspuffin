@@ -3656,6 +3656,11 @@ pub mod tests {
         assert_no_differential_differences("openssl340", "libressl421");
     }
 
+    #[apply(test_differential_puts, first = "openssl340", second = "libressl333")]
+    fn test_differential_openssl340_vs_libressl333() {
+        assert_no_differential_differences("openssl340", "libressl333");
+    }
+
     #[apply(
         test_differential_puts,
         first = "openssl340",
