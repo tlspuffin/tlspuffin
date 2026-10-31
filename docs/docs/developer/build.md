@@ -65,7 +65,7 @@ flowchart LR;
 - a vendor library is built from upstream sources (e.g. OpenSSL, BoringSSL, ...)
 - stored in **VENDOR_DIR** (defaults to `./vendor`)
 - **mk_vendor** is a binary from the `puffin-build` crate to build vendor libraries using **presets**
-- presets are located in `puffin-build/vendor/<library>/presets.toml`
+- presets are located in `puffin-build/vendors/<library>/presets.toml`
 
 ### mk_vendor
 
@@ -99,7 +99,7 @@ Vendor library presets are stored in `puffin-build/vendors/<library>/presets.tom
 For example, the section for the preset `openssl340-asan` is in `puffin-build/vendors/openssl/presets.toml`:
 ```toml
 [openssl340-asan]
-sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_4", version = "3.4.0" }
+sources = { repo = "https://github.com/openssl/openssl.git", branch = "openssl-3.4.0", version = "3.4.0" }
 builder = { type = "builtin", name = "openssl" }
 asan = true
 sancov = true
