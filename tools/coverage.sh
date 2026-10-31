@@ -4,10 +4,9 @@ WORK_DIR="./target-nightly"
 TARGET_DIR="$WORK_DIR"
 
 # This only work with the Rust nightly address sanitizer.
-# For some reason the asan runtime we link in openssl-src is not enough!
 
 # We also need asan in linker: https://stackoverflow.com/questions/42482494/undefined-reference-to-asan-init-v4-when-compiling
-# We enabled asan in openssl and also link libasan by default.
+# The vendor libraries are built with asan (`-asan` presets) and also link libasan by default.
 # Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented. It gets implemented by the address
 # sanitizer.
 # Adapted from https://github.com/rust-fuzz/libfuzzer
