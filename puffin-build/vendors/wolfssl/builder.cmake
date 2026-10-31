@@ -33,11 +33,16 @@ elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-550.patch)
 endif()
 
-set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
+set(v440_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
-set(require_define_xtime "$<AND:$<AND:${CPUT},${v500_or_later}>,${before_v520}>")
+set(require_define_xtime "$<AND:$<AND:${CPUT},${v440_or_later}>,${before_v520}>")
 
-set(require_user_ticks "$<AND:${CPUT},${v500_or_later}>")
+set(require_user_ticks "${CPUT}")
+
+# The RDSEED/RDRAND inline assembly does not mark its output as early-clobber: the compiler may
+# reuse the output register to address the status flag, which crashes the library when it is
+# built with ASAN. The constraint is fixed in every version that has it (present in 4.3.0 and 5.x).
+patch(PATTERN [===[s/"=r"\\((\\*\\w+)\\), "=qm"\\(ok\\)/"=&r"($1), "=qm"(ok)/]===] <SOURCE_DIR>/wolfcrypt/src/random.c)
 
 foreach(CVE IN LISTS fix)
   if(NOT HAS_${CVE})
@@ -71,7 +76,7 @@ autotools_builder(
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-cryptocb>
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>:--enable-cryptocb>
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-dtls-mtu>
@@ -92,8 +97,8 @@ autotools_builder(
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
     $<${require_user_ticks}:-DUSER_TICKS>         # to ensure deterministic behaviour
-    $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DHAVE_SECRET_CALLBACK>
+    $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 4.4.0 and < 5.2.0
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>:-DHAVE_SECRET_CALLBACK>
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
     # FIXME broken: -DWOLFSSL_GENSEED_FORTEST     # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
@@ -124,11 +129,11 @@ list(APPEND INSTALL_COMMANDS
 set(tls12 yes)
 set(tls13 yes)
 set(transcript_extraction yes)
+set(client_authentication_transcript_extraction yes)
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.0")
   set(tls12_session_resumption yes)
   set(tls13_session_resumption yes)
   set(psk_ke_support yes)
-  set(client_authentication_transcript_extraction yes)
 endif()
 set(allow_setting_tls12_ciphers yes)
 set(allow_setting_tls13_ciphers yes)

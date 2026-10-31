@@ -5,7 +5,6 @@ use puffin::trace::Query;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::tls::rustls::msgs::enums::{CipherSuite, NamedGroup};
 
-#[cfg(not(feature = "wolfssl430"))]
 #[apply(test_puts, filter = all(tls13))]
 fn test_group_selection_secp384r1(put: &str) {
     use tlspuffin::tls::seeds::seed_successful;
@@ -39,8 +38,7 @@ fn test_group_selection_secp384r1(put: &str) {
     }
 }
 
-#[cfg(not(feature = "wolfssl430"))]
-#[apply(test_puts,  filter = tls13)]
+#[apply(test_puts, filter = all(tls13))]
 fn test_group_selection_secp256r1(put: &str) {
     use tlspuffin::tls::seeds::seed_successful;
 

@@ -578,9 +578,6 @@ pub fn seed_successful_with_tickets(
         }),
     });
 
-    // FIXME: don't rely on cargo feature to set the number of session tickets
-    // Ticket (wolfSSL 4.4.0 only sends a single ticket)
-    #[cfg(not(feature = "wolfssl430"))]
     trace.steps.push(Step {
         agent: client,
         action: Action::Input(input_action! { term! {
@@ -2889,10 +2886,10 @@ pub mod tests {
     // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
     // (incompatible patch applied) than using client_authentication_transcript_extraction and
     // not(disable_postauth) in the next 3 tests
-    // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
-    // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption
-    // tests.
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
+    // Exclude wolfssl430 (no TLS 1.3 secret callback before 4.4.0, so no handshake secret to
+    // decrypt with) and wolfssl540-sdos2 (incompatible patch, has disable_postauth) from
+    // differential decryption tests.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth), not(wolfssl430)))]
     fn test_seeds_differential_decryption(put: &str) {
         let traces = vec![
             seed_client_attacker.build_trace(),
@@ -3047,7 +3044,7 @@ pub mod tests {
     /// Verify that cipher and sigalgs configuration actually takes effect.
     /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
     /// For openssl we only test versions 3.4.x as they are the only ones that have the right claims
-    /// added by our claims instrumentation. Wolfssl430 does not have a C harness
+    /// added by our claims instrumentation.
     #[cfg(not(feature = "wolfssl430"))]
     #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340, openssl341), not(libressl))
     )]
@@ -3515,8 +3512,9 @@ pub mod tests {
     }
 
     /// Check if Messages sent at a failing step are captured
-    #[cfg(not(feature = "wolfssl430"))]
-    #[apply(test_puts, filter = all(tls13))]
+    // wolfSSL < 5.0 rejects a ClientHello without supported_versions on a TLS 1.3-only server
+    // without sending any alert, so there is nothing to capture.
+    #[apply(test_puts, filter = all(tls13, not(any(wolfssl430, wolfssl440))))]
     fn test_trigger_alert(put: &str) {
         // sending an incorrect message
         let trace = Trace {
