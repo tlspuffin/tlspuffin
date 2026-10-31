@@ -45,6 +45,9 @@ fn main() {
         .collect();
 
     let bundle = harness::bundle(puts).build(out_dir);
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-arg=-no-pie");
+    }
     bundle.print_cargo_metadata();
 }
 
