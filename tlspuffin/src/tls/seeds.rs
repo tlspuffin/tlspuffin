@@ -3046,10 +3046,10 @@ pub mod tests {
 
     /// Verify that cipher and sigalgs configuration actually takes effect.
     /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
-    /// For openssl we only test version 3.4.0 as it is the only one that has the right claims added
-    /// in our openssl github fork. Wolfssl430 does not have a C harness
+    /// For openssl we only test versions 3.4.x as they are the only ones that have the right claims
+    /// added by our claims instrumentation. Wolfssl430 does not have a C harness
     #[cfg(not(feature = "wolfssl430"))]
-    #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340), not(libressl))
+    #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340, openssl341), not(libressl))
     )]
     fn test_cipher_config_takes_effect(put: &str) {
         use crate::claims::Finished;

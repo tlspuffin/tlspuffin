@@ -141,6 +141,38 @@
     "labels": [
       "fast"
     ],
+    "name": "openssl341",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl341"
+    },
+    "cargo": {
+      "name": "",
+      "features": [
+        "cputs"
+      ]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl341-asan",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl341-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": [
+        "cputs"
+      ]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
     "name": "libressl333",
     "mk_vendor": {
       "vendor": "libressl",
