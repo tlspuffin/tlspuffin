@@ -3,6 +3,13 @@ use_languages(C CXX)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/no_asan.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/extract_transcript.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/reset_drbg.patch)
+patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/per_message_records.patch)
+
+# Swap TLS 1.3 cipher preference: AES-256-GCM first (matching OpenSSL default).
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/handshake_client.cc -P "${CMAKE_CURRENT_LIST_DIR}/patch_cipher_order.cmake")
+
+# Relax session ID validation: allow echoed synthetic session IDs (for fuzzing).
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/handshake_client.cc -P "${CMAKE_CURRENT_LIST_DIR}/patch_session_id.cmake")
 
 cmake_builder(
   TARGETS
@@ -78,9 +85,16 @@ set(tls12_session_resumption yes)
 set(tls13_session_resumption yes)
 set(transcript_extraction yes)
 set(client_authentication_transcript_extraction yes)
+set(allow_setting_tls12_ciphers yes)
+set(allow_setting_tls13_ciphers no)
+set(allow_setting_sigalgs yes)
 
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "<INSTALL_DIR>/${CMAKE_INSTALL_INCLUDEDIR}/")
-list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "<BINARY_DIR>/crypto/libcrypto.a" "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
-list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "<BINARY_DIR>/ssl/libssl.a"       "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
+list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "<BINARY_DIR>/libcrypto.a" "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
+list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "<BINARY_DIR>/libssl.a"       "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>/include"  "<INSTALL_DIR>/${CMAKE_INSTALL_INCLUDEDIR}")
+# Copy internal headers for harness access to ssl/internal.h, ssl/handshake.h, etc.
+list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>/ssl"  "<INSTALL_DIR>/${CMAKE_INSTALL_INCLUDEDIR}/ssl")
+# Copy crypto internal headers (required by ssl/internal.h relative includes)
+list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy_directory "<SOURCE_DIR>/crypto"  "<INSTALL_DIR>/${CMAKE_INSTALL_INCLUDEDIR}/crypto")

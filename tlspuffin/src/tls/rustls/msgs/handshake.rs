@@ -1,5 +1,6 @@
 use std::{collections, fmt};
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -19,7 +20,7 @@ use crate::tls::rustls::{key, rand};
 
 macro_rules! declare_u8_vec (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
     atom_extract_knowledge!(TLSProtocolTypes, $name);
@@ -38,7 +39,7 @@ macro_rules! declare_u8_vec (
 
 macro_rules! declare_u16_vec (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
     impl Extractable<TLSProtocolTypes> for $name {
@@ -79,7 +80,7 @@ macro_rules! declare_u16_vec (
 
 macro_rules! declare_u16_vec_empty (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone, Extractable)]
+    #[derive(Debug, Clone, Extractable, Comparable)]
     #[extractable(TLSProtocolTypes)]
     pub struct $name(pub Vec<$itemtype>);
 
@@ -109,7 +110,7 @@ macro_rules! declare_u16_vec_empty (
 
 macro_rules! declare_u24_vec_limited (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct $name(pub Vec<$itemtype>);
 
     atom_extract_knowledge!(TLSProtocolTypes, $name);
@@ -133,7 +134,7 @@ macro_rules! declare_u24_vec_limited (
 declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
 declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Comparable)]
 pub struct Random(pub [u8; 32]);
 
 static ZERO_RANDOM: Random = Random([0u8; 32]);
@@ -172,7 +173,7 @@ impl From<[u8; 32]> for Random {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Comparable)]
 pub struct SessionID {
     len: usize,
     data: [u8; 32],
@@ -245,10 +246,11 @@ impl SessionID {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct UnknownExtension {
     pub typ: ExtensionType,
+    #[comparable_ignore]
     pub payload: Payload,
 }
 
@@ -271,7 +273,9 @@ pub trait SupportedPointFormats {
 
 impl SupportedPointFormats for ECPointFormatList {
     fn supported() -> ECPointFormatList {
-        ECPointFormatList(vec![ECPointFormat::Uncompressed])
+        ECPointFormatList(vec![ECPointFormat::Uncompressed]) // TODO-Mapper: could be extended to
+                                                             // change
+                                                             // this field
     }
 }
 
@@ -318,7 +322,7 @@ impl DecomposedSignatureScheme for SignatureScheme {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ServerNamePayload {
     // Stored twice, bytes so we can round-trip, and DnsName for use
     HostName((PayloadU16, webpki::DnsName)),
@@ -357,12 +361,14 @@ impl ServerNamePayload {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerName {
+    // Fields in this struct could probably be aligned but for now they are ignored
     #[extractable_ignore]
     pub typ: ServerNameType,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub payload: ServerNamePayload,
 }
 
@@ -388,7 +394,7 @@ declare_u16_vec!(ServerNameRequest, ServerName);
 
 pub trait ConvertServerNameList {
     fn has_duplicate_names_for_type(&self) -> bool;
-    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef>;
+    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef<'_>>;
 }
 
 impl ConvertServerNameList for ServerNameRequest {
@@ -405,8 +411,8 @@ impl ConvertServerNameList for ServerNameRequest {
         false
     }
 
-    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef> {
-        fn only_dns_hostnames(name: &ServerName) -> Option<webpki::DnsNameRef> {
+    fn get_single_hostname(&self) -> Option<webpki::DnsNameRef<'_>> {
+        fn only_dns_hostnames(name: &ServerName) -> Option<webpki::DnsNameRef<'_>> {
             if let ServerNamePayload::HostName((_, ref dns)) = name.payload {
                 Some(dns.as_ref())
             } else {
@@ -454,10 +460,11 @@ impl ConvertProtocolNameList for ProtocolNameList {
 }
 
 // --- TLS 1.3 Key shares ---
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct KeyShareEntry {
     pub group: NamedGroup,
+    #[comparable_ignore]
     pub payload: PayloadU16,
 }
 
@@ -485,9 +492,11 @@ impl codec::Codec for KeyShareEntry {
 }
 
 // --- TLS 1.3 PresharedKey offers ---
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct PresharedKeyIdentity {
+    #[comparable_ignore]
     pub identity: PayloadU16,
+    #[comparable_ignore]
     pub obfuscated_ticket_age: u32,
 }
 
@@ -518,7 +527,7 @@ declare_u16_vec!(PresharedKeyIdentities, PresharedKeyIdentity);
 pub type PresharedKeyBinder = PayloadU8;
 pub type PresharedKeyBinders = VecU16OfPayloadU8;
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct PresharedKeyOffer {
     #[extractable_ignore]
@@ -531,8 +540,14 @@ impl PresharedKeyOffer {
     /// Make a new one with one entry.
     pub fn new(id: PresharedKeyIdentity, binder: Vec<u8>) -> Self {
         Self {
-            identities: PresharedKeyIdentities(vec![id]),
-            binders: VecU16OfPayloadU8(vec![PresharedKeyBinder::new(binder)]),
+            identities: PresharedKeyIdentities(vec![id]), /* TODO-Mapper: could be extended to
+                                                           * change
+                                                           * this field */
+            binders: VecU16OfPayloadU8(vec![PresharedKeyBinder::new(binder)]), /* TODO-Mapper:
+                                                                                * could
+                                                                                * be extended to
+                                                                                * change this
+                                                                                * field */
         }
     }
 }
@@ -554,8 +569,9 @@ impl codec::Codec for PresharedKeyOffer {
 // --- RFC6066 certificate status request ---
 type ResponderIDs = VecU16OfPayloadU16;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Comparable)]
 pub struct OCSPCertificateStatusRequest {
+    // Fields in this struct were previously ignored but do no seem to introduce differences
     pub responder_ids: ResponderIDs,
     pub extensions: PayloadU16,
 }
@@ -575,7 +591,7 @@ impl codec::Codec for OCSPCertificateStatusRequest {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum CertificateStatusRequest {
     OCSP(#[extractable_ignore] OCSPCertificateStatusRequest),
@@ -630,10 +646,11 @@ declare_u8_vec!(PSKKeyExchangeModes, PSKKeyExchangeMode);
 declare_u16_vec!(KeyShareEntries, KeyShareEntry);
 declare_u8_vec!(ProtocolVersions, ProtocolVersion);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientExtension {
-    ECPointFormats(ECPointFormatList),
+    // `ECPointFormats` is ignored as the not all implementations send this extension
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     NamedGroups(NamedGroups),
     SignatureAlgorithms(SupportedSignatureSchemes),
     ServerName(ServerNameRequest),
@@ -809,20 +826,23 @@ impl ClientExtension {
             payload: ServerNamePayload::new_hostname(trim_hostname_trailing_dot_for_sni(dns_name)),
         };
 
-        Self::ServerName(ServerNameRequest(vec![name]))
+        Self::ServerName(ServerNameRequest(vec![name])) // TODO-Mapper: could be extended to change
+                                                        // this
+                                                        // field
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientSessionTicket {
     Request,
     Offer(#[extractable_ignore] Payload),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Comparable)]
 pub enum ServerExtension {
-    ECPointFormats(ECPointFormatList),
+    // `ECPointFormats` is ignored as the not all implementations send this extension
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     ServerNameAck,
     SessionTicketAck,
     RenegotiationInfo(PayloadU8),
@@ -951,14 +971,30 @@ declare_u16_vec_empty!(ClientExtensions, ClientExtension);
 declare_u16_vec!(CipherSuites, CipherSuite);
 declare_u8_vec!(Compressions, Compression);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
+    #[comparable_synthetic {
+        let sorted_cipher_suites = |x: &Self| -> CipherSuites {
+            // we ignore `TLS_EMPTY_RENEGOTIATION_INFO_SCSV` as it is not present on all TLS 1.2 PUTs
+            let mut ciphers = CipherSuites(x.cipher_suites.0.iter().filter(|c| ! matches!(c, CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV)).cloned().collect());
+            ciphers.0.sort_by(puffin::codec::compare_encoding);
+            ciphers
+        };
+    }]
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub client_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
+    #[comparable_ignore]
     pub cipher_suites: CipherSuites,
+    // #[comparable_ignore]
     pub compression_methods: Compressions,
+    #[comparable_ignore]
     pub extensions: ClientExtensions,
 }
 
@@ -1115,7 +1151,7 @@ impl ClientHelloPayload {
         self.extensions
             .0
             .last()
-            .map_or(false, |ext| ext.get_type() == ExtensionType::PreSharedKey)
+            .is_some_and(|ext| ext.get_type() == ExtensionType::PreSharedKey)
     }
 
     pub fn get_psk_modes(&self) -> Option<&PSKKeyExchangeModes> {
@@ -1135,7 +1171,9 @@ impl ClientHelloPayload {
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
         let last_extension = self.extensions.0.last_mut();
         if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
-            offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            if !offer.binders.0.is_empty() {
+                offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            }
         }
     }
 
@@ -1149,7 +1187,7 @@ impl ClientHelloPayload {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum HelloRetryExtension {
     KeyShare(NamedGroup),
     Cookie(PayloadU16),
@@ -1208,13 +1246,19 @@ impl codec::Codec for HelloRetryExtension {
 
 declare_u16_vec_empty!(HelloRetryExtensions, HelloRetryExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct HelloRetryRequest {
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> HelloRetryExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub legacy_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_methods: Compressions,
+    #[comparable_ignore]
     pub extensions: HelloRetryExtensions,
 }
 
@@ -1251,7 +1295,9 @@ impl codec::Codec for HelloRetryRequest {
             random: fn_hello_retry_request_random().unwrap(), // same
             session_id,
             cipher_suite,
-            compression_methods: Compressions(vec![compression_method]),
+            compression_methods: Compressions(vec![compression_method]), /* TODO-Mapper: could be
+                                                                          * extended to change
+                                                                          * this field */
             extensions,
         })
     }
@@ -1314,14 +1360,34 @@ impl HelloRetryRequest {
 
 declare_u16_vec_empty!(ServerExtensions, ServerExtension);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerHelloPayload {
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ServerExtensions {
+            let mut ext = x.extensions.clone();
+            // Remove optional extensions whose presence/absence is an
+            // implementation choice, not a protocol bug:
+            //  - RenegotiationInfo: optional in TLS 1.2 renegotiation
+            //  - ExtendedMasterSecretAck: optional TLS 1.2 extension (RFC 7627)
+            ext.0 = ext.0
+                    .into_iter()
+                    .filter(|x|!matches!(x,
+                        ServerExtension::RenegotiationInfo(_)
+                        | ServerExtension::ExtendedMasterSecretAck))
+                    .collect();
+            ext.0.sort_by(puffin::codec::compare_encoding);
+            ext
+        };
+    }]
     pub legacy_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_method: Compression,
+    #[comparable_ignore]
     pub extensions: ServerExtensions,
 }
 
@@ -1417,7 +1483,7 @@ impl ServerHelloPayload {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct CertificatePayload(#[extractable_no_recursion] pub Vec<key::Certificate>);
 
@@ -1436,7 +1502,7 @@ impl codec::Codec for CertificatePayload {
 // That's annoying. It means the parsing is not
 // context-free any more.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum CertificateExtension {
     CertificateStatus(CertificateStatus),
     SignedCertificateTimestamp(SCTList),
@@ -1514,7 +1580,7 @@ impl codec::Codec for CertificateExtension {
 
 declare_u16_vec!(CertificateExtensions, CertificateExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct CertificateEntry {
     pub cert: key::Certificate,
     pub exts: CertificateExtensions,
@@ -1581,7 +1647,8 @@ impl CertificateEntry {
 }
 
 declare_u24_vec_limited!(CertificateEntries, CertificateEntry);
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificatePayloadTLS13 {
     pub context: PayloadU8,
     pub entries: CertificateEntries,
@@ -1678,7 +1745,7 @@ pub enum KeyExchangeAlgorithm {
 // We don't support arbitrary curves.  It's a terrible
 // idea and unnecessary attack surface.  Please,
 // get a grip.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ECParameters {
     pub curve_type: ECCurveType,
     pub named_group: NamedGroup,
@@ -1701,9 +1768,10 @@ impl codec::Codec for ECParameters {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct DigitallySignedStruct {
     pub scheme: SignatureScheme,
+    #[comparable_ignore]
     pub sig: PayloadU16,
 }
 
@@ -1746,12 +1814,14 @@ impl codec::Codec for ClientECDHParams {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerECDHParams {
+    // Fields in this struct are ignored but TLS implementation could probably be aligned
     #[extractable_ignore]
     pub curve_params: ECParameters,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub public: PayloadU8,
 }
 
@@ -1784,7 +1854,7 @@ impl codec::Codec for ServerECDHParams {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ECDHEServerKeyExchange {
     pub params: ServerECDHParams,
@@ -1806,7 +1876,7 @@ impl codec::Codec for ECDHEServerKeyExchange {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ServerKeyExchangePayload {
     ECDHE(ECDHEServerKeyExchange),
@@ -1915,7 +1985,7 @@ declare_u8_vec!(ClientCertificateTypes, ClientCertificateType);
 pub type DistinguishedName = PayloadU16;
 pub type DistinguishedNames = VecU16OfPayloadU16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificateRequestPayload {
     pub certtypes: ClientCertificateTypes,
     pub sigschemes: SupportedSignatureSchemes,
@@ -1942,9 +2012,9 @@ impl codec::Codec for CertificateRequestPayload {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum CertReqExtension {
-    SignatureAlgorithms(SupportedSignatureSchemes),
+    SignatureAlgorithms(#[comparable_ignore] SupportedSignatureSchemes),
     AuthorityNames(DistinguishedNames),
     Unknown(UnknownExtension),
 }
@@ -2004,7 +2074,7 @@ impl codec::Codec for CertReqExtension {
 
 declare_u16_vec!(CertReqExtensions, CertReqExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificateRequestPayloadTLS13 {
     pub context: PayloadU8,
     pub extensions: CertReqExtensions,
@@ -2013,12 +2083,19 @@ pub struct CertificateRequestPayloadTLS13 {
 impl codec::Codec for CertificateRequestPayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.context.encode(bytes);
+        if self.extensions.0.is_empty() {
+            return; // do not print 0, 0 (declare_u16_vec) in that case
+        }
         self.extensions.encode(bytes);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let context = PayloadU8::read(r)?;
-        let extensions = CertReqExtensions::read(r)?;
+        let extensions = if r.any_left() {
+            CertReqExtensions::read(r)?
+        } else {
+            CertReqExtensions(vec![])
+        };
 
         Some(Self {
             context,
@@ -2050,10 +2127,12 @@ impl CertificateRequestPayloadTLS13 {
 }
 
 // -- NewSessionTicket --
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct NewSessionTicketPayload {
+    #[comparable_ignore]
     pub lifetime_hint: u32,
+    #[comparable_ignore]
     pub ticket: PayloadU16,
 }
 
@@ -2084,7 +2163,7 @@ impl codec::Codec for NewSessionTicketPayload {
 }
 
 // -- NewSessionTicket electric boogaloo --
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub enum NewSessionTicketExtension {
     EarlyData(u32),
     Unknown(UnknownExtension),
@@ -2133,7 +2212,7 @@ impl codec::Codec for NewSessionTicketExtension {
 
 declare_u16_vec!(NewSessionTicketExtensions, NewSessionTicketExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct NewSessionTicketPayloadTLS13 {
     pub lifetime: u32,
     pub age_add: u32,
@@ -2210,7 +2289,7 @@ impl codec::Codec for NewSessionTicketPayloadTLS13 {
 // -- RFC6066 certificate status types
 
 /// Only supports OCSP
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct CertificateStatus {
     pub ocsp_response: PayloadU24,
 }
@@ -2245,7 +2324,7 @@ impl CertificateStatus {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum HandshakePayload {
     HelloRequest,
@@ -2302,7 +2381,7 @@ impl codec::Codec for HandshakePayload {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct HandshakeMessagePayload {
     #[extractable_ignore]
@@ -2332,6 +2411,19 @@ impl codec::Codec for HandshakeMessagePayload {
 }
 
 impl HandshakeMessagePayload {
+    /// Like `read_version`, but returns `None` if any bytes remain in `r` after parsing.
+    /// Use this when parsing a single isolated handshake message (the whole buffer must be
+    /// consumed). Without this check, an encrypted blob whose first 4 bytes happen to be
+    /// `[0x00, 0x00, 0x00, 0x00]` would be silently accepted as an empty `HelloRequest`.
+    pub fn read_version_exact(r: &mut codec::Reader, vers: ProtocolVersion) -> Option<Self> {
+        let result = Self::read_version(r, vers)?;
+        if r.any_left() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
     pub fn read_version(r: &mut codec::Reader, vers: ProtocolVersion) -> Option<Self> {
         let mut typ = HandshakeType::read(r)?;
 

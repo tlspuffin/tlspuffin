@@ -1,8 +1,3 @@
-/* Known issues:
- * wolfssl 5.5.X test_seed_client_attacker12 and test_seed_successful12
-   fail with "can't match cipher suite"
-******************************************************************************/
-
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
 
@@ -18,7 +13,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <threads.h>
+// Use compiler-supported thread_local without relying on <threads.h>,
+// which is unavailable on macOS with some toolchains.
+#ifndef thread_local
+#define thread_local _Thread_local
+#endif
+
+#if LIBWOLFSSL_VERSION_HEX < 0x04004000
+// the timeout type of wolfSSL_accept_ex / wolfSSL_connect_ex was renamed in 4.4
+#define WOLFSSL_TIMEVAL Timeval
+#endif
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05005001
 #define TYPETIME sword64
@@ -26,17 +30,20 @@
 #define TYPETIME word32
 #endif
 
-//#define TIME_CHANGE
+// #define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
 
 // static int file = -1;
-//#define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-//} #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char buf[128] = {};
+// #define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR |
+// S_IWUSR); } #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char
+// buf[128] = {};
 // int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static thread_local uint8_t rng_have_custom_seed = 0;
+#ifdef __linux__
 static thread_local struct drand48_data rng_states = {};
+#endif
 #define CUSTOM_SEED_SIZE 256
 #ifdef USE_CUSTOM_PRNG
 static TYPETIME clock_value = 0;
@@ -63,6 +70,8 @@ struct AGENT_TYPE
     bool peer_authentication;
     uint32_t secret_size;
     uint8_t handshake_secret[SECRET_LEN];
+    uint16_t peer_sig_wire_value;  /* peer CertificateVerify sig algo, TLS wire format */
+    uint16_t local_sig_wire_value; /* own CertificateVerify sig algo, TLS wire format */
 };
 
 void CheckServerClaimFinished(AGENT agent, bool outbound);
@@ -80,18 +89,24 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
         return CLAIM_KEY_TYPE_UNKNOWN;
     case ED25519k:
         return CLAIM_KEY_TYPE_ED25519;
-    case X25519k:
-        return CLAIM_KEY_TYPE_X25519;
-    case ED448k:
-        return CLAIM_KEY_TYPE_ED448;
-    case X448k:
-        return CLAIM_KEY_TYPE_X448;
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
     case DHk:
         return CLAIM_KEY_TYPE_DH;
+    case ED448k:
+        return CLAIM_KEY_TYPE_ED448;
+#endif
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+    case X25519k:
+        return CLAIM_KEY_TYPE_X25519;
+    case X448k:
+        return CLAIM_KEY_TYPE_X448;
+#endif
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     case FALCON_LEVEL1k:
         return CLAIM_KEY_TYPE_UNKNOWN;
     case FALCON_LEVEL5k:
         return CLAIM_KEY_TYPE_UNKNOWN;
+#endif
     default:
         return CLAIM_KEY_TYPE_UNKNOWN;
     }
@@ -177,26 +192,66 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
     }
 }
 
+// Reconstruct the TLS wire-format signature algorithm code point from wolfSSL
+// internal fields.  Used as a fallback for TLS 1.3 outbound CertificateVerify,
+// which is not exposed via the message callback (encrypted as content_type=23).
+// wolfSSL stores sigAlgo and hashAlgo separately; the wire encoding mirrors
+// wolfSSL's EncodeSigAlg() in tls13.c:
+//   rsa_pss_sa_algo (8) : wire = (8 << 8) | hashAlgo  → 0x0804/05/06
+//   ed25519_sa_algo (9) : wire = 0x0807
+//   ed448_sa_algo  (11) : wire = 0x0808
+//   default (ECDSA=3, RSA-PKCS1=1): wire = (hashAlgo << 8) | sigAlgo
+// Field location changed between versions: Suites (< 5.6) → Options (>= 5.6).
+static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
+{
+    byte sigAlgo, hashAlgo;
+
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000 /* 5.6.0: fields moved from Suites to Options */
+    sigAlgo = ssl->options.sigAlgo;
+    hashAlgo = ssl->options.hashAlgo;
+#else
+    if (ssl->suites == NULL)
+        return 0;
+    sigAlgo = ssl->suites->sigAlgo;
+    hashAlgo = ssl->suites->hashAlgo;
+#endif
+
+    if (sigAlgo == 0)
+        return 0;
+
+    switch (sigAlgo)
+    {
+    case rsa_pss_sa_algo: /* 8 → 0x0804 / 0x0805 / 0x0806 */
+        return (sigAlgo << 8) | hashAlgo;
+    case ed25519_sa_algo: /* 9 → 0x0807 */
+        return 0x0807;
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
+    case ed448_sa_algo: /* 11 → 0x0808 */
+        return 0x0808;
+#endif
+    default: /* ecc_dsa_sa_algo=3, rsa_sa_algo=1 → (hashAlgo<<8)|sigAlgo */
+        return (hashAlgo << 8) | sigAlgo;
+    }
+}
+
 // Populate a pre-allocated Claim structure from the current wolfSSL state
 static void fill_claim(AGENT agent, struct Claim *claim)
 {
     char *error_msg = "no error";
 
-    if (agent->ssl->version.major != SSLv3_MAJOR)
+    const char *tls_version = wolfSSL_get_version(agent->ssl);
+    if (strcmp(tls_version, "TLSv1.2") == 0)
     {
-        _log(PUFFIN.warn, "not a tls ssl object");
-        return;
-    }
-    switch (agent->ssl->version.minor)
-    {
-    case TLSv1_2_MINOR:
         claim->version.data = CLAIM_TLS_VERSION_V1_2;
-        break;
-    case TLSv1_3_MINOR:
+    }
+    else if (strcmp(tls_version, "TLSv1.3") == 0)
+    {
         claim->version.data = CLAIM_TLS_VERSION_V1_3;
-        break;
-    default:
+    }
+    else
+    {
         _log(PUFFIN.warn, "unsupported tls version");
+        claim->version.data = CLAIM_TLS_VERSION_UNDEFINED;
         return;
     }
 
@@ -257,41 +312,38 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "unable to get server random buffer");
     }
 
-    STACK_OF(SSL_CIPHER) *ciphers = wolfSSL_get_ciphers_compat(agent->ssl);
-    if (ciphers != NULL)
+    /* wolfSSL_get_ciphers_compat() internally filters out ciphers whose minor
+     * version is SSLv3_MINOR (e.g. DHE-RSA-AES128-SHA, DHE-RSA-AES256-SHA)
+     * when minDowngrade >= TLSv1_MINOR, even though wolfSSL actually includes
+     * and negotiates those ciphers via ssl->suites->suites[].
+     * Read the raw suites array directly to get the complete list. */
+    Suites *ssl_suites = agent->ssl->suites;
+    if (ssl_suites == NULL && agent->ssl->ctx != NULL)
     {
-        int available_ciphers_len = wolfSSL_sk_SSL_CIPHER_num(ciphers);
-        if (available_ciphers_len != WOLFSSL_FATAL_ERROR)
+        ssl_suites = agent->ssl->ctx->suites;
+    }
+    if (ssl_suites != NULL)
+    {
+        int raw_len = ssl_suites->suiteSz / 2;
+        claim->available_ciphers.length = 0;
+        for (int i = 0; i < raw_len; ++i)
         {
-            if (available_ciphers_len > CLAIM_MAX_AVAILABLE_CIPHERS)
+            byte suite0 = ssl_suites->suites[i * 2];
+            byte suite = ssl_suites->suites[i * 2 + 1];
+
+            if (claim->available_ciphers.length >= CLAIM_MAX_AVAILABLE_CIPHERS)
             {
-                available_ciphers_len = CLAIM_MAX_AVAILABLE_CIPHERS;
                 _log(PUFFIN.warn, "not enough space in ciphers list in claim");
+                break;
             }
-            claim->available_ciphers.length = available_ciphers_len;
-            for (int i = 0; i < available_ciphers_len; ++i)
-            {
-                SSL_CIPHER const *cipher = wolfSSL_sk_SSL_CIPHER_value(ciphers, i);
-                if (cipher != NULL)
-                {
-                    claim->available_ciphers.ciphers[i].data =
-                        (unsigned short)((((short)cipher->cipherSuite0) << 8) +
-                                         cipher->cipherSuite);
-                }
-                else
-                {
-                    _log(PUFFIN.warn, "wolfSSL_sk_SSL_CIPHER_value return a NULL value");
-                }
-            }
-        }
-        else
-        {
-            _log(PUFFIN.warn, "sk_SSL_CIPHER_num return WOLFSSL_FATAL_ERROR");
+            claim->available_ciphers.ciphers[claim->available_ciphers.length].data =
+                (unsigned short)(((unsigned short)suite0 << 8) | suite);
+            claim->available_ciphers.length++;
         }
     }
     else
     {
-        _log(PUFFIN.warn, "wolfSSL_get_ciphers_compat return NULL");
+        _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available ciphers");
     }
 
     // cert
@@ -356,10 +408,10 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             // buffer");
         }
         wolfSSL_Free(data);
-        int key_type = wolfSSL_X509_get_pubkey_type(cert);
+        int key_type = wolfSSL_X509_get_pubkey_type(peer_cert);
         if (key_type != WOLFSSL_FAILURE)
         {
-            WOLFSSL_EVP_PKEY const *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
+            WOLFSSL_EVP_PKEY *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
             if (peer_cert_pkey != NULL)
             {
                 claim->peer_cert.key_length = wolfSSL_EVP_PKEY_bits(peer_cert_pkey);
@@ -367,6 +419,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
                 {
                     claim->peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
                 }
+                wolfSSL_EVP_PKEY_free(peer_cert_pkey);
             }
             else
             {
@@ -446,22 +499,22 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "wolfSSL_get_current_cipher returned NULL");
     }
 
-    /*int nid = -1;
-    int int_retval = wolfSSL_get_signature_nid(agent->ssl, &nid);
-    if (int_retval == WOLFSSL_SUCCESS) {
-      claim->signature_algorithm = nid;
-    } else {
-      claim->signature_algorithm = 0;
-      _log(PUFFIN.warn, "wolfSSL_get_signature_nid failed");
-    }*/
-
-    /*int_retval = wolfSSL_get_peer_signature_nid(agent->ssl, &nid);
-    if (int_retval == WOLFSSL_SUCCESS) {
-      claim->peer_signature_algorithm = nid;
-    } else {
-      claim->peer_signature_algorithm = 0;
-      _log(PUFFIN.warn, "wolfSSL_get_peer_signature_nid failed");
-    }*/
+    /* TLS 1.3: outbound CertificateVerify is encrypted, and the message callback receives the
+     * ciphertext of sent messages (see wolfssl_message_callback), so it cannot be read from the
+     * wire. Use the wolfssl internal fields, which are reliable for TLS 1.3.
+     * TLS 1.2: those same internal fields are populated via the ServerKeyExchange path
+     * even without a CertificateVerify, producing a spurious non-zero value; use only
+     * the wire-captured value (the outbound CertificateVerify is sent in clear) to stay
+     * symmetric with peer_signature_algorithm. */
+    if (strcmp(tls_version, "TLSv1.2") == 0)
+    {
+        claim->signature_algorithm = (int)agent->local_sig_wire_value;
+    }
+    else
+    {
+        claim->signature_algorithm = wolfssl_get_sig_wire_value(agent->ssl);
+    }
+    claim->peer_signature_algorithm = (int)agent->peer_sig_wire_value;
 
     claim->transcript.length =
         extract_current_transcript(agent, claim->transcript.data, CLAIM_MAX_SECRET_SIZE);
@@ -529,6 +582,7 @@ wolfssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
     RESULT_CODE result_code = RESULT_ERROR_OTHER;
     char *reason = get_result_information(agent->ssl,
                                           ret >= 0 ? WOLFSSL_SUCCESS : WOLFSSL_FAILURE,
+                                          // WOLFSSL_SUCCESS,
                                           &result_code);
     RESULT result = PUFFIN.make_result(result_code, reason);
     free(reason);
@@ -552,6 +606,9 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return result;
 }
 
+// The TLS 1.3 secret callback (HAVE_SECRET_CALLBACK) is only available from wolfSSL 4.4.0: TLS 1.3
+// secrets cannot be retrieved with older versions.
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
 // Callback to retrieve TLS 1.3 secrets.
 // This function is called when the `handshake_secret` is available
 // in the `ssl` structure, allowing its retrieval.
@@ -630,6 +687,19 @@ static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
 
     return 0;
 }
+#endif
+
+// Length of the body of a handshake message: [type(1)][len(3)][body]
+static size_t handshake_length(const uint8_t *msg)
+{
+    return ((size_t)msg[1] << 16) | ((size_t)msg[2] << 8) | msg[3];
+}
+
+// Check if handshake length matches size of buffer
+static int handshake_length_correct(const uint8_t *msg, size_t len)
+{
+    return len >= 4 && 4 + handshake_length(msg) == len;
+}
 
 static void wolfssl_message_callback(int write_p,
                                      int version,
@@ -660,12 +730,40 @@ static void wolfssl_message_callback(int write_p,
             break;
         case 0x0f:
             agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            /* CertificateVerify body: [type(1)][len(3)][sig_algo(2)][sig_len(2)][sig] */
+            if (len >= 6)
+            {
+                const uint8_t *body = (const uint8_t *)buf;
+                agent->peer_sig_wire_value = ((uint16_t)body[4] << 8) | body[5];
+            }
             break;
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
             break;
         default:
             break;
+        }
+    }
+
+    // Sent messages: the callback gets the buffer as written to the wire, announced with
+    // content_type=22 whether it is encrypted or not.
+    //  - clear:     ClientHello, ServerHello, TLS 1.2 handshake up to the CCS (incl.
+    //  CertificateVerify)
+    //  - encrypted: TLS 1.3 handshake after ServerHello, TLS 1.2 Finished
+    // To be able to find CVEs we want to be able to send out of order messages. Therefore we cannot
+    // make verifications based on earlier messages like CCS. Instead we only accept a buffer whose
+    // handshake length field matches its size. It rarely does but it can happen.
+    if (write_p == 1 && handshake_length_correct((const uint8_t *)buf, len))
+    {
+        switch (type)
+        {
+        case 0x0f:
+            /* CertificateVerify body: [type(1)][len(3)][sig_algo(2)][sig_len(2)][sig] */
+            if (len >= 6)
+            {
+                const uint8_t *body = (const uint8_t *)buf;
+                agent->local_sig_wire_value = ((uint16_t)body[4] << 8) | body[5];
+            }
         }
     }
 
@@ -722,8 +820,10 @@ char const *map_state_statestr(enum states state)
         return "SERVER_ENCRYPTED_EXTENSIONS_COMPLETE";
     case SERVER_CERT_COMPLETE:
         return "SERVER_CERT_COMPLETE";
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     case SERVER_CERT_VERIFY_COMPLETE:
         return "SERVER_CERT_VERIFY_COMPLETE";
+#endif
     case SERVER_KEYEXCHANGE_COMPLETE:
         return "SERVER_KEYEXCHANGE_COMPLETE";
     case SERVER_HELLODONE_COMPLETE:
@@ -777,13 +877,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
                                   "fatal error wolfssl_reset called with agent == NULL");
     }
 
-#if 0
-    // Was in rust harness
-    CLAIMER_CB current_claimer_cb = {};
-    memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
     wolfssl_register_claimer(agent, NULL);
-#endif
-
     if (use_clear)
     {
         int ret = wolfSSL_clear(agent->ssl);
@@ -800,9 +894,11 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     else
     {
         wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
         agent->descriptor.name = new_name;
-        agent = make_agent(agent, &(agent->descriptor));
-        if (agent == NULL)
+        if (make_agent(agent, &(agent->descriptor)) == NULL)
         {
             _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
             return PUFFIN.make_result(RESULT_ERROR_OTHER,
@@ -810,17 +906,18 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
         }
     }
 
-#if 0
-    // Was in rust harness
-    wolfssl_register_claimer(agent, &current_claimer_cb);
-#endif
-
     return PUFFIN.make_result(RESULT_OK, NULL);
 }
 
 static inline bool wolfssl_is_successful(AGENT agent)
 {
     return wolfSSL_get_state(agent->ssl) == HANDSHAKE_DONE;
+}
+
+static int MyTimeoutCallBack(TimeoutInfo *ti)
+{
+    (void)ti;
+    return 0;
 }
 
 static RESULT wolfssl_progress(AGENT agent)
@@ -851,12 +948,19 @@ static RESULT wolfssl_progress(AGENT agent)
     else
     {
         // not connected yet -> do handshake
-#if 1
-        int ret = wolfSSL_SSL_do_handshake(agent->ssl);
-#else
-        // Rust harness use it, but not working for now in C harness
-        int ret = wolfSSL_accept(agent->ssl);
-#endif
+        // int ret = wolfSSL_SSL_do_handshake(agent->ssl);
+        int ret = WOLFSSL_FAILURE;
+        WOLFSSL_TIMEVAL wi;
+        wi.tv_sec = 0;
+        wi.tv_usec = 0;
+        if (wolfSSL_is_server(agent->ssl))
+        {
+            ret = wolfSSL_accept_ex(agent->ssl, NULL, MyTimeoutCallBack, wi);
+        }
+        else
+        {
+            ret = wolfSSL_connect_ex(agent->ssl, NULL, MyTimeoutCallBack, wi);
+        }
         if (ret == WOLFSSL_SUCCESS)
         {
             agent->handshake_done = true;
@@ -909,6 +1013,8 @@ static void wolfssl_destroy(AGENT agent)
     {
         wolfSSL_free(agent->ssl);
         agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
     }
     if (agent->ctx != NULL)
     {
@@ -945,6 +1051,21 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
                     128);
             goto ERROR__make_agent;
         }
+
+#if LIBWOLFSSL_VERSION_HEX < 0x05000000
+        // By default wolfSSL 5.x creates its first key share for the first configured group,
+        // while wolfSSL 4.x always uses P-256 whatever the configured groups. To mimic 5.x,
+        // wolfSSL_UseKeyShare must be called with the first configured group.
+        if (agent->ssl->numGroups > 0)
+        {
+            int_retval = wolfSSL_UseKeyShare(agent->ssl, agent->ssl->group[0]);
+            if (int_retval != WOLFSSL_SUCCESS)
+            {
+                snprintf(error_msg, 128, "wolfSSL_UseKeyShare failed: %d", int_retval);
+                goto ERROR__make_agent;
+            }
+        }
+#endif
     }
 
     int_retval = wolfSSL_set_msg_callback(agent->ssl, wolfssl_message_callback);
@@ -964,6 +1085,7 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
         goto ERROR__make_agent;
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x04004000
     if (descriptor->tls_version != V1_2)
     {
         int_retval = wolfSSL_set_tls13_secret_cb(agent->ssl, wolfssl_tls13secrets_callback, agent);
@@ -975,6 +1097,7 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
             goto ERROR__make_agent;
         }
     }
+#endif
 
     agent->in = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
     if (agent->in == NULL)
@@ -1016,11 +1139,27 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
 
 ERROR__make_agent:
     _log(PUFFIN.error, "fatal error in make_agent: %s", error_msg);
-    wolfssl_destroy(agent);
+    if (agent->ssl != NULL)
+    {
+        wolfSSL_free(agent->ssl);
+        agent->ssl = NULL;
+    }
+    if (agent->in != NULL)
+    {
+        wolfSSL_BIO_free(agent->in);
+        agent->in = NULL;
+    }
+    if (agent->out != NULL)
+    {
+        wolfSSL_BIO_free(agent->out);
+        agent->out = NULL;
+    }
     return NULL;
 }
 
-#ifdef USE_CUSTOM_PRNG
+// Crypto callbacks (used to provide the seed of the PRNG) are only built from wolfSSL 5.0.0: the
+// PRNG of older versions is not deterministic.
+#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x04004000
 // Callback used by wolfssl to to create seeds
 static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
 {
@@ -1043,7 +1182,11 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
     for (size_t i = 0; i < info->seed.sz; ++i)
     {
         double value = 0;
+#ifdef __linux__
         drand48_r(&rng_states, &value);
+#else
+        value = drand48();
+#endif
         uint8_t byte = value * 255.0;
         if (seen[byte] != 0)
         {
@@ -1054,6 +1197,58 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
         info->seed.seed[i] = byte;
     }
     return 0;
+}
+#endif
+
+#if LIBWOLFSSL_VERSION_HEX < 0x05000000
+// wolfSSL_CTX_set1_groups_list appeared in 4.4 and does not behave like in 5.x.
+// It stores the curve NIDs (e.g. 415 for P-256) as TLS group ids
+static int wolfssl_set_groups_list(WOLFSSL_CTX *ctx, const char *list)
+{
+    static const struct
+    {
+        const char *name;
+        int group;
+    } group_names[] = {
+        {"P-256", WOLFSSL_ECC_SECP256R1},
+        {"P-384", WOLFSSL_ECC_SECP384R1},
+        {"P-521", WOLFSSL_ECC_SECP521R1},
+#ifdef HAVE_CURVE25519
+        {"X25519", WOLFSSL_ECC_X25519},
+#endif
+#ifdef HAVE_CURVE448
+        {"X448", WOLFSSL_ECC_X448},
+#endif
+    };
+    const size_t group_names_count = sizeof(group_names) / sizeof(group_names[0]);
+    int groups[WOLFSSL_MAX_GROUP_COUNT];
+    int count = 0;
+
+    for (const char *name = list; *name != '\0';)
+    {
+        const char *end = strchr(name, ':');
+        size_t len = (end != NULL) ? (size_t)(end - name) : strlen(name);
+        size_t i = 0;
+
+        while (i < group_names_count &&
+               (strlen(group_names[i].name) != len || strncmp(name, group_names[i].name, len) != 0))
+        {
+            i++;
+        }
+        if (i == group_names_count || count == WOLFSSL_MAX_GROUP_COUNT)
+        {
+            return WOLFSSL_FAILURE;
+        }
+        groups[count++] = group_names[i].group;
+
+        if (end == NULL)
+        {
+            break;
+        }
+        name = end + 1;
+    }
+
+    return wolfSSL_CTX_set_groups(ctx, groups, count);
 }
 #endif
 
@@ -1087,6 +1282,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         goto ERROR__wolfssl_create_agent;
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
     if (int_retval != WOLFSSL_SUCCESS)
     {
@@ -1099,8 +1295,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         strncpy(error_msg, "wolfSSL_CTX_set_msg_callback_arg failed", 128);
         goto ERROR__wolfssl_create_agent;
     }
+#endif
 
-#ifdef USE_CUSTOM_PRNG
+#if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x04004000
     // Register a device to provide seed (for determinism)
     int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, agent->ctx);
     if (int_retval != 0)
@@ -1129,6 +1326,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     case V1_3:
         cipher_string = descriptor->cipher_string_tls13;
         break;
+    case Both:
+        cipher_string = descriptor->cipher_string_tlsboth;
+        break;
     case V1_2:
         cipher_string = descriptor->cipher_string_tls12;
         break;
@@ -1151,15 +1351,35 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         _log(PUFFIN.warn, "wolfssl warning no cipher string");
     }
 
-    if (descriptor->group_list != NULL)
+    // WolfSSL rejects set_groups on TLS 1.2-only contexts
+    if (descriptor->group_list != NULL && descriptor->tls_version != V1_2)
     {
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
         int_retval = wolfSSL_CTX_set1_groups_list(agent->ctx, (char *)(descriptor->group_list));
+#else
+        int_retval = wolfssl_set_groups_list(agent->ctx, descriptor->group_list);
+#endif
         if (int_retval != WOLFSSL_SUCCESS)
         {
             snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
             goto ERROR__wolfssl_create_agent;
         }
     }
+
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
+    if (descriptor->sigalgs_list != NULL)
+    {
+        int_retval = wolfSSL_CTX_set1_sigalgs_list(agent->ctx, (char *)(descriptor->sigalgs_list));
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            snprintf(error_msg,
+                     128,
+                     "wolfssl set sigalgs list %s failed",
+                     descriptor->sigalgs_list);
+            goto ERROR__wolfssl_create_agent;
+        }
+    }
+#endif
 
     if (peer_authentication)
     {
@@ -1189,8 +1409,11 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 
     if (is_server || descriptor->client_authentication)
     {
-#if 1
-        // Mimic rust harness
+        // wolfSSL < 5.0 stores the X509 given to wolfSSL_CTX_use_certificate in ctx->ourCert
+        // without taking a reference: freeing it leaves a dangling pointer that
+        // wolfSSL_get_certificate returns in fill_claim (use-after-free). The certificate is
+        // therefore loaded from its buffer, so wolfSSL builds and owns its own copy.
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
         WOLFSSL_X509 *x509 = NULL;
         WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
         if (bio == NULL)
@@ -1221,7 +1444,6 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
                                                         descriptor->cert->bytes,
                                                         descriptor->cert->length,
                                                         SSL_FILETYPE_PEM);
-        * /
 #endif
         if (int_retval != WOLFSSL_SUCCESS)
         {
@@ -1239,6 +1461,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         }
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     if (is_server)
     {
         int_retval = wolfSSL_CTX_set_num_tickets(agent->ctx, 2);
@@ -1248,9 +1471,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             goto ERROR__wolfssl_create_agent;
         }
     }
+#endif
 
-    agent = make_agent(agent, descriptor);
-    if (agent == NULL)
+    if (make_agent(agent, descriptor) == NULL)
     {
         strncpy(error_msg, "creating wolfssl agent failed", 128);
         goto ERROR__wolfssl_create_agent;
@@ -1279,6 +1502,11 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
         tls_version_str = "V1_2";
         tls_methods[0] = wolfTLSv1_2_client_method;
         tls_methods[1] = wolfTLSv1_2_server_method;
+        break;
+    case Both:
+        tls_version_str = "Both";
+        tls_methods[0] = wolfSSLv23_client_method;
+        tls_methods[1] = wolfSSLv23_server_method;
         break;
     default:
         _log(PUFFIN.error,
@@ -1364,7 +1592,11 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length)
         {
             memcpy(&seed, buffer, sizeof(unsigned int));
         }
+#ifdef __linux__
         srand48_r(seed, &rng_states);
+#else
+        srand48((long)seed);
+#endif
         rng_have_custom_seed = 1;
     }
     else

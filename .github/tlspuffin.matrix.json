@@ -7,10 +7,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl111k"
-    },
-    "cargo": {
-      "name": "openssl111k",
-      "features": []
     }
   },
   {
@@ -19,10 +15,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl111j"
-    },
-    "cargo": {
-      "name": "openssl111j",
-      "features": []
     }
   },
   {
@@ -33,12 +25,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl101f-asan"
-    },
-    "cargo": {
-      "name": "openssl101f",
-      "features": [
-        "asan"
-      ]
     }
   },
   {
@@ -49,10 +35,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl102u"
-    },
-    "cargo": {
-      "name": "openssl102u",
-      "features": []
     }
   },
   {
@@ -63,10 +45,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl312"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -77,10 +55,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl312-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -90,10 +64,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl320"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -103,10 +73,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl320-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -117,10 +83,6 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl340"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -131,10 +93,26 @@
     "mk_vendor": {
       "vendor": "openssl",
       "preset": "openssl340-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl341",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl341"
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl341-asan",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl341-asan"
     }
   },
   {
@@ -145,10 +123,16 @@
     "mk_vendor": {
       "vendor": "libressl",
       "preset": "libressl333"
-    },
-    "cargo": {
-      "name": "libressl333",
-      "features": []
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "libressl421",
+    "mk_vendor": {
+      "vendor": "libressl",
+      "preset": "libressl421"
     }
   },
   {
@@ -159,11 +143,27 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl430"
-    },
-    "cargo": {
-      "name": "wolfssl430",
-      "features": []
     }
+  },
+  {
+    "labels": [],
+    "name": "wolfssl430-asan",
+    "mk_vendor": {
+      "vendor": "wolfssl",
+      "preset": "wolfssl430-asan"
+    }
+  },
+  {
+    "labels": ["fast"],
+    "name": "wolfssl440",
+    "mk_vendor": { "vendor": "wolfssl", "preset": "wolfssl440" },
+    "cargo": { "name": "", "features": ["cputs"] }
+  },
+  {
+    "labels": [],
+    "name": "wolfssl440-asan",
+    "mk_vendor": { "vendor": "wolfssl", "preset": "wolfssl440-asan" },
+    "cargo": { "name": "", "features": ["cputs"] }
   },
   {
     "labels": [
@@ -173,10 +173,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -185,14 +181,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510-sig"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-25640",
-        "fix-CVE-2022-39173"
-      ]
     }
   },
   {
@@ -201,14 +189,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl510-skip"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-25638",
-        "fix-CVE-2022-39173"
-      ]
     }
   },
   {
@@ -217,10 +197,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl520"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -229,12 +205,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl520-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -245,10 +215,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -259,12 +225,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -275,10 +235,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540"
-    },
-    "cargo": {
-      "name": "",
-      "features": ["cputs"]
     }
   },
   {
@@ -287,14 +243,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-sdos2"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "wolfssl-disable-postauth",
-        "fix-CVE-2022-39173"
-      ]
     }
   },
   {
@@ -303,13 +251,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl530-cdos"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-39173"
-      ]
     }
   },
   {
@@ -318,12 +259,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-asan"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs"
-      ]
     }
   },
   {
@@ -332,13 +267,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-buf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-42905"
-      ]
     }
   },
   {
@@ -347,13 +275,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-heap"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-39173"
-      ]
     }
   },
   {
@@ -362,14 +283,6 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-asan-perf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-39173",
-        "fix-CVE-2022-42905"
-      ]
     }
   },
   {
@@ -378,42 +291,24 @@
     "mk_vendor": {
       "vendor": "wolfssl",
       "preset": "wolfssl540-perf"
-    },
-    "cargo": {
-      "name": "",
-      "features": [
-        "cputs",
-        "fix-CVE-2022-39173",
-        "fix-CVE-2022-42905"
-      ]
-    }
-  },
-  {
-    "labels": [],
-    "name": "boringssl202403",
-    "mk_vendor": {
-      "vendor": "boringssl",
-      "preset": "boringssl202403"
-    },
-    "cargo": {
-      "name": "boringssl202403",
-      "features": []
     }
   },
   {
     "labels": [
       "fast"
     ],
-    "name": "boringssl202403-asan",
+    "name": "boringssl20260508",
     "mk_vendor": {
       "vendor": "boringssl",
-      "preset": "boringssl202403-asan"
-    },
-    "cargo": {
-      "name": "boringssl202403",
-      "features": [
-        "asan"
-      ]
+      "preset": "boringssl20260508"
+    }
+  },
+  {
+    "labels": [],
+    "name": "boringssl20260508-asan",
+    "mk_vendor": {
+      "vendor": "boringssl",
+      "preset": "boringssl20260508-asan"
     }
   }
 ]

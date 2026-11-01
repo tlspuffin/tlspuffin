@@ -17,6 +17,12 @@ endif()
 project("${COMMAND}" VERSION "${PUFFIN_VERSION}" LANGUAGES NONE)
 enable_testing()
 
+# macOS: force system ar to produce Mach-O archives; Homebrew's GNU binutils/llvm
+# ar produces GNU-format archives that Apple's linker cannot read.
+if(APPLE AND NOT "${CMAKE_AR}" STREQUAL "/usr/bin/ar")
+  set(CMAKE_AR "/usr/bin/ar" CACHE FILEPATH "macOS system archiver" FORCE)
+endif()
+
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   # NOTE avoid interactions with system libraries
   #

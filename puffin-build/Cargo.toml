@@ -11,6 +11,9 @@ readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+watch-vendor = []
+
 [dependencies]
 log = { workspace = true }
 env_logger = { workspace = true }
@@ -19,6 +22,7 @@ serde = { workspace = true, features = ["derive"] }
 toml = { workspace = true }
 itertools = { workspace = true }
 tempfile = { workspace = true }
+sha256 = { workspace = true }
 regex = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
 derive_more = { workspace = true, features = ["full"] }

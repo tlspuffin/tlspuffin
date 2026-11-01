@@ -42,10 +42,10 @@ impl Config {
             .status()?
             .success()
             .then_some(())
-            .ok_or(io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed cmake configure: config={:?}", self),
-            ))?;
+            .ok_or(io::Error::other(format!(
+                "failed cmake configure: config={:?}",
+                self
+            )))?;
 
         let mut build_cmd = std::process::Command::new("cmake");
 
@@ -56,10 +56,10 @@ impl Config {
             .status()?
             .success()
             .then_some(())
-            .ok_or(io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed cmake build: config={:?}", self),
-            ))
+            .ok_or(io::Error::other(format!(
+                "failed cmake build: config={:?}",
+                self
+            )))
     }
 }
 

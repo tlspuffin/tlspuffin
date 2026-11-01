@@ -85,7 +85,7 @@ fn build(options: &LibSSHOptions) -> Artifacts {
 
     let prefix = vendor_dir::from_env()
         .library_dir(&name)
-        .and_then(|dir| dir.make(config, false))
+        .and_then(|dir| dir.make(&config, false))
         .unwrap();
 
     Artifacts {
@@ -94,6 +94,26 @@ fn build(options: &LibSSHOptions) -> Artifacts {
         inc_dir: prefix.join("include"),
         libs: vec!["ssh".to_string()],
     }
+}
+
+/// Search the vendor directory for a built OpenSSL and return its include path.
+fn find_vendored_openssl_include() -> Option<PathBuf> {
+    let vendor_dir = vendor_dir::from_env();
+    let vendor_path = vendor_dir.path();
+    let Ok(entries) = std::fs::read_dir(vendor_path) else {
+        return None;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with("openssl") {
+            let inc = entry.path().join("include");
+            if inc.join("openssl").join("opensslv.h").exists() {
+                return Some(inc);
+            }
+        }
+    }
+    None
 }
 
 fn main() {
@@ -114,7 +134,7 @@ fn main() {
     let ignored_macros = IgnoreMacros(ignored_macros);
 
     // Build the Rust binding
-    let bindings = bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I{}", libssh.inc_dir().display().to_string()))
         .clang_arg(format!(
@@ -123,7 +143,21 @@ fn main() {
         ))
         .clang_arg("-DHAVE_LIBCRYPTO".to_string())
         .clang_arg("-DHAVE_COMPILER__FUNC__=1".to_string())
-        .clang_arg("-DHAVE_STRTOULL".to_string())
+        .clang_arg("-DHAVE_STRTOULL".to_string());
+
+    // Explicitly add OpenSSL include path for bindgen if available,
+    // so we don't rely solely on BINDGEN_EXTRA_CLANG_ARGS.
+    if let Ok(openssl_dir) = env::var("DEP_OPENSSL_INCLUDE") {
+        builder = builder.clang_arg(format!("-I{openssl_dir}"));
+    } else if let Ok(openssl_dir) = env::var("OPENSSL_INCLUDE_DIR") {
+        builder = builder.clang_arg(format!("-I{openssl_dir}"));
+    } else if let Ok(openssl_dir) = env::var("OPENSSL_DIR") {
+        builder = builder.clang_arg(format!("-I{openssl_dir}/include"));
+    } else if let Some(inc) = find_vendored_openssl_include() {
+        builder = builder.clang_arg(format!("-I{}", inc.display()));
+    }
+
+    let bindings = builder
         .rustified_enum("ssh_auth_state_e")
         .rustified_enum("ssh_session_state_e")
         .rustified_enum("ssh_options_e")

@@ -1,16 +1,16 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
-use puffin::agent::ProtocolDescriptorConfig;
+use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    CorpusBuilder, EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::put::PutDescriptor;
 use puffin::trace::Trace;
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(SshProtocolTypes)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
@@ -69,7 +69,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(SshProtocolTypes)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
@@ -176,7 +176,7 @@ impl Default for SshDescriptorConfig {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SshProtocolTypes;
 impl ProtocolTypes for SshProtocolTypes {
     type Matcher = SshQueryMatcher;
@@ -184,6 +184,28 @@ impl ProtocolTypes for SshProtocolTypes {
 
     fn signature() -> &'static Signature<Self> {
         &SSH_SIGNATURE
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_terms_to_eval(
+        _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<puffin::algebra::Term<Self>> {
+        vec![]
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+        trace
+    }
+
+    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
+        true
     }
 }
 
@@ -205,8 +227,11 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-        vec![] // TODO
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        // No SSH seeds yet; register an empty `default` corpus so that `seed`
+        // succeeds (producing an empty ./seeds) like the other protocols.
+        // TODO: add real SSH seeds.
+        vec![("default", (|_| vec![]) as CorpusBuilder<Self>)]
     }
 
     fn try_read_bytes(

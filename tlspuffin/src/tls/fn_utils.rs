@@ -11,17 +11,23 @@ use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
-use crate::tls::rustls::msgs::base::PayloadU8;
-use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
+use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
+use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup, SignatureScheme};
 use crate::tls::rustls::msgs::handshake::{
-    CertificateEntries, CertificateEntry, HandshakeMessagePayload, HandshakePayload, Random,
-    ServerECDHParams,
+    CertificateEntries, CertificateEntry, ClientECDHParams, DigitallySignedStruct,
+    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
-use crate::tls::rustls::tls12::{self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
+use crate::tls::rustls::tls12::{
+    self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+};
 use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
-use crate::tls::rustls::tls13::{TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384};
+use crate::tls::rustls::tls13::{
+    TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+};
+use crate::tls::sign::rsa_sign;
 
 // ----
 // seed_client_attacker()
@@ -52,6 +58,34 @@ pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<Handshak
     Ok(transcript)
 }
 
+/// Coalesce a `MessageFlight` into a single `OpaqueMessage`
+///
+/// This functions takes a flight of TLS messages and put them into a single TLS Record
+/// The type and version of the flight will use the type and version of the first messages included
+/// in the input flight.
+/// The resulting `OpaqueMessage` is not encrypted but is considered opaque as it doesn't contains
+/// only one message but multiple payloads with a common header.
+pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnError> {
+    let mut payload = Payload::empty();
+
+    if flight.messages.is_empty() {
+        return Err(FnError::Malformed(
+            "Could not coalesce messages from empty flight".into(),
+        ));
+    }
+    let version = flight.messages[0].version;
+    let typ = flight.messages[0].payload.content_type();
+    for m in &flight.messages {
+        m.payload.encode(&mut payload.0);
+    }
+
+    Ok(OpaqueMessage {
+        version,
+        typ,
+        payload,
+    })
+}
+
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }
@@ -80,13 +114,26 @@ pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSu
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
             Ok(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
         }
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => {
+            Ok(TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+        }
+        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 => {
+            Ok(TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+        }
         CipherSuite::TLS13_AES_128_GCM_SHA256 => Ok(TLS13_AES_128_GCM_SHA256),
         CipherSuite::TLS13_AES_256_GCM_SHA384 => Ok(TLS13_AES_256_GCM_SHA384),
+        CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => Ok(TLS13_CHACHA20_POLY1305_SHA256),
         _ => Err(FnError::Crypto("Unsupported ciphersuite".into())),
     }
 }
 
-/// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
+/// Decrypt encrypted handshake messages from a `MessageFlight` and return a Flight of decrypted
+/// messages.
+///
+/// This functions takes a `MessageFlight` and search for `ApplicationData` containing handshake
+/// related messages. The decrypted messages are put in an output `MessageFlight`. If some encrypted
+/// messages are coalesced messages, they will be split in different decrypted messages in the
+/// resulting `MessageFlight`
 pub fn fn_decrypt_handshake_flight(
     flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
@@ -124,6 +171,45 @@ pub fn fn_decrypt_handshake_flight(
     Ok(decrypted_flight)
 }
 
+/// Decrypt handshake messages by directly using the TLS handshake secret
+///
+/// This functions takes a `MessageFlight` and search for `ApplicationData` containing handshake
+/// related messages. The decrypted messages are put in an output `MessageFlight`. If some encrypted
+/// messages are coalesced messages, they will be split in different decrypted messages in the
+/// resulting `MessageFlight`
+pub fn fn_decrypt_handshake_flight_with_secret(
+    flight: &MessageFlight,
+    server_hello_transcript: &HandshakeHash,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+    extracted_shared_secret: &Vec<u8>,
+) -> Result<MessageFlight, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = MessageFlight::new();
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_multiple_handshake_messages_with_secret(
+                msg,
+                server_hello_transcript,
+                client,
+                &sequence_number,
+                client_random,
+                suite,
+                extracted_shared_secret,
+            )?;
+
+            decrypted_flight.messages.extend(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
+}
+
 /// Decrypt an Application data message containing multiple handshake messages
 /// and return a vec of handshake messages
 pub fn fn_decrypt_multiple_handshake_messages(
@@ -148,6 +234,53 @@ pub fn fn_decrypt_multiple_handshake_messages(
         client_random,
         &supported_suite,
     )?;
+
+    let decrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter(&key);
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+
+    let payloads =
+        MessagePayload::multiple_new(message.typ, message.version, message.payload).unwrap();
+
+    let messages = payloads
+        .into_iter()
+        .map(|p| Message {
+            version: message.version,
+            payload: p,
+        })
+        .collect();
+
+    Ok(messages)
+}
+
+/// Decrypt an Application data message containing multiple handshake messages
+/// and return a vec of handshake messages
+pub fn fn_decrypt_multiple_handshake_messages_with_secret(
+    application_data: &Message,
+    server_hello_transcript: &HandshakeHash,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+    extracted_shared_secret: &Vec<u8>,
+) -> Result<Vec<Message>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret_from_shared_secret(
+        server_hello_transcript,
+        client_random,
+        !*client,
+        &supported_suite,
+        extracted_shared_secret,
+    )?;
+
     let decrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
@@ -327,6 +460,7 @@ pub fn fn_decrypt_application(
         .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
+/// Encrypt a single handshake `Message` and return an `OpaqueMessage`
 pub fn fn_encrypt_handshake(
     some_message: &Message,
     server_hello: &HandshakeHash,
@@ -356,6 +490,51 @@ pub fn fn_encrypt_handshake(
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
         .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+    Ok(application_data)
+}
+
+/// Encrypt a handshake record that is already represented as an `OpaqueMessage`.
+///
+/// This differs from [`fn_encrypt_handshake`], which takes a parsed TLS `Message`
+/// and converts it into an encrypted `OpaqueMessage`.
+///
+/// Use this variant when you already have an opaque TLS handshake record (for
+/// example, a coalesced or pre-encoded handshake flight) and just need to apply
+/// the TLS 1.3 handshake encryption.
+pub fn fn_encrypt_handshake_opaque(
+    some_message: &OpaqueMessage,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
+        server_hello,
+        server_key_share,
+        psk,
+        *client,
+        group,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt(
+            some_message.clone().into_plain_message().borrow(),
+            *sequence,
+        )
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_handshake_opaque".to_string())
+        })?;
     Ok(application_data)
 }
 
@@ -526,11 +705,45 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     Ok(transcript)
 }
 
-pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+pub fn fn_decode_server_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
     let params = ServerECDHParams::read(&mut rd)
-        .ok_or_else(|| FnError::Codec("Failed to parse ecdh public key".to_string()))?;
+        .ok_or_else(|| FnError::Codec("Failed to parse server ecdh public key".to_string()))?;
     Ok(params.public.0)
+}
+
+pub fn fn_decode_client_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    let mut rd = Reader::init(data.as_slice());
+    let params = ClientECDHParams::read(&mut rd)
+        .ok_or_else(|| FnError::Codec("Failed to parse client ecdh public key".to_string()))?;
+    Ok(params.public.0)
+}
+
+pub fn fn_sign_rsa_ecdhe_server_key_exchange12(
+    group: &NamedGroup,
+    client_random: &Random,
+    server_random: &Random,
+    private_key: &Vec<u8>,
+) -> Result<Vec<u8>, FnError> {
+    let kx = tls12_key_exchange(group)?;
+    let params = ServerECDHParams::new(*group, kx.pubkey.as_ref());
+
+    // Assemble the TLS 1.2 signed data: client_random || server_random || ServerECDHParams
+    let mut params_bytes = Vec::new();
+    params.encode(&mut params_bytes);
+    let mut message = Vec::new();
+    message.extend_from_slice(&client_random.0);
+    message.extend_from_slice(&server_random.0);
+    message.extend_from_slice(&params_bytes);
+
+    let scheme = SignatureScheme::RSA_PKCS1_SHA256;
+    let sig = rsa_sign(&message, private_key, &scheme)?;
+
+    let dss = DigitallySignedStruct::new(scheme, sig);
+    let ske = ECDHEServerKeyExchange { params, dss };
+    let mut buf = Vec::new();
+    ske.encode(&mut buf);
+    Ok(buf)
 }
 
 pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
@@ -549,7 +762,7 @@ pub fn fn_encode_ec_pubkey12(pubkey: &PayloadU8) -> Result<Vec<u8>, FnError> {
 pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
-    server_ecdh_pubkey: &Vec<u8>,
+    peer_ecdh_pubkey: &Vec<u8>,
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
@@ -560,7 +773,7 @@ pub fn fn_encrypt12(
 
     let secrets = tls12_new_secrets(
         server_random,
-        server_ecdh_pubkey,
+        peer_ecdh_pubkey,
         group,
         client_random,
         supported_suite,
@@ -574,6 +787,41 @@ pub fn fn_encrypt12(
         .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
         .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
+}
+
+pub fn fn_decrypt12(
+    message: &Message,
+    server_random: &Random,
+    peer_ecdh_pubkey: &Vec<u8>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Message, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        peer_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
+
+    let (decrypter, _encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
+
+    let opaque = PlainMessage::from(message.clone()).into_unencrypted_opaque();
+
+    let plain = decrypter
+        .decrypt(opaque, *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt12".to_string()))?;
+
+    Message::try_from(plain)
+        .map_err(|_| FnError::Codec("Failed to parse decrypted TLS 1.2 message".to_string()))
 }
 
 pub fn fn_new_certificate() -> Result<Certificate, FnError> {

@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use crate::harness;
 use crate::harness::Harness;
 use crate::library::Library;
 use crate::utils::{clang, make_rust_identifier};
@@ -43,15 +42,10 @@ impl Put {
         self.objects.clone()
     }
 
-    pub fn rust_registration(&self) -> String {
-        let registration_macro = match self.harness.kind {
-            harness::Kind::Rust => "registration_rust",
-            harness::Kind::C => "registration_c",
-        };
-
+    pub fn registration(&self) -> String {
         format!(
             r###"
-            {registration_macro}!(
+            registration_c!(
                 {id},
                 r#"{name}"#,
                 r#"{harness_name} {harness_version}"#,
@@ -79,13 +73,15 @@ impl Put {
 
     pub fn print_cargo_metadata(&self) {
         println!("cargo:rerun-if-changed={}", self.library.path().display());
-
-        if matches!(self.harness.kind, harness::Kind::Rust) {
-            println!("cargo:rustc-check-cfg=cfg(has_instr, values(\"sancov\", \"asan\", \"gcov\", \"llvm_cov\", \"claimer\"))");
-            for instrumentation_type in self.library.metadata().instrumentation.iter() {
-                println!("cargo:rustc-cfg=has_instr=\"{instrumentation_type}\"");
-            }
-        }
+        // Check for harness files
+        println!("cargo:rerun-if-changed={}", self.harness.path.display());
+        // Check for added or removed vendors: slow, adds a few seconds before each run
+        // but can be useful when switching often, building new ones etc...
+        #[cfg(feature = "watch-vendor")]
+        println!(
+            "cargo:rerun-if-changed={}",
+            self.library.path().join("..").display()
+        );
 
         for instrumentation_type in self.library.metadata().instrumentation.iter() {
             println!(
@@ -126,6 +122,33 @@ impl Put {
         );
         println!("cargo:rustc-cfg=has_put=\"{}\"", self.name());
 
+        // One cfg per PUT, named after its preset without the `-asan` suffix: a test filter can
+        // then select a version whatever its ASAN variant (`openssl340` matches both `openssl340`
+        // and `openssl340-asan`).
+        println!(
+            "cargo:rustc-cfg={}=\"{}\"",
+            make_rust_identifier(self.name().replace("-asan", "")),
+            self.name()
+        );
+
+        if lib.vendor == "boringssl" {
+            if cfg!(target_os = "macos") {
+                println!("cargo:rustc-link-lib=c++");
+                // BoringSSL objects referenced by the C harness pull C++ ABI symbols on macOS.
+                println!("cargo:rustc-link-lib=c++abi");
+            } else {
+                // On Linux, Cargo places dynamic cargo:rustc-link-lib entries before static
+                // ones, so libstdc++ would appear before libputs-bundle.a in the link command.
+                // With --as-needed (default on Linux), the linker skips libstdc++ since no
+                // references have been seen yet, then fails on undefined C++ symbols from
+                // puts-bundle.a. Using --push-state/--no-as-needed forces libstdc++ to be
+                // linked unconditionally regardless of position in the link command.
+                println!(
+                    "cargo:rustc-link-arg=-Wl,--push-state,--no-as-needed,-lstdc++,--pop-state"
+                );
+            }
+        }
+
         if self
             .library
             .metadata()
@@ -138,9 +161,19 @@ impl Put {
             //     Unfortunately, passing `-frtlib-add-rpath` to clang doesn't add
             //     the correct rpath on linux platforms. Instead, we find the folder
             //     containing the compiler-rt runtime and add it to rpath ourselves.
-            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", clang::runtime_dir());
+            let runtime_dir = clang::runtime_dir();
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", runtime_dir);
             println!("cargo:rustc-link-arg=-fsanitize=address");
-            println!("cargo:rustc-link-arg=-shared-libasan");
+
+            if cfg!(target_os = "macos") {
+                // On macOS, `-shared-libasan` is not supported by all clang
+                // variants (e.g. Nix's clang wrapper). Explicitly link the
+                // ASAN runtime dylib instead.
+                println!("cargo:rustc-link-search=native={}", runtime_dir);
+                println!("cargo:rustc-link-lib=dylib=clang_rt.asan_osx_dynamic");
+            } else {
+                println!("cargo:rustc-link-arg=-shared-libasan");
+            }
         }
 
         if self

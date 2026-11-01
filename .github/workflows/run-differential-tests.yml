@@ -1,0 +1,52 @@
+name: run-differential-tests
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      first_vendor:
+        required: true
+        type: string
+      first_preset:
+        required: true
+        type: string
+      second_vendor:
+        required: true
+        type: string
+      second_preset:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  differential-tests:
+    name: ${{ inputs.name }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: build first vendor library
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "${{ inputs.first_vendor }}"
+          preset: "${{ inputs.first_preset }}"
+          name: "${{ inputs.first_preset }}"
+
+      - name: build second vendor library
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "${{ inputs.second_vendor }}"
+          preset: "${{ inputs.second_preset }}"
+          name: "${{ inputs.second_preset }}"
+
+      - name: run differential tests
+        run: just test tlspuffin x86_64-unknown-linux-gnu "cputs" "-- differential"

@@ -161,10 +161,10 @@ impl GitArchive {
         cmd.status()?
             .success()
             .then_some(archive_file)
-            .ok_or(io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed git archive: tree={:?}", self.tree),
-            ))
+            .ok_or(io::Error::other(format!(
+                "failed git archive: tree={:?}",
+                self.tree
+            )))
     }
 }
 
@@ -199,10 +199,13 @@ impl GitClone {
             Head::Commit(ref id) => self.do_clone_commit(id, path.as_ref()),
         };
 
-        status?.success().then_some(()).ok_or(io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed git clone: tree={:?}", self.tree),
-        ))
+        status?
+            .success()
+            .then_some(())
+            .ok_or(io::Error::other(format!(
+                "failed git clone: tree={:?}",
+                self.tree
+            )))
     }
 
     fn do_clone_branch(

@@ -5,8 +5,8 @@
 set shell := ["bash", "-c"]
 set positional-arguments := true
 
-export MINRUST_TOOLCHAIN := "1.70"
-export NIGHTLY_TOOLCHAIN := "nightly-2024-09-05"
+export MINRUST_TOOLCHAIN := "1.94"
+export NIGHTLY_TOOLCHAIN := "nightly-2026-01-16"
 
 export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", NIGHTLY_TOOLCHAIN)
 export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")
@@ -61,16 +61,6 @@ install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN
 check-workspace: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   cargo clippy
 
-# run clippy on a vendored crate (e.g. libressl-src)
-check-crate NAME FEATURES: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
-  #!/usr/bin/env bash
-  cleanup() {
-    find {{ justfile_directory() / "crates" }} -name Cargo.lock -exec rm -f '{}' +
-  }
-  trap cleanup EXIT
-
-  cp Cargo.lock crates/{{ NAME }} && cd crates/{{ NAME }} && cargo clippy --features={{ FEATURES }}
-
 check PROJECT ARCH FEATURES CARGO_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
@@ -97,7 +87,7 @@ mk_vendor VENDOR PRESET EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAI
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 
 benchmark: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
-  cargo bench -p tlspuffin --features "openssl111k"
+  cargo bench -p tlspuffin --features "cputs"
 
 fmt-rust: (install-rust-toolchain NIGHTLY_TOOLCHAIN "--quiet")
   RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt --all

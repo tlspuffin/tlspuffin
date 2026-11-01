@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use libafl::inputs::{BytesInput, HasBytesVec};
+use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
@@ -16,19 +16,10 @@ const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly sea
 const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search for a direct search
 
 /// `TermMetadata` stores some metadata about terms.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct PayloadMetadata {
     pub(crate) readable: bool, // true when the payload is readable and whole term should be read
     pub(crate) has_changed: bool, // true when the payload has been modified at least once
-}
-
-impl Default for PayloadMetadata {
-    fn default() -> Self {
-        Self {
-            readable: false,
-            has_changed: false,
-        }
-    }
 }
 
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
@@ -43,7 +34,11 @@ pub struct Payloads {
 impl Payloads {
     #[must_use]
     pub fn len(&self) -> usize {
-        self.payload_0.bytes().len()
+        self.payload_0.mutator_bytes().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     #[must_use]
@@ -61,8 +56,8 @@ impl Display for Payloads {
         write!(
             f,
             "{{\n    payload_0: {:?}\n    payload:   {:?}\n}}",
-            self.payload_0.bytes(),
-            self.payload.bytes()
+            self.payload_0.mutator_bytes(),
+            self.payload.mutator_bytes()
         )
     }
 }
@@ -129,21 +124,29 @@ impl EvalTree {
     }
 }
 
+/// Checks if a get symbol is between the root and the path_to_search
+pub fn is_get_in_path<PT: ProtocolTypes>(term: &Term<PT>, path_to_search: &[usize]) -> bool {
+    for i in 0..path_to_search.len() {
+        // excluding the target
+        if term.get(&path_to_search[..i]).unwrap().is_get() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Search and locate `to_search := eval_tree[path_to_search].encode` in
 /// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match
-/// corresponds to `path_to_search` (when `to_search` occurs multiple times).
+/// corresponds to `path_to_search` (when `to_search` occurs multiple times). Also returns
+/// a boolean flag envcountered_get_symbol indicating whether a get symbol is between the root and
+/// the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize, Error> {
-    Ok(find_unique_match_rec(
-        path_to_search,
-        eval_tree,
-        whole_term,
-        is_to_search_in_list,
-    )?)
+) -> Result<(usize, bool), Error> {
+    find_unique_match_rec(path_to_search, eval_tree, whole_term, is_to_search_in_list)
 }
 
 /// Goal: locate byte position of `to_search := eval_tree[path_to_search].encode` in
@@ -153,12 +156,14 @@ pub fn find_unique_match<PT: ProtocolTypes>(
 ///   node
 /// - there can be headers of arbitrary length
 /// - no trailer (no bytes added after the last argument encoding)
+/// Also returns a boolean flag envcountered_get_symbol indicating whether a get symbol is between
+/// the root and the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match_rec<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize, Error> {
+) -> Result<(usize, bool), Error> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}");
     log::trace!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
     // We traverse the eval_tree and update the followings until we reach the node at
@@ -172,13 +177,17 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .encode
         .as_ref()
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
+    // Whether there is a get symbol above the target
+    let encountered_get_symbol = is_get_in_path(whole_term, path_to_search);
 
     // For later debugging
+    #[cfg(any(debug_assertions, feature = "debug"))]
     let eval_root_orig: Vec<u8>;
+    #[cfg(any(debug_assertions, feature = "debug"))]
     let eval_to_search_orig: Vec<u8>;
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
-        eval_root_orig = eval_to_search.clone();
+        eval_root_orig = eval_tree.encode.as_ref().unwrap().clone();
         eval_to_search_orig = eval_to_search.clone();
     }
 
@@ -211,15 +220,18 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
 
         // [STEP 1: DIRECT SEARCH] Directly search for eval_too_search in root_eval
         // We apply this fast heuristics if the likelyhood of a unique match seems high enough
-        if eval_to_search.len() > 0
+        if !eval_to_search.is_empty()
             && (eval_to_search.len() > THRESHOLD_SIZE
                 || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
+            && !encountered_get_symbol
+        // otherwise, we might find a match, which is not the right one
+        // and yet unique because the target is simply not present in the encoding.
         {
             if let Some(unique_pos) = first_sub_vec_unique(eval_parent, eval_to_search) {
                 log::debug!(
                     "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
-                start_pos = start_pos + unique_pos;
+                start_pos += unique_pos;
                 break;
             } else {
                 log::debug!("[find_unique_match_rec] [S1] Direct found is not unique!");
@@ -251,7 +263,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // list. This could be extremely costly when the list is long, e.g., same element is
         // repeated many times. We assume there is no nested list of same type: that is if to_search
         // and parents are in a list of the same type, it should be the same list.
-        if parent_is_list && is_to_search_in_list {
+        if parent_is_list && is_to_search_in_list && !is_get_in_path(term, path_to_search) {
+            // do not proceed with the heuristics if there is a get symbol above the target
             if child_arg_number == 0 && path_to_search.iter().all(|x| *x == 0) {
                 log::debug!("[find_unique_match_rec] [S2:special-list] [Nil*] Child is the NIL starting the list, pos is 0!");
                 break;
@@ -268,7 +281,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [pos=1] Found position: {pos}"
                 );
-                start_pos = start_pos + pos;
+                start_pos += pos;
                 break;
             }
 
@@ -291,19 +304,19 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 .expect("[find_unique_match_rec] path_to_search[0..len-1] should exist in term")
                 .get_type_shape();
             if parent_tp != parent_to_search_tp {
-                log::error!(
+                log::debug!(
                     "[S2:special-list] [S2:1] Parent and target are not the same type, we cannot use the special heuristic. Continue..."
                 );
             } else {
                 log::debug!(
-                    "[S2:special-list] Searching encoding of parent of target (at {:?}) in parent... AWE: \n  - eval_parent_to_search:{eval_parent_to_search:?}\n -eval_to_search: {eval_to_search:?}",
+                    "[S2:special-list] Searching encoding of parent target (at {:?}) in parent... \n  - eval_parent_to_search:{eval_parent_to_search:?}\n  - eval_to_search: {eval_to_search:?}",
                     path_to_search[0..path_to_search.len() - 1].to_vec()
                 );
                 let pos = eval_parent_to_search.len() - eval_to_search.len();
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [skip] Found position: {pos}"
                 );
-                start_pos = start_pos + pos;
+                start_pos += pos;
                 break;
             }
         }
@@ -347,7 +360,12 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // [STEP 2:2: POSITION CHILD RELATIVELY TO SIBLINGS] If no unique match, we must find which
         // matching position of child relatively to the position of the evaluation of all
         // right siblings.
-
+        if parent_is_get {
+            // do not proceed with the heuristics if parent is a get symbol
+            let ft = format!("[[find_unique_match_rec] [S2:2] Skips last resorting heuristics since the parant is a get symbol. Failed to find the target.");
+            log::warn!("{ft}");
+            return Err(Error::Term(format!("{ft}")));
+        }
         // We first compute evaluation of all right siblings
         let mut eval_right_siblings = Vec::new();
         for right_sibling in (child_arg_number + 1)..nb_children {
@@ -378,16 +396,27 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 let ft = format!("[find_unique_match_rec] [S2:2] [sib] Could not find at least one appropriate idx for all_matches: {all_matches:?} and eval_child.len: {}, eval_parent.len(): {}, pos_right_siblings: {pos_right_siblings}. Continue....\n\
                   - eval_right_siblings: {eval_right_siblings:?}\n\
                   - eval_parent: {eval_parent:?}", eval_child.len(), eval_parent.len());
-                return Err(Error::TermBug(ft));
+                if !parent_is_get {
+                    return Err(Error::TermBug(ft));
+                } else {
+                    return Err(Error::Term(ft));
+                }
             }
         } else {
             // right_sibling could not be found --> warning
-            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
-            log::error!("{ft}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
-                // Ungraceful error in debug mode
-                return Err(Error::TermBug(ft));
+                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
+                return if parent_is_get {
+                    // This case is to be expected: we are looking for a child encoding that might
+                    // just not been present in the encoding because the
+                    // function symbol is a `get` symbol. No relevant payload
+                    // replacement is possible --> We returns a simple error in that
+                    // case.
+                    Err(Error::Term(format!("{ft}")))
+                } else {
+                    Err(Error::TermBug(format!("{ft}")))
+                };
             }
         }
     }
@@ -397,14 +426,17 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     // Check consistencies in debug mode
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
-        log::debug!("[find_unique_match_rec] [DEBUG] Checking consistencies...");
-        assert_eq!(
-            eval_root_orig[start_pos..start_pos + eval_to_search_orig.len()],
-            eval_to_search_orig
-        );
+        if !encountered_get_symbol {
+            log::debug!("[find_unique_match_rec] [DEBUG] Checking consistencies...");
+            assert!(start_pos + eval_to_search_orig.len() <= eval_root_orig.len());
+            assert_eq!(
+                eval_root_orig[start_pos..(start_pos + eval_to_search_orig.len())],
+                eval_to_search_orig
+            );
+        }
     }
 
-    Ok(start_pos)
+    Ok((start_pos, encountered_get_symbol))
 }
 
 /// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
@@ -430,15 +462,15 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             // MakeMessage because of variables (that might contain different values now)
             eval_tree.get(path_payload)?.encode.as_ref().unwrap()
         } else {
-            payload_context.payloads.payload_0.bytes()
+            payload_context.payloads.payload_0.mutator_bytes()
         };
 
-        // Consistency checks in debug mode
+        // Consistency checks in debug mode, except when failures are to be expected
         #[cfg(any(debug_assertions, feature = "debug"))]
-        if !term.has_variable() {
+        if !term.has_variable() && !term.has_no_det() {
             assert_eq!(
                 eval_tree.get(path_payload)?.encode.as_ref().unwrap(),
-                payload_context.payloads.payload_0.bytes()
+                payload_context.payloads.payload_0.mutator_bytes()
             );
         }
 
@@ -451,9 +483,10 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 .expect("[replace_payload] Should never happen")
                 .is_list()
         };
-        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
+        let (pos_start, encountered_get_symbol) =
+            find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
         let old_bitstring_len = old_bitstring.len();
-        let new_bitstring = payload_context.payloads.payload.bytes();
+        let new_bitstring = payload_context.payloads.payload.mutator_bytes();
 
         let start = (pos_start as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
         let end = start + old_bitstring_len;
@@ -465,8 +498,13 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-            log::error!("{ft}");
-            return Err(Error::TermBug(ft));
+            if !encountered_get_symbol && !term.has_no_det() {
+                log::error!("{ft}");
+                return Err(Error::TermBug(ft));
+            } else {
+                log::debug!("(with encountered_get_symbol) {ft}");
+                return Err(Error::Term(ft));
+            }
         }
 
         log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
@@ -487,8 +525,13 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 to_modify[start..end].to_vec(),
                 payload_context.payloads,
             );
-            log::error!("{ft}");
-            return Err(Error::TermBug(ft));
+            if !encountered_get_symbol {
+                log::error!("{ft}");
+                return Err(Error::TermBug(ft));
+            } else {
+                log::debug!("(encountered_get_symbol) {ft}");
+                return Err(Error::Term(ft));
+            }
         }
         // Performing the bytes replaceents through splicing
         let to_remove: Vec<u8> = to_modify
@@ -524,7 +567,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         with_payloads: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
-    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
+    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<'_, PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -535,22 +578,24 @@ impl<PT: ProtocolTypes> Term<PT> {
         if let (true, Some(payload)) = (with_payloads && !self.has_variable(), &self.payloads) {
             log::trace!(
                 "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
-                payload.payload_0.bytes(),
+                payload.payload_0.mutator_bytes(),
             );
-            if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), type_term.clone().into())
+            if let Ok(di) =
+                PB::try_read_bytes(payload.payload_0.mutator_bytes(), type_term.clone().into())
             {
                 // We must make sure that we read correctly and avoided cases where read and encode
                 // are not inverse of each other. Otherwise, later payload replacements will fail.
-                if &di.get_encoding()[..] != &payload.payload_0.bytes()[..] {
+                if &di.get_encoding()[..] != &payload.payload_0.mutator_bytes()[..] {
                     log::warn!(
                                 "--> [eval_until_opaque] [argument is symbolic: {}] [Skipping eval bypass] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
-                                 <TypeShape<PT> as Clone>::clone(type_term),
-                payload.payload_0.bytes(),
+                                <TypeShape<PT> as Clone>::clone(type_term),
+                                payload.payload_0.mutator_bytes(),
                                 di.get_encoding(),
                             );
+                    log::trace!("Read EvaluatedTerm was: {di:?}");
                 } else {
                     log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                     let p_c = vec![PayloadContext {
@@ -558,7 +603,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         payloads: payload,
                         path: eval_tree.path.clone(),
                     }];
-                    eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
+                    eval_tree.encode = Some(payload.payload_0.mutator_bytes().to_vec());
                     return Ok((di, p_c));
                 }
             } else {
@@ -568,6 +613,29 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // the announced length. Note: we don't want to make encode only write the announced
                 // length since we precisely want to be able to "lie" about the announced lengths...
                 log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
+            }
+        }
+
+        // Specific case of readable terms (originated from ReadMessage): if the term is a readable
+        // term, we MUST read it directly from payload!
+        if with_payloads && self.is_readable() {
+            let payload = self.payloads.as_ref().ok_or(TermBug(format!("[eval_until_opaque] Try to read a readable term without payload, should never happen!")))?;
+            log::trace!(
+                "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
+                payload.payload.mutator_bytes(),
+            );
+            if let Ok(di) = PB::try_read_bytes(
+                payload.payload.mutator_bytes(),
+                self.get_type_shape().clone().into(),
+            ) {
+                log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
+                // We have set payload to di.get_encoding() when performing ReadMessage, so we can
+                // use it here
+                eval_tree.encode = Some(payload.payload.mutator_bytes().to_vec());
+                return Ok((di, vec![]));
+            } else {
+                log::error!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen! payload:\n{:?}\n payload_0:\n{:?}. Has changed: {}", payload.payload.mutator_bytes(), payload.payload_0.mutator_bytes(), payload.has_changed());
+                return Err(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")));
             }
         }
 
@@ -628,7 +696,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
-                        let typei = func.shape().argument_types[i].clone();
+                        let typei = ti.get_type_shape();
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .map_err(|e| {
@@ -668,7 +736,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             ctx,
                             with_payloads,
                             self_has_payloads_wo_root,
-                            &func.shape().argument_types[i],
+                            &ti.get_type_shape(),
                         )?;
                         dynamic_args.push(di); // add the evaluation (Boc<dyn Any>) to the list of arguments
                         if with_payloads {
@@ -696,18 +764,20 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // Sanity check!
                 #[cfg(any(debug_assertions, feature = "debug"))]
                 if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-                    log::trace!("[eval_until_opaque] Checking consistency!");
+                    log::trace!("[eval_until_opaque] Checking consistency of new evaluation!");
                     let new_payload_0 = PB::any_get_encoding(result.as_ref());
-                    if new_payload_0 != payload.payload_0.bytes() {
+                    if new_payload_0 != payload.payload_0.mutator_bytes() {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
                                     - term: {}\n\
                                     - payload_0:    {:?}\n\
+                                    - payload:    {:?}\n\
                                     - new_eval:     {new_payload_0:?}\n\
                                     - result: {result:?}",
-                                         self.has_variable(), self, &payload.payload_0.bytes());
-                        if self.has_variable() {
-                            // Some mismatches are to be expected when there are variables
-                            log::trace!("[term has variables --> only a log::trace] {}", ft);
+                                         self.has_variable(), self, &payload.payload_0.mutator_bytes(), &payload.payload.mutator_bytes());
+                        if self.has_variable() || self.has_no_det() {
+                            // Some mismatches are to be expected when there are variables or no
+                            // deterministic function symbols
+                            log::trace!("[term has variables or no det function symbols --> only a log::trace] {}", ft);
                         } else {
                             return Err(Error::TermBug(ft));
                         }
@@ -761,21 +831,7 @@ pub fn last_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     None
 }
 
-/// Return the first matching positions, if any
-#[must_use]
-pub fn first_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if haystack.len() < needle.len() {
-        return None;
-    }
-    for i in (0..=(haystack.len() - needle.len())).rev() {
-        if haystack[i..i + needle.len()] == needle[..] {
-            return Some(i);
-        }
-    }
-    None
-}
-
-/// Return the first matching position when it us unique, and None otherwise
+/// Return the first matching position when it is unique, and None otherwise
 pub fn first_sub_vec_unique(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         // log::trace!("search_sub_vec_double: length");

@@ -1,6 +1,5 @@
-use clap::{arg, command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use puffin_build::{library, vendor_dir};
-use regex::Regex;
 
 #[derive(Debug, Parser)]
 #[command(about = "helper script to build vendor libraries for tlspuffin", long_about = None)]
@@ -49,7 +48,7 @@ pub fn main() -> std::process::ExitCode {
             force,
         } => {
             let Some(config) = library::Config::preset(&vendor, &preset) else {
-                log::error!("configuration preset '{preset}' not found");
+                log::error!("configuration vendor '{vendor}' and (or) preset '{preset}' not found");
                 return std::process::ExitCode::FAILURE;
             };
 
@@ -62,7 +61,7 @@ pub fn main() -> std::process::ExitCode {
                         library_dir.remove()?
                     }
 
-                    library_dir.make(config, true)
+                    library_dir.make(&config, true)
                 })
             {
                 log::error!("Error while building vendor library '{name}': {e}");
@@ -75,14 +74,13 @@ pub fn main() -> std::process::ExitCode {
 }
 
 fn parse_config_arg(s: &str) -> Result<(String, String), String> {
-    let s = s.trim();
-
-    let Some(captures) = Regex::new(r"^(?<vendor>[^:]+):(?<name>[^:]+)$")
-        .unwrap()
-        .captures(s)
-    else {
-        return Err("invalid config format (expected '<vendor>:<name>')".to_string());
-    };
-
-    Ok((captures["vendor"].to_string(), captures["name"].to_string()))
+    match s
+        .split_once(':')
+        .map(|(vendor, name)| (vendor.trim(), name.trim()))
+    {
+        Some((vendor, name)) if !vendor.is_empty() && !name.is_empty() && !name.contains(':') => {
+            Ok((vendor.to_string(), name.to_string()))
+        }
+        _ => Err("invalid config format (expected '<vendor>:<name>')".to_string()),
+    }
 }

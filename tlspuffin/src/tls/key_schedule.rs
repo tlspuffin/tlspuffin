@@ -22,10 +22,35 @@ pub fn tls13_handshake_traffic_secret(
     client_random: &Random,
     suite: &SupportedCipherSuite,
 ) -> Result<(Prk, KeyScheduleHandshake), FnError> {
-    let key_schedule = dhe_key_schedule(&suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
+        &NoKeyLog {},
+        &client_random.0,
+    );
+
+    Ok((if client { client_secret } else { server_secret }, hs))
+}
+
+/// Compute the client/server secret from a raw shared secret
+/// This function is used to decrypt knowledges using the secret extracted
+/// through the Finished claim
+pub fn tls13_handshake_traffic_secret_from_shared_secret(
+    server_hello_transcript: &HandshakeHash,
+    client_random: &Random,
+    client: bool,
+    suite: &SupportedCipherSuite,
+    extracted_shared_secret: &Vec<u8>,
+) -> Result<(Prk, KeyScheduleHandshake), FnError> {
+    let hkdf_algorithm = suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .hkdf_algorithm;
+    let key_schedule =
+        KeyScheduleHandshakeStart::new_with_secret(hkdf_algorithm, extracted_shared_secret);
+    let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
+        &server_hello_transcript.get_current_hash_raw(),
         &NoKeyLog {},
         &client_random.0,
     );
