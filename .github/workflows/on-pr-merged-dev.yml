@@ -36,3 +36,62 @@ jobs:
 
   benchmark:
     uses: ./.github/workflows/run-benchmarks.yml
+  website:
+    name: Package Website
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTDOCFLAGS: -Dwarnings
+      DOCUSAURUS_BASE_URL: /dev/
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: build website
+        run: just website-pkg
+
+      - name: upload website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-dev
+          path: target/package/build/website
+
+  deploy:
+    needs: [ website ]
+    name: Update Website Repository (dev preview)
+    # NOTE: shared with the other website deploy job, so that only one pushes at a time
+    concurrency:
+      group: website-repository-update
+      cancel-in-progress: false
+    runs-on: ubuntu-22.04
+    environment: github-pages
+    if: github.repository == 'tlspuffin/tlspuffin'
+    steps:
+      - name: checkout website repository
+        uses: actions/checkout@v4
+        with:
+          repository: "tlspuffin/tlspuffin.github.io"
+          ref: "main"
+          ssh-key: ${{ secrets.WEBSITE_REPO_KEY }}
+
+      - name: remove previous dev website folder
+        run: |
+          git rm -rf --ignore-unmatch website/dev/
+          rm -rf website/dev
+
+      - name: add updated dev website
+        uses: actions/download-artifact@v4
+        with:
+          name: website-dev
+          path: website/dev
+
+      - name: push the changes
+        run: |
+          git config --global user.email tlspuffin@tlspuffin
+          git config --global user.name tlspuffin
+          git add website/dev
+          git commit -m "deploy dev from ${{ github.repository }}/${{ github.ref}}@${{ github.sha }}" || true
+          git push

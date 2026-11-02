@@ -61,6 +61,10 @@ jobs:
   deploy:
     needs: [website]
     name: Update Website Repository
+    # NOTE: shared with the other website deploy job, so that only one pushes at a time
+    concurrency:
+      group: website-repository-update
+      cancel-in-progress: false
     runs-on: ubuntu-22.04
     environment: github-pages
     if: github.repository == 'tlspuffin/tlspuffin'
@@ -72,10 +76,10 @@ jobs:
           ref: "main"
           ssh-key: ${{ secrets.WEBSITE_REPO_KEY }}
 
-      - name: remove previous website folder
+      - name: remove previous website folder (keeping the dev preview)
         run: |
-          git rm -rf --ignore-unmatch website/
-          rm -rf website
+          find website -mindepth 1 -maxdepth 1 ! -name dev -exec git rm -rf --ignore-unmatch {} +
+          find website -mindepth 1 -maxdepth 1 ! -name dev -exec rm -rf {} +
 
       - name: add updated website
         uses: actions/download-artifact@v4
