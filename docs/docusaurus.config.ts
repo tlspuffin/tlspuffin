@@ -2,14 +2,18 @@ import { themes as prismThemes } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
+// base path of the website: '/' for production, '/dev/' for the dev preview
+const BASE_URL = process.env.DOCUSAURUS_BASE_URL ?? '/';
+
 const config: Config = {
   title: 'tlspuffin',
   tagline: 'TLS Protocol Under FuzzINg: A Dolev-Yao guided fuzzer for TLS',
   favicon: 'img/favicon.ico',
 
   // deployment configuration
+  // NOTE: the dev website is deployed under /dev/ (see on-pr-merged-dev.yml)
   url: 'https://tlspuffin.github.io',
-  baseUrl: '/',
+  baseUrl: BASE_URL,
   organizationName: 'tlspuffin',
   projectName: 'tlspuffin.github.io',
   deploymentBranch: 'main',
@@ -51,7 +55,7 @@ const config: Config = {
       },
       items: [
         { to: '/docs/overview', label: 'Docs', position: 'left' },
-        { to: 'pathname:///api/tlspuffin/', label: 'API', position: 'left' },
+        {to: `pathname://${BASE_URL}api/tlspuffin/`, label: 'API', position: 'left'},
         {
           href: 'https://github.com/tlspuffin/tlspuffin',
           position: 'right',
