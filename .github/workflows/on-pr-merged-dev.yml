@@ -1,0 +1,38 @@
+name: on-pr-merged-dev
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+
+# NOTE: we prevent parallel runs of this workflow
+#
+# We change the concurrency settings so that:
+#   - only one workflow can run at any time
+#   - scheduling a new run will put the run in a waiting queue
+#   - scheduling a new run will evict any run already in the waiting queue
+#   - started runs are not cancelled
+#
+# This should prevent successive merges in a short time window to create
+# overlapping or partial deployements.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  validation:
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: full
+
+  prebuild:
+    needs: [validation]
+    name: Pre-build tlspuffin Binaries
+    uses: ./.github/workflows/run-prebuild.yml
+
+  benchmark:
+    uses: ./.github/workflows/run-benchmarks.yml

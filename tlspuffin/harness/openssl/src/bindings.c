@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include <openssl/conf.h>
+
 void openssl_init()
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -51,6 +53,61 @@ int BIO_read_ex(BIO *b, void *data, size_t dlen, size_t *readbytes)
 }
 #endif
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+// Emulated with SSL_OP_NO_* options. As in OpenSSL >= 1.1.0, version 0 means no bound.
+int SSL_CTX_set_min_proto_version(SSL_CTX *ctx, int version)
+{
+    if (version != 0 && (version < SSL3_VERSION || version > TLS1_2_VERSION))
+    {
+        return 0;
+    }
+
+    long options = SSL_OP_NO_SSLv2;
+    if (version > SSL3_VERSION)
+    {
+        options |= SSL_OP_NO_SSLv3;
+    }
+    if (version > TLS1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1;
+    }
+    if (version > TLS1_1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_1;
+    }
+    SSL_CTX_set_options(ctx, options);
+    return 1;
+}
+
+int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, int version)
+{
+    if (version == 0)
+    {
+        return 1;
+    }
+    if (version < SSL3_VERSION || version > TLS1_2_VERSION)
+    {
+        return 0;
+    }
+
+    long options = 0;
+    if (version < TLS1_2_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_2;
+    }
+    if (version < TLS1_1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1_1;
+    }
+    if (version < TLS1_VERSION)
+    {
+        options |= SSL_OP_NO_TLSv1;
+    }
+    SSL_CTX_set_options(ctx, options);
+    return 1;
+}
+#endif
+
 char *get_error_reason()
 {
     BIO *bio = BIO_new(BIO_s_mem());
@@ -71,7 +128,7 @@ char *get_error_reason()
 
 X509 *load_inmem_cert(const PEM *pem)
 {
-    BIO *cert_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    BIO *cert_bio = BIO_new_mem_buf((void *)pem->bytes, pem->length);
     if (cert_bio == NULL)
     {
         return NULL;
@@ -85,7 +142,7 @@ X509 *load_inmem_cert(const PEM *pem)
 
 EVP_PKEY *load_inmem_pkey(const PEM *pem)
 {
-    BIO *pkey_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    BIO *pkey_bio = BIO_new_mem_buf((void *)pem->bytes, pem->length);
     EVP_PKEY *pkey = PEM_read_bio_PrivateKey(pkey_bio, NULL, NULL, NULL);
     BIO_free(pkey_bio);
     return pkey;
@@ -152,6 +209,7 @@ SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey)
         return NULL;
     }
 
+    EVP_PKEY_free(pkey);
     return ssl_ctx;
 }
 

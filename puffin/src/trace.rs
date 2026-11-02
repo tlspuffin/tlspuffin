@@ -22,8 +22,10 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::mem;
+use std::result::Result;
 use std::vec::IntoIter;
 
+use comparable::Comparable;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -31,11 +33,13 @@ use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
     ERROR_FN, ERROR_IO, ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
 };
+use crate::fuzzer::utils::TracePath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -231,7 +235,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+    ) -> Option<&dyn EvaluatedTerm<PT>> {
         log::trace!(
             "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
             self,
@@ -243,7 +247,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| query.source.is_none() || query.source.as_ref().unwrap() == &raw.source)
             .flatten()
             .filter(|knowledge| {
                 query_type_id == knowledge.data.type_id()
@@ -257,6 +261,83 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             .get(query.counter as usize)
             .map(|possibility| possibility.data)
     }
+
+    pub fn knowledges(&self) -> &Vec<RawKnowledge<PT>> {
+        &self.raw_knowledge
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        let whitelist = PT::differential_fuzzing_whitelist();
+
+        let mut differences: Vec<TraceDifference> = vec![];
+
+        let mut first_store: Vec<Knowledge<'_, PT>> = self
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist))
+            .collect();
+        let mut second_store: Vec<Knowledge<'_, PT>> = other
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist))
+            .collect();
+        let first_store_count = first_store.len();
+        let second_store_count = second_store.len();
+
+        if first_store_count > second_store_count {
+            second_store.extend((second_store_count..first_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        } else {
+            first_store.extend((first_store_count..second_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        }
+
+        log::trace!("Comparing knowledge stores");
+        let _ = std::iter::zip(first_store, second_store)
+            .enumerate()
+            .for_each(|(idx, (x, y))| {
+                log::trace!(
+                    "{} (source:{}) | {} (source:{})",
+                    x.data.type_name(),
+                    x.source,
+                    y.data.type_name(),
+                    y.source
+                );
+                x.data
+                    .find_differences(y.data, &mut differences, idx, x.source, y.source);
+            });
+
+        match differences.is_empty() {
+            false => Err(differences),
+            true => Ok(()),
+        }
+    }
+}
+
+/// Should a specific knowledge be kept
+fn filter_knowledge<PT: ProtocolTypes>(
+    knowledge: &Knowledge<PT>,
+    whitelist: &Option<Vec<TypeId>>,
+) -> bool {
+    if whitelist.is_none() {
+        return true;
+    }
+
+    if let Some(list) = whitelist {
+        if !list.iter().any(|x| x == &knowledge.data.type_id()) {
+            return false;
+        }
+    }
+
+    true
 }
 
 #[derive(Debug)]
@@ -270,7 +351,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
     pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
         let registry = registry.into();
         Self {
-            default: registry.default().name().into(),
+            default: registry.default_put().clone(),
             registry,
             descriptors: Default::default(),
         }
@@ -279,11 +360,6 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
     #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
-        self
-    }
-
-    pub fn with_default(mut self, put: impl Into<PutDescriptor>) -> Self {
-        self.default = put.into();
         self
     }
 
@@ -335,12 +411,15 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 pub struct ConfigTrace {
     pub with_bit_level: bool,
     pub with_reseed: bool,
+    /// This is used in differential fuzzing
+    pub check_security_violation: bool,
 }
 impl Default for ConfigTrace {
     fn default() -> Self {
         ConfigTrace {
             with_bit_level: true,
             with_reseed: true,
+            check_security_violation: true,
         }
     }
 }
@@ -466,7 +545,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+    ) -> Option<&dyn EvaluatedTerm<PB::ProtocolTypes>> {
         log::trace!(
             "Looking for variable in {:?} with query {:?}",
             self.knowledge_store,
@@ -510,6 +589,77 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .iter()
             .all(super::agent::Agent::is_state_successful)
     }
+
+    /// Compare with another `TraceContext` and return a Vec of differences
+    pub fn compare(
+        &self,
+        other: &Self,
+        descriptors: &Vec<AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>>,
+    ) -> Vec<TraceDifference> {
+        let mut res = vec![];
+
+        // Decrypting knowledges
+        let terms: Vec<Term<PB::ProtocolTypes>> =
+            PB::ProtocolTypes::differential_fuzzing_terms_to_eval(descriptors);
+
+        let mut self_store = KnowledgeStore::new();
+        let mut other_store = KnowledgeStore::new();
+
+        for t in terms {
+            let self_eval = t.evaluate_dy(self);
+            let other_eval = t.evaluate_dy(other);
+            log::trace!("Evaluate term : {}", t);
+            log::trace!("Trying term evaluation for first PUT : {:?}", self_eval);
+            log::trace!("Trying term evaluation for second PUT : {:?}", other_eval);
+            if let Ok(decrypted) = self_eval {
+                self_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    None,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+            if let Ok(decrypted) = other_eval {
+                other_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    None,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+        }
+
+        // Comparing the claims
+        #[cfg(not(feature = "ddyf-disable-claims"))]
+        res.extend(
+            self.claims
+                .compare(&other.claims)
+                .err()
+                .map_or(vec![], |x| x),
+        );
+
+        // Comparing the knowledges
+        #[cfg(not(feature = "ddyf-disable-knowledges"))]
+        res.extend(
+            self.knowledge_store
+                .compare(&other.knowledge_store)
+                .err()
+                .map_or(vec![], |x| x),
+        );
+
+        // Comparing the computed terms
+        #[cfg(not(feature = "ddyf-disable-decryption"))]
+        res.extend(self_store.compare(&other_store).err().map_or(vec![], |x| x));
+
+        res
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, Hash, Default)]
+pub struct MetadataTrace {
+    /// The path focus of the trace, which is used to focus on a specific part of the trace for
+    /// HAVOC mutations during a FocusScheduledMutator
+    path_focus: Option<TracePath>,
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
@@ -518,10 +668,11 @@ pub struct Trace<PT: ProtocolTypes> {
     pub descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
     pub steps: Vec<Step<PT>>,
     pub prior_traces: Vec<Trace<PT>>,
+    pub metadata_trace: MetadataTrace,
 }
 
 /// Identify a step and a (prior) trace
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq, Comparable)]
 pub struct StepNumber {
     /// identify the trace (allow to differentiate between prior traces)
     pub trace: usize,
@@ -553,6 +704,7 @@ impl<PT: ProtocolTypes> ExecutionResult<PT> {
         export_terms: bool,
         export_knowledges: bool,
         export_claims: bool,
+        export_raw: bool,
     ) -> Self
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -567,6 +719,7 @@ impl<PT: ProtocolTypes> ExecutionResult<PT> {
                 export_terms,
                 export_knowledges,
                 export_claims,
+                export_raw,
             ),
         }
     }
@@ -599,8 +752,12 @@ pub struct TraceExecution<PT: ProtocolTypes> {
     executed_until: usize,
     /// Execution result of each step
     steps: Vec<StepExecution<PT>>,
+    // Other knowledges (eg. post computations)
+    extra_knowledges: Option<Vec<(Source, Box<dyn EvaluatedTerm<PT>>)>>,
 }
 
+/// Get a trace and return a `TraceExecution` containing the selected informations (terms,
+/// knowledges, claims, raw bytes)
 impl<PT: ProtocolTypes> TraceExecution<PT> {
     pub fn from<PB>(
         trace: &Trace<PT>,
@@ -608,6 +765,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
         export_terms: bool,
         export_knowledges: bool,
         export_claims: bool,
+        export_raw: bool,
     ) -> Self
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -631,31 +789,66 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                     }
                 }
                 Some(step_knowledges)
+                // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+                // Some(
+                //     ctx.knowledge_store
+                //         .raw_knowledge
+                //         .extract_if(.., |k| k.step == Some(StepNumber::new(trace_number, idx)))
+                //         .map(|k| k.data)
+                //         .collect(),
+                // )
             } else {
                 None
             };
 
+            // Get the claims emitted at the current step
             let claims = if export_claims {
-                let mut step_claims = Vec::new();
-
-                for c in ctx.claims.deref_borrow().iter() {
-                    if c.get_step() == Some(StepNumber::new(trace_number, idx)) {
-                        step_claims.push(c.inner());
-                    }
-                }
-                Some(step_claims)
+                Some(
+                    ctx.claims
+                        .deref_borrow()
+                        .iter()
+                        .filter(|c| c.get_step() == Some(StepNumber::new(trace_number, idx)))
+                        .map(|c| c.inner())
+                        .collect(),
+                )
             } else {
                 None
             };
 
             steps.push(StepExecution {
                 step_number: idx,
-                action: ActionType::from(step.action.clone(), export_terms),
-                agent: step.agent.into(),
+                action: ActionType::from(step.action.clone(), export_terms, export_raw, ctx),
+                agent: step.agent,
                 knowledges,
                 claims,
             });
         }
+
+        let extra_knowledges = if export_knowledges {
+            let mut knowledges = Vec::new();
+            let mut old_knowledges = Vec::new();
+
+            mem::swap(&mut old_knowledges, &mut ctx.knowledge_store.raw_knowledge);
+
+            for k in old_knowledges {
+                if k.step == None {
+                    knowledges.push((k.source, k.data));
+                } else {
+                    ctx.knowledge_store.raw_knowledge.push(k);
+                }
+            }
+            Some(knowledges)
+            // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+            // Some(
+            //     ctx.knowledge_store
+            //         .raw_knowledge
+            //         .extract_if(.., |k| k.step == None)
+            //         .map(|k| (k.source, k.data))
+            //         .collect(),
+            // )
+        } else {
+            None
+        };
 
         Self {
             agents: trace.descriptors.clone(),
@@ -663,7 +856,9 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             executed_until: ctx.executed_until,
             steps,
             // right now we exclude prior traces
+            // TODO: add prior traces
             prior_traces: Vec::new(),
+            extra_knowledges,
         }
     }
 
@@ -672,7 +867,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             .prior_traces
             .iter()
             .fold(0, |acc, p| acc + Self::count_prior_traces(p));
-        return 1 + prior;
+        1 + prior
     }
 
     pub fn print(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
@@ -696,7 +891,14 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             s.print(f, depth)?;
         }
 
-        writeln!(f, "")
+        if let Some(knowledges) = &self.extra_knowledges {
+            println!("{tabs}Extra knowledges :");
+            for k in knowledges {
+                println!("{tabs}>>> [{}] {:?}", k.0, k.1);
+            }
+        }
+
+        writeln!(f)
     }
 }
 
@@ -714,17 +916,34 @@ pub struct StepExecution<PT: ProtocolTypes> {
 enum ActionType {
     Input {
         recipe: Option<String>,
+        raw: Option<String>,
         precomputations: Option<Vec<(String, String)>>,
     },
     Output,
 }
 
 impl ActionType {
-    fn from<PT: ProtocolTypes>(value: Action<PT>, export_terms: bool) -> Self {
+    fn from<PB: ProtocolBehavior>(
+        value: Action<PB::ProtocolTypes>,
+        export_terms: bool,
+        export_raw: bool,
+        ctx: &TraceContext<PB>,
+    ) -> Self {
         match value {
             Input(input_action) => ActionType::Input {
                 recipe: match export_terms {
                     true => Some(input_action.recipe.to_string()),
+                    false => None,
+                },
+                raw: match export_raw {
+                    true => match input_action.recipe.evaluate(ctx) {
+                        Ok(v) => Some(
+                            v.iter()
+                                .map(|b| format!("{:02x}", b).to_string())
+                                .collect::<String>(),
+                        ),
+                        Err(_) => None,
+                    },
                     false => None,
                 },
                 precomputations: match export_terms {
@@ -761,6 +980,7 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
         match &self.action {
             ActionType::Input {
                 recipe,
+                raw,
                 precomputations,
             } => {
                 println!("{tabs}Action: Input (attacker -> agent.{})", self.agent);
@@ -771,6 +991,9 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
                             precomputation_name, precomputation_recipe
                         );
                     }
+                }
+                if let Some(r) = raw {
+                    println!("{tabs}Raw: {}", r);
                 }
                 if let Some(r) = recipe {
                     println!("{tabs}Term: {}", r);
@@ -792,7 +1015,7 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
             }
         }
 
-        writeln!(f, "")
+        writeln!(f)
     }
 }
 
@@ -802,13 +1025,22 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
-    pub fn spawn_agents<PB: ProtocolBehavior>(
+    /// Recursively collect all agent descriptors from this trace and its prior traces.
+    /// This is needed for differential testing: agents in prior traces must also be
+    /// mapped to the correct PUT, otherwise they silently fall back to the default.
+    pub fn all_descriptors(&self) -> Vec<&AgentDescriptor<PT::PUTConfig>> {
+        let mut result: Vec<&AgentDescriptor<PT::PUTConfig>> = Vec::new();
+        for prior in &self.prior_traces {
+            result.extend(prior.all_descriptors());
+        }
+        result.extend(self.descriptors.iter());
+        result
+    }
+
+    pub fn spawn_agents<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -831,6 +1063,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -839,7 +1072,12 @@ impl<PT: ProtocolTypes> Trace<PT> {
             // Call wrap function to avoid counting these sub-executions in ALL_EXEC and
             // ALL_EXEC_SUCCESS counters
             trace
-                .execute_until_step_wrap(ctx, trace.steps.len(), trace_number)
+                .execute_until_step_wrap(
+                    ctx,
+                    trace.steps.len(),
+                    trace_number,
+                    check_security_violation,
+                )
                 .map_err(|e| {
                     log::warn!("[execute_until_step_wrap] fail executing prior traces {trace}");
                     e
@@ -853,7 +1091,9 @@ impl<PT: ProtocolTypes> Trace<PT> {
             log::debug!("Executing step #{}", i);
             step.execute(StepNumber::new(*trace_number, i), ctx)?;
 
-            ctx.verify_security_violations()?;
+            if check_security_violation {
+                ctx.verify_security_violations()?;
+            }
             ctx.executed_until = i + 1;
         }
 
@@ -867,12 +1107,14 @@ impl<PT: ProtocolTypes> Trace<PT> {
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_EXEC.increment();
-        let res = self.execute_until_step_wrap(ctx, stop_at_step, trace_number);
+        let res =
+            self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
 
         if let Err(e) = res {
             match &e {
@@ -886,15 +1128,18 @@ impl<PT: ProtocolTypes> Trace<PT> {
                 Error::Stream(_) => ERROR_STREAM.increment(),
                 Error::Extraction() => ERROR_EXTRACTION.increment(),
                 Error::SecurityClaim(_) => {}
+                Error::Difference {
+                    put1_status: _,
+                    put2_status: _,
+                    differences: _,
+                } => {}
             }
             return Err(e);
         }
 
         ALL_EXEC_SUCCESS.increment();
-        if cfg!(feature = "introspection") {
-            if ctx.agents_successful() {
-                ALL_EXEC_AGENT_SUCCESS.increment();
-            }
+        if cfg!(feature = "introspection") && ctx.agents_successful() {
+            ALL_EXEC_AGENT_SUCCESS.increment();
         }
 
         Ok(())
@@ -904,11 +1149,17 @@ impl<PT: ProtocolTypes> Trace<PT> {
         &self,
         ctx: &mut TraceContext<PB>,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        self.execute_until_step(ctx, self.steps.len(), trace_number)
+        self.execute_until_step(
+            ctx,
+            self.steps.len(),
+            trace_number,
+            check_security_violation,
+        )
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -952,7 +1203,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
     /// Remove the steps after (excluding) `after_step`
     pub fn truncate_at_step(&mut self, after_step: usize) {
-        log::error!("Truncating trace at step {after_step}");
+        log::debug!("Truncating trace at step {after_step}");
         self.steps.truncate(after_step);
     }
 
@@ -963,14 +1214,32 @@ impl<PT: ProtocolTypes> Trace<PT> {
             Action::Output(_) => acc + 1,
         })
     }
-}
 
+    /// Sets in the metadata the focus of the trace to a specific [`TracePath`].
+    pub fn set_focus(&mut self, trace_path: TracePath) {
+        log::debug!("[Set_focus] Setting focus to {trace_path:?}");
+        self.metadata_trace.path_focus = Some(trace_path);
+    }
+
+    /// Clear from the metadata any focus
+    pub fn clear_focus(&mut self) {
+        log::debug!("[clear_focus] clear focus");
+        self.metadata_trace.path_focus = None;
+    }
+
+    /// Returns the current focus path from the metadata, if any
+    pub fn get_focus(&self) -> Option<&TracePath> {
+        log::debug!("[get_focus] get_focus {:?}", self.metadata_trace.path_focus);
+        self.metadata_trace.path_focus.as_ref()
+    }
+}
 impl<PT: ProtocolTypes> Default for Trace<PT> {
     fn default() -> Self {
         Self {
             descriptors: vec![],
             steps: vec![],
             prior_traces: vec![],
+            metadata_trace: Default::default(),
         }
     }
 }
@@ -1014,13 +1283,15 @@ impl<PT: ProtocolTypes> Step<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match &self.action {
-            Action::Input(input) => input.execute(self.agent, ctx).and_then(|()| {
+            Action::Input(input) => {
+                let exec = input.execute(self.agent, ctx);
                 // NOTE force output after each InputAction step
-                (OutputAction {
+                let _ = (OutputAction {
                     phantom: Default::default(),
                 })
-                .execute(self.agent, step_number, ctx)
-            }),
+                .read_state(self.agent, step_number, ctx);
+                exec
+            }
             Action::Output(output) => output.execute(self.agent, step_number, ctx),
         }
     }
@@ -1082,12 +1353,30 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
+        ctx.find_agent_mut(agent_name)?.progress()?;
+
+        self.read_state(agent_name, step.clone(), ctx)?;
+
+        Ok(())
+    }
+
+    fn read_state<PB>(
+        &self,
+        agent_name: AgentName,
+        step: StepNumber,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
         let source = Source::Agent(agent_name);
         let agent = ctx.find_agent_mut(agent_name)?;
 
-        agent.progress()?;
+        let mut flight = None;
 
-        if let Some(opaque_flight) = agent.take_message_from_outbound()? {
+        let res = agent.take_message_from_outbound(&mut flight);
+
+        if let Some(opaque_flight) = flight {
             ctx.knowledge_store.add_raw_knowledge(
                 opaque_flight.clone(),
                 Some(step.clone()),
@@ -1112,7 +1401,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
             }
         }
 
-        Ok(())
+        res
     }
 }
 
@@ -1144,7 +1433,7 @@ pub struct InputAction<PT: ProtocolTypes> {
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a `MultiMessage`.
 impl<PT: ProtocolTypes> InputAction<PT> {
-    pub const fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
+    pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
             action: Action::Input(Self {

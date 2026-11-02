@@ -28,7 +28,7 @@ impl BundleBuilder {
 
             pub use for_puts;
 
-            fn register() -> Vec<GlobalFactory> {{
+            fn register() -> Vec<crate::put::CPut> {{
                 vec![None, {registration}].into_iter().flatten().collect()
             }}
 
@@ -42,7 +42,7 @@ impl BundleBuilder {
             puts_modules = self
                 .puts
                 .iter()
-                .map(|put| put.rust_registration())
+                .map(|put| put.registration())
                 .join("\n\n"),
             puts_macros = self.puts.iter().map(|put| {
                format!(r#"puffin_macros::replace!(__PUTSTR__ => "{name}" in {{ puffin_macros::replace!(__PUT__ => {id} in {{ $($tail)* }}); }});"#, name = put.name(), id = put.id())

@@ -13,15 +13,7 @@ members = [
 ]
 
 exclude = [
-    "crates/openssl-src-111",
-    "crates/libressl-src",
-    "crates/wolfssl",
-    "crates/wolfssl-sys",
-    "crates/wolfssl-src",
     "crates/libssh-sys",
-    "crates/boringssl-src",
-    "crates/boringssl-sys",
-    "crates/boring",
 ]
 
 
@@ -50,6 +42,7 @@ log4rs = { version = "1.2.0", features = ["gzip"] }
 test-log = "0.2"
 env_logger = "0.10"
 tempfile = "3.3.0"
+sha256 = { version = "1.6.0", default-features = false }
 chrono = "0.4.19"
 criterion = "0.5"
 itertools = "0.13"
@@ -70,7 +63,6 @@ libc = "0.2.126"
 foreign-types = "0.5.0"
 rand = "0.8"
 clap = "4.2.4"
-anyhow = "1.0"
 derivative = "2.2.0"
 paste = "1.0"
 regex = "1.10"
@@ -79,12 +71,9 @@ syn = "2.0.66"
 quote = "1.0.36"
 proc-macro2 = "1.0.79"
 trybuild = "< 1.0.91"
+comparable = "0.5.7"
 
 [patch.crates-io]
-wolfssl-sys = { path = "crates/wolfssl-sys" }
-wolfssl-src = { path = "crates/wolfssl-src" }
-openssl-src = { path = "crates/openssl-src-111" }
-libressl-src = { path = "crates/libressl-src" }
 libssh-sys = { path = "crates/libssh-sys" }
 security-claims = { path = "tlspuffin-claims" }
 

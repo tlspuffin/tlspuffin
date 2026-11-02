@@ -1,3 +1,3 @@
 # Evaluation Scripts
 
-Scripts for [paper publication](https://eprint.iacr.org/2023/57).
+Scripts for [paper publication](https://eprint.iacr.org/2023/057).

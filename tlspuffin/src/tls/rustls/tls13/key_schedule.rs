@@ -4,7 +4,7 @@
 use ring::{
     aead,
     digest::{self, Digest},
-    hkdf::{self, KeyType as _},
+    hkdf::{self, KeyType as _, Prk},
     hmac,
 };
 
@@ -142,6 +142,17 @@ pub struct KeyScheduleHandshakeStart {
 }
 
 impl KeyScheduleHandshakeStart {
+    /// Create a new KeyScheduleHandshakeStart and skip the secret derivation
+    pub fn new_with_secret(algorithm: hkdf::Algorithm, secret: &[u8]) -> Self {
+        let key = Prk::new_less_safe(algorithm, secret);
+        Self {
+            ks: KeySchedule {
+                current: key,
+                algorithm,
+            },
+        }
+    }
+
     pub fn derive_handshake_secrets(
         self,
         hs_hash: &[u8],

@@ -1,22 +1,29 @@
 use_languages(C)
 
-patch(PATTERN "s/USE_BUILTIN_ARC4RANDOM=no/USE_BUILTIN_ARC4RANDOM=yes/g" <SOURCE_DIR>/m4/check-os-options.m4)
-patch(PATTERN [===[s/\\$ac_cv_func_arc4random_buf/no/g]===] <SOURCE_DIR>/m4/check-libc.m4)
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/common/arc4random_prng.c" "<SOURCE_DIR>/crypto/compat/arc4random.c")
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/common/arc4random_prng.h" "<SOURCE_DIR>/crypto/compat/arc4random.h")
 
-list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/arc4random_prng.c" "<SOURCE_DIR>/crypto/compat/arc4random.c")
-list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/arc4random_prng.h" "<SOURCE_DIR>/crypto/compat/arc4random.h")
+# Prevent LibreSSL from zeroing intermediate TLS 1.3 secrets (extracted_early,
+# extracted_handshake, extracted_master) after derivation.  The `insecure` flag
+# in tls13_secrets disables the explicit_bzero calls in tls13_key_schedule.c.
+# We set it at creation time so the harness can read all secrets for claims.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/tls13_key_schedule.c -P "${CMAKE_CURRENT_LIST_DIR}/common/patch_insecure.cmake")
 
-autotools_builder(
-  FEATURES
-    --enable-static
-    --disable-shared
-    --disable-tests
+# Reorder default signature algorithm preference to put SHA256 first (matching
+# OpenSSL), since LibreSSL does not expose an API to configure sigalgs at runtime.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/ssl_sigalgs.c -P "${CMAKE_CURRENT_LIST_DIR}/common/patch_sigalgs.cmake")
+
+cmake_builder(
+  CMAKE_FLAGS
+    -DBUILD_SHARED_LIBS=OFF
+    -DLIBRESSL_APPS=OFF
+    -DLIBRESSL_TESTS=OFF
+    -DHAVE_ARC4RANDOM_BUF=0
 
   CFLAGS
     -g
     -fPIC
     -fvisibility=hidden
-    -I${CMAKE_SOURCE_DIR}/../../tlspuffin-claims
 
     # SANCOV
     $<$<BOOL:${sancov}>:-fsanitize-coverage=trace-pc-guard>
@@ -36,7 +43,46 @@ autotools_builder(
     $<$<BOOL:${gcov}>:-O0>
 )
 
+# Copy internal SSL headers to install prefix so the harness can access
+# LibreSSL internal structures (transcript hash, TLS 1.3 secrets, etc.)
+# without patching the library.
+set(INTERNAL_DIR "${CMAKE_INSTALL_PREFIX}/include/libressl_internal")
+list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "${INTERNAL_DIR}")
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "4.0.0")
+  list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
+    "<SOURCE_DIR>/ssl/ssl_local.h"
+    "<SOURCE_DIR>/ssl/tls13_internal.h"
+    "<SOURCE_DIR>/ssl/tls_internal.h"
+    "<SOURCE_DIR>/ssl/tls12_internal.h"
+    "<SOURCE_DIR>/ssl/tls_content.h"
+    "<SOURCE_DIR>/ssl/bytestring.h"
+    "${INTERNAL_DIR}/"
+  )
+else()
+  # 3.x names the main header ssl_locl.h; it is installed as ssl_local.h to match the 4.x name
+  # used by the harness.
+  list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
+    "<SOURCE_DIR>/ssl/ssl_locl.h"
+    "${INTERNAL_DIR}/ssl_local.h"
+  )
+  list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
+    "<SOURCE_DIR>/ssl/ssl_sigalgs.h"
+    "<SOURCE_DIR>/ssl/ssl_tlsext.h"
+    "<SOURCE_DIR>/ssl/srtp.h"
+    "<SOURCE_DIR>/ssl/tls13_handshake.h"
+    "<SOURCE_DIR>/ssl/tls13_internal.h"
+    "<SOURCE_DIR>/ssl/tls13_record.h"
+    "<SOURCE_DIR>/ssl/bytestring.h"
+    "${INTERNAL_DIR}/"
+  )
+endif()
+
 set(tls12 yes)
 set(tls13 yes)
 set(tls12_session_resumption yes)
+# LibreSSL does not support TLS 1.3 session resumption, only 0-RTT
+set(tls13_session_resumption no)
 set(transcript_extraction yes)
+set(client_authentication_transcript_extraction yes)
+set(allow_setting_tls12_ciphers yes)
+set(allow_setting_tls13_ciphers yes)

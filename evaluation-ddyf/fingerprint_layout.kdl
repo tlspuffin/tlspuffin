@@ -1,0 +1,18 @@
+layout {
+    default_tab_template {
+        pane size=1 borderless=true {
+            plugin location="zellij:tab-bar"
+        }
+        children
+        pane size=1 borderless=true {
+            plugin location="zellij:status-bar"
+        }
+    }
+    tab name="fingerprinting experiment" {
+        pane  split_direction="vertical" {
+            pane name="500vs510" command="zsh" { args "-c" "RUST_LOG=info timeout 48h ./target/release/tlspuffin -p 2000 --cores 0-3 differential-experiment wolfssl500 wolfssl510 --title '500vs510'; zsh"; }
+            pane name="510vs511" command="zsh" { args "-c" "RUST_LOG=info timeout 48h ./target/release/tlspuffin -p 2001 --cores 4-7 differential-experiment wolfssl510 wolfssl511 --title '510vs511'; zsh"; }
+            pane name="500vs511" command="zsh" { args "-c" "RUST_LOG=info timeout 48h ./target/release/tlspuffin -p 2002 --cores 8-11 differential-experiment wolfssl500 wolfssl511 --title '500vs511'; zsh"; }
+        }
+    }
+}

@@ -1,0 +1,39 @@
+id: match_all_fields
+language: rust
+rule:
+  any:
+    - kind: field_declaration
+      inside:
+        kind: field_declaration_list
+        inside:
+          kind: struct_item
+          matches: is_comparable
+    - any:
+        - kind: generic_type
+        - kind : primitive_type
+        - kind : type_identifier
+      inside:
+        kind: ordered_field_declaration_list
+        inside:
+          any:
+            - kind: struct_item
+              matches: is_comparable
+            - kind: enum_variant
+              inside:
+                kind: enum_variant_list
+                inside:
+                  kind: enum_item
+                  matches: is_comparable
+utils:
+  is_comparable:
+    follows:
+      stopBy:
+        not:
+          kind: attribute_item
+      kind: attribute_item
+      all:
+        - pattern: "#[derive($$$)]"
+        - has:
+            stopBy: end
+            kind: identifier
+            regex: 'Comparable'

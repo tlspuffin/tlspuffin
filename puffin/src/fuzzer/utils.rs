@@ -1,31 +1,110 @@
+use std::cell::Cell;
+
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
+thread_local! {
+    /// Per-stage anchor step lock. When set to `Some(k)`, every anchor drawn by
+    /// [`reservoir_sample`] -- and therefore all `choose*` helpers built on it -- is restricted to
+    /// step `k`. Set by [`crate::fuzzer::stages::StepLockedStackMutator`] so that all mutations
+    /// stacked in one mutational stage edit the SAME step. Global/Step *fan-out* (via
+    /// `find_all_term_filtered` / `find_all_sub_term_filtered`) does NOT consult this lock, so a
+    /// Global mutation still spreads its effect across the whole trace -- only its anchor choice is
+    /// confined to the locked step. Safe as a thread-local: LibAFL runs a single mutation thread
+    /// per fuzzer process (one process per core), so there is no cross-trace interference.
+    static STEP_LOCK: Cell<Option<StepIndex>> = const { Cell::new(None) };
+}
+
+/// Set (or clear, with `None`) the process-local anchor step lock. Returns the previous value so
+/// the caller can restore it after the stage.
+pub fn set_step_lock(step: Option<StepIndex>) -> Option<StepIndex> {
+    STEP_LOCK.with(|c| c.replace(step))
+}
+
+/// Read the current anchor step lock (`None` when unlocked).
+pub fn step_lock() -> Option<StepIndex> {
+    STEP_LOCK.with(Cell::get)
+}
+
+/// Size budget for terms and traces during mutation.
+///
+/// # Units
+///
+/// All `*_size` values below are **node counts** in the term tree (`Term::size()`): every
+/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` sums each
+/// input step's recipe size and additionally counts every output action as one node. They are NOT
+/// bytes.
+///
+/// # How the caps relate
+///
+/// - `min_term_size` / `max_term_size`: bounds on a *sub-term selected* as a mutation candidate.
+/// - `max_result_term_size`: **hard post-condition on the *result* of a replacement mutation** — a
+///   mutation that would push any single step recipe over `max_result_term_size` is rejected
+///   (reject-whole). Whole-trace growth is bounded instead by the number of steps
+///   (`MutationConfig::max_result_trace_length`) times this per-step cap. It is enforced
+///   *incrementally* on top of an already-bounded input (seeds within caps + reject-whole preserve
+///   the invariant), so set them at or above the largest seed: a cap configured *below* an existing
+///   seed's size is a corpus-boundary misconfiguration and cannot be enforced retroactively by the
+///   mutators (see the precondition on `replacement_within_caps`).
+///
+/// # Maintenance rules — READ THIS BEFORE ADDING A PROTOCOL OR EXTENDING A MAPPER
+///
+/// These numbers are chosen from the sizes of the hand-written seeds/attacks. When you add a
+/// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
+/// rules below**. As of this writing the largest seed values are:
+///
+/// | metric                         | TLS  | OPC UA | SSH  | rule for the cap                            |
+/// |--------------------------------|------|--------|------|---------------------------------------------|
+/// | max single-step recipe (nodes) | 324  | 137    | 285  | `max_term_size >= 2 * max_seed_term`        |
+/// | max #steps                     | 13   | 10     | 10   | `max_result_trace_length >= max_seed_steps + 2` |
+///
+/// The current values sit **well above** these minima on purpose, to leave headroom for future
+/// growth of the mappers (larger signatures / seed terms / longer attacks) without another cap
+/// bump:
+/// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
+///   (and moderately grown variants) stay selectable. Largest today = 324 (TLS) ⇒ rule wants ≥648;
+///   set to 800.
+/// - whole-trace growth is bounded by `MutationConfig::max_result_trace_length` (max #steps) times
+///   the per-step `max_result_term_size` cap, so there is no separate whole-trace node cap.
+///   `max_result_trace_length` is set to 20 (largest seed today = 13 steps, rule wants ≥15).
+/// - `max_result_term_size` (whole step recipe after a replacement) is kept >= `max_term_size` so a
+///   max-size replacement sub-term still fits; set to 1000.
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
+    /// Minimum size of a sub-term selected as a mutation candidate.
     pub min_term_size: usize,
+    /// Maximum size of a sub-term selected as a mutation candidate. Rule: `>= 2 * max_seed_term`
+    /// (largest single-term size across all seeds). Measured max seed term = 324 (TLS).
     pub max_term_size: usize,
+    /// Hard post-condition: reject a replacement whose *result* makes any single step recipe
+    /// exceed this many nodes. Rule: `> max_seed_term` with headroom (measured max = 324).
+    pub max_result_term_size: usize,
     pub must_be_symbolic: bool,
-    // when true: only look for terms with no payload in sub-terms
+    /// when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
     // when true: only look for terms with at least one payload in sub-terms
     pub must_payload_in_subterm: bool,
-    // when true: we do not choose terms that have a list symbol and whose parent also has a list
-    // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
-    // fn(append(t1,t2)
+    /// when true: we do not choose terms that have a list symbol and whose parent also has a list
+    /// symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
+    /// fn(append(t1,t2)
     pub not_inside_list: bool,
-    // choose term giving higher probability to deeper term
+    /// choose term giving higher probability to deeper term
     pub weighted_depth: bool,
-    // only select root terms
+    /// only select root terms
     pub must_be_root: bool,
-    // when true: only look for readable terms
+    /// when true: only look for readable terms
     pub not_readable: bool,
-    // Number of terms to generate for each type
+    /// Forbids sub-terms with no det function symbols
+    pub must_be_det: bool,
+    /// Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
-    // Max number of paylaods per term (limiting further MakeMessage)
+    /// Max depth of the terms generated for the zoo, `None` to use the protocol's
+    /// [`crate::protocol::ProtocolBehavior::ZOO_MAX_DEPTH`], see [`crate::fuzzer::term_zoo`]
+    pub zoo_max_depth: Option<u16>,
+    /// Max number of paylaods per term (limiting further MakeMessage)
     pub threshold_max_payloads_per_term: usize,
 }
 
@@ -34,8 +113,14 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, /* was 9000 but we were rewriting this to 300 anyway when
-                                 * instantiating the fuzzer */
+            // Selection cap. Comfortably above the maintenance rule `>= 2 * max_seed_term`
+            // (largest seed term today = 324 (TLS) => rule wants >= 648); we set 800 to leave
+            // headroom for future growth of the mappers (larger signatures / seed terms).
+            max_term_size: 800,
+            // Post-condition cap (reject-whole) on a single step recipe, i.e. the largest a step
+            // may become after a replacement. Kept >= `max_term_size` so a max-size replacement
+            // sub-term still fits into a step.
+            max_result_term_size: 1000,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -43,11 +128,86 @@ impl Default for TermConstraints {
             weighted_depth: false,
             must_be_root: false,
             not_readable: false,
+            must_be_det: false,
             zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
                                    * and evaluate after 10 expansions of TermZoo. Was 1 initially */
+            zoo_max_depth: None,
             threshold_max_payloads_per_term: 10,
+        }
+    }
+}
+
+impl TermConstraints {
+    /// Returns whether a term is not extremely large (in which case we don't even bother exploring
+    /// it)
+    pub fn satisfy_size_max_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
+        term.size() < self.max_term_size
+    }
+
+    /// Returns whether `term` satisfies the constraints, for a caller that already knows its size.
+    ///
+    /// [`TermType::size`] is recursive, so recomputing it at every node of a term makes a traversal
+    /// quadratic in the term size. Traversals that fold the sizes bottom-up (see
+    /// [`reservoir_sample`]) pass the size in instead.
+    pub fn satisfy_constraints_with_size<PT: ProtocolTypes>(
+        &self,
+        term: &Term<PT>,
+        size: usize,
+    ) -> bool {
+        // Use inclusive bounds (min <= size <= max)
+        if size < self.min_term_size || size > self.max_term_size {
+            return false;
+        }
+
+        if self.must_be_symbolic && !term.is_symbolic() {
+            return false;
+        }
+        if self.no_payload_in_subterm {
+            // filter-out terms with payload in strict sub-term
+            if term.is_symbolic() && term.has_payload_to_replace() {
+                return false;
+            }
+            if !term.is_symbolic() && term.has_payload_to_replace_wo_root() {
+                return false;
+            }
+        }
+        if self.not_inside_list && term.is_list() {
+            return false;
+        }
+        if self.not_readable && term.is_readable() {
+            return false;
+        }
+        if self.must_be_det && term.has_no_det() {
+            return false;
+        }
+        true
+    }
+
+    /// Returns whether we should recurse into the sub-terms of a given term.
+    pub fn should_recurse<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
+        // Only recurse into symbolic terms, and not when we only want root terms
+        !self.must_be_root && term.is_symbolic()
+    }
+
+    /// Return TermConstraints with minimal/no constraint
+    pub fn no_constraint() -> Self {
+        Self {
+            min_term_size: 0,
+            max_term_size: usize::MAX,
+            max_result_term_size: usize::MAX,
+            must_be_symbolic: false,
+            no_payload_in_subterm: false,
+            must_payload_in_subterm: false,
+            not_inside_list: false,
+            weighted_depth: false,
+            must_be_root: false,
+            not_readable: false,
+            must_be_det: false,
+            zoo_gen_how_many: usize::MAX,
+            zoo_max_depth: None,
+            threshold_max_payloads_per_term: usize::MAX,
         }
     }
 }
@@ -70,7 +230,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length as u64) as usize;
+            let index = rand.below_or_zero(length);
             filtered.into_iter().nth(index)
         }
     }
@@ -81,7 +241,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length as u64) as usize;
+            let index = rand.below_or_zero(length);
             self.get(index)
         }
     }
@@ -100,7 +260,7 @@ where
         None
     } else {
         // pick a random, valid index
-        let index = rand.below(length as u64) as usize;
+        let index = rand.below_or_zero(length);
 
         // return the item chosen
         iter.nth(index)
@@ -112,7 +272,7 @@ pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
 /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
-fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
     filter: P,
     constraints: &TermConstraints,
@@ -120,63 +280,40 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
 ) -> Option<(&'a Term<PT>, TracePath)> {
     let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
     let mut visited = 0;
+    let mut path = TermPath::new();
 
+    let locked = step_lock();
     for (step_index, step) in trace.steps.iter().enumerate() {
+        // Anchor step lock: when a stage has locked a step, only draw anchors from that step.
+        if let Some(k) = locked {
+            if step_index != k {
+                continue;
+            }
+        }
         match &step.action {
             Action::Input(input) => {
                 let term = &input.recipe;
 
-                let size = term.size();
-                if size <= constraints.min_term_size || size >= constraints.max_term_size {
-                    continue;
+                if !constraints.satisfy_size_max_constraints(term) {
+                    log::warn!(
+                        "[reservoir_sample] Skipping term because it is too large: {}",
+                        term.size()
+                    );
+                    continue; // the term is too large, we don't even bother
                 }
 
-                let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
-
-                while let Some((term, path)) = stack.pop() {
-                    // push next terms onto stack
-
-                    if term.is_symbolic() && !constraints.must_be_root {
-                        // if not, we reached a leaf (real leaf or a term with payloads)
-                        match &term.term {
-                            DYTerm::Variable(_) => {
-                                // reached leaf
-                            }
-                            DYTerm::Application(_, subterms) => {
-                                // inner node, recursively continue
-                                for (path_index, subterm) in subterms.iter().enumerate() {
-                                    let mut new_path = path.clone();
-                                    new_path.1.push(path_index); // invert because of .iter().rev()
-                                    stack.push((subterm, new_path));
-                                }
-                            }
-                        }
-                    }
-
-                    // sample
-                    if filter(term)
-                        && (!constraints.must_be_symbolic || term.is_symbolic())
-                        && (!constraints.no_payload_in_subterm // TODO: currently not used!
-                        || (term.is_symbolic() && !term.has_payload_to_replace())
-                        || (!term.is_symbolic() && !term.has_payload_to_replace_wo_root()))
-                        && (!constraints.not_inside_list || !term.is_list())
-                        && (!constraints.not_readable || !term.is_readable())
-                    {
-                        visited += 1;
-
-                        // consider in sampling
-                        if reservoir.is_none() {
-                            // fill initial reservoir
-                            reservoir = Some((term, path));
-                        } else {
-                            // `1/visited` chance of overwriting
-                            // replace elements with gradually decreasing probability
-                            if rand.between(1, visited) == 1 {
-                                reservoir = Some((term, path));
-                            }
-                        }
-                    }
-                }
+                path.clear();
+                sample_subterms(
+                    term,
+                    step_index,
+                    &mut path,
+                    true,
+                    &filter,
+                    constraints,
+                    rand,
+                    &mut reservoir,
+                    &mut visited,
+                );
             }
             Action::Output(_) => {
                 // no term -> skip
@@ -185,6 +322,109 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
     }
 
     reservoir
+}
+
+/// Post-order half of [`reservoir_sample`]: offers every selectable sub-term of `term` to the
+/// reservoir and returns `term`'s [`TermType::size`].
+///
+/// The size is folded bottom-up so that the whole traversal stays linear in the term size:
+/// calling [`TermType::size`] at each node instead would make it quadratic.
+///
+/// `selectable` says whether this node may be picked at all. It is `false` under a node the
+/// constraints forbid recursing into ([`TermConstraints::should_recurse`]); the traversal still
+/// goes on below such a node, but only to fold its size.
+///
+/// The recursion is spelled out as an explicit stack so that deep terms cannot overflow the call
+/// stack. `path` is the path of `term` inside its recipe, maintained in place: a child index is
+/// pushed before descending and popped after, so the traversal allocates a path only when the
+/// reservoir is actually updated.
+#[allow(clippy::too_many_arguments)]
+fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
+    term: &'a Term<PT>,
+    step_index: StepIndex,
+    path: &mut TermPath,
+    selectable: bool,
+    filter: &P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+    reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+    visited: &mut usize,
+) -> usize {
+    struct Frame<'a, PT: ProtocolTypes> {
+        term: &'a Term<PT>,
+        selectable: bool,
+        children_selectable: bool,
+        /// Index of the next child to descend into: the frame is visited once it reaches the
+        /// number of children.
+        next_child: usize,
+        /// Folded size of the children visited so far, plus 1 for the node itself. Mirrors
+        /// `TermType::size`: a non-symbolic term counts as an atom, and so does a variable or a
+        /// constant.
+        size: usize,
+    }
+
+    fn new_frame<'a, PT: ProtocolTypes>(
+        term: &'a Term<PT>,
+        selectable: bool,
+        constraints: &TermConstraints,
+    ) -> Frame<'a, PT> {
+        Frame {
+            term,
+            selectable,
+            children_selectable: selectable && constraints.should_recurse(term),
+            next_child: 0,
+            size: 1,
+        }
+    }
+
+    let mut root_size = 0;
+    let mut stack = vec![new_frame(term, selectable, constraints)];
+
+    while !stack.is_empty() {
+        let frame = stack.last_mut().unwrap();
+
+        let subterms: &'a [Term<PT>] = match &frame.term.term {
+            DYTerm::Application(_, subterms) if frame.term.is_symbolic() => subterms,
+            _ => &[],
+        };
+
+        // Descend into the next child, left to right, before visiting this node.
+        if frame.next_child < subterms.len() {
+            let child = &subterms[frame.next_child];
+            let children_selectable = frame.children_selectable;
+            path.push(frame.next_child);
+            frame.next_child += 1;
+            stack.push(new_frame(child, children_selectable, constraints));
+            continue;
+        }
+
+        let frame = stack.pop().unwrap();
+
+        // Check constraints and user filter
+        if frame.selectable
+            && constraints.satisfy_constraints_with_size(frame.term, frame.size)
+            && filter(frame.term)
+        {
+            *visited += 1;
+
+            // `1/visited` chance of overwriting: replace elements with gradually decreasing
+            // probability
+            if reservoir.is_none() || rand.between(1, *visited) == 1 {
+                *reservoir = Some((frame.term, (step_index, path.clone())));
+            }
+        }
+
+        match stack.last_mut() {
+            Some(parent) => {
+                parent.size += frame.size;
+                path.pop();
+            }
+            // `frame` is the root: its path was never pushed, and its size is the result.
+            None => root_size = frame.size,
+        }
+    }
+
+    root_size
 }
 
 pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
@@ -240,7 +480,7 @@ pub fn find_term_mut<'a, PT: ProtocolTypes>(
     if let Some(step) = step {
         match &mut step.action {
             Action::Input(input) => {
-                find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+                find_term_by_term_path_mut(&mut input.recipe, &term_path.clone())
             }
             Action::Output(_) => None,
         }
@@ -259,7 +499,7 @@ pub fn find_term<'a, PT: ProtocolTypes>(
     let step: Option<&Step<PT>> = trace.steps.get(*step_index);
     if let Some(step) = step {
         match &step.action {
-            Action::Input(input) => find_term_by_term_path(&input.recipe, &mut term_path.clone()),
+            Action::Input(input) => find_term_by_term_path(&input.recipe, &term_path.clone()),
             Action::Output(_) => None,
         }
     } else {
@@ -347,14 +587,229 @@ pub fn choose_term_path_filtered<R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) ->
     reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
 }
 
+/// Finds all sub-terms in a given term that satisfy a filtering condition and term constraints.
+pub fn find_all_sub_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    term: &Term<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+) -> Vec<TermPath> {
+    let mut result = Vec::new();
+    let mut path = TermPath::new();
+    collect_subterms(term, &mut path, true, filter, constraints, &mut result);
+    result
+}
+
+/// Post-order half of [`find_all_sub_term_filtered`]: same bottom-up size fold and in-place `path`
+/// as [`sample_subterms`], collecting every matching path instead of sampling one.
+fn collect_subterms<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    term: &Term<PT>,
+    path: &mut TermPath,
+    selectable: bool,
+    filter: P,
+    constraints: &TermConstraints,
+    result: &mut Vec<TermPath>,
+) -> usize {
+    let children_selectable = selectable && constraints.should_recurse(term);
+
+    let mut size = 1;
+    if term.is_symbolic() {
+        match &term.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, subterms) => {
+                for (i, subterm) in subterms.iter().enumerate() {
+                    path.push(i);
+                    size += collect_subterms(
+                        subterm,
+                        path,
+                        children_selectable,
+                        filter,
+                        constraints,
+                        result,
+                    );
+                    path.pop();
+                }
+            }
+        }
+    }
+
+    if selectable && constraints.satisfy_constraints_with_size(term, size) && filter(term) {
+        result.push(path.clone());
+    }
+
+    size
+}
+
+/// Finds all trace paths in a trace that satisfy a given filter predicate and term constraints.
+pub fn find_all_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &Trace<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+) -> Vec<TracePath> {
+    trace
+        .steps
+        .iter()
+        .enumerate()
+        .flat_map(|(step_index, step)| match &step.action {
+            Action::Input(input) => {
+                let term = &input.recipe;
+                find_all_sub_term_filtered(term, filter, constraints)
+                    .into_iter()
+                    .map(move |term_path| (step_index, term_path))
+                    .collect::<Vec<_>>()
+            }
+            Action::Output(_) => vec![],
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
 
     use libafl_bolts::rands::StdRand;
 
     use super::*;
     use crate::algebra::test_signature::*;
+
+    /// Verbatim copy of the recursive `sample_subterms` this module replaced, kept as the
+    /// behavioural reference for `test_sample_subterms_matches_recursive_reference`.
+    #[allow(clippy::too_many_arguments)]
+    fn sample_subterms_reference<
+        'a,
+        R: Rand,
+        PT: ProtocolTypes,
+        P: Fn(&Term<PT>) -> bool + Copy,
+    >(
+        term: &'a Term<PT>,
+        step_index: StepIndex,
+        path: &mut TermPath,
+        selectable: bool,
+        filter: P,
+        constraints: &TermConstraints,
+        rand: &mut R,
+        reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+        visited: &mut usize,
+    ) -> usize {
+        let children_selectable = selectable && constraints.should_recurse(term);
+
+        let mut size = 1;
+        if term.is_symbolic() {
+            match &term.term {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, subterms) => {
+                    for (path_index, subterm) in subterms.iter().enumerate() {
+                        path.push(path_index);
+                        size += sample_subterms_reference(
+                            subterm,
+                            step_index,
+                            path,
+                            children_selectable,
+                            filter,
+                            constraints,
+                            rand,
+                            reservoir,
+                            visited,
+                        );
+                        path.pop();
+                    }
+                }
+            }
+        }
+
+        if selectable && constraints.satisfy_constraints_with_size(term, size) && filter(term) {
+            *visited += 1;
+            if reservoir.is_none() || rand.between(1, *visited) == 1 {
+                *reservoir = Some((term, (step_index, path.clone())));
+            }
+        }
+
+        size
+    }
+
+    /// The explicit-stack `sample_subterms` must be observationally identical to the recursion it
+    /// replaced: same visit order (hence same RNG draws), same folded sizes, same paths.
+    #[test_log::test]
+    fn test_sample_subterms_matches_recursive_reference() {
+        let trace = setup_simple_trace();
+        let constraints = TermConstraints::default();
+
+        for seed in 0..64u64 {
+            for (step_index, step) in trace.steps.iter().enumerate() {
+                let Action::Input(input) = &step.action else {
+                    continue;
+                };
+                let term = &input.recipe;
+
+                // Record the terms offered to the reservoir, in order. `filter` runs last in the
+                // `&&` chain, so this captures exactly the nodes that passed selectable + size.
+                let new_order: RefCell<Vec<*const Term<_>>> = RefCell::new(Vec::new());
+                let mut new_reservoir = None;
+                let mut new_visited = 0;
+                let mut new_path = TermPath::new();
+                let mut new_rand = StdRand::with_seed(seed);
+                let new_size = sample_subterms(
+                    term,
+                    step_index,
+                    &mut new_path,
+                    true,
+                    &|t: &Term<_>| {
+                        new_order.borrow_mut().push(t as *const _);
+                        true
+                    },
+                    &constraints,
+                    &mut new_rand,
+                    &mut new_reservoir,
+                    &mut new_visited,
+                );
+
+                let ref_order: RefCell<Vec<*const Term<_>>> = RefCell::new(Vec::new());
+                let mut ref_reservoir = None;
+                let mut ref_visited = 0;
+                let mut ref_path = TermPath::new();
+                let mut ref_rand = StdRand::with_seed(seed);
+                let ref_size = sample_subterms_reference(
+                    term,
+                    step_index,
+                    &mut ref_path,
+                    true,
+                    |t: &Term<_>| {
+                        ref_order.borrow_mut().push(t as *const _);
+                        true
+                    },
+                    &constraints,
+                    &mut ref_rand,
+                    &mut ref_reservoir,
+                    &mut ref_visited,
+                );
+
+                assert_eq!(new_size, ref_size, "folded size differs (seed {seed})");
+                assert_eq!(
+                    new_size,
+                    term.size(),
+                    "folded size differs from TermType::size"
+                );
+                assert_eq!(
+                    new_visited, ref_visited,
+                    "visited count differs (seed {seed})"
+                );
+                assert_eq!(
+                    new_order.into_inner(),
+                    ref_order.into_inner(),
+                    "visit order differs (seed {seed})"
+                );
+                assert!(new_path.is_empty(), "path left dirty (seed {seed})");
+                assert_eq!(new_path, ref_path, "path left dirty (seed {seed})");
+
+                let new_pick = new_reservoir.map(|(t, p)| (t as *const Term<_>, p));
+                let ref_pick = ref_reservoir.map(|(t, p)| (t as *const Term<_>, p));
+                assert_eq!(
+                    new_pick, ref_pick,
+                    "sampled term/path differs (seed {seed})"
+                );
+            }
+        }
+    }
 
     #[test_log::test]
     fn test_find_term() {
@@ -427,6 +882,43 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
-        assert_eq!(term_size, stats.len());
+    }
+
+    #[test_log::test]
+    fn test_step_lock_confines_anchors_to_locked_step() {
+        let trace = setup_simple_trace();
+        let n_steps = trace.steps.len();
+        assert!(n_steps >= 2, "need a multi-step trace to test the lock");
+        let mut rand = StdRand::with_seed(45);
+
+        // With a lock set, every anchor drawn must come from exactly the locked step.
+        for k in 0..n_steps {
+            let prev = set_step_lock(Some(k));
+            for _ in 0..500 {
+                if let Some((_, (step_index, _))) =
+                    choose(&trace, &TermConstraints::default(), &mut rand)
+                {
+                    assert_eq!(step_index, k, "anchor escaped the locked step {}", k);
+                }
+            }
+            set_step_lock(prev);
+        }
+
+        // Without a lock, anchors must spread across more than one step (sanity: the lock is what
+        // confined them above, not some other property of the trace).
+        set_step_lock(None);
+        let mut seen = HashSet::new();
+        for _ in 0..2000 {
+            if let Some((_, (step_index, _))) =
+                choose(&trace, &TermConstraints::default(), &mut rand)
+            {
+                seen.insert(step_index);
+            }
+        }
+        assert!(
+            seen.len() > 1,
+            "unlocked anchors should span multiple steps, saw {:?}",
+            seen
+        );
     }
 }

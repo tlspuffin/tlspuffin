@@ -14,7 +14,9 @@ use crate::protocol::TLSProtocolTypes;
 
 mod key_exchange;
 mod key_schedule;
+mod sign;
 
+pub mod differential_rfc_violations;
 pub mod rustls;
 pub mod seeds;
 pub mod violation;
@@ -103,7 +105,7 @@ define_signature!(
     fn_heartbeat
     // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
-    fn_hello_retry_request
+    fn_hello_retry_request [get] // because some compressions get lost
     fn_hello_retry_request_random
     fn_key_update
     fn_key_update_not_requested
@@ -128,8 +130,8 @@ define_signature!(
     fn_cert_extensions_make
     fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new [list]
-    fn_new_session_ticket_extensions_append [list]
+    fn_new_session_ticket_extensions_new
+    fn_new_session_ticket_extensions_append
     fn_server_name_extension
     fn_server_name_server_extension
     fn_status_request_extension
@@ -137,6 +139,10 @@ define_signature!(
     fn_status_request_certificate_extension
     fn_ec_point_formats_extension
     fn_ec_point_formats_server_extension
+    fn_supported_signature_schemes_extension_new
+    fn_supported_signature_schemes_extension_append [list]
+    fn_sig_scheme_rsa_pkcs1_sha256
+    fn_sig_scheme_rsa_pss_sha256
     fn_signature_algorithm_extension
     fn_signature_algorithm_cert_req_extension
     fn_empty_vec_of_vec
@@ -161,6 +167,7 @@ define_signature!(
     fn_early_data_server_extension
     fn_supported_versions12_extension
     fn_supported_versions13_extension
+    fn_supported_versions_both_extension
     fn_supported_versions12_hello_retry_extension
     fn_supported_versions13_hello_retry_extension
     fn_supported_versions12_server_extension
@@ -171,9 +178,11 @@ define_signature!(
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
-    fn_key_share_deterministic_extension
+    fn_key_share_deterministic
+    fn_key_share_extension_make
+    fn_key_share_extension_new [list]
+    fn_key_share_extension_append [list]
     fn_key_share_extension
-    fn_key_share_deterministic_server_extension
     fn_key_share_server_extension
     fn_key_share_hello_retry_extension
     fn_transport_parameters_extension
@@ -186,7 +195,7 @@ define_signature!(
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
-    fn_new_session_ticket_extensions
+    fn_new_session_ticket_extensions [list]
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
@@ -204,7 +213,8 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
-    fn_sign_transcript [opaque]
+    fn_client_sign_transcript [opaque]
+    fn_server_sign_transcript [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -213,14 +223,16 @@ define_signature!(
     fn_cipher_suite13_aes_256_gcm_sha384
     fn_cipher_suite13_aes_128_ccm_sha256
     fn_weak_export_cipher_suite
+    fn_excluded_cipher_suite
     fn_secure_rsa_cipher_suite12
     fn_support_group_extension_new [list]
     fn_support_group_extension_make
     fn_support_group_extension_append [list]
     // utils
-    fn_new_flight [list]
+    fn_new_flight
     fn_append_flight [list]
     fn_new_opaque_flight [list]
+    fn_coalesced_flight
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
@@ -238,6 +250,7 @@ define_signature!(
     fn_psk
     fn_decrypt_application [opaque] [no_gen]
     fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake_opaque [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]
     fn_derive_binder [opaque]
@@ -246,10 +259,13 @@ define_signature!(
     fn_get_ticket_age_add [get]
     fn_get_ticket_nonce [get]
     fn_new_transcript12
-    fn_decode_ecdh_pubkey [opaque]
+    fn_decode_server_ecdh_pubkey [opaque]
+    fn_decode_client_ecdh_pubkey [opaque]
+    fn_sign_rsa_ecdhe_server_key_exchange12 [opaque]
     fn_encode_ec_pubkey12
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
+    fn_decrypt12 [no_gen]
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]
@@ -280,9 +296,10 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
+    fn_certificate_from_vec_u8
     fn_certificate_entry_extensions
     fn_empty_certificate_chain
-    fn_new_certificate_entries [list]
+    fn_new_certificate_entries
     fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
@@ -290,7 +307,8 @@ define_signature!(
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
-    fn_ecdsa_sign_client [opaque]
+    fn_ecdsa_sign_client [opaque] [no_det] // fn_ecdsa_sign_client has built-in randomness
+    // TODO: replace this with explicit term
     fn_ecdsa_sign_server [opaque]
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm

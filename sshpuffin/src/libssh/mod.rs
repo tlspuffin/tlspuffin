@@ -196,11 +196,15 @@ impl Stream<SshProtocolBehavior> for LibSSL {
         self.fuzz_stream.write_all(message).unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<RawSshMessageFlight>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<RawSshMessageFlight>,
+    ) -> Result<(), Error> {
         let mut buf = vec![];
         let _ = self.fuzz_stream.read_to_end(&mut buf);
 
-        Ok(RawSshMessageFlight::read_bytes(&buf))
+        *output_flight = RawSshMessageFlight::read_bytes(&buf);
+        Ok(())
     }
 }
 

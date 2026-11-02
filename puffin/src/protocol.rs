@@ -2,17 +2,22 @@ use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use comparable::Comparable;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::agent::ProtocolDescriptorConfig;
+use crate::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use crate::algebra::signature::Signature;
-use crate::algebra::Matcher;
+use crate::algebra::{Matcher, TermType};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
+use crate::differential::TraceDifference;
 use crate::error::Error;
+use crate::fuzzer::term_zoo;
+use crate::fuzzer::utils::TermConstraints;
 use crate::put::PutDescriptor;
-use crate::trace::{Knowledge, Source, Trace};
+use crate::put_registry::{Factory, PutRegistry};
+use crate::trace::{Action, Knowledge, Source, Trace};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -21,6 +26,61 @@ pub trait AsAny {
 impl<T: 'static> AsAny for T {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+pub trait CompareKnowledge<PT> {
+    /// Compare an `EvaluatedTerm<PT>` with another `EvaluatedTerm<PT>` and add identified
+    /// difference to `diff`. If both types are different, it creates a
+    /// `KnowledgeDiff::DifferentTypes` differences if both types are the same, the objects are
+    /// compared recursively using `Compare` crate and their differences as registered as
+    /// `KnowledgeDiff::InnerDifference`
+    fn find_differences(
+        &self,
+        other: &dyn EvaluatedTerm<PT>,
+        diffs: &mut Vec<TraceDifference>,
+        knowledge_num: usize,
+        self_source: &Source,
+        other_source: &Source,
+    );
+}
+
+impl<T, PT: ProtocolTypes> CompareKnowledge<PT> for T
+where
+    T: Clone + Debug + 'static + Comparable,
+{
+    fn find_differences(
+        &self,
+        other: &dyn EvaluatedTerm<PT>,
+        diffs: &mut Vec<TraceDifference>,
+        knowledge_num: usize,
+        self_source: &Source,
+        other_source: &Source,
+    ) {
+        match other.as_any().downcast_ref::<T>() {
+            Some(casted_other) => {
+                // For later
+                if let comparable::Changed::Changed(changes) = self.comparison(casted_other) {
+                    diffs.push(TraceDifference::Knowledges(
+                        crate::differential::KnowledgeDiff::InnerDifference {
+                            index: knowledge_num,
+                            type_name: other.type_name().into(),
+                            diff: format!("{:?}", changes),
+                            source: self_source.to_owned(),
+                        },
+                    ))
+                }
+            }
+            None => diffs.push(TraceDifference::Knowledges(
+                crate::differential::KnowledgeDiff::DifferentTypes {
+                    index: knowledge_num,
+                    first_type: std::any::type_name::<Self>().into(),
+                    second_type: other.type_name().into(),
+                    first_source: self_source.to_owned(),
+                    second_source: other_source.to_owned(),
+                },
+            )),
+        };
     }
 }
 
@@ -44,10 +104,10 @@ where
 }
 
 /// Implement Extractable for all Vec of types implementing Extractable
-impl<PT: ProtocolTypes, T: EvaluatedTerm<PT> + Clone + codec::Codec + 'static> Extractable<PT>
-    for Vec<T>
+impl<PT: ProtocolTypes, T: EvaluatedTerm<PT> + Clone + codec::Codec + Comparable + 'static>
+    Extractable<PT> for Vec<T>
 where
-    Vec<T>: codec::Codec,
+    Vec<T>: codec::Codec + Comparable,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -69,7 +129,8 @@ where
 }
 
 /// Implement Extractable for all Option of types implementing Extractable
-impl<PT: ProtocolTypes, T: Extractable<PT> + Clone + 'static> Extractable<PT> for Option<T>
+impl<PT: ProtocolTypes, T: Extractable<PT> + Clone + Comparable + 'static> Extractable<PT>
+    for Option<T>
 where
     Option<T>: codec::Codec,
 {
@@ -85,9 +146,8 @@ where
             data: self,
         });
 
-        match self {
-            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
-            None => (),
+        if let Some(x) = self {
+            x.extract_knowledge(knowledges, matcher, source)?
         }
         Ok(())
     }
@@ -96,7 +156,7 @@ where
 /// `EvaluatedTerm`: have both Codec and a way to extract knowledge out of a Message/OpaqueMessage
 /// or any type that might be used in a precomputation
 pub trait EvaluatedTerm<PT: ProtocolTypes>:
-    codec::CodecP + Extractable<PT> + Debug + AsAny + 'static
+    codec::CodecP + Extractable<PT> + CompareKnowledge<PT> + Debug + AsAny + 'static
 where
     Self: 'static,
 {
@@ -110,9 +170,10 @@ where
 
     fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
 }
+
 impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T
 where
-    T: codec::CodecP + Extractable<PT> + 'static + Clone,
+    T: codec::CodecP + Extractable<PT> + CompareKnowledge<PT> + 'static + Clone,
 {
     fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
         Box::new(self.clone())
@@ -171,13 +232,146 @@ pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
 
 /// Defines the types used to manipulate and concretize Terms
 pub trait ProtocolTypes:
-    'static + Clone + Hash + Display + Debug + Serialize + DeserializeOwned
+    'static + Clone + PartialEq + Eq + Hash + Display + Debug + Serialize + DeserializeOwned
 {
     type Matcher: Matcher;
     type PUTConfig: ProtocolDescriptorConfig;
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;
+
+    /// Allowed Knowlege's TypeIds when comparing knowledges stores
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
+
+    /// Claims' TypeIds to blacklist when comparing knowledges stores
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>>;
+
+    /// Terms to evaluate and compare during differential fuzzing
+    /// eg. decryption recipes
+    fn differential_fuzzing_terms_to_eval(
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<crate::algebra::Term<Self>>;
+
+    /// Replace trace's agent protocol config with a set of parameters
+    /// that should be supported by all PUTs
+    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
+
+    /// Check whether a difference should be kept
+    /// Use this to remove specific false positive without altering the capabilities of the
+    /// differential fuzzer
+    /// Return `true` to keep the difference
+    fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
+}
+
+/// A function producing the seeds of one named corpus for a single PUT factory.
+///
+/// It returns the `(trace, name)` seeds that the given PUT supports (a PUT that
+/// lacks the capabilities a seed needs should simply omit it). Registered per
+/// protocol through [`ProtocolBehavior::corpus_registry`].
+pub type CorpusBuilder<PB> =
+    fn(&dyn Factory<PB>) -> Vec<(Trace<<PB as ProtocolBehavior>::ProtocolTypes>, &'static str)>;
+
+/// Name of the pseudo-corpus that expands to every corpus registered for the
+/// protocol (see [`build_corpus`]).
+pub const ALL_CORPORA: &str = "all";
+
+/// Build the seeds for the requested `corpus_list`, restricted to the
+/// intersection of what every PUT in `puts` supports.
+///
+/// Each named corpus is produced per PUT via its [`CorpusBuilder`]; a seed is
+/// kept only if it is present for *every* requested PUT (matched by name). When
+/// the same seed name appears in more than one requested corpus, the first
+/// occurrence (in `corpus_list` order) wins. Traces are PUT-independent, so the
+/// trace built for the first PUT is used. [`ALL_CORPORA`] (`"all"`) expands to
+/// every corpus registered via [`ProtocolBehavior::corpus_registry`], in
+/// registry order.
+pub fn build_corpus<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    puts: &[PutDescriptor],
+    corpus_list: &[String],
+) -> Vec<(Trace<PB::ProtocolTypes>, &'static str)> {
+    build_corpus_with(&PB::corpus_registry(), put_registry, puts, corpus_list)
+}
+
+/// First input step of `trace` whose recipe reaches `max_result_term_size` nodes, as
+/// `(step index, size)`.
+fn oversized_step<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    max_result_term_size: usize,
+) -> Option<(usize, usize)> {
+    trace
+        .steps
+        .iter()
+        .enumerate()
+        .find_map(|(i, step)| match &step.action {
+            Action::Input(input) => {
+                let size = input.recipe.size();
+                (size >= max_result_term_size).then_some((i, size))
+            }
+            Action::Output(_) => None,
+        })
+}
+
+/// Core of [`build_corpus`], parameterized on the corpus `builders` so the
+/// selection/intersection/dedup logic can be unit-tested with synthetic
+/// corpuses independently of any concrete [`ProtocolBehavior::corpus_registry`].
+fn build_corpus_with<PB: ProtocolBehavior>(
+    builders: &[(&'static str, CorpusBuilder<PB>)],
+    put_registry: &PutRegistry<PB>,
+    puts: &[PutDescriptor],
+    corpus_list: &[String],
+) -> Vec<(Trace<PB::ProtocolTypes>, &'static str)> {
+    let factories: Vec<&dyn Factory<PB>> = puts
+        .iter()
+        .map(|put| {
+            put_registry
+                .find_by_id(&put.factory)
+                .unwrap_or_else(|| panic!("PUT {} not found in registry", put.factory))
+        })
+        .collect();
+
+    let expanded_corpus_list: Vec<&str> = corpus_list
+        .iter()
+        .flat_map(|name| {
+            if name == ALL_CORPORA {
+                builders.iter().map(|(n, _)| *n).collect::<Vec<_>>()
+            } else {
+                vec![name.as_str()]
+            }
+        })
+        .collect();
+
+    let max_result_term_size = TermConstraints::default().max_result_term_size;
+    let mut seen = std::collections::HashSet::new();
+    let mut corpus = Vec::new();
+    for name in expanded_corpus_list {
+        let Some(builder) = builders.iter().find(|(n, _)| *n == name).map(|(_, b)| *b) else {
+            log::warn!("unknown corpus '{name}', skipping");
+            continue;
+        };
+
+        let per_put: Vec<_> = factories.iter().map(|factory| builder(*factory)).collect();
+        let Some((first, rest)) = per_put.split_first() else {
+            continue; // no PUTs selected
+        };
+        for (trace, seed_name) in first {
+            let supported_by_all = rest
+                .iter()
+                .all(|seeds| seeds.iter().any(|(_, n)| n == seed_name));
+            if supported_by_all && seen.insert(*seed_name) {
+                if let Some((step, size)) = oversized_step(trace, max_result_term_size) {
+                    // Warn that we are generating a seed that has a step that exceeds the max term
+                    // size
+                    log::warn!(
+                        "seed '{seed_name}' is above the max term size: step {step} has {size} \
+                         nodes (max_result_term_size = {max_result_term_size})"
+                    );
+                }
+                corpus.push((trace.clone(), *seed_name));
+            }
+        }
+    }
+    corpus
 }
 
 /// Defines the protocol which is being tested.
@@ -206,8 +400,22 @@ pub trait ProtocolBehavior: 'static {
     type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::ProtocolTypes, Self::OpaqueProtocolMessage>
         + From<Self::ProtocolMessageFlight>;
 
-    /// Creates a sane initial seed corpus.
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+    /// Budgets the term zoo generates with, see [`crate::fuzzer::term_zoo`]. The defaults are the
+    /// values tuned for tlspuffin; what they depend on is a property of the protocol, so every
+    /// protocol is expected to revisit them.
+    const ZOO_MAX_DEPTH: u16 = term_zoo::DEFAULT_MAX_DEPTH;
+    const ZOO_MAX_SIZE: usize = term_zoo::DEFAULT_MAX_SIZE;
+    const ZOO_MAX_TRIES: usize = term_zoo::DEFAULT_MAX_TRIES;
+
+    /// Named corpus builders offered by this protocol.
+    ///
+    /// Each entry maps a corpus name (as accepted by the `seed --corpus` CLI
+    /// flag) to a [`CorpusBuilder`] producing that corpus' seeds for a single
+    /// PUT. Registering a new corpus is a matter of adding one line here. The
+    /// list is ordered; the default is no corpus at all.
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        vec![]
+    }
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure
@@ -222,6 +430,25 @@ pub trait ProtocolBehavior: 'static {
         bitstring: &[u8],
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+}
+
+impl<T: ProtocolTypes> Extractable<T> for () {
+    fn extract_knowledge<'a>(
+        &'a self,
+        _knowledges: &mut Vec<Knowledge<'a, T>>,
+        _matcher: Option<<T as ProtocolTypes>::Matcher>,
+        _source: &'a Source,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl codec::CodecP for () {
+    fn encode(&self, _bytes: &mut Vec<u8>) {}
+
+    fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 // -- Macros --
@@ -292,4 +519,179 @@ macro_rules! atom_extract_knowledge {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::AgentDescriptor;
+    use crate::algebra::test_signature::{TestProtocolBehavior, TestProtocolTypes};
+    use crate::claims::GlobalClaimList;
+    use crate::error::Error;
+    use crate::put::{Put, PutOptions};
+    use crate::put_registry::Factory;
+
+    /// A minimal factory whose `supports()` answers come from a fixed capability
+    /// list, so tests can vary which seeds each PUT supports.
+    struct CapFactory {
+        name: String,
+        capabilities: Vec<&'static str>,
+    }
+
+    impl Factory<TestProtocolBehavior> for CapFactory {
+        fn create(
+            &self,
+            _agent_descriptor: &AgentDescriptor<<TestProtocolTypes as ProtocolTypes>::PUTConfig>,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
+        ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
+            panic!("CapFactory cannot create a PUT")
+        }
+
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![]
+        }
+
+        fn supports(&self, capability: &str) -> bool {
+            self.capabilities.iter().any(|c| *c == capability)
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(CapFactory {
+                name: self.name.clone(),
+                capabilities: self.capabilities.clone(),
+            })
+        }
+    }
+
+    /// Corpus "alpha": always yields `common_seed`, plus `alpha_seed` when the
+    /// PUT supports the `cap_alpha` capability.
+    fn corpus_alpha(
+        put: &dyn Factory<TestProtocolBehavior>,
+    ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
+        let mut seeds = vec![(Trace::default(), "common_seed")];
+        if put.supports("cap_alpha") {
+            seeds.push((Trace::default(), "alpha_seed"));
+        }
+        seeds
+    }
+
+    /// Corpus "beta": yields `common_seed` (same name as alpha) and `beta_seed`.
+    fn corpus_beta(
+        _put: &dyn Factory<TestProtocolBehavior>,
+    ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
+        vec![
+            (Trace::default(), "common_seed"),
+            (Trace::default(), "beta_seed"),
+        ]
+    }
+
+    const BUILDERS: &[(&str, CorpusBuilder<TestProtocolBehavior>)] = &[
+        ("alpha", corpus_alpha as CorpusBuilder<TestProtocolBehavior>),
+        ("beta", corpus_beta as CorpusBuilder<TestProtocolBehavior>),
+    ];
+
+    fn registry(factories: Vec<CapFactory>) -> PutRegistry<TestProtocolBehavior> {
+        let default = factories[0].name.clone();
+        let puts: Vec<(String, Box<dyn Factory<TestProtocolBehavior>>)> = factories
+            .into_iter()
+            .map(|f| {
+                (
+                    f.name.clone(),
+                    Box::new(f) as Box<dyn Factory<TestProtocolBehavior>>,
+                )
+            })
+            .collect();
+        PutRegistry::new(puts, PutDescriptor::new(default, PutOptions::default()))
+    }
+
+    fn descriptors(names: &[&str]) -> Vec<PutDescriptor> {
+        names
+            .iter()
+            .map(|n| PutDescriptor::new(*n, PutOptions::default()))
+            .collect()
+    }
+
+    fn seed_names(corpus: &[(Trace<TestProtocolTypes>, &'static str)]) -> Vec<&'static str> {
+        corpus.iter().map(|(_, name)| *name).collect()
+    }
+
+    #[test]
+    fn build_corpus_unions_and_dedups_first_wins() {
+        let reg = registry(vec![CapFactory {
+            name: "put_with_alpha".into(),
+            capabilities: vec!["cap_alpha"],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["put_with_alpha"]),
+            &["alpha".to_string(), "beta".to_string()],
+        );
+        // `common_seed` comes from alpha (listed first) and is not duplicated by beta.
+        assert_eq!(
+            seed_names(&corpus),
+            vec!["common_seed", "alpha_seed", "beta_seed"]
+        );
+    }
+
+    #[test]
+    fn build_corpus_intersects_across_puts() {
+        let reg = registry(vec![
+            CapFactory {
+                name: "put_with_alpha".into(),
+                capabilities: vec!["cap_alpha"],
+            },
+            CapFactory {
+                name: "put_without_alpha".into(),
+                capabilities: vec![],
+            },
+        ]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["put_with_alpha", "put_without_alpha"]),
+            &["alpha".to_string()],
+        );
+        // `alpha_seed` is only supported by `put_with_alpha`, so the intersection drops it.
+        assert_eq!(seed_names(&corpus), vec!["common_seed"]);
+    }
+
+    #[test]
+    fn build_corpus_skips_unknown_corpus() {
+        let reg = registry(vec![CapFactory {
+            name: "put".into(),
+            capabilities: vec![],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["put"]),
+            &["does_not_exist".to_string()],
+        );
+        assert!(corpus.is_empty());
+    }
+
+    #[test]
+    fn build_corpus_all_expands_to_every_registered_corpus() {
+        let reg = registry(vec![CapFactory {
+            name: "put_with_alpha".into(),
+            capabilities: vec!["cap_alpha"],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["put_with_alpha"]),
+            &[ALL_CORPORA.to_string()],
+        );
+        // Same result as explicitly listing every registered corpus.
+        assert_eq!(
+            seed_names(&corpus),
+            vec!["common_seed", "alpha_seed", "beta_seed"]
+        );
+    }
 }

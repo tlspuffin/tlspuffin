@@ -30,6 +30,9 @@ int BIO_read_ex(BIO *b, void *data, size_t dlen, size_t *readbytes);
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #define TLS_method SSLv23_method
+
+int SSL_CTX_set_min_proto_version(SSL_CTX *ctx, int version);
+int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, int version);
 #endif
 
 #define TLS_UNSUPPORTED_VERSION 0x0

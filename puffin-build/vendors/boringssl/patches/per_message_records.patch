@@ -1,0 +1,17 @@
+diff --git a/ssl/s3_both.cc b/ssl/s3_both.cc
+index 78e3818..cc7665f 100644
+--- a/ssl/s3_both.cc
++++ b/ssl/s3_both.cc
+@@ -97,9 +97,10 @@ bool tls_add_message(SSL *ssl, Array<uint8_t> msg) {
+   // cipher. The benefit is smaller and there is a risk of breaking buggy
+   // implementations.
+   //
+-  // TODO(crbug.com/374991962): See if we can do this uniformly.
++  // PUFFIN: Always emit one record per handshake message so that record
++  // indices are stable across TLS implementations (for differential fuzzing).
+   Span<const uint8_t> rest = msg;
+-  if (!SSL_is_quic(ssl) && ssl->s3->aead_write_ctx->is_null_cipher()) {
++  if (!SSL_is_quic(ssl)) {
+     while (!rest.empty()) {
+       Span<const uint8_t> chunk =
+           rest.first(std::min(size_t{ssl->max_send_fragment}, rest.size()));

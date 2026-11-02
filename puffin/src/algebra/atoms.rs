@@ -131,12 +131,16 @@ impl<PT: ProtocolTypes> Function<PT> {
         self.fn_container.attrs.no_bit
     }
 
+    pub fn no_det(&self) -> bool {
+        self.fn_container.attrs.no_det
+    }
+
     #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
         let attrs = PT::signature()
             .attrs_by_name
             .get(shape.name)
-            .map(|attrs| *attrs)
+            .copied()
             .unwrap_or_default(); // Default to empty attributes, use Signature::new to provide attributes
         Self {
             unique_id: random(),
@@ -278,7 +282,7 @@ mod fn_container {
                 .signature
                 .attrs_by_name
                 .get(name)
-                .map(|attrs| *attrs)
+                .copied()
                 .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
 
             if name != shape.name {
@@ -342,7 +346,7 @@ mod fn_container {
                 .signature
                 .attrs_by_name
                 .get(name)
-                .map(|attrs| *attrs)
+                .copied()
                 .ok_or_else(|| {
                     de::Error::custom(format!(
                         "Failed to link function symbol: Could not find function {name}"

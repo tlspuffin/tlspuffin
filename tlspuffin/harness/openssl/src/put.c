@@ -23,6 +23,9 @@ struct AGENT_TYPE
 {
     uint8_t name;
 
+    TLS_AGENT_DESCRIPTOR descriptor;
+
+    SSL_CTX *ctx;
     SSL *ssl;
 
     BIO *in;
@@ -44,8 +47,11 @@ RESULT openssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, siz
 RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
 
+static TLSVersion openssl_get_tls_version(SSL *ssl);
+
 static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
+static bool recreate_ssl_from_agent_ctx(AGENT agent);
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
 
 static void default_claimer_notify(void *context, Claim *claim)
@@ -88,8 +94,7 @@ const TLS_PUT_INTERFACE *REGISTER()
     return &OPENSSL_PUT;
 }
 
-const int tls_version[] = {TLS1_3_VERSION, TLS1_2_VERSION};
-const char *version_str[] = {"V1_3", "V1_2"};
+const char *version_str[] = {"V1_3", "V1_2", "Both"};
 const char *type_str[] = {"client", "server"};
 
 AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
@@ -100,9 +105,33 @@ AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
          version_str[descriptor->tls_version],
          type_str[descriptor->role]);
 
-    if (tls_version[descriptor->tls_version] == TLS_UNSUPPORTED_VERSION)
+    // `Both` means "TLS 1.2 and 1.3 when available": libraries without TLS 1.3 negotiate 1.2 only.
+    // It allows for vendors that only support TLS 1.2 to be fuzzed by tls1.2 seeds that creates
+    // agent with Both
+    TLS_AGENT_DESCRIPTOR effective_descriptor = *descriptor;
+    if (effective_descriptor.tls_version == Both && TLS1_3_VERSION == TLS_UNSUPPORTED_VERSION)
     {
-        _log(PUFFIN.error, "unsupported TLS version: %s", version_str[descriptor->tls_version]);
+        effective_descriptor.tls_version = V1_2;
+        descriptor = &effective_descriptor;
+    }
+
+    if ((descriptor->tls_version == V1_3 || descriptor->tls_version == Both) &&
+        TLS1_3_VERSION == TLS_UNSUPPORTED_VERSION)
+    {
+        _log(PUFFIN.error,
+             "unsupported TLS version: %s for config %s",
+             version_str[V1_3],
+             version_str[descriptor->tls_version]);
+        return NULL;
+    }
+
+    if ((descriptor->tls_version == V1_2 || descriptor->tls_version == Both) &&
+        TLS1_2_VERSION == TLS_UNSUPPORTED_VERSION)
+    {
+        _log(PUFFIN.error,
+             "unsupported TLS version: %s for config %s",
+             version_str[V1_2],
+             version_str[descriptor->tls_version]);
         return NULL;
     }
 
@@ -128,8 +157,10 @@ void openssl_destroy(AGENT agent)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
+    SSL_CTX_free(agent->ctx);
     SSL_free(agent->ssl);
     free(agent);
 }
@@ -155,18 +186,75 @@ RESULT openssl_progress(AGENT agent)
     return get_result(agent, ret, true);
 }
 
-RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
+static bool recreate_ssl_from_agent_ctx(AGENT agent)
 {
-    agent->name = new_name;
+    SSL_free(agent->ssl); // also frees BIOs
+    agent->ssl = NULL;
+    agent->in = NULL;
+    agent->out = NULL;
 
+    agent->ssl = SSL_new(agent->ctx);
+    if (agent->ssl == NULL)
+    {
+        return false;
+    }
+    agent->in = BIO_new(BIO_s_mem());
+    agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(agent->ssl);
+        agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
+        return false;
+    }
+    SSL_set_bio(agent->ssl, agent->in, agent->out);
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
-    int ret = SSL_clear(agent->ssl);
-    if (ret == 0)
+    if (agent->descriptor.role == CLIENT)
     {
-        return get_result(agent, SSL_ERROR_SSL, false);
+        SSL_set_connect_state(agent->ssl);
+    }
+    else
+    {
+        SSL_set_accept_state(agent->ssl);
+    }
+    return true;
+}
+
+RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
+{
+    if (agent == NULL)
+    {
+        _log(PUFFIN.error, "fatal error openssl_reset called with agent == NULL");
+        return PUFFIN.make_result(RESULT_ERROR_OTHER,
+                                  "fatal error openssl_reset called with agent == NULL");
     }
 
+    if (use_clear)
+    {
+        agent->name = new_name;
+        openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
+        int ret = SSL_clear(agent->ssl);
+        if (ret == 0)
+        {
+            return get_result(agent, SSL_ERROR_SSL, false);
+        }
+    }
+    else
+    {
+        agent->descriptor.name = new_name;
+        if (!recreate_ssl_from_agent_ctx(agent))
+        {
+            _log(PUFFIN.error,
+                 "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
+            return PUFFIN.make_result(
+                RESULT_ERROR_OTHER,
+                "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
+        }
+    }
     return get_result(agent, SSL_ERROR_NONE, false);
 }
 
@@ -190,6 +278,7 @@ bool openssl_is_successful(AGENT agent)
 void _inner_claimer(Claim claim, void *ctx)
 {
     AGENT agent = (AGENT)(ctx);
+    claim.version.data = openssl_get_tls_version(agent->ssl);
     agent->claimer->notify(agent->claimer->context, &claim);
 }
 #endif
@@ -199,6 +288,7 @@ void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
@@ -224,6 +314,75 @@ RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, siz
     return get_result(agent, ret, false);
 }
 
+static TLSVersion openssl_get_tls_version(SSL *ssl)
+{
+    const int tls_version = SSL_version(ssl);
+    if (tls_version == TLS1_2_VERSION)
+    {
+        return CLAIM_TLS_VERSION_V1_2;
+    }
+    else if (tls_version == TLS1_3_VERSION)
+    {
+        return CLAIM_TLS_VERSION_V1_3;
+    }
+    return CLAIM_TLS_VERSION_UNDEFINED;
+}
+
+void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
+{
+    switch (version)
+    {
+    case V1_3:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_3_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_3_VERSION);
+        break;
+    case V1_2:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_2_VERSION);
+        break;
+    case Both:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_3_VERSION);
+        break;
+    default:
+        _log(PUFFIN.error, "unknown TLS version: %u", version);
+    }
+}
+
+// Settings that do not exist before OpenSSL 1.0.2 (1.1.1 for ciphersuites): they are ignored
+// on older versions.
+static void openssl_set_ciphersuites(SSL_CTX *ssl_ctx, const char *ciphersuites)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    SSL_CTX_set_ciphersuites(ssl_ctx, ciphersuites);
+#else
+    (void)ssl_ctx;
+    (void)ciphersuites;
+#endif
+}
+
+static void openssl_set_groups_list(SSL_CTX *ssl_ctx, const char *groups)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    SSL_CTX_set1_groups_list(ssl_ctx, groups);
+#elif OPENSSL_VERSION_NUMBER >= 0x10002000L
+    SSL_CTX_set1_curves_list(ssl_ctx, groups);
+#else
+    (void)ssl_ctx;
+    (void)groups;
+#endif
+}
+
+static void openssl_set_sigalgs_list(SSL_CTX *ssl_ctx, const char *sigalgs)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+    SSL_CTX_set1_sigalgs_list(ssl_ctx, sigalgs);
+#else
+    (void)ssl_ctx;
+    (void)sigalgs;
+#endif
+}
+
 AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
@@ -236,14 +395,17 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
-#endif
+    openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 
-    if (descriptor->tls_version == V1_3)
+    if (descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
+    else if (descriptor->tls_version == V1_3)
+    {
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
     {
@@ -252,7 +414,12 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
+        openssl_set_groups_list(ssl_ctx, descriptor->group_list);
+    }
+
+    if (descriptor->sigalgs_list != NULL)
+    {
+        openssl_set_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -298,9 +465,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
-#endif
+    openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 
 #if OPENSSL_VERSION_NUMBER > 0x10002000L
     SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
@@ -314,10 +479,15 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_tmp_rsa(ssl_ctx, rsa);
 #endif
 
-    if (descriptor->tls_version == V1_3)
+    if (descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
+    else if (descriptor->tls_version == V1_3)
+    {
+        openssl_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
     {
@@ -326,7 +496,12 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
+        openssl_set_groups_list(ssl_ctx, descriptor->group_list);
+    }
+
+    if (descriptor->sigalgs_list != NULL)
+    {
+        openssl_set_sigalgs_list(ssl_ctx, descriptor->sigalgs_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -369,12 +544,22 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->ssl = ssl;
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(ssl);
+        free(agent);
+        return NULL;
+    }
 
-    agent->claimer = &DEFAULT_CLAIMER_CB;
+    agent->claimer = NULL;
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
     SSL_set_bio(agent->ssl, agent->in, agent->out);
-    SSL_CTX_free(ssl_ctx);
+    memcpy(&(agent->descriptor), descriptor, sizeof(TLS_AGENT_DESCRIPTOR));
+
+    agent->ctx = ssl_ctx;
 
     return agent;
 }
@@ -416,6 +601,7 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#ifdef SSL_ERROR_WANT_ASYNC
     case SSL_ERROR_WANT_ASYNC:
         error_type = strdup("SSL_ERROR_WANT_ASYNC");
         if (!allow_would_block)
@@ -423,6 +609,8 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#endif
+#ifdef SSL_ERROR_WANT_ASYNC_JOB
     case SSL_ERROR_WANT_ASYNC_JOB:
         error_type = strdup("SSL_ERROR_WANT_ASYNC_JOB");
         if (!allow_would_block)
@@ -430,9 +618,12 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
             res = RESULT_IO_WOULD_BLOCK;
         }
         break;
+#endif
+#ifdef SSL_ERROR_WANT_CLIENT_HELLO_CB
     case SSL_ERROR_WANT_CLIENT_HELLO_CB:
         error_type = strdup("SSL_ERROR_WANT_CLIENT_HELLO_CB");
         break;
+#endif
     case SSL_ERROR_SYSCALL:
         error_type = strdup("SSL_ERROR_SYSCALL");
         break;
@@ -442,11 +633,8 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
         break;
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
+        // This is not a hard error so we log it but do not stop execution
         error_type = strdup("IO_WOULD_BLOCK");
-        if (!allow_would_block)
-        {
-            res = RESULT_IO_WOULD_BLOCK;
-        }
         break;
     default:
         error_type = malloc(32 * sizeof(char));

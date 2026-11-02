@@ -1,149 +1,194 @@
 //! Stats to display both cumulative and per-client stats
 
-use core::time::Duration;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use dyn_clone::DynClone;
-use libafl::monitors::tui::ui::TuiUI;
+use libafl::monitors::stats::*;
 use libafl::monitors::tui::TuiMonitor;
 use libafl::prelude::*;
-use libafl_bolts::prelude::*;
+use libafl_bolts::prelude::{current_time, ClientId};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::libafl_setup::MAP_FEEDBACK_NAME;
-use crate::fuzzer::stats_stage::{RuntimeStats, STATS};
+use crate::fuzzer::stats_stage::{RuntimeStats, DUPLICATES, STATS};
 
 trait ClonableMonitor: Monitor + DynClone {}
 impl ClonableMonitor for TuiMonitor {}
 impl ClonableMonitor for NopMonitor {}
 dyn_clone::clone_trait_object!(ClonableMonitor);
 
-#[derive(Clone)]
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
 pub struct StatsMonitor {
     monitor: Box<dyn ClonableMonitor>,
     handlers: Vec<Box<dyn EventHandler>>,
+    stats_interval: Duration,
+    last_client_write: HashMap<ClientId, Instant>,
+    last_global_write: Instant,
+}
+
+impl Clone for StatsMonitor {
+    fn clone(&self) -> Self {
+        Self {
+            monitor: self.monitor.clone(),
+            handlers: self.handlers.clone(),
+            stats_interval: self.stats_interval,
+            last_client_write: HashMap::new(),
+            last_global_write: Instant::now() - self.stats_interval,
+        }
+    }
 }
 
 impl StatsMonitor {
-    pub fn with_tui_output(stats_file: PathBuf) -> Self {
-        let monitor = Box::new(TuiMonitor::new(TuiUI::new(
-            String::from("tlspuffin [press q to exit]"),
-            false,
-        )));
+    pub fn with_tui_output(stats_file: PathBuf, stats_interval: Duration) -> Self {
+        let monitor = Box::new(
+            TuiMonitor::builder()
+                .title(String::from("tlspuffin [press q to exit]"))
+                .enhanced_graphics(true)
+                .build(),
+        );
         let handlers: Vec<Box<dyn EventHandler>> =
             vec![Box::new(JSONEventHandler::new(stats_file))];
 
-        Self::new(monitor, handlers)
+        Self::new(monitor, handlers, stats_interval)
     }
 
-    pub fn with_raw_output(stats_file: PathBuf) -> Self {
+    pub fn with_raw_output(stats_file: PathBuf, stats_interval: Duration) -> Self {
         let monitor = Box::new(NopMonitor::new());
         let handlers: Vec<Box<dyn EventHandler>> = vec![
             Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
             Box::new(JSONEventHandler::new(stats_file)),
         ];
 
-        Self::new(monitor, handlers)
+        Self::new(monitor, handlers, stats_interval)
     }
 
-    fn new(monitor: Box<dyn ClonableMonitor>, handlers: Vec<Box<dyn EventHandler>>) -> Self {
-        Self { monitor, handlers }
+    fn new(
+        monitor: Box<dyn ClonableMonitor>,
+        handlers: Vec<Box<dyn EventHandler>>,
+        stats_interval: Duration,
+    ) -> Self {
+        Self {
+            monitor,
+            handlers,
+            stats_interval,
+            last_client_write: HashMap::new(),
+            last_global_write: Instant::now() - stats_interval,
+        }
     }
 
-    fn client(&mut self, id: ClientId) -> Statistics {
-        let client = self.client_stats_mut_for(id);
+    fn client(
+        &mut self,
+        client_stats_manager: &mut ClientStatsManager,
+        id: ClientId,
+    ) -> Result<Statistics, Error> {
+        client_stats_manager.update_client_stats_for(id, |client| {
+            #[cfg(feature = "introspection")]
+            let introspect_feature = {
+                let intro_stats = &client.introspection_stats;
+                let elapsed_cycles = intro_stats.elapsed_cycles();
+                let elapsed = if elapsed_cycles == 0 {
+                    1.0
+                } else {
+                    elapsed_cycles as f32
+                };
 
-        #[cfg(feature = "introspection")]
-        let introspect_feature = {
-            let intro_stats = &client.introspection_monitor;
-            let elapsed_cycles = intro_stats.elapsed_cycles();
-            let elapsed = if elapsed_cycles == 0 {
-                1.0
-            } else {
-                elapsed_cycles as f32
-            };
+                // calculate mean across all used stages in `introspect_features`
+                let mut introspect_features = IntrospectFeatures::new();
 
-            // calculate mean across all used stages in `introspect_features`
-            let mut introspect_features = IntrospectFeatures::new();
+                for (_, features) in intro_stats.used_stages() {
+                    for (feature_index, feature) in features.iter().enumerate() {
+                        // Calculate this current stage's percentage
+                        let feature_percent = *feature as f32 / elapsed;
 
-            for (_, features) in intro_stats.used_stages() {
-                for (feature_index, feature) in features.iter().enumerate() {
-                    // Calculate this current stage's percentage
-                    let feature_percent = *feature as f32 / elapsed;
+                        // Ignore this feature if it isn't used
+                        if feature_percent == 0.0 {
+                            continue;
+                        }
 
-                    // Ignore this feature if it isn't used
-                    if feature_percent == 0.0 {
-                        continue;
+                        // Get the actual feature from the feature index for printing its name
+                        let feature: PerfFeature = feature_index.into();
+
+                        // Write the percentage for this feature
+                        introspect_features.record(&feature, feature_percent);
                     }
 
-                    // Get the actual feature from the feature index for printing its name
-                    let feature: PerfFeature = feature_index.into();
-
-                    // Write the percentage for this feature
-                    introspect_features.record(&feature, feature_percent);
+                    // todo measure self.feedbacks()
                 }
 
-                // todo measure self.feedbacks()
-            }
+                IntrospectStatistics {
+                    scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
+                    manager: intro_stats.manager_cycles() as f32 / elapsed,
+                    elapsed_cycles,
+                    introspect_features,
+                }
+            };
 
-            IntrospectStatistics {
-                scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
-                manager: intro_stats.manager_cycles() as f32 / elapsed,
-                elapsed_cycles,
-                introspect_features,
-            }
-        };
+            let cur_time = current_time();
+            let exec_sec = client.execs_per_sec(cur_time);
+            let total_execs = client.executions();
 
-        let cur_time = current_time();
-        let exec_sec = client.execs_per_sec(cur_time);
-        let total_execs = client.executions;
+            let trace = TraceStatistics::new(client);
+            let mut error_counter = ErrorStatistics::new(total_execs);
 
-        let trace = TraceStatistics::new(client);
-        let mut error_counter = ErrorStatistics::new(total_execs);
+            error_counter.count(client);
 
-        error_counter.count(client);
+            let corpus_size = client.corpus_size();
+            let objective_size = client.objective_size();
 
-        let corpus_size = client.corpus_size;
-        let objective_size = client.objective_size;
+            let coverage =
+                client
+                    .user_stats()
+                    .get(MAP_FEEDBACK_NAME)
+                    .and_then(|s| match s.value() {
+                        UserStatsValue::Ratio(a, b) => {
+                            Some(CoverageStatistics { hit: *a, max: *b })
+                        }
+                        _ => None,
+                    });
 
-        let coverage = client
-            .user_monitor
-            .get(MAP_FEEDBACK_NAME)
-            .and_then(|s| match s.value() {
-                UserStatsValue::Ratio(a, b) => Some(CoverageStatistics { hit: *a, max: *b }),
-                _ => None,
-            });
+            let duplicates = get_number(client, DUPLICATES.name);
 
-        Statistics::Client(ClientStatistics {
-            id: id.0,
-            time: SystemTime::now(),
-            trace,
-            errors: error_counter,
-            #[cfg(feature = "introspection")]
-            intro: introspect_feature,
-            coverage,
-            corpus_size,
-            objective_size,
-            total_execs,
-            exec_per_sec: exec_sec as u64,
+            Statistics::Client(ClientStatistics {
+                id: id.0,
+                time: SystemTime::now(),
+                trace,
+                errors: error_counter,
+                #[cfg(feature = "introspection")]
+                intro: introspect_feature,
+                coverage,
+                corpus_size,
+                objective_size,
+                total_execs,
+                exec_per_sec: exec_sec as u64,
+                duplicates,
+            })
         })
     }
 
-    fn global(&mut self) -> Statistics {
+    fn global(&mut self, client_stats_manager: &mut ClientStatsManager) -> Statistics {
+        let duplicates: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, DUPLICATES.name))
+            .sum();
+
+        let global_stats = client_stats_manager.global_stats();
+
         Statistics::Global(GlobalStatistics {
             time: SystemTime::now(),
 
-            clients: self.client_stats().len() as u32,
-            corpus_size: self.corpus_size(),
-            objective_size: self.objective_size(),
-            total_execs: self.total_execs(),
-            exec_per_sec: self.execs_per_sec() as u64,
+            clients: global_stats.client_stats_count as u32,
+            corpus_size: global_stats.corpus_size,
+            objective_size: global_stats.objective_size,
+            duplicates,
+            total_execs: global_stats.total_execs,
+            exec_per_sec: global_stats.execs_per_sec as u64,
         })
     }
 
@@ -155,28 +200,43 @@ impl StatsMonitor {
 }
 
 impl Monitor for StatsMonitor {
-    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
-        self.monitor.client_stats_mut()
-    }
+    fn display(
+        &mut self,
+        client_stats_manager: &mut ClientStatsManager,
+        _event_msg: &str,
+        sender_id: ClientId,
+    ) -> Result<(), Error> {
+        client_stats_manager.client_stats_insert(sender_id)?;
 
-    fn client_stats(&self) -> &[ClientStats] {
-        self.monitor.client_stats()
-    }
+        // Rate limit logging of stats to once every interval for each client (core) and global
+        // Normalize event message name as filtering makes event names inconsistent and no longer
+        // relatable
+        let now = Instant::now();
+        let event_msg = "Monitor";
 
-    fn start_time(&self) -> Duration {
-        self.monitor.start_time()
-    }
+        let last_client = self
+            .last_client_write
+            .get(&sender_id)
+            .copied()
+            .unwrap_or(now - self.stats_interval);
 
-    fn set_start_time(&mut self, time: Duration) {
-        self.monitor.set_start_time(time);
-    }
+        if now.duration_since(last_client) >= self.stats_interval {
+            self.last_client_write.insert(sender_id, now);
+            let client_stats = self.client(client_stats_manager, sender_id)?;
+            self.dispatch(sender_id, event_msg, &client_stats);
+        }
 
-    fn display(&mut self, event_msg: String, sender_id: ClientId) {
-        let global_stats = self.global();
-        let client_stats = self.client(sender_id);
-        self.dispatch(sender_id, &event_msg, &global_stats);
-        self.dispatch(sender_id, &event_msg, &client_stats);
-        self.monitor.display(event_msg, sender_id);
+        // Rate limit logging of stats to once every interval for global,
+        // it has its own timer but can be logged only if a client sends a signal
+        if now.duration_since(self.last_global_write) >= self.stats_interval {
+            self.last_global_write = now;
+            let global_stats = self.global(client_stats_manager);
+            self.dispatch(sender_id, event_msg, &global_stats);
+        }
+
+        self.monitor
+            .display(client_stats_manager, event_msg, sender_id)?;
+        Ok(())
     }
 }
 
@@ -195,7 +255,8 @@ impl Display for Statistics {
             Self::Client(client_stats) => {
                 write!(
                     f,
-                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    "(CLIENT) id: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    client_stats.id,
                     client_stats.corpus_size,
                     client_stats.objective_size,
                     client_stats.total_execs,
@@ -238,6 +299,7 @@ struct GlobalStatistics {
 
     total_execs: u64,
     exec_per_sec: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -255,6 +317,7 @@ struct ClientStatistics {
     objective_size: u64,
     total_execs: u64,
     exec_per_sec: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -362,6 +425,7 @@ struct ErrorStatistics {
 
     corpus_exec: u64,
     corpus_exec_minimal: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -478,6 +542,7 @@ impl ErrorStatistics {
             extraction_error: 0,
             corpus_exec: 0,
             corpus_exec_minimal: 0,
+            duplicates: 0,
             eval_codec_error: 0,
         }
     }
@@ -561,6 +626,7 @@ impl ErrorStatistics {
                 RuntimeStats::CorpusExecMinimal(c) => {
                     self.corpus_exec_minimal += get_number(client_stats, c.name)
                 }
+                RuntimeStats::Duplicates(c) => self.duplicates += get_number(client_stats, c.name),
                 // MinMaxMean stats are not counted in ErrorStatistics
                 RuntimeStats::TraceLength(_) => {}
                 RuntimeStats::NbPayload(_) => {}
@@ -573,7 +639,7 @@ impl ErrorStatistics {
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
     user_stats
-        .user_monitor
+        .user_stats()
         .get(name)
         .and_then(|s| match s.value() {
             UserStatsValue::Number(n) => Some(*n),
@@ -656,7 +722,7 @@ where
 
 struct JSONEventHandler {
     output_path: PathBuf,
-    serializer: JSONSerializer<BufWriter<File>>,
+    writer: BufWriter<File>,
 }
 
 impl JSONEventHandler {
@@ -664,17 +730,15 @@ impl JSONEventHandler {
     where
         P: AsRef<Path>,
     {
-        let writer = BufWriter::new(
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(output_path.as_ref())
-                .unwrap(),
-        );
+        let writer = BufWriter::new({
+            let mut o = OpenOptions::new();
+            OpenOptions::append(&mut o, true);
+            o.create(true).open(output_path.as_ref()).unwrap()
+        });
 
         Self {
             output_path: output_path.as_ref().to_path_buf(),
-            serializer: JSONSerializer::new(writer),
+            writer,
         }
     }
 }
@@ -687,6 +751,29 @@ impl Clone for JSONEventHandler {
 
 impl EventHandler for JSONEventHandler {
     fn process(&mut self, _source: ClientId, _msg: &str, stats: &Statistics) {
-        stats.serialize(&mut self.serializer).unwrap();
+        let mut serializer = JSONSerializer::new(&mut self.writer);
+        stats.serialize(&mut serializer).unwrap();
+        self.writer.flush().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use libafl::monitors::stats::ClientStatsManager;
+    use libafl_bolts::prelude::ClientId;
+
+    use super::*;
+
+    #[test]
+    fn test_display_with_unregistered_client_id_0() {
+        let mut monitor =
+            StatsMonitor::with_raw_output(PathBuf::from("/dev/null"), Duration::from_secs(1));
+        let mut mgr = ClientStatsManager::default();
+        // Simule le broker heartbeat : ClientId(0) non encore enregistré
+        monitor
+            .display(&mut mgr, "Broker Heartbeat", ClientId(0))
+            .expect("display should not fail for unregistered ClientId(0)");
     }
 }

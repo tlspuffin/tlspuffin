@@ -1,39 +1,136 @@
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::default::Default;
 
-use libafl::corpus::Testcase;
+use libafl::corpus::{Corpus, Testcase};
 use libafl::events::EventFirer;
 use libafl::executors::ExitKind;
-use libafl::feedbacks::Feedback;
-use libafl::inputs::UsesInput;
+use libafl::feedbacks::{Feedback, StateInitializer};
 use libafl::observers::ObserversTuple;
-use libafl::prelude::{HasCorpus, HasMaxSize, HasRand, State};
+use libafl::prelude::{HasMaxSize, HasRand};
+use libafl::state::HasCorpus;
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
+use crate::fuzzer::stats_stage::DUPLICATES;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
-// A global (or thread-local) mutable variable that your harness will update.
-// Now it holds an Option<usize>.
 thread_local! {
-    pub static FAIL_AT_STEP: Cell<Option<usize>> = Cell::new(None);
+    pub static FAIL_AT_STEP: Cell<Option<usize>> = const { Cell::new(None) };
+    pub static OBJECTIVE_TRIGGERED: Cell<bool> = const { Cell::new(false) };
+    pub static OBJECTIVE_HASH: Cell<Option<u64>> = const { Cell::new(None)};
+}
+
+/// Feedback that triggers when the harness sets [`OBJECTIVE_TRIGGERED`] to `true`.
+///
+/// Used to record security-claim violations and differential differences as objectives
+/// without crashing the process (avoids the restart + serialization overhead of abort()).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ObjectiveFeedback {
+    seen_objectives: std::collections::HashSet<(String, u64)>,
+}
+
+impl ObjectiveFeedback {
+    pub fn new() -> Self {
+        Self {
+            seen_objectives: std::collections::HashSet::new(),
+        }
+    }
+}
+
+impl Named for ObjectiveFeedback {
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ObjectiveFeedback")
+    }
+}
+
+impl<S> StateInitializer<S> for ObjectiveFeedback {
+    fn init_state(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<EM, I, OT, S> Feedback<EM, I, OT, S> for ObjectiveFeedback
+where
+    OT: ObserversTuple<I, S>,
+    EM: EventFirer<I, S>,
+    S: HasCorpus<I>,
+{
+    /// An objective is interesting if the harness has set the `OBJECTIVE_TRIGGERED` flag to true,
+    /// and if the associated hash (if any) has not been seen before for the current corpus file.
+    /// If no hash is set, we treat it as interesting to avoid losing objectives when the harness
+    /// doesn't provide a hash.
+    fn is_interesting(
+        &mut self,
+        state: &mut S,
+        _: &mut EM,
+        _: &I,
+        _: &OT,
+        _: &ExitKind,
+    ) -> Result<bool, Error> {
+        if OBJECTIVE_TRIGGERED.get() {
+            match OBJECTIVE_HASH.get() {
+                Some(hash) => {
+                    let current_idx = state.corpus().current();
+
+                    if current_idx.is_none() {
+                        return Ok(true); // Could not get current corpus file index so we keep the
+                                         // objective
+                    }
+
+                    let parent_name: String = match state
+                        .corpus()
+                        .get(current_idx.unwrap())?
+                        .borrow()
+                        .filename()
+                        .clone()
+                    {
+                        Some(name) => name,
+                        // Could not get current corpus file name so we keep the objective
+                        None => return Ok(true),
+                    };
+
+                    // Only interesting if this hash hasn't been seen before for this corpus file
+                    if self.seen_objectives.insert((parent_name, hash)) {
+                        return Ok(true);
+                    } else {
+                        DUPLICATES.increment();
+                        return Ok(false); // duplicate — already in corpus
+                    }
+                }
+                None => return Ok(true), // no hash set, always treat as interesting
+            }
+        }
+        Ok(false)
+    }
+
+    fn is_interesting_introspection(
+        &mut self,
+        s: &mut S,
+        em: &mut EM,
+        i: &I,
+        ot: &OT,
+        ek: &ExitKind,
+    ) -> Result<bool, Error> {
+        self.is_interesting(s, em, i, ot, ek)
+    }
 }
 
 /// Custom feedback for minimizing traces after execution and prior to adding them to the corpus.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
     enabled: bool,
-    pub(crate) phantom: std::marker::PhantomData<SC>,
+    pub(crate) phantom: std::marker::PhantomData<(SC, PT)>,
 }
 
 impl<SC, PT> MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
     pub fn new(with_truncation: bool) -> Self {
@@ -45,59 +142,61 @@ where
 }
 impl<SC, PT> Named for MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
-    fn name(&self) -> &str {
-        "MinimizingFeedback"
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MinimizingFeedback")
     }
 }
 
-impl<SC, PT> Feedback<SC> for MinimizingFeedback<SC, PT>
+impl<SC, PT> StateInitializer<SC> for MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
-    fn is_interesting<EM, OT>(
+    fn init_state(&mut self, _state: &mut SC) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<EM, OT, SC, PT> Feedback<EM, Trace<PT>, OT, SC> for MinimizingFeedback<SC, PT>
+where
+    SC: HasRand + HasMaxSize,
+    PT: ProtocolTypes + 'static,
+    EM: EventFirer<Trace<PT>, SC>,
+    OT: ObserversTuple<Trace<PT>, SC>,
+{
+    fn is_interesting(
         &mut self,
         _: &mut SC,
         _: &mut EM,
         _: &Trace<PT>,
         _: &OT,
         _: &ExitKind,
-    ) -> Result<bool, Error>
-    where
-        EM: EventFirer<State = SC>,
-        OT: ObserversTuple<SC>,
-    {
+    ) -> Result<bool, Error> {
         Ok(false)
     }
 
-    fn is_interesting_introspection<EM, OT>(
+    fn is_interesting_introspection(
         &mut self,
         _: &mut SC,
         _: &mut EM,
-        _: &SC::Input,
+        _: &Trace<PT>,
         _: &OT,
         _: &ExitKind,
-    ) -> Result<bool, Error>
-    where
-        EM: EventFirer<State = SC>,
-        OT: ObserversTuple<SC>,
-    {
+    ) -> Result<bool, Error> {
         Ok(false)
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
-    fn append_metadata<OT>(
+    fn append_metadata(
         &mut self,
         _state: &mut SC,
+        _manager: &mut EM,
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
-    ) -> Result<(), Error>
-    where
-        OT: ObserversTuple<SC>,
-    {
+    ) -> Result<(), Error> {
         if self.enabled {
             let possibly_failed_at_step = FAIL_AT_STEP.get();
             let input_trace = testcase
@@ -121,10 +220,6 @@ where
                 );
             }
         }
-        Ok(())
-    }
-
-    fn discard_metadata(&mut self, _state: &mut SC, _input: &SC::Input) -> Result<(), Error> {
         Ok(())
     }
 }

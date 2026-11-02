@@ -8,57 +8,56 @@ import TabItem from '@theme/TabItem';
 *tlspuffin* provides tooling to download, patch, and build several *preset* library configurations.
 This page describes the current support for these presets.
 
-:::warning[tooling support]
-
-The process for building the preset libraries is currently transitioning to use the *mk_vendor* tool
-in a manner consistent across all presets using:
+Each preset is built with the *mk_vendor* tool:
 ```
 ./tools/mk_vendor make <preset>
 ```
 
-As this is still work in progress, if a preset is marked with no *mk_vendor* support, you will need to build it through cargo:
+Then build *tlspuffin* with the harnesses (CPUTs) of all the libraries that have been built:
 ```
-cargo build --release -p tlspuffin --features=<preset>[,asan]
+cargo build --release -p tlspuffin --features=cputs
 ```
-In that case, you can enable or disable ASAN by using the feature flag `asan`, in addition to the `<preset>`. For example:
-```shell
-cargo build --release -p tlspuffin --features=wolfssl540,asan
-```
-will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
-:::
+
+The ASAN variants are separate presets (e.g. `openssl:openssl340-asan`).
 
 <Tabs>
 
   <TabItem value="openssl" label="OpenSSL" default>
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]   |
     | :--------: | :---------------: | :-------------: | :-------------------: | ---------------------- |
+    | 3.4.1      | yes               | yes             | yes                   | `openssl:openssl341`   |
     | 3.4.0      | yes               | yes             | yes                   | `openssl:openssl340`   |
     | 3.2.0      | yes               | yes             | yes                   | `openssl:openssl320`   |
     | 3.1.2      | yes               | yes             | yes                   | `openssl:openssl312`   |
     | 1.1.1u     | yes               | yes             | yes                   | `openssl:openssl111u`  |
     | 1.1.1k     | yes               | yes             | yes                   | `openssl:openssl111k`  |
     | 1.1.1j     | yes               | yes             | yes                   | `openssl:openssl111j`  |
-    | 1.0.2u     | yes               | yes             | yes                   | `openssl:openssl102u`  |
-    | 1.0.1f     | yes               | yes             | yes                   | `openssl:openssl101f`  |
+    | 1.0.2u     | yes               | no              | no                    | `openssl:openssl102u`  |
+    | 1.0.1f     | yes               | no              | no                    | `openssl:openssl101f`  |
   </TabItem>
 
   <TabItem value="libressl" label="LibreSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]                             |
     | :--------: | :---------------: | :-------------: | :-------------------: | ------------------------------------------------ |
-    | 3.3.3      | yes               | no              | no                    | *work in progress* (cargo preset: `libressl333`) |
+    | 4.2.1      | yes               | yes             | yes                   | `libressl:libressl421`                           |
+    | 3.3.3      | yes               | yes             | yes                   | `libressl:libressl333`                           |
   </TabItem>
 
   <TabItem value="wolfssl" label="wolfSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]                             |
     | :--------: | :---------------: | :-------------: | :-------------------: | ------------------------------------------------ |
-    | 4.3.0      | yes               | no              | yes                   | excluded, use cargo preset: `wolfssl430` instead  |
-    | 5.1.0      | yes               | yes             | yes                   | `wolfssl:wolfssl510`  |
-    | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |    
-    | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |    
-    | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |    
-    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`, WARNING: not fully functional |    
-    | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |    
+    | 5.8.4      | yes               | yes             | yes                   | `wolfssl:wolfssl584`  |
     | 5.8.0      | yes               | yes             | yes                   | `wolfssl:wolfssl580`  |
+    | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |
+    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`  |
+    | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |
+    | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |
+    | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |
+    | 5.1.1      | yes               | yes             | yes                   | `wolfssl:wolfssl511`  |
+    | 5.1.0      | yes               | yes             | yes                   | `wolfssl:wolfssl510`  |
+    | 5.0.0      | yes               | yes             | yes                   | `wolfssl:wolfssl500`  |
+    | 4.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl440`  |
+    | 4.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl430`  |
 </TabItem>
  
 
@@ -66,8 +65,7 @@ will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
   <TabItem value="boringssl" label="BoringSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]   |
     | :--------: | :---------------: | :-------------: | :-------------------: | ---------------------- |
-    | [2023.11](https://github.com/google/boringssl/commit/698aa894c96412d4df20e2bb031d9eb9c9d5919a)    | yes               | no              | yes                   | *work in progress* (cargo preset: `boringssl202311`) |
-    | [2024.03](https://github.com/google/boringssl/commit/368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)    | yes               | no              | yes                   | *work in progress* (cargo preset: `boringssl202403`) |
+    | 0.20260508.0 | yes             | yes             | yes                   | `boringssl:boringssl20260508` |
   </TabItem>
 
 </Tabs>

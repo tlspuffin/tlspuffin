@@ -1,0 +1,22 @@
+id: match_all_types
+language: rust
+rule:
+  any:
+    - kind: struct_item
+      matches: is_comparable
+    - kind: enum_item
+      matches: is_comparable
+utils:
+  is_comparable:
+    follows:
+      stopBy:
+        not:
+          kind: attribute_item
+      kind: attribute_item
+      all:
+        - pattern: "#[derive($$$)]"
+        - has:
+            stopBy: end
+            kind: identifier
+            regex: 'Comparable'
+

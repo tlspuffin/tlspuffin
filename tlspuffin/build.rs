@@ -3,13 +3,6 @@ use std::path::{Path, PathBuf};
 use puffin_build::harness::{Harness, Put};
 use puffin_build::{harness, library, vendor_dir};
 
-#[cfg(any(
-    all(feature = "openssl_binding", feature = "wolfssl_binding"),
-    all(feature = "openssl_binding", feature = "boringssl_binding"),
-    all(feature = "wolfssl_binding", feature = "boringssl_binding")
-))]
-compile_error!("Selecting multiple Rust PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
-
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
@@ -28,8 +21,8 @@ fn main() {
         .derive_debug(true)
         .derive_eq(true)
         .derive_default(true)
-        .derive_partialeq(true)
-        .impl_partialeq(true)
+        .derive_partialeq(false)
+        .impl_partialeq(false)
         .impl_debug(true)
         .no_copy("^TLS_AGENT_DESCRIPTOR$")
         .blocklist_type("Claim")
@@ -52,35 +45,19 @@ fn main() {
         .collect();
 
     let bundle = harness::bundle(puts).build(out_dir);
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-arg=-no-pie");
+    }
     bundle.print_cargo_metadata();
 }
 
 fn harness(library: &library::Library) -> Option<Put> {
+    if !cfg!(feature = "cputs") {
+        return None;
+    }
+
     let out_dir =
         Path::new(&std::env::var("OUT_DIR").unwrap()).join(format!("harness_{}", library.id()));
 
-    let rust_put_name = std::env::var("DEP_BORING_ROOT")
-        .or(std::env::var("DEP_OPENSSL_ROOT"))
-        .or(std::env::var("DEP_WOLFSSL_ROOT"))
-        .map(|libroot| {
-            std::path::Path::new(&libroot)
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned()
-        })
-        .ok();
-
-    let kind = if cfg!(feature = "rust-put") && Some(&library.name()) == rust_put_name.as_ref() {
-        harness::Kind::Rust
-    } else {
-        if !cfg!(feature = "cputs") {
-            return None;
-        }
-
-        harness::Kind::C
-    };
-
-    Harness::harness_for("tls", library.clone(), kind).map(|harness| harness.wrap(out_dir).unwrap())
+    Harness::harness_for("tls", library.clone()).map(|harness| harness.wrap(out_dir).unwrap())
 }

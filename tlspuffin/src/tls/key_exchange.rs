@@ -57,7 +57,7 @@ pub fn tls12_key_exchange(group: &NamedGroup) -> Result<KeyExchange, FnError> {
 
 pub fn tls12_new_secrets(
     server_random: &Random,
-    server_ecdh_pubkey: &[u8],
+    peer_ecdh_pubkey: &[u8],
     group: &NamedGroup,
     client_random: &Random,
     suite: SupportedCipherSuite,
@@ -70,9 +70,8 @@ pub fn tls12_new_secrets(
     let suite = suite
         .tls12()
         .ok_or_else(|| FnError::Malformed("VersionNotCompatibleError".to_string()))?;
-    let secrets =
-        ConnectionSecrets::from_key_exchange(kx, server_ecdh_pubkey, None, randoms, suite)
-            .map_err(|_err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;
+    let secrets = ConnectionSecrets::from_key_exchange(kx, peer_ecdh_pubkey, None, randoms, suite)
+        .map_err(|_err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

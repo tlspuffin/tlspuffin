@@ -5,7 +5,7 @@ use crate::agent::AgentDescriptor;
 use crate::claims::GlobalClaimList;
 use crate::error::Error;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::{Put, PutOptions};
+use crate::put::{Put, PutDescriptor, PutOptions};
 
 // FIXME TCP_PUT should be defined in the tlspuffin package
 //
@@ -19,20 +19,40 @@ pub const TCP_PUT: &str = "tcp";
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
-    default_put: String,
+    default_put: PutDescriptor,
 }
 
 impl<PB> PutRegistry<PB> {
-    pub fn set_default(&mut self, name: &str) -> Result<(), String> {
-        if self.factories.get(name).is_none() {
+    #[must_use]
+    pub fn set_default_factory(&mut self, name: &str) -> Result<(), String> {
+        if !self.factories.contains_key(name) {
             return Err(format!("PUT {} not found in registry", name));
         }
-        self.default_put = String::from(name);
+        self.default_put.factory = String::from(name);
         Ok(())
     }
 
+    #[must_use]
+    pub fn set_default(&mut self, default: PutDescriptor) -> Result<(), String> {
+        self.set_default_factory(&default.factory)?;
+        self.set_default_options(default.options);
+        Ok(())
+    }
+
+    pub fn set_default_options(&mut self, put_config: PutOptions) {
+        self.default_put.options = put_config;
+    }
+
     pub fn default_put_name(&self) -> &str {
-        &self.default_put
+        &self.default_put.factory
+    }
+
+    pub fn default_put_options(&self) -> &PutOptions {
+        &self.default_put.options
+    }
+
+    pub fn default_put_descriptor(&self) -> PutDescriptor {
+        PutDescriptor::new(self.default_put_name(), self.default_put_options().clone())
     }
 }
 
@@ -50,36 +70,45 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
 impl<PB: ProtocolBehavior> fmt::Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PutRegistry (default only)")
-            .field("default", &self.default().name())
+            .field("default factory", &self.default().name())
+            .field("default options", &self.default_put().options)
             .finish()
     }
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new<SI, I, S>(puts: I, default: S) -> Self
+    pub fn new<SI, I>(puts: I, default_put: PutDescriptor) -> Self
     where
         SI: Into<String>,
         I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
-        S: Into<String>,
     {
         let result = Self {
             factories: puts
                 .into_iter()
                 .map(|(id, f)| (Into::<String>::into(id), f))
                 .collect(),
-            default_put: default.into(),
+            default_put,
         };
 
         // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(&result.default_put);
+        let _ = result.find_by_id(result.default_put_name());
 
         result
     }
 
     #[must_use]
     pub fn default(&self) -> &dyn Factory<PB> {
-        self.find_by_id(&self.default_put)
-            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
+        self.find_by_id(&self.default_put.factory)
+            .unwrap_or_else(|| {
+                panic!(
+                    "default PUT {} is not in registry",
+                    &self.default_put.factory
+                )
+            })
+    }
+
+    pub fn default_put(&self) -> &PutDescriptor {
+        &self.default_put
     }
 
     pub fn puts(&self) -> impl Iterator<Item = (&str, &dyn Factory<PB>)> {

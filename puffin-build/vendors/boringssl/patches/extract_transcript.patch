@@ -1,49 +1,158 @@
-From f87436455c195b7010de117f766377551ecba2c9 Mon Sep 17 00:00:00 2001
-From: Tom Gouville <tom.gouville@protonmail.com>
-Date: Thu, 1 Feb 2024 10:29:36 +0100
-Subject: [PATCH] transcript extraction
-
----
- include/openssl/ssl.h |  3 +++
- ssl/ssl_lib.cc        | 22 ++++++++++++++++++++++
- 2 files changed, 25 insertions(+)
-
 diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
-index 2e19253c2..54346a8a9 100644
+index 27f71de..53144e7 100644
 --- a/include/openssl/ssl.h
 +++ b/include/openssl/ssl.h
-@@ -170,6 +170,8 @@ extern "C" {
- // SSL implementation.
- 
- 
+@@ -174,6 +174,12 @@ OPENSSL_EXPORT int SSL_get_fd(const SSL *ssl);
+ // socket |BIO|.
+ OPENSSL_EXPORT int SSL_get_rfd(const SSL *ssl);
+
 +OPENSSL_EXPORT int PUFFIN_extract_transcript(SSL* ssl, uint8_t* out, size_t* out_len);
++OPENSSL_EXPORT int PUFFIN_extract_ch_sh_transcript(SSL* ssl, uint8_t* out, size_t* out_len);
++OPENSSL_EXPORT void PUFFIN_clear_ch_sh_transcript(SSL* ssl);
++OPENSSL_EXPORT int PUFFIN_extract_handshake_secret(SSL* ssl, uint8_t* out, size_t* out_len);
++OPENSSL_EXPORT void PUFFIN_clear_handshake_secret(SSL* ssl);
 +
- // SSL contexts.
- //
- // |SSL_CTX| objects manage shared state and configuration between multiple TLS
+ // SSL_get_wfd returns the file descriptor that |ssl| is configured to write
+ // to. If |ssl|'s write |BIO| is not configured or doesn't wrap a file
+ // descriptor then it returns -1.
 diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
-index 58b68e675..ee9bc76fe 100644
+index 3a4b690..4263355 100644
 --- a/ssl/ssl_lib.cc
 +++ b/ssl/ssl_lib.cc
-@@ -499,6 +499,18 @@ BSSL_NAMESPACE_END
- 
- using namespace bssl;
- 
-+int PUFFIN_extract_transcript(SSL *ssl, uint8_t *out, size_t *out_len) {
-+  SSL_HANDSHAKE *hs = ssl->s3->hs.get();
+@@ -358,6 +358,99 @@ void SSL_set_aes_hw_override_for_testing(SSL *ssl, bool override_value) {
+
+ BSSL_NAMESPACE_END
+
++// PUFFIN fuzzing framework: forward declarations
++void PUFFIN_store_ch_sh_transcript(const SSL *ssl, const uint8_t *hash,
++                                   size_t hash_len);
++void PUFFIN_store_handshake_secret(const SSL *ssl, const uint8_t *secret,
++                                   size_t secret_len);
 +
-+  if (hs == NULL) {
-+    return 0;
-+  } else {
-+    hs->transcript.GetHash(out, out_len);
++// PUFFIN fuzzing framework: CH+SH transcript storage (thread-local)
++static thread_local SSL *g_puffin_ch_sh_ssl = NULL;
++static thread_local uint8_t g_puffin_ch_sh_hash[64];
++static thread_local size_t g_puffin_ch_sh_hash_len = 0;
++
++// PUFFIN fuzzing framework: handshake secret storage (thread-local)
++static thread_local SSL *g_puffin_hs_secret_ssl = NULL;
++static thread_local uint8_t g_puffin_hs_secret[64];
++static thread_local size_t g_puffin_hs_secret_len = 0;
++
++void PUFFIN_store_ch_sh_transcript(const SSL *ssl, const uint8_t *hash,
++                                   size_t hash_len) {
++  if (ssl == NULL || hash == NULL || hash_len == 0 ||
++      hash_len > sizeof(g_puffin_ch_sh_hash)) {
++    return;
 +  }
++  g_puffin_ch_sh_ssl = const_cast<SSL *>(ssl);
++  bssl::OPENSSL_memcpy(g_puffin_ch_sh_hash, hash, hash_len);
++  g_puffin_ch_sh_hash_len = hash_len;
++}
 +
++void PUFFIN_store_handshake_secret(const SSL *ssl, const uint8_t *secret,
++                                   size_t secret_len) {
++  if (ssl == NULL || secret == NULL || secret_len == 0 ||
++      secret_len > sizeof(g_puffin_hs_secret)) {
++    return;
++  }
++  g_puffin_hs_secret_ssl = const_cast<SSL *>(ssl);
++  bssl::OPENSSL_memcpy(g_puffin_hs_secret, secret, secret_len);
++  g_puffin_hs_secret_len = secret_len;
++}
++
++int PUFFIN_extract_ch_sh_transcript(SSL *ssl, uint8_t *out, size_t *out_len) {
++  if (ssl == NULL || out == NULL || out_len == NULL) {
++    return 0;
++  }
++  if (g_puffin_ch_sh_ssl != ssl || g_puffin_ch_sh_hash_len == 0) {
++    return 0;
++  }
++  size_t to_copy =
++      *out_len < g_puffin_ch_sh_hash_len ? *out_len : g_puffin_ch_sh_hash_len;
++  bssl::OPENSSL_memcpy(out, g_puffin_ch_sh_hash, to_copy);
++  *out_len = to_copy;
 +  return 1;
 +}
 +
- int SSL_library_init(void) {
-   CRYPTO_library_init();
-   return 1;
--- 
-2.43.0
++int PUFFIN_extract_handshake_secret(SSL *ssl, uint8_t *out, size_t *out_len) {
++  if (ssl == NULL || out == NULL || out_len == NULL) {
++    return 0;
++  }
++  if (g_puffin_hs_secret_ssl != ssl || g_puffin_hs_secret_len == 0) {
++    return 0;
++  }
++  size_t to_copy =
++      *out_len < g_puffin_hs_secret_len ? *out_len : g_puffin_hs_secret_len;
++  bssl::OPENSSL_memcpy(out, g_puffin_hs_secret, to_copy);
++  *out_len = to_copy;
++  return 1;
++}
++
++void PUFFIN_clear_ch_sh_transcript(SSL *ssl) {
++  if (ssl == NULL || g_puffin_ch_sh_ssl != ssl) {
++    return;
++  }
++  bssl::OPENSSL_memset(g_puffin_ch_sh_hash, 0, sizeof(g_puffin_ch_sh_hash));
++  g_puffin_ch_sh_hash_len = 0;
++  g_puffin_ch_sh_ssl = NULL;
++}
++
++void PUFFIN_clear_handshake_secret(SSL *ssl) {
++  if (ssl == NULL || g_puffin_hs_secret_ssl != ssl) {
++    return;
++  }
++  bssl::OPENSSL_memset(g_puffin_hs_secret, 0, sizeof(g_puffin_hs_secret));
++  g_puffin_hs_secret_len = 0;
++  g_puffin_hs_secret_ssl = NULL;
++}
++
++int PUFFIN_extract_transcript(SSL *ssl, uint8_t *out, size_t *out_len) {
++  bssl::SSL_HANDSHAKE *hs = ssl->s3->hs.get();
++  if (hs == NULL) {
++    return 0;
++  }
++  hs->transcript.GetHash(out, out_len);
++  return 1;
++}
++
+ using namespace bssl;
 
+ int SSL_library_init() { return 1; }
+diff --git a/ssl/tls13_enc.cc b/ssl/tls13_enc.cc
+index e096503..19eacbd 100644
+--- a/ssl/tls13_enc.cc
++++ b/ssl/tls13_enc.cc
+@@ -15,6 +15,12 @@
+ #include <openssl/ssl.h>
+
+ #include <assert.h>
++
++void PUFFIN_store_ch_sh_transcript(const SSL *ssl, const uint8_t *hash,
++                                   size_t hash_len);
++void PUFFIN_store_handshake_secret(const SSL *ssl, const uint8_t *secret,
++                                   size_t secret_len);
++
+ #include <string.h>
+
+ #include <algorithm>
+@@ -364,6 +370,19 @@ bool tls13_derive_early_secret(SSL_HANDSHAKE *hs) {
+
+ bool tls13_derive_handshake_secrets(SSL_HANDSHAKE *hs) {
+   SSL *const ssl = hs->ssl;
++
++  // Capture CH+SH transcript hash for PUFFIN fuzzing framework.
++  {
++    uint8_t hash_buf[EVP_MAX_MD_SIZE];
++    size_t hash_len = 0;
++    if (hs->transcript.GetHash(hash_buf, &hash_len)) {
++      PUFFIN_store_ch_sh_transcript(ssl, hash_buf, hash_len);
++    }
++  }
++
++  // Capture handshake secret (hs->secret) for PUFFIN before it gets overwritten.
++  PUFFIN_store_handshake_secret(ssl, hs->secret.data(), hs->secret.size());
++
+   if (!derive_secret(hs, &hs->client_handshake_secret,
+                      kTLS13LabelClientHandshakeTraffic) ||
+       !ssl_log_secret(ssl, "CLIENT_HANDSHAKE_TRAFFIC_SECRET",

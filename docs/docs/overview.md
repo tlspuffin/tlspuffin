@@ -6,9 +6,8 @@ import Architecture from './libafl-architecture_new.drawio.svg';
 
 # What is puffin?
 
-The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/57)).
-It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and 
-preliminary versions of a harness for OpenSSH. We built `puffin` so that new protocols and protocol implementations can be added.
+The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/057)).
+It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and preliminary versions of a harness for libssh. We built `puffin` so that new protocols and protocol implementations can be added.
 Internally, `puffin` uses the library [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
 
 We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this project. This is because the first protocol we implemented was TLS. However, `puffin` and DY fuzzing in general are not limited to the TLS protocol.
@@ -17,9 +16,9 @@ We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this pro
 
 We define some terms in the context of `puffin`:
 - **Program Under Test** **(PUT)** (also called **vendor library**): a protocol implementation to be tested. For example: OpenSSL v3.1.2, wolfSSL v5.3.0, etc.
-- **Harness**: a wrapper around a PUT that provides a common interface for the fuzzer to interact with the PUT. For example: we built one for all PUTs compatible with the OpenSSL API (hence all OpenSSL and LibreSSL PUTs versions).
-- **Target**: a specific PUT version with its harness. This is the program that the fuzzer will interact with.
-- **Trace**: a test-case representation, which is a sequence of protocol messages describing a protocol interaction of protocol agents (e.g., TLS clients, servers) with a network attacker. The specifity here is that protocol messages are represented as formal terms built with abstract function symbols such as: `encryption(.,.)`, `signature(.,.)`, `CLientHello(.,.,.,.)`, etc. This representation of protocol interactions stems from formal Dolev-Yao models, see our [paper](https://eprint.iacr.org/2023/57) for more details.
+- **Harness**: a wrapper around a PUT that provides a common interface for the fuzzer to interact with the PUT. A harness is written once per library family and reused for all its versions. For example: the OpenSSL harness is used for all OpenSSL PUTs, from 1.0.1 to 3.4.
+- **Target**: a specific PUT version with its harness, e.g. `openssl340` (OpenSSL 3.4.0 with the OpenSSL harness). This is what the fuzzer executes: targets are linked into the fuzzer binary and selected at runtime.
+- **Trace**: a test-case representation, which is a sequence of protocol messages describing a protocol interaction of protocol agents (e.g., TLS clients, servers) with a network attacker. The specificity here is that protocol messages are represented as formal terms built with abstract function symbols such as: `encryption(.,.)`, `signature(.,.)`, `ClientHello(.,.,.,.)`, etc. This representation of protocol interactions stems from formal Dolev-Yao models, see our [paper](https://eprint.iacr.org/2023/057) for more details.
 
 :::
 
