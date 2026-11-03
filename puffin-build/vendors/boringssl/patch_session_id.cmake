@@ -21,6 +21,7 @@
 # synthetic session IDs is removed.
 
 file(READ "${FILE}" content)
+set(before "${content}")
 string(REPLACE
   "  if (!hs->session_id.empty() &&
       Span<const uint8_t>(server_hello.session_id) == hs->session_id) {"
@@ -28,5 +29,8 @@ string(REPLACE
       !hs->session_id.empty() &&
       Span<const uint8_t>(server_hello.session_id) == hs->session_id) {"
   content "${content}")
+if("${content}" STREQUAL "${before}")
+  message(FATAL_ERROR "patch_session_id: pattern not found in ${FILE}, the patch did not apply")
+endif()
 file(WRITE "${FILE}" "${content}")
 
