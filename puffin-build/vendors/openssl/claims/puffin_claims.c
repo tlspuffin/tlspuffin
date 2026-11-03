@@ -161,7 +161,9 @@ void fill_claim(SSL *s, Claim *claim)
     ClaimCiphers claim_ciphers = {0};
     STACK_OF(SSL_CIPHER) *ciphers = SSL_get_ciphers(s);
     int available_ciphers_len = sk_SSL_CIPHER_num(ciphers);
-    claim_ciphers.length = available_ciphers_len;
+    claim_ciphers.length = available_ciphers_len < CLAIM_MAX_AVAILABLE_CIPHERS
+                               ? available_ciphers_len
+                               : CLAIM_MAX_AVAILABLE_CIPHERS;
     for (int j = 0; j < available_ciphers_len; ++j)
     {
         const SSL_CIPHER *c = sk_SSL_CIPHER_value(ciphers, j);
