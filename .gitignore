@@ -45,3 +45,5 @@ tlspuffin.out
 !docs/**/*.html
 
 super-linter.log
+__pycache__/
+*.pyc
