@@ -61,4 +61,4 @@ jobs:
       - name: check with MSRV
         run: just check-workspace
         env:
-          RUSTUP_TOOLCHAIN: ${{ steps.setup.minrust_toolchain }}
+          RUSTUP_TOOLCHAIN: ${{ steps.setup.outputs.minrust_toolchain }}
