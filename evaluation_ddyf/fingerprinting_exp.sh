@@ -14,7 +14,7 @@ echo 'Building fuzzer'
 ./tools/mk_vendor make wolfssl:wolfssl500-asan
 ./tools/mk_vendor make wolfssl:wolfssl510-asan
 ./tools/mk_vendor make wolfssl:wolfssl520-asan
-cargo build --release --bin tlspuffin --features cputs,asan
+cargo build --release --bin tlspuffin --features cputs
 
 echo 'Generate seeds for diff fuzzing'
 ./target/release/tlspuffin seed --differential
