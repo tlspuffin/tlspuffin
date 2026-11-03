@@ -66,6 +66,14 @@ static inline ClaimType puffin_hkdf_claim_type(const unsigned char *label, size_
     return CLAIM_TRANSCRIPT_UNKNOWN;
 }
 
+/* Invoke the registered claimer, if any. */
+#define PUFFIN_CALL_CLAIM(s, c)                                                                    \
+    do                                                                                             \
+    {                                                                                              \
+        if ((s)->claim != NULL)                                                                    \
+            (s)->claim((c), (s)->claim_ctx);                                                       \
+    } while (0)
+
 #define PUFFIN_TLS13_HKDF_CLAIM(s, label, labellen, data, datalen)                                 \
     do                                                                                             \
     {                                                                                              \
@@ -75,7 +83,7 @@ static inline ClaimType puffin_hkdf_claim_type(const unsigned char *label, size_
             claim.typ = puffin_hkdf_claim_type((label), (labellen));                               \
             memcpy(claim.transcript.data, (data), (datalen));                                      \
             claim.transcript.length = (datalen);                                                   \
-            (s)->claim(claim, (s)->claim_ctx);                                                     \
+            PUFFIN_CALL_CLAIM(s, claim);                                                           \
         }                                                                                          \
     } while (0)
 
@@ -87,7 +95,7 @@ static inline ClaimType puffin_hkdf_claim_type(const unsigned char *label, size_
         claim.typ = CLAIM_TRANSCRIPT_CH_CERT;                                                      \
         memcpy(claim.transcript.data, (s)->cert_verify_hash, (s)->cert_verify_hash_len);           \
         claim.transcript.length = (s)->cert_verify_hash_len;                                       \
-        (s)->claim(claim, (s)->claim_ctx);                                                         \
+        PUFFIN_CALL_CLAIM(s, claim);                                                               \
     } while (0)
 
 ClaimType puffin_read_claim_type(int hand_state);
@@ -103,7 +111,7 @@ ClaimType puffin_write_claim_type(int hand_state);
             claim.write = 0;                                                                       \
             claim.typ = puffin_read_claim_type((st)->hand_state);                                  \
             fill_claim(PUFFIN_SSL_OF(s), &claim);                                                  \
-            (s)->claim(claim, (s)->claim_ctx);                                                     \
+            PUFFIN_CALL_CLAIM(s, claim);                                                           \
         }                                                                                          \
     } while (0)
 
@@ -115,7 +123,7 @@ ClaimType puffin_write_claim_type(int hand_state);
         claim.write = 1;                                                                           \
         claim.typ = puffin_write_claim_type((st)->hand_state);                                     \
         fill_claim(PUFFIN_SSL_OF(s), &claim);                                                      \
-        (s)->claim(claim, (s)->claim_ctx);                                                         \
+        PUFFIN_CALL_CLAIM(s, claim);                                                               \
     } while (0)
 
 #endif /* PUFFIN_CLAIMS_H */
