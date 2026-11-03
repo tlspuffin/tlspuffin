@@ -11,7 +11,7 @@ for d in $folder/*; do
     then
 
     echo "Triaging objectives in $d/objective"
-    python -m DDYF.find_known_cves $d/objective
+    python -m evaluation_ddyf.find_known_cves $d/objective
 
 
     # removing traces that are not interesting to save disk space

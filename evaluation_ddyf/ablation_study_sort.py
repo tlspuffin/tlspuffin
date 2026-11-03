@@ -1,5 +1,5 @@
 import sys
-from DDYF.diff_analyzer import (
+from evaluation_ddyf.diff_analyzer import (
     BucketCondition,
     NoDiffC,
     run_triaging,

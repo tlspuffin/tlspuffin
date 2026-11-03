@@ -18,11 +18,11 @@ function clear_and_sort() {
       if [ -d "$d" ];
         then
             echo "Cleaning buckets from $d"
-            ./evaluation-ddyf/empty_buckets.sh $d
+            ./evaluation_ddyf/empty_buckets.sh $d
             echo "Sorting"
-            python -m evaluation-ddyf.ablation_study_sort $d
+            python -m evaluation_ddyf.ablation_study_sort $d
             echo "Listing bucket contents"
-            echo "$d: $(./evaluation-ddyf/list_buckets.sh $d)" >> $2
+            echo "$d: $(./evaluation_ddyf/list_buckets.sh $d)" >> $2
         fi;
     done
 }

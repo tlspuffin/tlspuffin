@@ -14,7 +14,7 @@ echo 'Building fuzzer'
 ./tools/mk_vendor make wolfssl:wolfssl500-asan
 ./tools/mk_vendor make wolfssl:wolfssl510-asan
 ./tools/mk_vendor make wolfssl:wolfssl520-asan
-cargo build --release --bin tlspuffin --features cputs,asan
+cargo build --release --bin tlspuffin --features cputs
 
 echo 'Generate seeds for diff fuzzing'
 ./target/release/tlspuffin seed --differential
@@ -26,4 +26,4 @@ RUST_LOG=info timeout $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORE
 
 # tmux new-session "$C1; exec zsh" \; split-window -h -l 66% "$C2; exec zsh" \; split-window -h -l 50% "$C3; exec zsh"
 
-# zellij --layout ./DDYF/fingerprint_layout.kdl
+# zellij --layout ./evaluation_ddyf/fingerprint_layout.kdl

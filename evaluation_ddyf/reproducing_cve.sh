@@ -48,7 +48,7 @@ do
     rm $PIPENAME
 
     echo "Triaging objectives in $OBJECTIVES"
-    python -m evaluation-ddyf.find_known_cves $OBJECTIVES
+    python -m evaluation_ddyf.find_known_cves $OBJECTIVES
 
     # removing traces that are not interesting to save disk space
     rm -rf $OBJECTIVES/trash
