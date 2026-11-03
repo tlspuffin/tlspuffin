@@ -16,7 +16,7 @@ nix-shell ./shell.nix
 
 To make sure that all scripts are executable, run:
 ```bash
-chmod +x ./evaluation-ddyf/*sh
+chmod +x ./evaluation_ddyf/*sh
 ```
 
 
@@ -64,7 +64,7 @@ To run the triaging script on the results:
 python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
 
 # list the content of the buckets
-./evaluation-ddyf/list_buckets.sh path_to_experiment/objective
+./evaluation_ddyf/list_buckets.sh path_to_experiment/objective
 ```
 
 ## Executing one trace with differential fuzzing
@@ -86,19 +86,19 @@ where
 
 ## CVE reproduction benchmark
 
-Run the fuzzing campaigns using `reproducing_cves.sh` script after activation the Nix shell environment.
+Run the fuzzing campaigns using `reproducing_cve.sh` script after activation the Nix shell environment.
 
 You can edit the `TIMEOUT`, `RUNS` and `CORES` variables to setup the duration, number of campaigns and cores per campaigns.
 Note that a shorter time decreases the chances of finding any CVEs, the recommended value is 5h.
 
 ```bash
-./evaluation-ddyf/reproducing_cves.sh
+./evaluation_ddyf/reproducing_cve.sh
 ```
 
 Generate a CSV file of all the traces triggering CVEs :
 
 ```bash
-./evaluation-ddyf/listing_reproduced_cves.sh
+./evaluation_ddyf/listing_reproduced_cves.sh
 ```
 
 This should create a `cve_list.csv` file.
@@ -120,13 +120,13 @@ python -m DDYF.cves_stats
 To measure the performances of DDYF run:
 
 ```bash
-./evaluation-ddyf/perf_bench_DDYF.sh 
+./evaluation_ddyf/perf_bench_DDYF.sh 
 ```
 
 To measure the original performances of Puffin: clone the original puffin repo `https[://]github[.]com/tlspuffin/tlspuffin` and run in the main branch:
 
 ```bash
-./evaluation-ddyf/perf_bench_puffin.sh 
+./evaluation_ddyf/perf_bench_puffin.sh 
 ```
 
 
@@ -135,7 +135,7 @@ To measure the original performances of Puffin: clone the original puffin repo `
 After running a differential fuzzing campaign, run:
 
 ```bash
-./evaluation-ddyf/ablation_study.sh path/to/objectives
+./evaluation_ddyf/ablation_study.sh path/to/objectives
 ```
 
 This will produce 5 files: `ablation-all.txt`, `ablation-no-status.txt`, `ablation-no-knowledges.txt`, `ablation-no-decryption.txt` and `ablation-no-claims.txt`. Each file contains 3 lines:
@@ -151,7 +151,7 @@ total: XXX # total number of traces
 To run the fingerprinting experiment, run:
 
 ```bash
-./evaluation-ddyf/fingerprinting_exp.sh
+./evaluation_ddyf/fingerprinting_exp.sh
 ```
 
 This will produce 3 folders in your `./experiments` directory for each pair of PUTs between WolfSSL 5.0.0, 5.1.0, and 5.2.0.

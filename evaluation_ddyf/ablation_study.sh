@@ -14,11 +14,11 @@ export LIBAFL_EDGES_MAP_SIZE=262144
 function clear_and_sort() {
     local obj_folder=$1
     echo "Cleaning buckets from $obj_folder"
-    ./DDYF/empty_buckets.sh $obj_folder
+    ./evaluation_ddyf/empty_buckets.sh $obj_folder
     echo "Sorting"
-    python -m DDYF.ablation_study_sort $obj_folder
+    python -m evaluation_ddyf.ablation_study_sort $obj_folder
     echo "Listing bucket contents"
-    ./DDYF/list_buckets.sh $obj_folder > $2
+    ./evaluation_ddyf/list_buckets.sh $obj_folder > $2
 }
 
 
