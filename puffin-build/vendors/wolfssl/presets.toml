@@ -24,6 +24,24 @@ sancov = true
 asan = true
 fix = ["AllowClaim"]
 
+[wolfssl584-asan-mlkem]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+mlkem = true
+# CVE-2026-5460 masks CVE-2026-7531 (same trigger, reported first by ASan)
+fix = ["AllowClaim", "CVE-2026-5460"]
+
+# Negative control for wolfssl584-asan-mlkem: both PQC hybrid key share CVEs fixed
+[wolfssl584-asan-mlkem-fixed]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+mlkem = true
+fix = ["AllowClaim", "CVE-2026-5460", "CVE-2026-7531"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }

@@ -897,6 +897,15 @@ pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
     Ok(NamedGroup::X25519)
 }
 
+/// `SecP256r1MLKEM768` hybrid group (0x11EB, draft-kwiatkowski-tls-ecdhe-mlkem).
+///
+/// There is no ML-KEM support in the tlspuffin crypto backend: this group can only be used to
+/// craft raw key shares (e.g. with `fn_key_share_extension`), not with
+/// `fn_key_share_deterministic` or the TLS 1.3 key schedule.
+pub fn fn_named_group_secp256r1mlkem768() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::Unknown(0x11EB))
+}
+
 pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {
     Ok(*input as u32)
 }

@@ -625,6 +625,45 @@ fn test_seed_cve_2022_39173_minimized(put: &str) {
     );
 }
 
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_7531,
+        tls13,
+        pqc_hybrid_groups,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_7531(put: &str) {
+    expect_trace_crash(
+        seed_cve_2026_7531.build_trace(),
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
+// Negative control: on PUTs offering the PQC hybrid groups with both CVE-2026-5460 and
+// CVE-2026-7531 fixed (e.g. wolfssl584-asan-mlkem-fixed), the same trace must not crash.
+#[apply(test_puts,
+    filter = all(
+        not(CVE_2026_5460),
+        not(CVE_2026_7531),
+        tls13,
+        pqc_hybrid_groups,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_7531_fixed(put: &str) {
+    let runner = default_runner_for(put);
+    let forked_runner =
+        ForkedRunner::new(&runner).with_timeout(std::time::Duration::from_secs(20));
+    let status = forked_runner.execute(&seed_cve_2026_7531.build_trace(), &mut 0);
+    assert!(
+        !matches!(status, Ok(ExecutionStatus::Crashed)),
+        "trace crashed on a PUT where CVE-2026-5460 and CVE-2026-7531 are fixed"
+    );
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {

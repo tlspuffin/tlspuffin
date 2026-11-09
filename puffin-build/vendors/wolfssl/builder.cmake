@@ -1,6 +1,7 @@
 use_languages(C)
 
 option(postauth "Build with post-auth" ON)
+option(mlkem "Build with ML-KEM and the PQC hybrid TLS 1.3 groups" OFF)
 
 if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
@@ -25,6 +26,20 @@ endif()
 
 if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
+endif()
+
+# The PQC hybrid CVEs below are only reachable when ML-KEM is compiled in
+# (TLSX_KeyShare_ProcessPqcHybridClient is behind WOLFSSL_HAVE_MLKEM, off by default in wolfSSL).
+# Both are hit by the same malformed hybrid ServerHello key share: CVE-2026-5460 (ML-KEM private
+# key, ForceZero in TLSX_KeyShare_FreeAll) is reported first by ASan, so it must be fixed to
+# observe CVE-2026-7531 (ECDH private key, wc_ecc_free in TLSX_KeyShare_FreeAll).
+# Both patches are backports (wolfSSL PRs 10092 and 10327), only checked against 5.8.4.
+if(mlkem AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.8.0" AND VENDOR_VERSION VERSION_LESS "5.9.1")
+  declare_vulnerability("CVE-2026-5460" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2026-5460-58x.patch)
+endif()
+
+if(mlkem AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.8.0" AND VENDOR_VERSION VERSION_LESS "5.9.2")
+  declare_vulnerability("CVE-2026-7531" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2026-7531-58x.patch)
 endif()
 
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
@@ -87,6 +102,12 @@ autotools_builder(
 
     $<IF:$<BOOL:${postauth}>,--enable-postauth,--disable-postauth>
 
+    # ML-KEM needs SHA3/SHAKE; these come after --disable-sha3 so they take precedence
+    $<$<BOOL:${mlkem}>:--enable-mlkem>
+    $<$<BOOL:${mlkem}>:--enable-sha3>
+    $<$<BOOL:${mlkem}>:--enable-shake128>
+    $<$<BOOL:${mlkem}>:--enable-shake256>
+
   CFLAGS
     -g
     -fPIC
@@ -140,4 +161,9 @@ set(allow_setting_tls13_ciphers yes)
 
 if(NOT postauth)
   set(disable_postauth yes)
+endif()
+
+# Client offers the ECDHE/ML-KEM hybrid groups (e.g. SecP256r1MLKEM768) in supported_groups
+if(mlkem)
+  set(pqc_hybrid_groups yes)
 endif()
