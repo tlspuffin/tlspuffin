@@ -289,6 +289,13 @@ pub fn fn_sig_scheme_rsa_pss_sha256() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::RSA_PSS_SHA256)
 }
 
+/// Hybrid (X9.146 dual-algorithm) signature scheme RSA-PSS + ML-DSA-44 (0xFEA2), as defined by
+/// the OQS project and used by wolfSSL for CertificateVerify messages carrying both a native and an
+/// alternative signature (CKS extension set to "both").
+pub fn fn_sig_scheme_hybrid_rsa_pss_mldsa44() -> Result<SignatureScheme, FnError> {
+    Ok(SignatureScheme::Unknown(0xFEA2))
+}
+
 nyi_fn! {
     /// UseSRTP => 0x000e,
 }
@@ -682,6 +689,16 @@ pub fn fn_transport_parameters_draft_server_extension(
         parameters.clone(),
     ))
 }
+/// CKS ("Certificate Key Selection", X9.146) server extension (0xff92, sent in EncryptedExtensions)
+/// selecting both the native and the alternative signatures (sigSpec 0x03). The body is the raw
+/// list of sigSpec values.
+pub fn fn_cks_both_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFF92),
+        payload: Payload::new([0x03]),
+    }))
+}
+
 // Unknown extensions
 
 pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {

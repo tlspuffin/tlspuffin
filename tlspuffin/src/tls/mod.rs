@@ -87,6 +87,7 @@ define_signature!(
     fn_large_length
     fn_empty_bytes_vec
     fn_large_bytes_vec [no_bit] // exclude MakeMessage and thus bit-level mutations
+    fn_large_u16_length_bytes
     // messages
     fn_alert_close_notify
     fn_application_data
@@ -143,6 +144,7 @@ define_signature!(
     fn_supported_signature_schemes_extension_append [list]
     fn_sig_scheme_rsa_pkcs1_sha256
     fn_sig_scheme_rsa_pss_sha256
+    fn_sig_scheme_hybrid_rsa_pss_mldsa44
     fn_signature_algorithm_extension
     fn_signature_algorithm_cert_req_extension
     fn_empty_vec_of_vec
@@ -191,6 +193,7 @@ define_signature!(
     fn_renegotiation_info_server_extension
     fn_transport_parameters_draft_extension
     fn_transport_parameters_draft_server_extension
+    fn_cks_both_server_extension
     fn_unknown_client_extension
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
@@ -292,6 +295,7 @@ define_signature!(
     fn_bob_cert
     fn_bob_key
     fn_alice_cert
+    fn_alice_dual_alg_cert
     fn_alice_key
     fn_eve_cert
     fn_random_ec_cert

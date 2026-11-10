@@ -76,3 +76,17 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
 pub fn fn_large_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![42; 700])
 }
+
+/// Two bytes encoding a large big-endian 16-bit length (0xF000 = 61440), for length-prefixed
+/// fields whose length is not checked against the enclosing message.
+///
+/// Used in CVE-2026-5393 as the signature field of a dual-algorithm (CKS "both")
+/// CertificateVerify: wolfSSL 5.9.0 reads it as the first signature length and then reads the
+/// second length 2 + 61440 bytes further, without bounds check. In the tlspuffin wolfSSL 5.9.0
+/// build the record lies in the static input buffer of the 44128-byte `WOLFSSL` object, so any
+/// first length >= ~0xA9B6 reads past the end of that object (ASan heap-buffer-overflow; 0xFFFF
+/// crashes with a SEGV instead). Smaller lengths read valid memory inside the object, which ASan
+/// cannot see.
+pub fn fn_large_u16_length_bytes() -> Result<Vec<u8>, FnError> {
+    Ok(vec![0xF0, 0x00])
+}
