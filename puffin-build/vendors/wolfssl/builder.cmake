@@ -163,6 +163,13 @@ if(NOT postauth)
   set(disable_postauth yes)
 endif()
 
+# By default, wolfSSL >= 5.9.1 clients send their first TLS 1.3 key share for a group tlspuffin
+# cannot compute: X25519MLKEM768 (ML-KEM is enabled by default from 5.9.1), or P-521 without ML-KEM.
+# Seeds deriving the server key share from the client's first key share must skip these PUTs.
+if(VENDOR_VERSION STREQUAL "master" OR VENDOR_VERSION VERSION_GREATER_EQUAL "5.9.1")
+  set(unsupported_default_key_share yes)
+endif()
+
 # Supports X9.146 dual key/signature certificates and the CKS extension
 if(dual_alg_certs)
   set(dual_alg_certs_support yes)
