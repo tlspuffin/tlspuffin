@@ -2783,8 +2783,9 @@ pub fn create_corpus(
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
         // Server Attackers
-        seed_server_attacker_full: put.supports("tls13"),
-        seed_server_attacker_full_coalesced: put.supports("tls13"),
+        // The server key share is derived from the client's first key share.
+        seed_server_attacker_full: put.supports("tls13") && !put.supports("unsupported_default_key_share"),
+        seed_server_attacker_full_coalesced: put.supports("tls13") && !put.supports("unsupported_default_key_share"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
     )
@@ -2873,7 +2874,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13))]
+    #[apply(test_puts, filter = all(tls13, not(unsupported_default_key_share)))]
     fn test_seed_server_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
@@ -2889,7 +2890,7 @@ pub mod tests {
     // Exclude wolfssl430 (no TLS 1.3 secret callback before 4.4.0, so no handshake secret to
     // decrypt with) and wolfssl540-sdos2 (incompatible patch, has disable_postauth) from
     // differential decryption tests.
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth), not(wolfssl430)))]
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth), not(wolfssl430), not(unsupported_default_key_share)))]
     fn test_seeds_differential_decryption(put: &str) {
         let traces = vec![
             seed_client_attacker.build_trace(),
@@ -2919,7 +2920,7 @@ pub mod tests {
         }
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, not(boringssl), not(unsupported_default_key_share)))]
     fn test_seed_server_attacker_full_coalesced(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full_coalesced.build_trace();
