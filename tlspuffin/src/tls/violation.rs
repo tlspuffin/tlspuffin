@@ -4,7 +4,13 @@ use security_claims::ClaimTLSVersion;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
 use crate::protocol::AgentType;
-use crate::static_certs::{ALICE_CERT, BOB_CERT};
+use crate::static_certs::{ALICE_CERT, ALICE_DUAL_ALG_CERT, BOB_CERT};
+
+/// Whether `cert` is a legitimate certificate of the server (Alice): [`ALICE_CERT`] or the
+/// dual-algorithm [`ALICE_DUAL_ALG_CERT`], issued by [`ALICE_CERT`] for the same key.
+fn is_alice_cert(cert: &[u8]) -> bool {
+    cert == ALICE_CERT.1 || cert == ALICE_DUAL_ALG_CERT.1
+}
 
 pub struct TlsSecurityViolationPolicy;
 
@@ -43,7 +49,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Authentication bypass");
                 }
 
-                if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT.1 {
+                if client.authenticate_peer && !is_alice_cert(client.peer_certificate.as_slice()) {
                     return Some("Authentication bypass");
                 }
 
@@ -120,7 +126,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                 let violation = finished.authenticate_peer
                     && match claim.origin {
                         AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,
-                        AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT.1,
+                        AgentType::Client => !is_alice_cert(finished.peer_certificate.as_slice()),
                     };
 
                 if violation {
