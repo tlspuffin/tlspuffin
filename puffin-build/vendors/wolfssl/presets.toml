@@ -24,6 +24,23 @@ sancov = true
 asan = true
 fix = ["AllowClaim"]
 
+[wolfssl590-asan-dualalg]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.0-stable", version = "5.9.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+dual_alg_certs = true
+fix = ["AllowClaim"]
+
+# Negative control for wolfssl590-asan-dualalg: CVE-2026-5393 is fixed upstream in 5.9.1
+[wolfssl591-asan-dualalg]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.1-stable", version = "5.9.1" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+dual_alg_certs = true
+fix = ["AllowClaim"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }

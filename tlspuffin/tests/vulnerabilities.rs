@@ -625,6 +625,44 @@ fn test_seed_cve_2022_39173_minimized(put: &str) {
     );
 }
 
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_5393,
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_5393(put: &str) {
+    expect_trace_crash(
+        seed_cve_2026_5393.build_trace(),
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
+// Negative control: on PUTs with dual-algorithm certificate support where CVE-2026-5393 is fixed
+// (e.g. wolfssl591-asan-dualalg), the same trace must not crash.
+#[apply(test_puts,
+    filter = all(
+        not(CVE_2026_5393),
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_5393_fixed(put: &str) {
+    let runner = default_runner_for(put);
+    let forked_runner =
+        ForkedRunner::new(&runner).with_timeout(std::time::Duration::from_secs(20));
+    let status = forked_runner.execute(&seed_cve_2026_5393.build_trace(), &mut 0);
+    assert!(
+        !matches!(status, Ok(ExecutionStatus::Crashed)),
+        "trace crashed on a PUT where CVE-2026-5393 is fixed"
+    );
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {

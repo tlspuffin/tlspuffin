@@ -1,6 +1,7 @@
 use_languages(C)
 
 option(postauth "Build with post-auth" ON)
+option(dual_alg_certs "Build with X9.146 dual key/signature certificates (experimental)" OFF)
 
 if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
@@ -25,6 +26,15 @@ endif()
 
 if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
+endif()
+
+# Only reachable when dual-algorithm certificates are compiled in (the vulnerable code in
+# DoTls13CertificateVerify is behind WOLFSSL_DUAL_ALG_CERTS, off by default in wolfSSL).
+# The code is present before 5.9.0 too, but unreachable there: every CertificateVerify first had to
+# use a signature algorithm from the receiver's own list, which never contains the hybrid
+# (dual-algorithm) codes. 5.9.0 skips that check for "both" signatures; 5.9.1 adds the bounds checks.
+if(dual_alg_certs AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.9.0" AND VENDOR_VERSION VERSION_LESS "5.9.1")
+  declare_vulnerability("CVE-2026-5393")
 endif()
 
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
@@ -87,6 +97,17 @@ autotools_builder(
 
     $<IF:$<BOOL:${postauth}>,--enable-postauth,--disable-postauth>
 
+    # X9.146 dual key/signature certificates, only available as an experimental setting.
+    # Every hybrid TLS 1.3 signature algorithm pairs RSA/ECDSA with ML-DSA (or Falcon, which needs
+    # liboqs), so ML-DSA is required too; it needs SHA3/SHAKE, which --disable-sha3 above turns
+    # off (later flags take precedence).
+    $<$<BOOL:${dual_alg_certs}>:--enable-experimental>
+    $<$<BOOL:${dual_alg_certs}>:--enable-dual-alg-certs>
+    $<$<BOOL:${dual_alg_certs}>:--enable-mldsa>
+    $<$<BOOL:${dual_alg_certs}>:--enable-sha3>
+    $<$<BOOL:${dual_alg_certs}>:--enable-shake128>
+    $<$<BOOL:${dual_alg_certs}>:--enable-shake256>
+
   CFLAGS
     -g
     -fPIC
@@ -140,4 +161,9 @@ set(allow_setting_tls13_ciphers yes)
 
 if(NOT postauth)
   set(disable_postauth yes)
+endif()
+
+# Supports X9.146 dual key/signature certificates and the CKS extension
+if(dual_alg_certs)
+  set(dual_alg_certs_support yes)
 endif()
