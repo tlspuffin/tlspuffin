@@ -103,8 +103,8 @@ pub struct Entry {
     /// Library versions with the bug (the presets' `version`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub affected: Option<VersionRange>,
-    /// tlspuffin commits with the bug, for bugs of tlspuffin's own harness code ("not containing
-    /// <commit>")
+    /// tlspuffin commits with the bug, for bugs of tlspuffin's own harness code (`"not containing
+    /// <commit>"`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub affected_commits: Option<String>,
     /// Build options the bug needs (options of the vendor's builder.cmake)

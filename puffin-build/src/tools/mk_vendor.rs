@@ -14,7 +14,7 @@ struct Cli {
 enum Commands {
     /// `mk_vendor make [--force] [--asan] [--name=<name>] <vendor>:<build>`
     ///
-    /// <build>: `<version>[,<modifier>…]` (`5.4.0,asan,only-BUF`: see `mk_vendor modifiers
+    /// `<build>`: `<version>[,<modifier>…]` (`5.4.0,asan,only-BUF`: see `mk_vendor modifiers
     /// <vendor>`), a preset of the vendor's presets.toml (`wolfssl540-asan`), a preset followed
     /// by `-<modifier>`s and `-only-<IDs>`, `-fix-<IDs>` or `-fix-all`, or a bug of the catalogue
     /// alone (`CVE-2022-39173`: its reference build, only that bug left, ASan). The library

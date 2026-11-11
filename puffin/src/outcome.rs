@@ -421,8 +421,8 @@ pub fn parse_asan_report(stderr: &str) -> Option<AsanReport> {
     Some(AsanReport { kind, frames })
 }
 
-/// The message of the first Rust panic in `stderr`: "thread 'x' panicked at <location>:\n<message>"
-/// (Rust >= 1.73), or "thread 'x' panicked at '<message>', <location>" (older).
+/// The message of the first Rust panic in `stderr`: `thread 'x' panicked at <location>:\n<message>`
+/// (Rust >= 1.73), or `thread 'x' panicked at '<message>', <location>` (older).
 pub fn parse_panic(stderr: &str) -> Option<String> {
     let mut lines = stderr.lines();
     while let Some(line) = lines.next() {
