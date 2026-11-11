@@ -549,7 +549,11 @@ where
             }
         };
         match context.find_agent_mut(server) {
-            Ok(agent) => log::info!("{}", agent.shutdown()),
+            Ok(agent) => {
+                // shut down whatever the log level (the macro skips its arguments when it is off)
+                let shutdown = agent.shutdown();
+                log::info!("{shutdown}");
+            }
             Err(err) => {
                 log::error!("tcp: {err}");
                 return ExitCode::FAILURE;
