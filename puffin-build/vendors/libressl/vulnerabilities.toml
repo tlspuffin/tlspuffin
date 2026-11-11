@@ -1,3 +1,32 @@
-# Known vulnerabilities of libressl: none yet.
+# Known bugs of libressl builds: the only source of what builds, tests and the bench know about them.
 #
 # Format: puffin-build/README.md, section "Vulnerability catalogue".
+
+# Not a bug of LibreSSL: the transcript claim tlspuffin added to LibreSSL 3.3.3, in its fork
+# (https://github.com/tlspuffin/libressl, branch fuzz-v3.3.3, commit f2b4d4f of 2022-08-18), compared the label of each
+# derivation with memcmp(label, <known label>, <length of label>) against every known label, some shorter than the
+# label ("ext binder" against "c hs traffic"): a read past a static string, which ASan reports in every TLS 1.3
+# handshake. Fixed in the fork on 2026-10-02 (0f4d2b0, 2f36ce3: labels of the same length only), then the claims moved
+# into tlspuffin with LibreSSL's own sources (f896d560d, 2026-10-16). The tlspuffin commits before f896d560d built the
+# head of the fork's branch: their builds made before the fork's fix have the bug, later ones not. Found by the bench's
+# Performance runs (libressl, ASan) of tlspuffin 2f38bf22a and dcf9ff4e7 on 2026-10-01.
+[PUFFIN-LIBRESSL333-HKDF-CLAIM]
+alias = "HKDFCLAIM"
+summary = "global-buffer-overflow read in tlspuffin's transcript claim in tls13_hkdf_expand_label_with_length (LibreSSL 3.3.3 fork): each label compared with memcmp over its length against shorter known labels"
+category = "memory"
+cwe = "CWE-125"
+bug_in_harness = true
+affected_commits = "not containing f896d560dc69200f4e8a876d2bfcd45b2df12a8d"
+oracle = { kind = "crash", asan = "global-buffer-overflow" }
+top_frames = ["tls13_hkdf_expand_label_with_length"]
+no_patch = "fixed in the harness (the fork's 0f4d2b0 and 2f36ce3, then tlspuffin's own claims since f896d560d): nothing to apply to a build of this tree"
+no_witness = "a bug of past tlspuffin commits: no build of this tree has it"
+references = [
+  "https://github.com/tlspuffin/libressl/commit/f2b4d4f70f54ecc836a337e8ee5bd4714fcb7bf1",
+  "https://github.com/tlspuffin/libressl/commit/0f4d2b07375550665261047ec7a84df04babb557",
+  "https://github.com/tlspuffin/libressl/commit/2f36ce392c5c40b3a1e898fd48e7059997e020da",
+  "https://github.com/tlspuffin/tlspuffin/commit/f896d560dc69200f4e8a876d2bfcd45b2df12a8d",
+]
+
+[PUFFIN-LIBRESSL333-HKDF-CLAIM.find]
+by_puffin = true

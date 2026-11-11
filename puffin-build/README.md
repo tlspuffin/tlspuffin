@@ -53,9 +53,12 @@ Other fields:
   says why. Without a patch it cannot be validated by patch differential; without a witness it cannot be checked
   (and may have no oracle).
 - `bug_in_harness = true`: a bug of the fuzzing harness, not of the library, keyed by the library versions it shows on
-  (`affected`). Keying it by tlspuffin commits instead (`affected_commits = "not containing <commit>"`, with patches of
-  `target = "harness"` and `commits = ...` instead of `versions`) is reserved: neither the builds nor the catalogue test
-  apply them yet, so the loader refuses both rather than accept an entry that would never be checked.
+  (`affected`), or by the tlspuffin commits that have it: `affected_commits = "not containing <commit of the fix>"`.
+  Such an entry records a bug of past commits, fixed in the tree that holds it: no build of the tree has it and no
+  witness can show it (`no_witness` is required, and `no_patch`); the bench names the objectives found on older
+  commits after it. Patches of the harness (`target = "harness"`, `commits = ...` instead of `versions`), for a bug of
+  the tree's own harness, are reserved: neither the builds nor the catalogue test apply them yet, so the loader refuses
+  them rather than accept an entry that would never be checked.
 - `replayable = false`: objectives found by fuzzing do not reproduce on their own (e.g. they need earlier state).
 - `also_triggers = ["<ID>"]`: other entries the witness is known to trigger too (no overlap warning).
 - `witness_versions = "<range>"`: the library versions on which the witnesses reach the bug, when they cannot on every

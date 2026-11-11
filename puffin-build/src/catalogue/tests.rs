@@ -416,11 +416,6 @@ fn what_the_builds_and_the_test_cannot_apply_yet_is_refused() {
     assert_problem(
         &harness,
         &dir,
-        "affected_commits (bugs of the harness keyed by tlspuffin commits) is not supported yet",
-    );
-    assert_problem(
-        &harness,
-        &dir,
         "harness patches (target = \"harness\") are not supported yet",
     );
     // a bug of the harness keyed by library versions is fine
@@ -434,6 +429,60 @@ fn what_the_builds_and_the_test_cannot_apply_yet_is_refused() {
             .entry("CVE-2022-39173")
             .unwrap()
             .bug_in_harness
+    );
+}
+
+#[test]
+fn a_bug_of_past_tlspuffin_commits_is_never_in_a_build() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    // a bug of the harness of the commits before 0123abc (no patch, no witness), next to BUF (the
+    // presets fix it)
+    let past = |commits: &str, more: &str| {
+        format!(
+            r#"{BUF}
+[HKDF]
+summary = "a bug of the harness"
+category = "memory"
+bug_in_harness = true
+affected_commits = "{commits}"
+oracle = {{ kind = "crash", asan = "global-buffer-overflow" }}
+no_patch = "fixed in the harness"
+{more}
+"#
+        )
+    };
+    let fine = past(
+        "not containing 0123abc",
+        "no_witness = \"fixed in this tree\"",
+    );
+    let catalogue = parse(&fine, &dir).unwrap();
+    let entry = catalogue.entry("HKDF").unwrap();
+    assert!(entry.bug_in_harness);
+    assert!(!entry.affects("5.4.0", &BTreeMap::new(), &BTreeMap::new()));
+
+    assert_problem(
+        &past("not containing 0123abc", ""),
+        &dir,
+        "is fixed in this tree, where no witness can show it",
+    );
+    assert_problem(
+        &past("before 0123abc", "no_witness = \"fixed\""),
+        &dir,
+        "\"not containing <commit>\"",
+    );
+    assert_problem(
+        &past(
+            "not containing 0123abc",
+            "no_witness = \"fixed\"\naffected = \"< 5.5.1\"",
+        ),
+        &dir,
+        "both affected (library versions) and affected_commits",
+    );
+    assert_problem(
+        &past("not containing 0123abc", "no_witness = \"fixed\"")
+            .replace("bug_in_harness = true\n", ""),
+        &dir,
+        "affected_commits is for bugs of the harness",
     );
 }
 

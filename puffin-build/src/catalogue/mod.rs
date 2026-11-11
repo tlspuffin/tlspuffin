@@ -586,24 +586,43 @@ impl Catalogue {
             _ => (),
         }
 
-        // bugs of the harness keyed by tlspuffin commits, and their harness patches, are not
-        // applied by builds nor by the test yet: refused rather than silently without
-        // effect
-        if entry.affected_commits.is_some() {
-            problem(
-                "affected_commits (bugs of the harness keyed by tlspuffin commits) is not supported yet: \
-                 give the library versions with the bug (affected)"
-                    .into(),
-            );
-        }
+        // a bug of the harness keyed by tlspuffin commits ("not containing <commit>") is a bug of
+        // past commits: the tree that holds the catalogue has its fix, so no build of it has the
+        // bug (`affects` is false) and nothing can show it (no witness); the bench names the
+        // objectives of older commits after it. A harness patch, for a bug of this tree's harness,
+        // is not applied by builds nor by the test yet: refused below.
         if entry.affected.is_none() && entry.affected_commits.is_none() {
             problem(
                 "missing affected (library versions) or affected_commits (tlspuffin commits)"
                     .into(),
             );
         }
-        if entry.affected_commits.is_some() && !entry.bug_in_harness {
-            problem("affected_commits is for bugs of the harness (bug_in_harness = true)".into());
+        if let Some(commits) = &entry.affected_commits {
+            if !entry.bug_in_harness {
+                problem(
+                    "affected_commits is for bugs of the harness (bug_in_harness = true)".into(),
+                );
+            }
+            if entry.affected.is_some() {
+                problem(
+                    "both affected (library versions) and affected_commits (tlspuffin commits)"
+                        .into(),
+                );
+            }
+            let fix = commits.strip_prefix("not containing ").unwrap_or_default();
+            if !(7..=40).contains(&fix.len()) || !fix.bytes().all(|b| b.is_ascii_hexdigit()) {
+                problem(format!(
+                    "affected_commits '{commits}': \"not containing <commit>\" (the commit of the fix, 7 to \
+                     40 hexadecimal digits)"
+                ));
+            }
+            if entry.no_witness.is_none() {
+                problem(
+                    "a bug of past tlspuffin commits (affected_commits) is fixed in this tree, where no \
+                     witness can show it: no_witness = \"<reason>\""
+                        .into(),
+                );
+            }
         }
 
         for option in entry.requires.keys() {
