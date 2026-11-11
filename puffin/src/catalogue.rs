@@ -173,7 +173,7 @@ impl PutCatalogue {
                         .to_string()
                 })
                 .and_then(LibraryState::from_toml),
-            instrumentation: instrumentation.iter().map(|s| s.to_string()).collect(),
+            instrumentation: instrumentation.iter().map(|s| (*s).to_string()).collect(),
         }
     }
 
@@ -183,12 +183,12 @@ impl PutCatalogue {
 }
 
 /// The catalogues of `vendors`, as in the source tree the binary was built from.
-pub fn load_catalogues(vendors: &[&str]) -> Result<BTreeMap<String, Catalogue>, String> {
+fn load_catalogues(vendors: &[&str]) -> Result<BTreeMap<String, Catalogue>, String> {
     vendors
         .iter()
         .map(|v| {
             Catalogue::load(v)
-                .map(|c| (v.to_string(), c))
+                .map(|c| ((*v).to_string(), c))
                 .map_err(|e| e.to_string())
         })
         .collect()
@@ -210,7 +210,7 @@ pub fn vendors_with_harness(protocol: &str) -> Vec<String> {
 /// The two-way check of witnesses and entries: every entry of `catalogues` has a witness or says
 /// why not (`no_witness`), every witness names an entry of `every` (the catalogues of every vendor:
 /// a binary with the PUTs of some vendors has the witnesses of all). Returns the problems found.
-pub fn check_witnesses<PT: ProtocolTypes + 'static>(
+fn check_witnesses<PT: ProtocolTypes + 'static>(
     catalogues: &BTreeMap<String, Catalogue>,
     every: &BTreeMap<String, Catalogue>,
     witnesses: &[Witness<PT>],
@@ -302,7 +302,7 @@ pub const TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The cases of the catalogue matrix on the PUTs of `registry`: one per (witness, PUT of the
 /// entry's vendor with the capabilities). PUTs without catalogue state give no case (see
-/// [`state_problems`]).
+/// `state_problems`).
 pub fn cases<PB: ProtocolBehavior>(
     registry: &PutRegistry<PB>,
     catalogues: &BTreeMap<String, Catalogue>,
@@ -347,8 +347,7 @@ where
 
             let status = state
                 .status(witness.entry)
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "unknown".into());
+                .map_or_else(|| "unknown".into(), |s| s.to_string());
             // where the witness is known not to reach the bug, nothing is decided from its outcome
             let role = if entry.witness_reaches(&state.version) {
                 role(state, catalogue, witness.entry)
@@ -359,7 +358,7 @@ where
                 entry: witness.entry.into(),
                 witness: witness.name.into(),
                 module: witness.module.into(),
-                put: name.to_string(),
+                put: (*name).to_string(),
                 role,
                 status,
             };
@@ -413,7 +412,7 @@ pub fn role(state: &LibraryState, catalogue: &Catalogue, id: &str) -> Role {
 
 /// Problems with the catalogue state of the PUTs of a binary (missing state, state of another
 /// catalogue revision).
-pub fn state_problems<PB: ProtocolBehavior>(
+fn state_problems<PB: ProtocolBehavior>(
     registry: &PutRegistry<PB>,
     catalogues: &BTreeMap<String, Catalogue>,
 ) -> Vec<String> {
@@ -467,7 +466,7 @@ pub fn state_problems<PB: ProtocolBehavior>(
 
 /// Run one case: the witness `runs` times on its PUT (with the entry's PUT options), then judge the
 /// outcomes.
-pub fn run_case<PB: ProtocolBehavior>(
+fn run_case<PB: ProtocolBehavior>(
     registry: &PutRegistry<PB>,
     catalogues: &BTreeMap<String, Catalogue>,
     witness: &Witness<PB::ProtocolTypes>,
@@ -564,7 +563,7 @@ fn result(
     }
 }
 
-/// The active entries (other than `id`), reachable in the executions (see [`run_case`]), whose
+/// The active entries (other than `id`), reachable in the executions (see `run_case`), whose
 /// oracle the signature matches.
 fn explained_by(
     catalogue: &Catalogue,
@@ -589,7 +588,7 @@ fn explained_by(
 }
 
 /// Judge the outcomes of a witness on a PUT.
-pub fn judge(
+fn judge(
     case: &Case,
     entry: &Entry,
     catalogue: &Catalogue,
@@ -615,7 +614,7 @@ pub fn judge(
         .find(|o| o.signature().is_some_and(|s| matches(oracle, &s, asan)));
     let objective = outcomes.iter().find(|o| o.is_objective());
     let overlaps: Vec<String> = objective
-        .and_then(|o| o.signature())
+        .and_then(super::outcome::Outcome::signature)
         .map(|s| explained_by(catalogue, state, reachable, id, &s, asan))
         .unwrap_or_default();
     // every objective of the executions, with the other active entries that explain it: the first
@@ -649,8 +648,8 @@ pub fn judge(
     let no_evidence = !outcomes.iter().any(Outcome::ran);
     let declared = |others: &[String]| others.iter().all(|o| entry.also_triggers.contains(o));
     let describe = |o: Option<&Outcome>| {
-        o.map(|o| o.to_string())
-            .or_else(|| outcomes.last().map(|o| o.to_string()))
+        o.map(std::string::ToString::to_string)
+            .or_else(|| outcomes.last().map(std::string::ToString::to_string))
             .unwrap_or_else(|| "no execution".into())
     };
 
@@ -796,7 +795,7 @@ pub fn judge(
                 "pass",
                 format!(
                     "{id} is active here, but its witness only reaches it on {} ({})",
-                    entry.witness_versions.as_ref().map(|r| r.as_str()).unwrap_or("-"),
+                    entry.witness_versions.as_ref().map_or("-", puffin_build::catalogue::VersionRange::as_str),
                     describe(None)
                 ),
                 outcomes.clone(),
@@ -866,7 +865,9 @@ impl Report {
                 ("fail", _) => "FAIL",
                 ("warning", _) if !r.overlaps.is_empty() => "OVERLAP",
                 ("warning", _) => "warn",
-                (_, _) if r.outcomes.iter().any(|o| o.is_objective()) => "triggers",
+                (_, _) if r.outcomes.iter().any(super::outcome::Outcome::is_objective) => {
+                    "triggers"
+                }
                 _ => "-",
             };
             rows.entry((
@@ -931,19 +932,18 @@ where
         .problems
         .extend(state_problems(registry, &catalogues));
     for (case, runnable) in cases(registry, &catalogues, &witnesses) {
-        match runnable {
-            Err(reason) => report.skipped.push((case, reason)),
-            Ok(()) => {
-                let witness = witnesses
-                    .iter()
-                    .find(|w| {
-                        w.entry == case.entry && w.module == case.module && w.name == case.witness
-                    })
-                    .expect("case of an unknown witness");
-                report
-                    .results
-                    .push(run_case(registry, &catalogues, witness, &case, RUNS));
-            }
+        if let Err(reason) = runnable {
+            report.skipped.push((case, reason))
+        } else {
+            let witness = witnesses
+                .iter()
+                .find(|w| {
+                    w.entry == case.entry && w.module == case.module && w.name == case.witness
+                })
+                .expect("case of an unknown witness");
+            report
+                .results
+                .push(run_case(registry, &catalogues, witness, &case, RUNS));
         }
     }
     Ok(report)
@@ -993,7 +993,11 @@ where
             entry: w.entry.into(),
             name: w.name.into(),
             module: w.module.into(),
-            extra_capabilities: w.extra_capabilities.iter().map(|s| s.to_string()).collect(),
+            extra_capabilities: w
+                .extra_capabilities
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
         })
         .collect();
     (puts, witnesses)
@@ -1246,7 +1250,7 @@ no_witness = "none yet"
             role: Role::Negative,
             status: "fixed".into(),
         };
-        let reachable: BTreeSet<String> = reachable.iter().map(|s| s.to_string()).collect();
+        let reachable: BTreeSet<String> = reachable.iter().map(|s| (*s).to_string()).collect();
         judge(
             &case,
             catalogue.entry("BUG-A").unwrap(),
@@ -1312,7 +1316,7 @@ no_witness = "none yet"
             role: Role::Negative,
             status: "fixed".into(),
         };
-        let reachable: BTreeSet<String> = all.iter().map(|s| s.to_string()).collect();
+        let reachable: BTreeSet<String> = all.iter().map(|s| (*s).to_string()).collect();
         let result = judge(
             &case,
             &entry,

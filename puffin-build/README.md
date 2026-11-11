@@ -8,8 +8,8 @@ vulnerability catalogue; see the [developer documentation](../docs/docs/develope
 Each vendor directory `vendors/<vendor>/` has a `vulnerabilities.toml`: the known vulnerabilities of the library, the
 only source of what builds, tests and the bench know about them. For every entry it gives the affected versions, the
 patch removing the bug at each version, and how the bug shows when triggered (its *oracle*). A build of a library knows
-from it which bugs it has; every entry has a *witness* trace, and the catalogue test checks each witness on real
-executions with and without the patch.
+from it which bugs it has; an entry has a *witness* trace (or says why not: `no_witness`), and the catalogue test checks
+each witness on real executions with and without the patch.
 
 ### Entries
 
@@ -90,7 +90,10 @@ patch for a preset's version that is not affected, two patches of an entry for o
 does not match its vector, `requires` naming no option of builder.cmake, unknown capabilities, incomplete oracles, an
 entry without patch, CVSS or (for a witnessed entry) oracle that does not say why, a `reference` or `check` build
 without the bug, builds of presets.toml fixing an unknown entry, one that does not affect them or one without a patch
-at their version, names of presets.toml that would read as other names (`-only-`, `-fix-`, `,`, a bug's ID or alias).
+at their version, names of presets.toml that would read as other names (`-only-`, `-fix-`, `,`, a bug's ID or alias),
+aliases of presets.toml breaking the rules of the names (both `m` and `no-m`, `gcov` with `sancov`, an empty or repeated
+bug), versions with numbers that do not start with one (`v5.4.0`), and the bugs of past tlspuffin commits
+(`affected_commits`) that are not bugs of the harness, give library versions too, or have a witness.
 
 ### Builds
 
@@ -182,9 +185,10 @@ needs besides its entry's.
 - every PUT carries the catalogue state of the source tree (otherwise rebuild it);
 - each witness on each PUT of its vendor with the entry's capabilities, judged from the PUT's state. Where the entry is
   the only active bug with a patch (an `-only-<ID>` build), the witness must give an objective matching the oracle.
-  Where it and every other bug with a patch are patched (`-fix-all`), it must not, and any objective must come from a
-  bug still active. Elsewhere results are only warned about. An objective matching another active entry's oracle is an
-  overlap, a warning unless declared in `also_triggers`.
+  Where it and every other bug with a patch are patched (`-fix-all`), it must not: an objective with the entry's own
+  signature fails (a broken patch, unless the bugs still active that share it are declared in `also_triggers`), any
+  other objective must come from a bug still active (an overlap: a warning unless declared), and a witness none of
+  whose executions ran to its end fails (nothing shows the patch works). Elsewhere results are only warned about.
 
 The test prints the matrix of results and writes them as JSON to `$PUFFIN_CATALOGUE_REPORT`. The same check runs from a
 binary: `tlspuffin catalogue check`; `tlspuffin witness <ID> --put <put>` runs the witnesses of one entry, and

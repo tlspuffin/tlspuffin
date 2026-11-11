@@ -126,7 +126,7 @@ pub fn resolve(catalogue: &Catalogue, context: &VendorContext, name: &str) -> Re
 pub fn modifiers(context: &VendorContext) -> Vec<String> {
     INSTRUMENTATION
         .iter()
-        .map(|m| m.to_string())
+        .map(std::string::ToString::to_string)
         .chain(context.builder_options.keys().cloned())
         .collect()
 }
@@ -141,7 +141,7 @@ pub fn value(info: &PresetInfo, context: &VendorContext, option: &str) -> bool {
 }
 
 /// Whether two builds are the same: version, options and fixes.
-pub fn same_build(a: &PresetInfo, b: &PresetInfo, context: &VendorContext) -> bool {
+fn same_build(a: &PresetInfo, b: &PresetInfo, context: &VendorContext) -> bool {
     let sorted = |fix: &[String]| {
         let mut fix = fix.to_vec();
         fix.sort();
@@ -166,6 +166,35 @@ pub fn plain_value(context: &VendorContext, modifier: &str) -> bool {
             .copied()
             .unwrap_or(false),
     }
+}
+
+/// Records a modifier a name says: `m` and `no-m` both is an error, saying one twice is not. The
+/// rule of every name: the vendor names here, the aliases of presets.toml.
+pub(crate) fn say_modifier(
+    flags: &mut BTreeMap<String, bool>,
+    modifier: &str,
+    on: bool,
+) -> Result<(), String> {
+    if flags.insert(modifier.to_string(), on) == Some(!on) {
+        return Err(format!("both {modifier} and no-{modifier}"));
+    }
+    Ok(())
+}
+
+/// A gcov build measures coverage, it is not fuzzed: gcov implies no-sancov, and a name saying both
+/// gcov and sancov is an error. True when the build must be without sancov.
+pub(crate) fn gcov_without_sancov(flags: &BTreeMap<String, bool>) -> Result<bool, String> {
+    if flags.get("gcov") != Some(&true) {
+        return Ok(false);
+    }
+    if flags.get("sancov") == Some(&true) {
+        return Err(
+            "gcov and sancov: a gcov build measures coverage, it is not fuzzed (gcov implies \
+             no-sancov)"
+                .into(),
+        );
+    }
+    Ok(true)
 }
 
 fn is_modifier(context: &VendorContext, name: &str) -> bool {
@@ -407,9 +436,7 @@ fn parse_comma(
         if !is_modifier(context, modifier) {
             return Err(unknown_modifier(catalogue, context, token));
         }
-        if request.flags.insert(modifier.into(), on) == Some(!on) {
-            return Err(format!("'{name}': both {modifier} and no-{modifier}"));
-        }
+        say_modifier(&mut request.flags, modifier, on).map_err(|e| format!("'{name}': {e}"))?;
     }
     Ok(request)
 }
@@ -518,9 +545,7 @@ fn dashed_rest(
             };
             return Err(unknown_modifier(catalogue, context, &written));
         }
-        if flags.insert(modifier.to_string(), on) == Some(!on) {
-            return Err(format!("both {modifier} and no-{modifier}"));
-        }
+        say_modifier(&mut flags, modifier, on)?;
         if tail.is_empty() {
             return Ok((flags, None));
         }
@@ -642,14 +667,7 @@ fn build(
     for (modifier, on) in &request.flags {
         info.options.insert(modifier.clone(), *on);
     }
-    if request.flags.get("gcov") == Some(&true) {
-        if request.flags.get("sancov") == Some(&true) {
-            return Err(
-                "gcov and sancov: a gcov build measures coverage, it is not fuzzed \
-                        (gcov implies no-sancov)"
-                    .into(),
-            );
-        }
+    if gcov_without_sancov(&request.flags)? {
         info.options.insert("sancov".into(), false);
     }
 
@@ -934,8 +952,10 @@ mod tests {
         let options: Vec<String> = crate::catalogue::parse_builder_options(&run)
             .into_keys()
             .collect();
-        let mut instrumentation: Vec<String> =
-            INSTRUMENTATION.iter().map(|m| m.to_string()).collect();
+        let mut instrumentation: Vec<String> = INSTRUMENTATION
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         instrumentation.sort();
         assert_eq!(options, instrumentation);
     }

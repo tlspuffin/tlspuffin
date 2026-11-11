@@ -291,14 +291,14 @@ pub fn execute_outcome<PB: ProtocolBehavior>(
                         Ok(_) => (),
                         Err(e @ Error::SecurityClaim(message)) if last => {
                             // the line the bench's replays have always parsed
-                            log::info!("{}", e);
+                            log::info!("{e}");
                             return ChildResult::Violation {
                                 message: message.to_string(),
                             };
                         }
                         Err(e) => {
                             // the line the bench's replays have always parsed
-                            log::info!("{}", e);
+                            log::info!("{e}");
                             return ChildResult::Error {
                                 message: if last {
                                     e.to_string()
@@ -320,7 +320,7 @@ pub fn execute_outcome<PB: ProtocolBehavior>(
             let result = result.unwrap_or_else(|payload| ChildResult::Panic {
                 message: payload
                     .downcast_ref::<&str>()
-                    .map(|s| s.to_string())
+                    .map(|s| (*s).to_string())
                     .or_else(|| payload.downcast_ref::<String>().cloned())
                     .unwrap_or_else(|| "non-string panic payload".into()),
             });
@@ -391,7 +391,7 @@ fn outcome_of(status: RawStatus, child_result: Option<ChildResult>, stderr: &str
 }
 
 /// Parse the first AddressSanitizer report of `stderr` (see [`AsanReport`]).
-pub fn parse_asan_report(stderr: &str) -> Option<AsanReport> {
+fn parse_asan_report(stderr: &str) -> Option<AsanReport> {
     const MAX_FRAMES: usize = 8;
 
     let lines: Vec<&str> = stderr.lines().collect();
@@ -474,7 +474,7 @@ pub fn parse_asan_report(stderr: &str) -> Option<AsanReport> {
 
 /// The message of the first Rust panic in `stderr`: `thread 'x' panicked at <location>:\n<message>`
 /// (Rust >= 1.73), or `thread 'x' panicked at '<message>', <location>` (older).
-pub fn parse_panic(stderr: &str) -> Option<String> {
+fn parse_panic(stderr: &str) -> Option<String> {
     let mut lines = stderr.lines();
     while let Some(line) = lines.next() {
         let Some((_, rest)) = line.split_once("panicked at ") else {

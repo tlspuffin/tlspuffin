@@ -113,7 +113,7 @@ impl Put {
                 "cargo:rustc-cfg=fixed_{}=\"{}\"",
                 make_rust_identifier(vulnerability),
                 self.name()
-            )
+            );
         });
 
         lib.capabilities.iter().for_each(|capability| {

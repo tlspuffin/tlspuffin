@@ -69,7 +69,7 @@ pub fn vendors() -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(vendors_dir())
         .map(|entries| {
             entries
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .filter(|e| e.path().is_dir())
                 .filter_map(|e| e.file_name().to_str().map(String::from))
                 .collect()
@@ -516,7 +516,7 @@ impl Catalogue {
             patches: &'a [Patch],
         }
         let part = BuildPart {
-            affected: entry.affected.as_ref().map(|r| r.as_str()),
+            affected: entry.affected.as_ref().map(version::VersionRange::as_str),
             affected_commits: entry.affected_commits.as_deref(),
             requires: &entry.requires,
             patches: &entry.patches,
@@ -533,126 +533,21 @@ impl Catalogue {
         sha256::digest(format!("{definition}\n{patches}"))
     }
 
+    /// The problems of an entry, all of them (the loader lists every problem of every entry).
     fn check_entry(&self, id: &str, entry: &Entry, context: &VendorContext) -> Vec<String> {
         let mut problems = vec![];
+        check_identity(id, entry, &mut problems);
+        check_scope(entry, context, &mut problems);
+        self.check_evidence(id, entry, &mut problems);
+        check_patches(entry, context, &mut problems);
+        self.check_builds(id, entry, context, &mut problems);
+        problems
+    }
+
+    /// How the bug shows and is shown: its oracle, the other entries its witness triggers, the
+    /// reasons for what it lacks, the time to find it.
+    fn check_evidence(&self, id: &str, entry: &Entry, problems: &mut Vec<String>) {
         let mut problem = |p: String| problems.push(p);
-
-        if !is_valid_id(id) {
-            problem(format!(
-                "invalid id: use letters, digits, '-', '_' and '.' (not '{ID_SEPARATOR}'), and not \"all\""
-            ));
-        }
-        if let Some(alias) = &entry.alias {
-            if !is_valid_id(alias) || alias.contains(',') {
-                problem(format!(
-                    "invalid alias '{alias}': use letters, digits, '-', '_' and '.' (it names the \
-                     bug in vendor names: only-{alias})"
-                ));
-            }
-        }
-        if entry.summary.trim().is_empty() {
-            problem("empty summary".into());
-        }
-        if entry.category.is_empty()
-            || !entry
-                .category
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        {
-            problem(format!(
-                "invalid category '{}' (lowercase words separated by '-')",
-                entry.category
-            ));
-        }
-
-        let is_cve = id.starts_with("CVE-");
-        match (&entry.cvss, &entry.no_cvss) {
-            (Some(cvss), None) if is_cve => {
-                if let Err(e) = cvss.check() {
-                    problem(e);
-                }
-            }
-            (Some(_), _) if !is_cve => {
-                problem("CVSS scores come from NVD: only CVE entries have one".into())
-            }
-            (None, None) if is_cve => problem(
-                "missing cvss (NVD's v3.1 base score with its vector), or no_cvss = \"<reason>\""
-                    .into(),
-            ),
-            (Some(_), Some(_)) => problem("both cvss and no_cvss".into()),
-            (None, Some(reason)) if reason.trim().is_empty() => {
-                problem("empty no_cvss reason".into())
-            }
-            _ => (),
-        }
-
-        // a bug of the harness keyed by tlspuffin commits ("not containing <commit>") is a bug of
-        // past commits: the tree that holds the catalogue has its fix, so no build of it has the
-        // bug (`affects` is false) and nothing can show it (no witness); the bench names the
-        // objectives of older commits after it. A harness patch, for a bug of this tree's harness,
-        // is not applied by builds nor by the test yet: refused below.
-        if entry.affected.is_none() && entry.affected_commits.is_none() {
-            problem(
-                "missing affected (library versions) or affected_commits (tlspuffin commits)"
-                    .into(),
-            );
-        }
-        if let Some(commits) = &entry.affected_commits {
-            if !entry.bug_in_harness {
-                problem(
-                    "affected_commits is for bugs of the harness (bug_in_harness = true)".into(),
-                );
-            }
-            if entry.affected.is_some() {
-                problem(
-                    "both affected (library versions) and affected_commits (tlspuffin commits)"
-                        .into(),
-                );
-            }
-            let fix = commits.strip_prefix("not containing ").unwrap_or_default();
-            if !(7..=40).contains(&fix.len()) || !fix.bytes().all(|b| b.is_ascii_hexdigit()) {
-                problem(format!(
-                    "affected_commits '{commits}': \"not containing <commit>\" (the commit of the fix, 7 to \
-                     40 hexadecimal digits)"
-                ));
-            }
-            if entry.no_witness.is_none() {
-                problem(
-                    "a bug of past tlspuffin commits (affected_commits) is fixed in this tree, where no \
-                     witness can show it: no_witness = \"<reason>\""
-                        .into(),
-                );
-            }
-        }
-
-        for option in entry.requires.keys() {
-            if !context.builder_options.contains_key(option) {
-                problem(format!(
-                    "requires '{option}', which is not an option of builder.cmake (options: {})",
-                    context
-                        .builder_options
-                        .keys()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
-            }
-        }
-
-        for capability in &entry.capabilities {
-            if !context.capabilities.contains(capability) {
-                problem(format!(
-                    "unknown capability '{capability}' (known: {})",
-                    context
-                        .capabilities
-                        .iter()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
-            }
-        }
-
         match &entry.oracle {
             Some(oracle) => {
                 if let Err(e) = oracle.check() {
@@ -684,7 +579,7 @@ impl Catalogue {
             (Some(_), false) => problem("both patches and no_patch".into()),
             (None, true) => problem("no patch: add one, or no_patch = \"<reason>\"".into()),
             (Some(reason), true) if reason.trim().is_empty() => {
-                problem("empty no_patch reason".into())
+                problem("empty no_patch reason".into());
             }
             _ => (),
         }
@@ -702,97 +597,17 @@ impl Catalogue {
                 }
             }
         }
+    }
 
-        for (n, patch) in entry.patches.iter().enumerate() {
-            let n = n + 1;
-            if patch.files.is_empty() {
-                problem(format!("patch {n}: no files"));
-            }
-            match patch.target {
-                PatchTarget::Library => {
-                    if patch.commits.is_some() {
-                        problem(format!("patch {n}: commits is for harness patches"));
-                    }
-                    match (&patch.versions, &entry.affected) {
-                        (None, _) => problem(format!("patch {n}: library patch without versions")),
-                        (Some(_), None) => problem(format!(
-                            "patch {n}: library patch for an entry without affected versions"
-                        )),
-                        _ => (),
-                    }
-                }
-                PatchTarget::Harness => {
-                    problem(format!(
-                        "patch {n}: harness patches (target = \"harness\") are not supported yet"
-                    ));
-                    if !entry.bug_in_harness {
-                        problem(format!(
-                            "patch {n}: harness patches fix bugs of the harness (bug_in_harness = true)"
-                        ));
-                    }
-                    if patch.versions.is_some() {
-                        problem(format!("patch {n}: versions is for library patches"));
-                    }
-                    if patch.commits.is_none() || entry.affected_commits.is_none() {
-                        problem(format!(
-                            "patch {n}: harness patch without commits, or entry without affected_commits"
-                        ));
-                    }
-                }
-            }
-        }
-
-        // a library patch is checked (check-patches, the catalogue test) on the versions of its
-        // range that presets.toml has: a range without any can never be
-        for (n, patch) in entry.patches.iter().enumerate() {
-            let Some(range) = &patch.versions else {
-                continue;
-            };
-            let tested = context.presets.values().any(|info| {
-                info.version
-                    .parse::<Version>()
-                    .is_ok_and(|v| range.contains(&v))
-            });
-            if !tested && !context.presets.is_empty() {
-                problem(format!(
-                    "patch {}: no version of presets.toml is in its range ({}): it could never be checked \
-                     (add one of its versions to [versions])",
-                    n + 1,
-                    range.as_str()
-                ));
-            }
-        }
-
-        // ranges, checked on the versions of the vendor's presets
-        for (preset, info) in &context.presets {
-            let Ok(version) = info.version.parse::<Version>() else {
-                continue;
-            };
-            let affected = entry
-                .affected
-                .as_ref()
-                .is_some_and(|r| r.contains(&version));
-            let patches: Vec<usize> = entry
-                .patches
-                .iter()
-                .enumerate()
-                .filter(|(_, p)| p.versions.as_ref().is_some_and(|r| r.contains(&version)))
-                .map(|(n, _)| n + 1)
-                .collect();
-            if !patches.is_empty() && !affected {
-                problem(format!(
-                    "patch {} is for version {} (preset {preset}), which is not affected",
-                    patches[0], info.version
-                ));
-            }
-            if patches.len() > 1 {
-                problem(format!(
-                    "patches {} and {} are both for version {} (preset {preset})",
-                    patches[0], patches[1], info.version
-                ));
-            }
-        }
-
+    /// The builds the entry names: its reference build and its `check` builds.
+    fn check_builds(
+        &self,
+        id: &str,
+        entry: &Entry,
+        context: &VendorContext,
+        problems: &mut Vec<String>,
+    ) {
+        let mut problem = |p: String| problems.push(p);
         if let Err(e) = self.reference_preset(id, entry, context) {
             problem(e);
         }
@@ -801,13 +616,11 @@ impl Catalogue {
             match spec::named_build(self, context, build) {
                 Err(e) => problem(format!("check: {e}")),
                 Ok((_, info)) if !entry.is_active_in(&info, context) => {
-                    problem(format!("check: the bug is not in '{build}'"))
+                    problem(format!("check: the bug is not in '{build}'"));
                 }
                 _ => (),
             }
         }
-
-        problems
     }
 
     fn check_preset_fixes(&self, context: &VendorContext) -> Vec<String> {
@@ -942,7 +755,7 @@ impl Catalogue {
                 return Err(format!(
                     "cannot fix '{id}': it does not affect {} {version} with these options (affected: {}{})",
                     self.vendor,
-                    entry.affected.as_ref().map(|r| r.as_str()).unwrap_or("-"),
+                    entry.affected.as_ref().map_or("-", version::VersionRange::as_str),
                     if entry.requires.is_empty() {
                         String::new()
                     } else {
@@ -1203,7 +1016,10 @@ impl Catalogue {
                     format!(
                         "'{id}' does not affect {base} (version {}; affected: {})",
                         preset.version,
-                        entry.affected.as_ref().map(|r| r.as_str()).unwrap_or("-")
+                        entry
+                            .affected
+                            .as_ref()
+                            .map_or("-", version::VersionRange::as_str)
                     )
                 } else {
                     format!(
@@ -1231,7 +1047,7 @@ impl Catalogue {
                 "fix-all" => patchable(id),
                 _ => ids.contains(id),
             })
-            .map(|id| id.to_string())
+            .map(|id| (*id).clone())
             .collect();
 
         Ok(Derivation {
@@ -1261,7 +1077,7 @@ impl Catalogue {
     }
 
     /// The validation set of the build `info`, named `preset`.
-    pub fn validation_set_of(
+    fn validation_set_of(
         &self,
         preset: &str,
         info: &PresetInfo,
@@ -1348,13 +1164,6 @@ impl Catalogue {
 impl LibraryState {
     pub fn status(&self, id: &str) -> Option<Status> {
         self.entries.get(id).map(|e| e.state)
-    }
-
-    pub fn ids_with(&self, status: Status) -> impl Iterator<Item = &str> {
-        self.entries
-            .iter()
-            .filter(move |(_, e)| e.state == status)
-            .map(|(id, _)| id.as_str())
     }
 
     /// Whether the entry has a patch for this build's version.
@@ -1607,3 +1416,219 @@ impl std::error::Error for CatalogueError {}
 
 #[cfg(test)]
 mod tests;
+
+/// What the entry is: its id, alias, summary, category and CVSS score.
+fn check_identity(id: &str, entry: &Entry, problems: &mut Vec<String>) {
+    let mut problem = |p: String| problems.push(p);
+    if !is_valid_id(id) {
+        problem(format!(
+            "invalid id: use letters, digits, '-', '_' and '.' (not '{ID_SEPARATOR}'), and not \"all\""
+        ));
+    }
+    if let Some(alias) = &entry.alias {
+        if !is_valid_id(alias) || alias.contains(',') {
+            problem(format!(
+                "invalid alias '{alias}': use letters, digits, '-', '_' and '.' (it names the \
+                 bug in vendor names: only-{alias})"
+            ));
+        }
+    }
+    if entry.summary.trim().is_empty() {
+        problem("empty summary".into());
+    }
+    if entry.category.is_empty()
+        || !entry
+            .category
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        problem(format!(
+            "invalid category '{}' (lowercase words separated by '-')",
+            entry.category
+        ));
+    }
+
+    let is_cve = id.starts_with("CVE-");
+    match (&entry.cvss, &entry.no_cvss) {
+        (Some(cvss), None) if is_cve => {
+            if let Err(e) = cvss.check() {
+                problem(e);
+            }
+        }
+        (Some(_), _) if !is_cve => {
+            problem("CVSS scores come from NVD: only CVE entries have one".into());
+        }
+        (None, None) if is_cve => problem(
+            "missing cvss (NVD's v3.1 base score with its vector), or no_cvss = \"<reason>\""
+                .into(),
+        ),
+        (Some(_), Some(_)) => problem("both cvss and no_cvss".into()),
+        (None, Some(reason)) if reason.trim().is_empty() => {
+            problem("empty no_cvss reason".into());
+        }
+        _ => (),
+    }
+}
+
+/// Where the bug is: the library versions or the tlspuffin commits, the build options and the PUT
+/// capabilities it needs.
+fn check_scope(entry: &Entry, context: &VendorContext, problems: &mut Vec<String>) {
+    let mut problem = |p: String| problems.push(p);
+    // a bug of the harness keyed by tlspuffin commits ("not containing <commit>") is a bug of
+    // past commits: the tree that holds the catalogue has its fix, so no build of it has the
+    // bug (`affects` is false) and nothing can show it (no witness); the bench names the
+    // objectives of older commits after it. A harness patch, for a bug of this tree's harness,
+    // is not applied by builds nor by the test yet: refused below.
+    if entry.affected.is_none() && entry.affected_commits.is_none() {
+        problem(
+            "missing affected (library versions) or affected_commits (tlspuffin commits)".into(),
+        );
+    }
+    if let Some(commits) = &entry.affected_commits {
+        if !entry.bug_in_harness {
+            problem("affected_commits is for bugs of the harness (bug_in_harness = true)".into());
+        }
+        if entry.affected.is_some() {
+            problem(
+                "both affected (library versions) and affected_commits (tlspuffin commits)".into(),
+            );
+        }
+        let fix = commits.strip_prefix("not containing ").unwrap_or_default();
+        if !(7..=40).contains(&fix.len()) || !fix.bytes().all(|b| b.is_ascii_hexdigit()) {
+            problem(format!(
+                "affected_commits '{commits}': \"not containing <commit>\" (the commit of the fix, 7 to \
+                 40 hexadecimal digits)"
+            ));
+        }
+        if entry.no_witness.is_none() {
+            problem(
+                "a bug of past tlspuffin commits (affected_commits) is fixed in this tree, where no \
+                 witness can show it: no_witness = \"<reason>\""
+                    .into(),
+            );
+        }
+    }
+
+    for option in entry.requires.keys() {
+        if !context.builder_options.contains_key(option) {
+            problem(format!(
+                "requires '{option}', which is not an option of builder.cmake (options: {})",
+                context
+                    .builder_options
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
+
+    for capability in &entry.capabilities {
+        if !context.capabilities.contains(capability) {
+            problem(format!(
+                "unknown capability '{capability}' (known: {})",
+                context
+                    .capabilities
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
+}
+
+/// Its patches: library patches by version range (each range with a version of the presets, at most
+/// one patch per version, only on affected versions); harness patches are not supported yet.
+fn check_patches(entry: &Entry, context: &VendorContext, problems: &mut Vec<String>) {
+    let mut problem = |p: String| problems.push(p);
+    for (n, patch) in entry.patches.iter().enumerate() {
+        let n = n + 1;
+        if patch.files.is_empty() {
+            problem(format!("patch {n}: no files"));
+        }
+        match patch.target {
+            PatchTarget::Library => {
+                if patch.commits.is_some() {
+                    problem(format!("patch {n}: commits is for harness patches"));
+                }
+                match (&patch.versions, &entry.affected) {
+                    (None, _) => problem(format!("patch {n}: library patch without versions")),
+                    (Some(_), None) => problem(format!(
+                        "patch {n}: library patch for an entry without affected versions"
+                    )),
+                    _ => (),
+                }
+            }
+            PatchTarget::Harness => {
+                problem(format!(
+                    "patch {n}: harness patches (target = \"harness\") are not supported yet"
+                ));
+                if !entry.bug_in_harness {
+                    problem(format!(
+                        "patch {n}: harness patches fix bugs of the harness (bug_in_harness = true)"
+                    ));
+                }
+                if patch.versions.is_some() {
+                    problem(format!("patch {n}: versions is for library patches"));
+                }
+                if patch.commits.is_none() || entry.affected_commits.is_none() {
+                    problem(format!(
+                        "patch {n}: harness patch without commits, or entry without affected_commits"
+                    ));
+                }
+            }
+        }
+    }
+
+    // a library patch is checked (check-patches, the catalogue test) on the versions of its
+    // range that presets.toml has: a range without any can never be
+    for (n, patch) in entry.patches.iter().enumerate() {
+        let Some(range) = &patch.versions else {
+            continue;
+        };
+        let tested = context.presets.values().any(|info| {
+            info.version
+                .parse::<Version>()
+                .is_ok_and(|v| range.contains(&v))
+        });
+        if !tested && !context.presets.is_empty() {
+            problem(format!(
+                "patch {}: no version of presets.toml is in its range ({}): it could never be checked \
+                 (add one of its versions to [versions])",
+                n + 1,
+                range.as_str()
+            ));
+        }
+    }
+
+    // ranges, checked on the versions of the vendor's presets
+    for (preset, info) in &context.presets {
+        let Ok(version) = info.version.parse::<Version>() else {
+            continue;
+        };
+        let affected = entry
+            .affected
+            .as_ref()
+            .is_some_and(|r| r.contains(&version));
+        let patches: Vec<usize> = entry
+            .patches
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.versions.as_ref().is_some_and(|r| r.contains(&version)))
+            .map(|(n, _)| n + 1)
+            .collect();
+        if !patches.is_empty() && !affected {
+            problem(format!(
+                "patch {} is for version {} (preset {preset}), which is not affected",
+                patches[0], info.version
+            ));
+        }
+        if patches.len() > 1 {
+            problem(format!(
+                "patches {} and {} are both for version {} (preset {preset})",
+                patches[0], patches[1], info.version
+            ));
+        }
+    }
+}

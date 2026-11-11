@@ -47,7 +47,7 @@ use super::builder::Builder;
 use super::config::Config;
 use super::options::Options;
 use super::sources::Sources;
-use crate::catalogue::{self, Version, VersionRange};
+use crate::catalogue::{self, spec, Version, VersionRange};
 use crate::utils::git;
 
 /// The builds a presets.toml names.
@@ -126,7 +126,7 @@ pub fn load_from(vendor: &str, dir: &Path) -> Result<Presets, String> {
 
 /// The builder's own defaults of the boolean options: run.cmake's (the instrumentation, off) and
 /// those of the vendor's builder.cmake.
-pub fn builder_defaults(dir: &Path) -> BTreeMap<String, bool> {
+fn builder_defaults(dir: &Path) -> BTreeMap<String, bool> {
     let read = |path: PathBuf| std::fs::read_to_string(path).unwrap_or_default();
     let mut defaults = catalogue::parse_builder_options(&read(
         catalogue::build_dir().join("cmake/builder/run.cmake"),
@@ -137,7 +137,7 @@ pub fn builder_defaults(dir: &Path) -> BTreeMap<String, bool> {
     defaults
 }
 
-/// Parse a presets.toml of `vendor` (`defaults`: the builder's defaults, see [`builder_defaults`]).
+/// Parse a presets.toml of `vendor` (`defaults`: the builder's defaults, see `builder_defaults`).
 pub fn parse(
     vendor: &str,
     content: &str,
@@ -342,8 +342,7 @@ fn parse_v2(
             .ok_or_else(|| format!("alias {alias}: '{version}' is not a version of [versions]"))?;
         let mut config = configs[base].clone();
         let mut fix: Vec<String> = vec![];
-        // the rules of the names typed elsewhere (catalogue::spec): a modifier said once, gcov
-        // implies no-sancov
+        // the rules of the names typed elsewhere (catalogue::spec)
         let mut said: BTreeMap<String, bool> = BTreeMap::new();
         for token in tokens {
             if let Some(ids) = token.strip_prefix("fix-") {
@@ -366,20 +365,14 @@ fn parse_v2(
                     "alias {alias}: '{token}' (an alias is a version, modifiers of [modifiers] and fix-<ID>+<ID>)"
                 ));
             }
-            if said.insert(modifier.to_string(), on).is_some() {
-                return Err(format!("alias {alias}: {modifier} said twice"));
-            }
+            spec::say_modifier(&mut said, modifier, on)
+                .map_err(|e| format!("alias {alias}: {e}"))?;
             config.options_mut().insert(modifier, on);
         }
-        if said.get("gcov") == Some(&true) {
-            if said.get("sancov") == Some(&true) {
-                return Err(format!(
-                    "alias {alias}: gcov and sancov (a gcov build measures coverage, it is not fuzzed: gcov implies no-sancov)"
-                ));
-            }
-            if file.modifiers.contains_key("sancov") {
-                config.options_mut().insert("sancov", false);
-            }
+        let without_sancov =
+            spec::gcov_without_sancov(&said).map_err(|e| format!("alias {alias}: {e}"))?;
+        if without_sancov && file.modifiers.contains_key("sancov") {
+            config.options_mut().insert("sancov", false);
         }
         if !fix.is_empty() {
             config.options_mut().insert("fix", fix);
@@ -503,7 +496,9 @@ why = "claims"
         assert!(error(V2.replace("no-postauth", "tls13")).contains("alias lib341-sdos: 'tls13'"));
         assert!(error(V2.replace("\"3.4.1,no", "\"9.9.9,no")).contains("'9.9.9' is not a version"));
         // the rules of the names typed elsewhere (catalogue::spec)
-        assert!(error(V2.replace("no-postauth,asan", "asan,no-asan")).contains("asan said twice"));
+        assert!(
+            error(V2.replace("no-postauth,asan", "asan,no-asan")).contains("both asan and no-asan")
+        );
         assert!(
             error(V2.replace("no-postauth,asan", "gcov,sancov")).contains("gcov implies no-sancov")
         );

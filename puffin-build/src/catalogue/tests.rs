@@ -4,7 +4,7 @@ fn context() -> VendorContext {
     let preset = |version: &str, asan: bool, fix: &[&str], options: &[(&str, bool)]| PresetInfo {
         version: version.into(),
         asan,
-        fix: fix.iter().map(|s| s.to_string()).collect(),
+        fix: fix.iter().map(std::string::ToString::to_string).collect(),
         options: options
             .iter()
             .map(|(k, v)| (k.to_string(), *v))
@@ -71,9 +71,7 @@ fn parse(content: &str, dir: &Dir) -> Result<Catalogue, CatalogueError> {
 }
 
 fn problems(content: &str, dir: &Dir) -> Vec<String> {
-    parse(content, dir)
-        .map(|_| vec![])
-        .unwrap_or_else(|e| e.problems)
+    parse(content, dir).map_or_else(|e| e.problems, |_| vec![])
 }
 
 fn assert_problem(content: &str, dir: &Dir, expected: &str) {
@@ -356,9 +354,7 @@ fn patch_files_are_inside_the_vendor_directory() {
         "",
     ] {
         let content = BUF.replace("patches/fix-buf.patch", outside);
-        let problems = parse(&content, &dir)
-            .map(|_| vec![])
-            .unwrap_or_else(|e| e.problems);
+        let problems = parse(&content, &dir).map_or_else(|e| e.problems, |_| vec![]);
         assert!(
             problems
                 .iter()
@@ -808,7 +804,7 @@ fn every_vendor_with_entries_has_a_harness_whose_crate_checks_its_witnesses() {
         let catalogue = Catalogue::load(&vendor).unwrap();
         let harnessed = std::fs::read_dir(crate::puffin::project_dir())
             .unwrap()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .any(|e| e.path().join("harness").join(&vendor).is_dir());
         assert!(
             catalogue.entries.is_empty() || harnessed,

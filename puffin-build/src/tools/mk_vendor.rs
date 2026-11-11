@@ -154,8 +154,7 @@ fn make(
     let (mut config, build_name) = library::Config::resolve_named(vendor, name)?;
     if asan && config.options().booleans().get("asan") != Some(&true) && output_name.is_none() {
         let canonical = catalogue::resolve_name(vendor, name)
-            .map(|spec| spec.canonical)
-            .unwrap_or_else(|_| name.to_string());
+            .map_or_else(|_| name.to_string(), |spec| spec.canonical);
         log::warn!(
             "--asan: building {vendor}:{name} with AddressSanitizer under the name {build_name}, which \
              does not say it ({vendor}:{canonical},asan has it in its name)"
@@ -174,7 +173,7 @@ fn make(
         .library_dir(&output_name)
         .and_then(|library_dir| {
             if force {
-                library_dir.remove()?
+                library_dir.remove()?;
             }
 
             library_dir.make(&config, true)
@@ -659,7 +658,7 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
             }
             let entries: Vec<_> = std::fs::read_dir(&extracted)
                 .map_err(|e| e.to_string())?
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .collect();
             let dir = match entries.as_slice() {
                 [single] if single.path().is_dir() => single.path(),

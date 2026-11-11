@@ -58,11 +58,6 @@ elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake"
   # vulnerabilities: puffin-build reads it and passes the known ones, the fixed ones and the patches fixing them.
   # The patches apply after the builder's own patches.
   if(CATALOGUE)
-    if(KNOWN_VULNERABILITIES)
-      message(FATAL_ERROR "[${BUILDER}] builder.cmake declares vulnerabilities (${KNOWN_VULNERABILITIES}), but the "
-                          "vendor has a catalogue: declare them in vulnerabilities.toml")
-    endif()
-
     string(REPLACE "," ";" KNOWN_VULNERABILITIES "${CATALOGUE_KNOWN}")
     string(REPLACE "," ";" FIXED_VULNERABILITIES "${CATALOGUE_FIXED}")
     string(REPLACE "," ";" CATALOGUE_PATCHES "${CATALOGUE_PATCHES}")

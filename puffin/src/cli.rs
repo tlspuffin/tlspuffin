@@ -1028,7 +1028,9 @@ where
         );
         return ExitCode::FAILURE;
     };
-    let asan = put_catalogue.as_ref().is_some_and(|c| c.has_asan());
+    let asan = put_catalogue
+        .as_ref()
+        .is_some_and(super::catalogue::PutCatalogue::has_asan);
 
     let mut registry = put_registry.clone();
     let mut options = registry.default_put_options().clone();
