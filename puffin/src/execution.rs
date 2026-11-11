@@ -432,9 +432,8 @@ where
         }
     }
 
-    let executor_pid = do_fork(func)?;
-
-    let mut watchdog = WatchDog::new();
+    // the handlers first: a child that ends at once must not have its SIGCHLD delivered before
+    // anyone listens (the wait would last until the timeout, or for ever without one)
     let mut signals = signal_hook::iterator::SignalsInfo::<
         signal_hook::iterator::exfiltrator::WithOrigin,
     >::new([signal_hook::consts::SIGUSR1, signal_hook::consts::SIGCHLD])
@@ -442,6 +441,9 @@ where
         reason: format!("failed to register signal handlers: {e}"),
     })?;
 
+    let executor_pid = do_fork(func)?;
+
+    let mut watchdog = WatchDog::new();
     watchdog.start(timeout.into());
 
     let mut result = Waited::Timeout;
@@ -602,6 +604,21 @@ mod tests {
             RawStatus::Exited(0)
         );
         stale.join().unwrap();
+
+        // children that end at once, many times: each SIGCHLD is heard (the handlers are registered
+        // before the fork), no wait lasts until its timeout
+        let start = std::time::Instant::now();
+        for _ in 0..50 {
+            assert_eq!(
+                run_in_subprocess_raw(|| std::process::exit(3), Duration::from_secs(5)).unwrap(),
+                RawStatus::Exited(3)
+            );
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            start.elapsed()
+        );
 
         // the statuses of the existing runner are unchanged
         assert_eq!(

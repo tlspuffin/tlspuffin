@@ -3,6 +3,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::{env, fmt, fs, io};
 
+use crate::catalogue::LibraryState;
 use crate::error::{Error, Result};
 use crate::library::Library;
 use crate::{catalogue, library, puffin};
@@ -147,13 +148,6 @@ impl<'a> LibraryDir<'a> {
     }
 
     pub fn make(&self, config: &library::Config, cput: bool) -> Result<PathBuf> {
-        if self.contains(config) {
-            return Ok(self.path.clone());
-        }
-
-        // NOTE ensure intermediate folders exist and there is no artifact from a previous build
-        self.remove()?;
-
         // the state of the catalogue entries is computed before the build: a build fails anyway
         // when the catalogue is invalid, and the state then records exactly what the build
         // applied
@@ -165,6 +159,15 @@ impl<'a> LibraryDir<'a> {
                 options: config.options().clone(),
                 reason: io::Error::other(e),
             })?;
+
+        // the same configuration, built with what the catalogue gives it now: nothing to do (a
+        // library built before a patch or an entry it uses changed is built again)
+        if self.contains(config) && same_state(self.load_state().as_ref(), state.as_ref()) {
+            return Ok(self.path.clone());
+        }
+
+        // NOTE ensure intermediate folders exist and there is no artifact from a previous build
+        self.remove()?;
 
         config.build(self.path(), cput)?;
         let unavailable = |reason| Error::VendorDirUnavailable {
@@ -178,6 +181,12 @@ impl<'a> LibraryDir<'a> {
         std::fs::write(self.config_file(), toml::to_string(config).unwrap())
             .map_err(unavailable)?;
         Ok(self.path().to_path_buf())
+    }
+
+    /// The catalogue state the build recorded (see [`catalogue::STATE_FILE`]).
+    fn load_state(&self) -> Option<LibraryState> {
+        let content = fs::read_to_string(self.path.join(catalogue::STATE_FILE)).ok()?;
+        LibraryState::from_toml(&content).ok()
     }
 
     fn load_metadata(&self) -> Option<library::Metadata> {
@@ -206,5 +215,61 @@ impl<'a> LibraryDir<'a> {
 
     fn metadata_file(&self) -> PathBuf {
         self.path.join(".metadata")
+    }
+}
+
+/// Whether a build recorded the catalogue state it would get now: the state of each entry and what
+/// the build took from it (build hashes, patches), its derivation, vendor and version. The hash of
+/// the whole catalogue is not compared: a change to another entry does not make the build stale.
+fn same_state(recorded: Option<&LibraryState>, now: Option<&LibraryState>) -> bool {
+    match (recorded, now) {
+        (None, None) => true,
+        (Some(r), Some(n)) => {
+            r.vendor == n.vendor
+                && r.version == n.version
+                && r.derived == n.derived
+                && r.entries == n.entries
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::catalogue::{EntryState, Status};
+
+    fn state(hash: &str) -> LibraryState {
+        LibraryState {
+            vendor: "lib".into(),
+            version: "1.0.0".into(),
+            catalogue: "whole-catalogue".into(),
+            derived: None,
+            entries: BTreeMap::from([(
+                "BUG-A".to_string(),
+                EntryState {
+                    state: Status::Active,
+                    hash: hash.into(),
+                    patches: vec![],
+                },
+            )]),
+        }
+    }
+
+    #[test]
+    fn a_build_is_stale_when_what_it_took_from_the_catalogue_changed() {
+        assert!(same_state(Some(&state("h1")), Some(&state("h1"))));
+        // another entry of the catalogue changed: the whole catalogue's hash only
+        let mut other = state("h1");
+        other.catalogue = "another-catalogue".into();
+        assert!(same_state(Some(&state("h1")), Some(&other)));
+        // an entry it uses changed (its affected versions, options or patches)
+        assert!(!same_state(Some(&state("h1")), Some(&state("h2"))));
+        // built before the catalogue state was recorded
+        assert!(!same_state(None, Some(&state("h1"))));
+        // a vendor without catalogue
+        assert!(same_state(None, None));
     }
 }

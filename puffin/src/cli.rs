@@ -93,12 +93,14 @@ where
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing"))
-                .arg(arg!(--outcome <file> "Write the outcome of each execution (JSON: objective kind, signal, ASan report, claim violation) to <file>")),
+                .arg(arg!(--outcome <file> "Write the outcome of each execution (JSON: objective kind, signal, ASan report, claim violation) to <file>"))
+                .arg(arg!(--timeout <seconds> "With --outcome: the time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
             Command::new("witness")
                 .about("Runs the witness traces of a vulnerability catalogue entry on the PUT and reports their outcomes")
                 .arg(arg!(<id> "Id of the catalogue entry (e.g. CVE-2022-39173)"))
                 .arg(arg!(--runs <n> "Executions of each witness").value_parser(value_parser!(usize)))
-                .arg(arg!(--outcome <file> "Write the outcomes (JSON) to <file>")),
+                .arg(arg!(--outcome <file> "Write the outcomes (JSON) to <file>"))
+                .arg(arg!(--timeout <seconds> "The time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
             Command::new("catalogue")
                 .about("The vulnerability catalogue in this binary: the state of every known vulnerability in each PUT, and the witnesses")
                 .arg(arg!(--json "Output JSON"))
@@ -417,11 +419,12 @@ where
             log::info!("Execution without payload evaluations...");
         }
         let outcome_file: Option<&String> = matches.get_one("outcome");
+        let timeout = timeout_of(matches);
         let mut outcomes = vec![];
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
             if outcome_file.is_some() {
-                outcomes.push(execute_outcome(&runner, path, config_trace));
+                outcomes.push(execute_outcome(&runner, path, config_trace, timeout));
             } else {
                 execute(&runner, path, config_trace);
             }
@@ -459,6 +462,7 @@ where
             id,
             runs,
             matches.get_one::<String>("outcome"),
+            timeout_of(matches),
         );
     } else if let Some(matches) = matches.subcommand_matches("catalogue") {
         if let Some(check) = matches.subcommand_matches("check") {
@@ -933,10 +937,20 @@ struct TraceOutcome {
     outcome: crate::outcome::Outcome,
 }
 
+/// The timeout of `--timeout <seconds>`: the catalogue test's by default, none for 0.
+fn timeout_of(matches: &clap::ArgMatches) -> Option<std::time::Duration> {
+    match matches.get_one::<u64>("timeout") {
+        Some(0) => None,
+        Some(seconds) => Some(std::time::Duration::from_secs(*seconds)),
+        None => Some(crate::catalogue::TIMEOUT),
+    }
+}
+
 fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
     runner: &Runner<PB>,
     input: P,
     config_trace: ConfigTrace,
+    timeout: Option<std::time::Duration>,
 ) -> TraceOutcome {
     use crate::outcome::Outcome;
 
@@ -945,21 +959,17 @@ fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
         log::error!("Invalid trace file {}", input.as_ref().display());
         return TraceOutcome {
             trace: trace_name,
-            outcome: Outcome::Error {
-                message: "invalid trace file".into(),
-            },
+            outcome: Outcome::setup_error("invalid trace file"),
         };
     };
 
-    let outcome = match runner.execute_outcome(trace, config_trace, None) {
+    let outcome = match runner.execute_outcome(trace, config_trace, timeout) {
         Ok(report) => {
             // the child's stderr (ASan report, panic) where it always went
             eprint!("{}", report.stderr);
             report.outcome
         }
-        Err(e) => Outcome::Error {
-            message: e.to_string(),
-        },
+        Err(e) => Outcome::setup_error(e.to_string()),
     };
     log::info!("execution finished with outcome: {outcome}");
     TraceOutcome {
@@ -984,6 +994,7 @@ fn witness_cmd<PB: ProtocolBehavior>(
     id: &str,
     runs: usize,
     outcome_file: Option<&String>,
+    timeout: Option<std::time::Duration>,
 ) -> ExitCode
 where
     PB::ProtocolTypes: 'static,
@@ -1033,14 +1044,12 @@ where
     for witness in &witnesses {
         let executions = witness.run().executions();
         let outcomes: Vec<_> = (0..runs)
-            .map(|_| match execute_outcome(&runner, &executions, None) {
+            .map(|_| match execute_outcome(&runner, &executions, timeout) {
                 Ok(report) => {
                     eprint!("{}", report.stderr);
                     report.outcome
                 }
-                Err(e) => crate::outcome::Outcome::Error {
-                    message: e.to_string(),
-                },
+                Err(e) => crate::outcome::Outcome::setup_error(e.to_string()),
             })
             .collect();
         let matches_oracle = outcomes.iter().any(|o| {

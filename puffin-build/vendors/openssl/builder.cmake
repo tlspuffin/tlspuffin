@@ -4,7 +4,7 @@ use_languages(C)
 #  - puffin_claims.h is copied next to ssl_local.h, which includes it
 #  - puffin_claims.c is appended to ssl/ssl_lib.c (claim registration and extraction)
 #  - apply_hooks.cmake inserts the one-line hooks (anchors are checked, the build fails on mismatch)
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "1.1.1")
   set(CLAIMS_DIR "${CMAKE_CURRENT_LIST_DIR}/claims")
 
   list(APPEND PATCH_COMMANDS
@@ -15,7 +15,7 @@ if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
 endif()
 
 # deterministic clock (OpenSSL >= 3.2): ossl_time_now() returns a fake, monotonic time
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.2.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.2.0")
   patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/deterministic-time.patch")
 endif()
 
@@ -114,20 +114,20 @@ list(APPEND CONFIGURE_COMMANDS COMMAND
 
 list(APPEND BUILD_COMMANDS
   COMMAND make -C "<SOURCE_DIR>" depend
-  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.0>,-j1,-j>
+  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION_ORDER},1.1.0>,-j1,-j>
 )
 
 set(tls12 yes)
 set(tls12_session_resumption yes)
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "1.1.1")
   set(tls13 yes)
   set(tls13_session_resumption yes)
   set(psk_ke_support yes)
 endif()
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.4.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.4.0")
   set(allow_setting_tls12_ciphers yes)
 endif()
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.0.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.0.0")
   set(allow_setting_tls13_ciphers yes)
 endif()
 set(transcript_extraction yes)

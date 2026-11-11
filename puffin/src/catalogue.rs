@@ -19,7 +19,7 @@
 //! reaches Y. It is a warning, unless X declares `also_triggers = ["Y"]`.
 
 use std::any::{Any, TypeId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::time::Duration;
 
@@ -271,6 +271,8 @@ pub enum Role {
 pub struct Case {
     pub entry: String,
     pub witness: String,
+    /// Module of the witness function (two modules may have witnesses of the same name)
+    pub module: String,
     pub put: String,
     pub role: Role,
     /// Status of the entry in the PUT
@@ -311,13 +313,14 @@ where
     let mut puts: Vec<(&str, &dyn Factory<PB>)> = registry.puts().collect();
     puts.sort_by_key(|(name, _)| *name);
 
-    for witness in witnesses {
-        let Some((_, catalogue)) = catalogues
-            .iter()
-            .find(|(_, c)| c.entries.contains_key(witness.entry))
-        else {
-            continue;
-        };
+    // a witness runs on the PUTs of every vendor whose catalogue has its entry (a CVE of a protocol
+    // may be in several vendors' catalogues)
+    for (witness, catalogue) in witnesses.iter().flat_map(|w| {
+        catalogues
+            .values()
+            .filter(|c| c.entries.contains_key(w.entry))
+            .map(move |c| (w, c))
+    }) {
         let entry = &catalogue.entries[witness.entry];
 
         for (name, factory) in &puts {
@@ -346,13 +349,14 @@ where
                 .unwrap_or_else(|| "unknown".into());
             // where the witness is known not to reach the bug, nothing is decided from its outcome
             let role = if entry.witness_reaches(&state.version) {
-                role(state, witness.entry)
+                role(state, catalogue, witness.entry)
             } else {
                 Role::Other
             };
             let case = Case {
                 entry: witness.entry.into(),
                 witness: witness.name.into(),
+                module: witness.module.into(),
                 put: name.to_string(),
                 role,
                 status,
@@ -381,14 +385,25 @@ where
     cases
 }
 
-/// The role of a PUT for entry `id`, from the PUT's catalogue state.
-pub fn role(state: &LibraryState, id: &str) -> Role {
+/// The role of a PUT for entry `id`, from the PUT's catalogue state (its entries the catalogue
+/// still has): positive where the entry is active, every other active bug with a patch is patched,
+/// and the entry has a patch at this version, or none at all (an entry without patch is checked on
+/// the `-fix-all` build of its reference); negative where the entry is patched and so is every
+/// other active bug with a patch; other elsewhere (an entry with patches but none at this version
+/// included: nothing isolates it there).
+pub fn role(state: &LibraryState, catalogue: &Catalogue, id: &str) -> Role {
     let others_with_patch_fixed = state
         .entries
         .iter()
+        .filter(|(other, _)| catalogue.entries.contains_key(*other))
         .all(|(other, e)| other == id || e.state != EntryStatus::Active || !state.patchable(other));
+    let isolated = state.patchable(id)
+        || catalogue
+            .entries
+            .get(id)
+            .is_some_and(|e| e.patches.is_empty());
     match state.status(id) {
-        Some(EntryStatus::Active) if others_with_patch_fixed => Role::Positive,
+        Some(EntryStatus::Active) if others_with_patch_fixed && isolated => Role::Positive,
         Some(EntryStatus::Fixed) if others_with_patch_fixed => Role::Negative,
         _ => Role::Other,
     }
@@ -429,6 +444,18 @@ pub fn state_problems<PB: ProtocolBehavior>(
                             stale.join(", ")
                         ));
                     }
+                    let gone: Vec<&str> = state
+                        .entries
+                        .keys()
+                        .filter(|id| !catalogue.entries.contains_key(*id))
+                        .map(String::as_str)
+                        .collect();
+                    if !gone.is_empty() {
+                        problems.push(format!(
+                            "PUT {name}: built with entries the catalogue no longer has, {} (removed or renamed: rebuild it with mk_vendor)",
+                            gone.join(", ")
+                        ));
+                    }
                 }
             }
         }
@@ -448,11 +475,6 @@ pub fn run_case<PB: ProtocolBehavior>(
 where
     PB::ProtocolTypes: 'static,
 {
-    let catalogue = catalogues
-        .values()
-        .find(|c| c.entries.contains_key(witness.entry))
-        .expect("case of an unknown entry");
-    let entry = &catalogue.entries[witness.entry];
     let factory = registry
         .find_by_id(&case.put)
         .expect("case of an unknown PUT");
@@ -460,6 +482,23 @@ where
         .catalogue()
         .expect("case of a PUT outside the catalogue");
     let state = put.state.as_ref().expect("case of a PUT without state");
+    let catalogue = catalogues
+        .get(&state.vendor)
+        .expect("case of a PUT of a vendor without catalogue");
+    let entry = &catalogue.entries[witness.entry];
+    // the entries that can show up in these executions: the PUT has their capabilities and the
+    // executions run with their PUT options (the witness's entry's)
+    let reachable: BTreeSet<String> = catalogue
+        .entries
+        .iter()
+        .filter(|(_, e)| e.capabilities.iter().all(|c| factory.supports(c)))
+        .filter(|(_, e)| {
+            e.put_options
+                .iter()
+                .all(|(k, v)| entry.put_options.get(k) == Some(v))
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
 
     let options: Vec<(&str, &str)> = entry
         .put_options
@@ -492,13 +531,19 @@ where
                     break;
                 }
             }
-            Err(e) => outcomes.push(Outcome::Error {
-                message: e.to_string(),
-            }),
+            Err(e) => outcomes.push(Outcome::setup_error(e.to_string())),
         }
     }
 
-    judge(case, entry, catalogue, state, put.has_asan(), outcomes)
+    judge(
+        case,
+        entry,
+        catalogue,
+        state,
+        &reachable,
+        put.has_asan(),
+        outcomes,
+    )
 }
 
 fn result(
@@ -517,10 +562,12 @@ fn result(
     }
 }
 
-/// The active entries (other than `id`) whose oracle the signature matches.
+/// The active entries (other than `id`), reachable in the executions (see [`run_case`]), whose
+/// oracle the signature matches.
 fn explained_by(
     catalogue: &Catalogue,
     state: &LibraryState,
+    reachable: &BTreeSet<String>,
     id: &str,
     signature: &Signature,
     asan: bool,
@@ -529,6 +576,7 @@ fn explained_by(
         .entries
         .iter()
         .filter(|(other, _)| *other != id && state.status(other) == Some(EntryStatus::Active))
+        .filter(|(other, _)| reachable.contains(*other))
         .filter(|(_, e)| {
             e.oracle
                 .as_ref()
@@ -544,6 +592,7 @@ pub fn judge(
     entry: &Entry,
     catalogue: &Catalogue,
     state: &LibraryState,
+    reachable: &BTreeSet<String>,
     asan: bool,
     outcomes: Vec<Outcome>,
 ) -> CaseResult {
@@ -565,7 +614,7 @@ pub fn judge(
     let objective = outcomes.iter().find(|o| o.is_objective());
     let overlaps: Vec<String> = objective
         .and_then(|o| o.signature())
-        .map(|s| explained_by(catalogue, state, id, &s, asan))
+        .map(|s| explained_by(catalogue, state, reachable, id, &s, asan))
         .unwrap_or_default();
     // every objective of the executions, with the other active entries that explain it: the first
     // one none explains decides, whichever execution gave it
@@ -575,7 +624,7 @@ pub fn judge(
         .map(|o| {
             let by = o
                 .signature()
-                .map(|s| explained_by(catalogue, state, id, &s, asan))
+                .map(|s| explained_by(catalogue, state, reachable, id, &s, asan))
                 .unwrap_or_default();
             (o, by)
         })
@@ -593,8 +642,9 @@ pub fn judge(
         all.dedup();
         all
     };
-    // no execution ran to an outcome: a witness that only times out shows nothing
-    let only_timeouts = outcomes.iter().all(|o| matches!(o, Outcome::Timeout));
+    // no execution of the trace ran to an outcome (timeouts, failures before the trace): the
+    // witness shows nothing
+    let no_evidence = !outcomes.iter().any(Outcome::ran);
     let declared = |others: &[String]| others.iter().all(|o| entry.also_triggers.contains(o));
     let describe = |o: Option<&Outcome>| {
         o.map(|o| o.to_string())
@@ -608,7 +658,7 @@ pub fn judge(
             (Some(o), _) => {
                 let also = o
                     .signature()
-                    .map(|s| explained_by(catalogue, state, id, &s, asan))
+                    .map(|s| explained_by(catalogue, state, reachable, id, &s, asan))
                     .unwrap_or_default();
                 let message = if also.is_empty() {
                     format!("triggers {id}: {o}")
@@ -679,12 +729,12 @@ pub fn judge(
                 outcomes.clone(),
                 all_overlaps,
             ),
-            (None, None) if only_timeouts => result(
+            (None, None) if no_evidence => result(
                 case,
                 "fail",
                 format!(
-                    "{id} is patched here, but no execution of its witness ended in time ({}): nothing shows that \
-                     the patch removes the bug",
+                    "{id} is patched here, but no execution of its witness ran to its end ({}): nothing shows \
+                     that the patch removes the bug",
                     describe(None)
                 ),
                 outcomes.clone(),
@@ -743,10 +793,10 @@ pub fn judge(
                 outcomes.clone(),
                 vec![],
             ),
-            None if only_timeouts => result(
+            None if no_evidence => result(
                 case,
                 "warning",
-                format!("no execution of the witness of {id} ended in time ({})", describe(None)),
+                format!("no execution of the witness of {id} ran to its end ({})", describe(None)),
                 outcomes.clone(),
                 vec![],
             ),
@@ -865,7 +915,9 @@ where
             Ok(()) => {
                 let witness = witnesses
                     .iter()
-                    .find(|w| w.entry == case.entry && w.name == case.witness)
+                    .find(|w| {
+                        w.entry == case.entry && w.module == case.module && w.name == case.witness
+                    })
                     .expect("case of an unknown witness");
                 report
                     .results
@@ -961,6 +1013,16 @@ where
             return std::process::ExitCode::FAILURE;
         }
     };
+    // a witness names an entry of any vendor's catalogue (see `check`)
+    let every_vendor = puffin_build::catalogue::vendors();
+    let every = match load_catalogues(&every_vendor.iter().map(String::as_str).collect::<Vec<_>>())
+    {
+        Ok(c) => Arc::new(c),
+        Err(e) => {
+            eprintln!("{e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
     let witnesses = Arc::new(witnesses::<PB::ProtocolTypes>());
     let report = Arc::new(Mutex::new(Report {
         problems: vec![],
@@ -972,10 +1034,11 @@ where
 
     {
         let catalogues = catalogues.clone();
+        let every = every.clone();
         let witnesses = witnesses.clone();
         let report = report.clone();
         trials.push(Trial::test("catalogue::witnesses", move || {
-            let problems = check_witnesses(&catalogues, &catalogues, &witnesses);
+            let problems = check_witnesses(&catalogues, &every, &witnesses);
             report.lock().unwrap().problems.extend(problems.clone());
             if problems.is_empty() {
                 Ok(())
@@ -1020,7 +1083,9 @@ where
             }
             let witness = witnesses
                 .iter()
-                .find(|w| w.entry == case.entry && w.name == case.witness)
+                .find(|w| {
+                    w.entry == case.entry && w.module == case.module && w.name == case.witness
+                })
                 .expect("case of an unknown witness");
             let result = run_case(&registry(), &catalogues, witness, &case, RUNS);
             if result.verdict == "warning" {
@@ -1081,24 +1146,40 @@ category = "memory"
 affected = "< 2.0.0"
 oracle = { kind = "crash", asan = "SEGV" }
 no_patch = "none yet"
+
+[BUG-C]
+summary = "a bug with a patch for later versions only"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "double-free" }
+
+[[BUG-C.patches]]
+versions = ">= 1.5.0, < 2.0.0"
+files = ["patches/c.patch"]
 "#;
 
-    /// The catalogue above, and the state of its `-fix-all` build: BUG-A fixed, BUG-B active (no
-    /// patch).
+    fn preset(version: &str) -> PresetInfo {
+        PresetInfo {
+            version: version.into(),
+            asan: true,
+            fix: vec![],
+            options: BTreeMap::from([("asan".to_string(), true)]),
+        }
+    }
+
+    /// The catalogue above, and the state of its `-fix-all` build of 1.0.0: BUG-A fixed, BUG-B
+    /// active (no patch), BUG-C active (a patch for 1.5.0 on only).
     fn fixture() -> (tempfile::TempDir, Catalogue, LibraryState) {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join("patches")).unwrap();
-        std::fs::write(dir.path().join("patches/a.patch"), "patch a\n").unwrap();
+        for patch in ["a", "c"] {
+            std::fs::write(dir.path().join(format!("patches/{patch}.patch")), "patch\n").unwrap();
+        }
         let context = VendorContext {
-            presets: BTreeMap::from([(
-                "lib100".to_string(),
-                PresetInfo {
-                    version: "1.0.0".into(),
-                    asan: true,
-                    fix: vec![],
-                    options: BTreeMap::from([("asan".to_string(), true)]),
-                },
-            )]),
+            presets: BTreeMap::from([
+                ("lib100".to_string(), preset("1.0.0")),
+                ("lib150".to_string(), preset("1.5.0")),
+            ]),
             ..VendorContext::default()
         };
         let catalogue = Catalogue::parse("lib", dir.path(), CATALOGUE, &context).unwrap();
@@ -1121,23 +1202,32 @@ no_patch = "none yet"
         }
     }
 
-    fn negative(outcomes: Vec<Outcome>) -> CaseResult {
+    /// BUG-A's negative control on the `-fix-all` build, with the entries reachable in its
+    /// executions (all of them by default).
+    fn negative_with(reachable: &[&str], outcomes: Vec<Outcome>) -> CaseResult {
         let (_dir, catalogue, state) = fixture();
         let case = Case {
             entry: "BUG-A".into(),
             witness: "witness".into(),
+            module: "m".into(),
             put: "lib100-fix-all".into(),
             role: Role::Negative,
             status: "fixed".into(),
         };
+        let reachable: BTreeSet<String> = reachable.iter().map(|s| s.to_string()).collect();
         judge(
             &case,
             catalogue.entry("BUG-A").unwrap(),
             &catalogue,
             &state,
+            &reachable,
             true,
             outcomes,
         )
+    }
+
+    fn negative(outcomes: Vec<Outcome>) -> CaseResult {
+        negative_with(&["BUG-A", "BUG-B", "BUG-C"], outcomes)
     }
 
     #[test]
@@ -1165,19 +1255,59 @@ no_patch = "none yet"
     }
 
     #[test]
-    fn a_negative_control_that_only_times_out_fails() {
+    fn only_entries_reachable_in_the_executions_explain_an_objective() {
+        // BUG-B cannot show up in these executions (a capability or PUT option they lack): its
+        // signature is unexplained, the control fails instead of warning about an overlap
+        let result = negative_with(&["BUG-A", "BUG-C"], vec![crash("SEGV")]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(result.overlaps.is_empty());
+    }
+
+    #[test]
+    fn a_negative_control_that_never_ran_its_trace_fails() {
         let result = negative(vec![Outcome::Timeout, Outcome::Timeout, Outcome::Timeout]);
         assert_eq!(result.verdict, "fail", "{}", result.message);
         assert!(
             result
                 .message
-                .contains("no execution of its witness ended in time"),
+                .contains("no execution of its witness ran to its end"),
             "{}",
             result.message
         );
-        // one execution that ran to its end is enough
+        // a failure before the trace (an earlier execution, the fork) shows nothing either
+        let result = negative(vec![
+            Outcome::setup_error("execution 1 of 2 failed: no handshake"),
+            Outcome::Timeout,
+        ]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        // one execution that ran to its end is enough, an error of the trace itself too (the
+        // patched library refuses its input)
         let result = negative(vec![Outcome::Timeout, Outcome::None]);
         assert_eq!(result.verdict, "pass", "{}", result.message);
+        let result = negative(vec![Outcome::Error {
+            message: "error in PUT".into(),
+            setup: false,
+        }]);
+        assert_eq!(result.verdict, "pass", "{}", result.message);
+    }
+
+    #[test]
+    fn roles_isolate_an_entry_only_where_it_has_a_patch_or_none_at_all() {
+        let (_dir, catalogue, state) = fixture();
+        // on the -fix-all build of 1.0.0: BUG-A patched, BUG-B without patch (its positive
+        // control), BUG-C has a patch, but not at 1.0.0: nothing isolates it here
+        assert_eq!(role(&state, &catalogue, "BUG-A"), Role::Negative);
+        assert_eq!(role(&state, &catalogue, "BUG-B"), Role::Positive);
+        assert_eq!(role(&state, &catalogue, "BUG-C"), Role::Other);
+
+        // an entry of the state the catalogue no longer has does not count
+        let mut stale = state.clone();
+        let mut gone = stale.entries["BUG-C"].clone();
+        gone.state = EntryStatus::Active;
+        gone.patches = vec!["0".repeat(64)];
+        stale.entries.insert("BUG-GONE".into(), gone);
+        assert_eq!(role(&stale, &catalogue, "BUG-A"), Role::Negative);
+        assert_eq!(role(&stale, &catalogue, "BUG-B"), Role::Positive);
     }
 
     #[test]

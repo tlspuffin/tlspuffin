@@ -10,6 +10,15 @@ if(NOT VENDOR_VERSION)
   message(FATAL_ERROR "Missing mandatory argument 'VENDOR_VERSION'")
 endif()
 
+# The version for CMake's version comparisons (VERSION_GREATER_EQUAL, $<VERSION_LESS:...>) in a builder: a development
+# head (master: not starting with a digit) is newer than every release, as puffin-build orders versions
+# (src/catalogue/version.rs); CMake would compare it as 0, the oldest.
+if(VENDOR_VERSION MATCHES "^[0-9]")
+  set(VENDOR_VERSION_ORDER "${VENDOR_VERSION}")
+else()
+  set(VENDOR_VERSION_ORDER "999999")
+endif()
+
 include(Builder)
 
 set(VENDOR_LIBNAME "${BUILDER}")

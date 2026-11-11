@@ -42,14 +42,14 @@ wolfssl540-sdos2 = "5.4.0,no-postauth,fix-CVE-2022-39173"
 
 # Claims instrumentation: from 5.5.0 on, AddPacketInfo skips the message callback for encrypted
 # records, so the claims of encrypted handshake messages were never reported. These patches remove
-# that check (instrumentation for tlspuffin's security oracle, not a bug fix). Not on master: the
-# builder never applied them there (CMake compares "master" as the oldest version).
+# that check (instrumentation for tlspuffin's security oracle, not a bug fix). master is newer than
+# every release: it takes the 5.5.2 one.
 [[patches]]
 versions = ">= 5.5.0, < 5.5.2"
 files = ["patches/claims-AllowClaim-550.patch"]
 why = "claims instrumentation: report the claims of encrypted handshake messages (AddPacketInfo)"
 
 [[patches]]
-versions = ">= 5.5.2, < master"
+versions = ">= 5.5.2"
 files = ["patches/claims-AllowClaim-552.patch"]
 why = "claims instrumentation: report the claims of encrypted handshake messages (AddPacketInfo)"

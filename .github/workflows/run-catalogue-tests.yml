@@ -44,8 +44,11 @@ jobs:
         id: validation-set-cache
         with:
           key: catalogue_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts }}-${{ inputs.vendor }}-${{ inputs.preset }}
+          # the validation set only (mk_vendor's validation_set: <preset>-fix-all, <preset>-only-<ID>), not the builds
+          # of another preset whose name starts with this one (wolfssl540-asan, wolfssl540-asan-…)
           path: |
-            vendor/${{ inputs.preset }}-*
+            vendor/${{ inputs.preset }}-fix-all
+            vendor/${{ inputs.preset }}-only-*
 
       - name: build the validation set
         if: steps.validation-set-cache.outputs.cache-hit != 'true'

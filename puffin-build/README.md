@@ -52,9 +52,10 @@ Other fields:
 - `no_patch = "<reason>"`, `no_witness = "<reason>"`, `no_cvss = "<reason>"`: an entry without patch, witness or CVSS
   says why. Without a patch it cannot be validated by patch differential; without a witness it cannot be checked
   (and may have no oracle).
-- `bug_in_harness = true`: a bug of the fuzzing harness, not of the library. A bug of tlspuffin's own code is keyed by
-  commits: `affected_commits = "not containing <commit>"`, and its patches have `target = "harness"` and
-  `commits = ...` instead of `versions`.
+- `bug_in_harness = true`: a bug of the fuzzing harness, not of the library, keyed by the library versions it shows on
+  (`affected`). Keying it by tlspuffin commits instead (`affected_commits = "not containing <commit>"`, with patches of
+  `target = "harness"` and `commits = ...` instead of `versions`) is reserved: neither the builds nor the catalogue test
+  apply them yet, so the loader refuses both rather than accept an entry that would never be checked.
 - `replayable = false`: objectives found by fuzzing do not reproduce on their own (e.g. they need earlier state).
 - `also_triggers = ["<ID>"]`: other entries the witness is known to trigger too (no overlap warning).
 - `witness_versions = "<range>"`: the library versions on which the witnesses reach the bug, when they cannot on every

@@ -420,6 +420,9 @@ fn parse_dashed(
     context: &VendorContext,
     name: &str,
 ) -> Result<Request, String> {
+    if name.ends_with('-') {
+        return Err(format!("'{name}': a '-' with nothing after it"));
+    }
     let mut presets: Vec<&String> = context
         .presets
         .keys()
@@ -508,7 +511,12 @@ fn dashed_rest(
             }
         };
         if !is_modifier(context, modifier) {
-            return Err(unknown_modifier(catalogue, context, token));
+            let written = if token == "no" {
+                format!("no-{modifier}")
+            } else {
+                token.to_string()
+            };
+            return Err(unknown_modifier(catalogue, context, &written));
         }
         if flags.insert(modifier.to_string(), on) == Some(!on) {
             return Err(format!("both {modifier} and no-{modifier}"));
@@ -1090,6 +1098,23 @@ mod tests {
     }
 
     #[test]
+    fn the_ci_checks_builds_under_names_that_say_asan() {
+        // it builds them with ASan: a build without is checked by the name of its ASan build
+        for vendor in vendors() {
+            let (catalogue, context) = load(&vendor);
+            for name in catalogue.check_presets(&context).keys() {
+                let spec = resolve(&catalogue, &context, name).unwrap();
+                assert!(spec.info.asan, "{vendor}:{name}");
+                assert!(spec.derived.is_none(), "{vendor}:{name}");
+                assert!(
+                    !catalogue.validation_set(name, &context).is_empty(),
+                    "{vendor}:{name}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn what_cannot_be_built_is_said() {
         let (catalogue, context) = load("wolfssl");
         let error = |name: &str| resolve(&catalogue, &context, name).unwrap_err();
@@ -1102,6 +1127,8 @@ mod tests {
         assert!(error("5.4.0,only-BUF,fix-HEAP").contains("not several"));
         assert!(error("5.4.0,asan,no-asan").contains("both asan and no-asan"));
         assert!(error("540-asan-no-asan").contains("both asan and no-asan"));
+        assert!(error("540-no-asan-").contains("a '-' with nothing after it"));
+        assert!(error("540-no-bogus").contains("'no-bogus': not a modifier"));
         assert!(error("only-BUF+HEAP").contains("several bugs need a version"));
         assert!(error("5.4.0,gcov,sancov").contains("gcov implies no-sancov"));
         assert!(error("wolfssl540-buf,only-HEAP").contains("wolfssl540-buf fixes CVE-2022-42905"));

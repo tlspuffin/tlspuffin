@@ -57,7 +57,32 @@ pub enum Outcome {
     /// The execution did not end in time
     Timeout,
     /// The trace or the PUT failed before any objective (not an objective)
-    Error { message: String },
+    Error {
+        message: String,
+        /// The failure kept the last trace from running (an earlier execution failed, the child
+        /// could not be forked or exited without reporting): the outcome says nothing of the trace
+        #[serde(default, skip_serializing_if = "is_false")]
+        setup: bool,
+    },
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+impl Outcome {
+    /// An error that kept the last trace from running (see `Outcome::Error::setup`).
+    pub fn setup_error(message: impl Into<String>) -> Outcome {
+        Outcome::Error {
+            message: message.into(),
+            setup: true,
+        }
+    }
+
+    /// Whether the outcome says something of the trace: neither a timeout nor a setup error.
+    pub fn ran(&self) -> bool {
+        !matches!(self, Outcome::Timeout | Outcome::Error { setup: true, .. })
+    }
 }
 
 /// The essentials of an AddressSanitizer report.
@@ -151,7 +176,14 @@ impl fmt::Display for Outcome {
                 Ok(())
             }
             Outcome::Timeout => write!(f, "timeout"),
-            Outcome::Error { message } => write!(f, "error: {message}"),
+            Outcome::Error {
+                message,
+                setup: false,
+            } => write!(f, "error: {message}"),
+            Outcome::Error {
+                message,
+                setup: true,
+            } => write!(f, "error before the trace ran: {message}"),
         }
     }
 }
@@ -217,9 +249,18 @@ pub struct ExecutionReport {
 #[serde(tag = "result", rename_all = "lowercase")]
 enum ChildResult {
     Ok,
-    Violation { message: String },
-    Error { message: String },
-    Panic { message: String },
+    Violation {
+        message: String,
+    },
+    Error {
+        message: String,
+        /// an earlier execution failed: the last one did not run
+        #[serde(default)]
+        setup: bool,
+    },
+    Panic {
+        message: String,
+    },
 }
 
 /// Run `executions` in order in one forked child process (the earlier ones prepare the state of the
@@ -268,6 +309,7 @@ pub fn execute_outcome<PB: ProtocolBehavior>(
                                         executions.len()
                                     )
                                 },
+                                setup: !last,
                             };
                         }
                     }
@@ -332,8 +374,8 @@ fn outcome_of(status: RawStatus, child_result: Option<ChildResult>, stderr: &str
         (RawStatus::Exited(EXIT_SECURITY_VIOLATION), Some(ChildResult::Violation { message })) => {
             Outcome::Claim { violation: message }
         }
-        (RawStatus::Exited(EXIT_ERROR), Some(ChildResult::Error { message })) => {
-            Outcome::Error { message }
+        (RawStatus::Exited(EXIT_ERROR), Some(ChildResult::Error { message, setup })) => {
+            Outcome::Error { message, setup }
         }
         // AddressSanitizer without abort_on_error exits with its own code (1 by default)
         (RawStatus::Exited(code), _) if asan.is_some() || panic.is_some() => Outcome::Crash {
@@ -342,9 +384,9 @@ fn outcome_of(status: RawStatus, child_result: Option<ChildResult>, stderr: &str
             asan,
             panic,
         },
-        (RawStatus::Exited(code), _) => Outcome::Error {
-            message: format!("the execution exited with code {code} without reporting its result"),
-        },
+        (RawStatus::Exited(code), _) => Outcome::setup_error(format!(
+            "the execution exited with code {code} without reporting its result"
+        )),
     }
 }
 
@@ -610,7 +652,8 @@ SUMMARY: AddressSanitizer: heap-buffer-overflow (/nix/store/x/libclang_rt.asan-x
         assert_eq!(Outcome::Timeout.signature(), None);
         assert_eq!(
             Outcome::Error {
-                message: "error in PUT".into()
+                message: "error in PUT".into(),
+                setup: false
             }
             .signature(),
             None
@@ -680,10 +723,13 @@ SUMMARY: AddressSanitizer: heap-buffer-overflow (/nix/store/x/libclang_rt.asan-x
                 ..
             }
         ));
+        // exited without reporting: the trace may not have run
         assert!(matches!(
             outcome_of(RawStatus::Exited(1), None, ""),
-            Outcome::Error { .. }
+            Outcome::Error { setup: true, .. }
         ));
+        assert!(!outcome_of(RawStatus::Exited(1), None, "").ran());
+        assert!(Outcome::None.ran() && !Outcome::Timeout.ran());
         assert_eq!(outcome_of(RawStatus::Timeout, None, ""), Outcome::Timeout);
     }
 }

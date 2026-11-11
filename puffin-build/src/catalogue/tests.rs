@@ -401,6 +401,85 @@ fn preset_fixes_are_known_and_patchable() {
 }
 
 #[test]
+fn what_the_builds_and_the_test_cannot_apply_yet_is_refused() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    // a bug of the harness keyed by tlspuffin commits, with a harness patch
+    let harness = BUF
+        .replace(
+            "affected = \"< 5.5.1\"",
+            "bug_in_harness = true\naffected_commits = \"not containing 0123abc\"",
+        )
+        .replace(
+            "versions = \">= 5.0.0, < 5.5.1\"",
+            "target = \"harness\"\ncommits = \"not containing 0123abc\"",
+        );
+    assert_problem(
+        &harness,
+        &dir,
+        "affected_commits (bugs of the harness keyed by tlspuffin commits) is not supported yet",
+    );
+    assert_problem(
+        &harness,
+        &dir,
+        "harness patches (target = \"harness\") are not supported yet",
+    );
+    // a bug of the harness keyed by library versions is fine
+    let by_versions = BUF.replace(
+        "affected = \"< 5.5.1\"",
+        "affected = \"< 5.5.1\"\nbug_in_harness = true",
+    );
+    assert!(
+        parse(&by_versions, &dir)
+            .unwrap()
+            .entry("CVE-2022-39173")
+            .unwrap()
+            .bug_in_harness
+    );
+}
+
+#[test]
+fn a_patch_range_needs_a_version_of_the_presets() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    // the presets have 5.1.0, 5.4.0 and 5.5.2: 5.0.x has none
+    assert_problem(
+        &BUF.replace(">= 5.0.0, < 5.5.1", ">= 5.0.0, < 5.1.0"),
+        &dir,
+        "patch 1: no version of presets.toml is in its range (>= 5.0.0, < 5.1.0)",
+    );
+}
+
+#[test]
+fn ids_and_aliases_cannot_read_as_modifiers_or_catalogue_parts() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    for alias in [
+        "asan",
+        "ASan",
+        "no-postauth",
+        "postauth",
+        "only-BUF",
+        "fix-all",
+        "fix-BUF",
+    ] {
+        assert_problem(
+            &BUF.replace("alias = \"BUF\"", &format!("alias = \"{alias}\"")),
+            &dir,
+            &format!("'{alias}' would read as a modifier or a catalogue part"),
+        );
+    }
+}
+
+#[test]
+fn a_catalogue_without_entries_still_checks_the_fix_lists() {
+    let dir = vendor_dir(&[]);
+    // lib540-buf fixes CVE-2022-39173, which an empty catalogue does not have
+    assert_problem(
+        "",
+        &dir,
+        "preset 'lib540-buf': fix 'CVE-2022-39173' is not an entry of the catalogue",
+    );
+}
+
+#[test]
 fn ids_cannot_hold_the_separator_of_derived_names() {
     let dir = vendor_dir(&["fix-buf.patch"]);
     let content = BUF

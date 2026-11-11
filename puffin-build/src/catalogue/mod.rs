@@ -407,6 +407,26 @@ impl Catalogue {
             );
         }
         problems.extend(catalogue.check_preset_fixes(context));
+        // a bug's ID or alias reads in a name as the bug, not as a modifier or a catalogue part
+        let modifiers = spec::modifiers(context);
+        for (id, entry) in &catalogue.entries {
+            for name in std::iter::once(id.as_str()).chain(entry.alias.as_deref()) {
+                let lower = name.to_ascii_lowercase();
+                let modifier = modifiers
+                    .iter()
+                    .any(|m| lower == *m || lower == format!("no-{m}"));
+                if modifier
+                    || lower == "fix-all"
+                    || lower.starts_with("only-")
+                    || lower.starts_with("fix-")
+                {
+                    problems.push(format!(
+                        "{id}: '{name}' would read as a modifier or a catalogue part of a name (asan, \
+                         no-<modifier>, only-…, fix-…)"
+                    ));
+                }
+            }
+        }
         // a bug is named by its ID or its alias, in any case
         let mut names: BTreeMap<String, &str> = BTreeMap::new();
         for (id, entry) in &catalogue.entries {
@@ -566,6 +586,16 @@ impl Catalogue {
             _ => (),
         }
 
+        // bugs of the harness keyed by tlspuffin commits, and their harness patches, are not
+        // applied by builds nor by the test yet: refused rather than silently without
+        // effect
+        if entry.affected_commits.is_some() {
+            problem(
+                "affected_commits (bugs of the harness keyed by tlspuffin commits) is not supported yet: \
+                 give the library versions with the bug (affected)"
+                    .into(),
+            );
+        }
         if entry.affected.is_none() && entry.affected_commits.is_none() {
             problem(
                 "missing affected (library versions) or affected_commits (tlspuffin commits)"
@@ -673,6 +703,9 @@ impl Catalogue {
                     }
                 }
                 PatchTarget::Harness => {
+                    problem(format!(
+                        "patch {n}: harness patches (target = \"harness\") are not supported yet"
+                    ));
                     if !entry.bug_in_harness {
                         problem(format!(
                             "patch {n}: harness patches fix bugs of the harness (bug_in_harness = true)"
@@ -687,6 +720,27 @@ impl Catalogue {
                         ));
                     }
                 }
+            }
+        }
+
+        // a library patch is checked (check-patches, the catalogue test) on the versions of its
+        // range that presets.toml has: a range without any can never be
+        for (n, patch) in entry.patches.iter().enumerate() {
+            let Some(range) = &patch.versions else {
+                continue;
+            };
+            let tested = context.presets.values().any(|info| {
+                info.version
+                    .parse::<Version>()
+                    .is_ok_and(|v| range.contains(&v))
+            });
+            if !tested && !context.presets.is_empty() {
+                problem(format!(
+                    "patch {}: no version of presets.toml is in its range ({}): it could never be checked \
+                     (add one of its versions to [versions])",
+                    n + 1,
+                    range.as_str()
+                ));
             }
         }
 
@@ -752,10 +806,9 @@ impl Catalogue {
             }
             for id in &info.fix {
                 match self.entries.get(id) {
-                    None if !self.entries.is_empty() => problems.push(format!(
+                    None => problems.push(format!(
                         "preset '{preset}': fix '{id}' is not an entry of the catalogue"
                     )),
-                    None => (),
                     Some(entry) => {
                         if !entry.is_active_in(info, context) {
                             problems.push(format!(
@@ -1245,20 +1298,15 @@ impl Catalogue {
                 chosen.extend(newest);
             }
             for preset in chosen {
-                // the CI builds them with ASan: a version's own build, by the name of its ASan
-                // build
+                // the CI builds them with ASan: a build without, by the name of its ASan build
+                // (`<name>-asan`: that build, with ASan), so that the library's name says it
                 let preset = match context.presets.get(&preset) {
-                    Some(info)
-                        if !info.asan
-                            && info.fix.is_empty()
-                            && spec::modifiers(context)
-                                .iter()
-                                .filter(|m| *m != "asan")
-                                .all(|m| {
-                                    spec::value(info, context, m) == spec::plain_value(context, m)
-                                }) =>
-                    {
-                        format!("{preset}-asan")
+                    Some(info) if !info.asan => {
+                        let with_asan = format!("{preset}-asan");
+                        match spec::resolve(self, context, &with_asan) {
+                            Ok(spec) if spec.derived.is_none() && spec.info.asan => with_asan,
+                            _ => preset,
+                        }
                     }
                     _ => preset,
                 };
