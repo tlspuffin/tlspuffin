@@ -1,0 +1,146 @@
+# puffin-build
+
+Build helpers of puffin: vendor libraries (`mk_vendor`), C harnesses and PUT bundles. This page documents the
+vulnerability catalogue; see the [developer documentation](../docs/docs/developer/build.md) for the build process.
+
+## Vulnerability catalogue
+
+Each vendor directory `vendors/<vendor>/` has a `vulnerabilities.toml`: the known vulnerabilities of the library, the
+only source of what builds, tests and the bench know about them. For every entry it gives the affected versions, the
+patch removing the bug at each version, and how the bug shows when triggered (its *oracle*). A build of a library knows
+from it which bugs it has; every entry has a *witness* trace, and the catalogue test checks each witness on real
+executions with and without the patch.
+
+### Entries
+
+The key of an entry is its id: the CVE id, or a local id for bugs without one. Ids use letters, digits, `-`, `_` and
+`.` (not `+`, the separator of derived names, and not `all`).
+
+```toml
+[CVE-2022-39173]
+alias = "BUF"                        # short name (papers, bench)
+summary = "stack-buffer-overflow in RefineSuites: ..."
+category = "memory"                  # open list: memory, auth-bypass, dos, info-leak, downgrade, ...
+cwe = "CWE-787"
+cvss = { version = "3.1", score = 7.5, vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H", source = "nvd" }
+affected = "< 5.5.1"                 # library versions with the bug (the presets' `version`)
+requires = { postauth = false }      # build options the bug needs (`option()`s of builder.cmake), default: none
+capabilities = ["tls13", "tls13_session_resumption"]   # PUT capabilities its witnesses need
+put_options = { use_clear = "true" } # PUT options its witnesses run with, default: none
+oracle = { kind = "crash", asan = "stack-buffer-overflow" }
+top_frames = ["RefineSuites"]        # shown to people, never used to decide
+reference = "wolfssl540-asan"        # preset of `<vendor>:<ID>` (default below)
+check = []                           # more presets for the CI to check the entry on
+references = ["https://nvd.nist.gov/vuln/detail/CVE-2022-39173"]
+
+[CVE-2022-39173.find]                # how puffin finds it (informational)
+by_puffin = true                     # first found by puffin
+since = "<tlspuffin commit>"         # first commit known to find it
+features = []                        # cargo features needed
+flags = []                           # fuzzer flags needed, e.g. ["--put-use-clear"]
+asan = false                         # only detected with ASan
+time = { mean_s = 0.0, median_s = 0.0, runs = 10, found = 10, budget_s = 3600.0, cores = 1,
+         commit = "<commit>", preset = "<preset>", source = "<where the numbers come from>" }
+
+[[CVE-2022-39173.patches]]           # one table per version range needing its own patch
+versions = ">= 4.8.0, < 5.5.1"       # the releases the patch applies to (`mk_vendor check-patches`)
+files = ["patches/fix-CVE-2022-39173.patch"]   # applied in order, after the builder's own patches
+upstream = "<upstream fix>"
+```
+
+Other fields:
+- `no_patch = "<reason>"`, `no_witness = "<reason>"`, `no_cvss = "<reason>"`: an entry without patch, witness or CVSS
+  says why. Without a patch it cannot be validated by patch differential; without a witness it cannot be checked
+  (and may have no oracle).
+- `bug_in_harness = true`: a bug of the fuzzing harness, not of the library. A bug of tlspuffin's own code is keyed by
+  commits: `affected_commits = "not containing <commit>"`, and its patches have `target = "harness"` and
+  `commits = ...` instead of `versions`.
+- `replayable = false`: objectives found by fuzzing do not reproduce on their own (e.g. they need earlier state).
+- `also_triggers = ["<ID>"]`: other entries the witness is known to trigger too (no overlap warning).
+
+**Oracle.** `kind = "crash"` with any of `signal` (e.g. "SIGSEGV"), `asan` (the ASan report type, e.g.
+"heap-buffer-overflow", "SEGV", "bad-free"), `panic` (a panic message); or `kind = "claim"` with `violation` (the
+message of the security oracle, e.g. "Authentication bypass"). An objective matches when every field the oracle gives
+is the objective's; the ASan type is only checked on PUTs built with ASan. Stack frames are never part of it: variants
+of one bug reach it through other paths.
+
+**Versions.** Dotted numbers with an optional suffix: letters after the plain version (OpenSSL: `1.0.1` < `1.0.1a` <
+... < `1.0.1g`, `0.9.8z` < `0.9.8za`), `-<pre>` before it. A version that does not start with a digit (`master`) is
+newer than every release. Ranges: comparisons (`<`, `<=`, `>`, `>=`, `=`) joined by `,` (and) and `||` (or):
+`">= 1.0.0, < 1.0.0p || >= 1.0.1, < 1.0.1k"`.
+
+**CVSS.** One source, one rule: NVD's CVSS v3.1 base score, NIST's primary assessment, or the CNA's v3.1 assessment
+shown on NVD when NIST gives none (`source = "cna:<name>"`). Never a v2 or v4.0 score. The vector is stored with the
+score and the loader recomputes the score from it.
+
+**Default reference preset.** The newest version with the bug; among its presets, an ASan one first, then the one with
+the fewest fixes, then the shortest name.
+
+### What the loader refuses
+
+Every build and test loads the catalogue and refuses: unknown fields, invalid ids or ranges, missing patch files, a
+patch for a preset's version that is not affected, two patches of an entry for one preset's version, a CVSS score that
+does not match its vector, `requires` naming no option of builder.cmake, unknown capabilities, incomplete oracles, an
+entry without patch, CVSS or (for a witnessed entry) oracle that does not say why, a `reference` or `check` preset
+without the bug, presets fixing an unknown entry, one that does not affect them or one without a patch at their
+version, preset names that would read as derived names.
+
+### Builds
+
+A build of `<vendor>:<preset>` has the entries affecting its version with its options, minus the ones of its `fix`
+list, whose patches it applies. It records in `.catalogue` (library directory) the state of every entry (active,
+fixed, unaffected) with the hashes of the catalogue, of each entry and of its patches; the PUT bundle embeds these
+states, and PUTs get the cfgs `<ID> = "<put>"` (active) and `fixed_<ID> = "<put>"`.
+
+`mk_vendor make` also builds names derived from the catalogue (the derived name is the library directory and the PUT
+name):
+
+| name | builds |
+|---|---|
+| `wolfssl:CVE-2022-39173` | the bug's reference preset, every other active bug with a patch patched, ASan |
+| `wolfssl:wolfssl540-asan-only-CVE-2022-39173` | the preset, every other active bug with a patch patched |
+| `wolfssl:wolfssl540-asan-fix-CVE-2022-39173+CVE-2022-42905` | the preset with these patched too |
+| `wolfssl:wolfssl540-asan-fix-all` | the preset with every active bug that has a patch patched |
+
+`mk_vendor list <vendor>:<name> [--json]` shows the state of every entry in a build and the *validation set* of a preset
+(its `-fix-all` build and one `-only-<ID>` build per active bug with a patch). `mk_vendor list --check [--json]` gives
+the presets the CI checks the catalogue on. `mk_vendor check-patches [<vendor>]` dry-runs every patch on the sources of
+every preset of its range, alone and with the preset's other patches.
+
+### Witnesses and the catalogue test
+
+A witness is a trace that triggers one entry, written in the DSL of the protocol crate and registered with an
+attribute:
+
+```rust
+#[puffin::witness("CVE-2022-39173")]
+pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolTypes> { ... }
+```
+
+A witness can also be a function returning a `puffin::catalogue::WitnessRun`, whose prelude executions prepare the PUT
+state in the same process (see `witness_cve_2022_38153`); `extra = [<capability>, ...]` names capabilities the trace
+needs besides its entry's.
+
+`cargo test -p tlspuffin --features cputs --test catalogue` runs the catalogue test on the PUTs of the vendor directory:
+- with no PUT at all: every entry has a witness or a `no_witness` reason, every witness names an entry;
+- every PUT carries the catalogue state of the source tree (otherwise rebuild it);
+- each witness on each PUT of its vendor with the entry's capabilities, judged from the PUT's state. Where the entry is
+  the only active bug with a patch (an `-only-<ID>` build), the witness must give an objective matching the oracle.
+  Where it and every other bug with a patch are patched (`-fix-all`), it must not, and any objective must come from a
+  bug still active. Elsewhere results are only warned about. An objective matching another active entry's oracle is an
+  overlap, a warning unless declared in `also_triggers`.
+
+The test prints the matrix of results and writes them as JSON to `$PUFFIN_CATALOGUE_REPORT`. The same check runs from a
+binary: `tlspuffin catalogue check`; `tlspuffin witness <ID> --put <put>` runs the witnesses of one entry, and
+`tlspuffin execute --outcome <file> <trace>` writes the outcome of executions as JSON.
+
+### Adding a known bug
+
+1. The entry in `vendors/<vendor>/vulnerabilities.toml`, with CVSS from NVD.
+2. The patch, in `vendors/<vendor>/patches/`, one per range of releases it applies to; `mk_vendor check-patches
+   <vendor>` checks the ranges.
+3. The witness, annotated with `#[puffin::witness("<ID>")]`.
+4. Locally: `mk_vendor list --check` gives the preset to check it on; build its validation set
+   (`mk_vendor make --asan <vendor>:<build>` for each build) and run the catalogue test.
+
+CI then checks it on its own: the catalogue jobs come from the catalogue.
