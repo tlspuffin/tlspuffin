@@ -90,8 +90,14 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             default_put,
         };
 
-        // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(result.default_put_name());
+        // the registries are built by the binaries from the PUTs they include: a default PUT
+        // outside the registry is an error of the binary, reported here rather than at its
+        // first use
+        assert!(
+            result.find_by_id(result.default_put_name()).is_some(),
+            "default PUT {} is not in the registry",
+            result.default_put_name()
+        );
 
         result
     }
@@ -162,5 +168,18 @@ pub trait Factory<PB: ProtocolBehavior> {
 
     fn rng_reseed(&self) {
         log::warn!("[RNG] reseed failed ({}): not supported", self.name());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::algebra::test_signature::TestProtocolBehavior;
+
+    #[test]
+    #[should_panic(expected = "default PUT missing is not in the registry")]
+    fn a_default_put_outside_the_registry_is_refused_at_once() {
+        let puts: Vec<(String, Box<dyn Factory<TestProtocolBehavior>>)> = vec![];
+        let _ = PutRegistry::new(puts, PutDescriptor::new("missing", PutOptions::default()));
     }
 }
