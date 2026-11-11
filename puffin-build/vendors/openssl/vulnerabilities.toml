@@ -1,0 +1,59 @@
+# Known vulnerabilities of OpenSSL: the only source of what builds, tests and the bench know about them.
+#
+# Format: puffin-build/README.md, section "Vulnerability catalogue". Each entry needs a witness trace in tlspuffin
+# (`#[puffin::witness("<ID>")]`, tlspuffin/src/tls/vulnerabilities.rs) or a `no_witness` reason.
+#
+# CVSS: NVD's CVSS v3.1 base score, NIST's primary assessment (nvd.nist.gov, read on 2026-11-09).
+# Versions: OpenSSL letter releases follow their base version (1.0.1 < 1.0.1a < ... < 1.0.1f < 1.0.1g).
+
+[CVE-2014-0160]
+alias = "Heartbleed"
+summary = "heartbeat request with a payload length larger than its payload: buffer over-read of up to 64 KB"
+category = "info-leak"
+cwe = "CWE-125"
+cvss = { version = "3.1", score = 7.5, vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", source = "nvd" }
+affected = ">= 1.0.1, < 1.0.1g"
+capabilities = ["tls12"]
+# not checked on an execution (no witness): the usual AddressSanitizer report of Heartbleed
+oracle = { kind = "crash", asan = "heap-buffer-overflow" }
+no_witness = "seed_heartbleed was removed with the size-cheating function symbols (a18d6c294): a heartbeat with a forged length is now only reachable through bit-level payloads"
+no_patch = "no patch written yet (upstream fix: 96db9023b881d7cd9f379b0c154650d6c108e9a3)"
+references = ["https://nvd.nist.gov/vuln/detail/CVE-2014-0160", "https://heartbleed.com/"]
+
+[CVE-2014-0160.find]
+by_puffin = false
+
+[CVE-2015-0204]
+alias = "FREAK"
+summary = "client accepts an ephemeral export-grade RSA key from a server that offered a non-export cipher suite (RSA to EXPORT_RSA downgrade)"
+category = "downgrade"
+cwe = "CWE-310"
+no_cvss = "NVD gives only a CVSS v2 score"
+affected = "< 0.9.8zd || >= 1.0.0, < 1.0.0p || >= 1.0.1, < 1.0.1k"
+capabilities = ["tls12"]
+no_witness = "seed_freak exists, but no oracle observes the downgrade: its test has been ignored since 482ebfe1e (\"We cannot check for this vulnerability right now\")"
+no_patch = "no patch written yet"
+references = ["https://nvd.nist.gov/vuln/detail/CVE-2015-0204"]
+
+[CVE-2015-0204.find]
+by_puffin = false
+
+[CVE-2021-3449]
+alias = "SDOS1"
+summary = "TLS 1.2 renegotiation ClientHello without signature_algorithms but with signature_algorithms_cert: NULL pointer dereference in the server"
+category = "dos"
+cwe = "CWE-476"
+cvss = { version = "3.1", score = 5.9, vector = "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H", source = "nvd" }
+affected = ">= 1.1.1, < 1.1.1k"
+capabilities = ["tls12"]
+oracle = { kind = "crash", asan = "SEGV" }
+references = ["https://nvd.nist.gov/vuln/detail/CVE-2021-3449", "https://www.openssl.org/news/secadv/20210325.txt"]
+
+[CVE-2021-3449.find]
+by_puffin = false
+
+# the upstream fix, as is: it applies to every release from 1.1.1 to 1.1.1j (git apply --check, 2026-11-10), 1.1.1k has it
+[[CVE-2021-3449.patches]]
+versions = ">= 1.1.1, < 1.1.1k"
+files = ["patches/fix-CVE-2021-3449.patch"]
+upstream = "fb9fa6b51defd48157eeb207f52181f735d96148"

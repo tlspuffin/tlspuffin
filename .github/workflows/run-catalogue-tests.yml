@@ -1,0 +1,107 @@
+name: run-catalogue-tests
+
+# The catalogue test on the validation set of one preset: its `-fix-all` build and one `-only-<ID>` build per active
+# bug with a patch (all with ASan), so that every witness is checked with and without its bug's patch.
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      vendor:
+        required: true
+        type: string
+      preset:
+        required: true
+        type: string
+      builds: # JSON array of the derived names to build (`mk_vendor list --check --json`)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  catalogue:
+    name: catalogue ${{ inputs.name }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: compute configuration hash
+        id: compute-hash
+        run: |
+          printf 'scripts=%s\n' "${{ hashFiles(format('puffin-build/vendors/{0}/**', inputs.vendor), 'puffin-build/cmake/**', 'puffin-build/src/**', 'tlspuffin-claims/claim-interface.h') }}" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/cache@v4
+        id: validation-set-cache
+        with:
+          key: catalogue_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts }}-${{ inputs.vendor }}-${{ inputs.preset }}
+          # the validation set only (mk_vendor's validation_set: <preset>-fix-all, <preset>-only-<ID>), not the builds
+          # of another preset whose name starts with this one (wolfssl540-asan, wolfssl540-asan-…)
+          path: |
+            vendor/${{ inputs.preset }}-fix-all
+            vendor/${{ inputs.preset }}-only-*
+
+      - name: build the validation set
+        if: steps.validation-set-cache.outputs.cache-hit != 'true'
+        run: |
+          for build in $(jq -r '.[]' <<< '${{ inputs.builds }}'); do
+            just mk_vendor "${{ inputs.vendor }}" "${build}" "--asan"
+          done
+
+      - name: catalogue test
+        env:
+          PUFFIN_CATALOGUE_REPORT: ${{ github.workspace }}/catalogue-report.json
+        run: just test tlspuffin x86_64-unknown-linux-gnu "cputs" "--test catalogue"
+
+      - name: annotations and summary
+        id: summary
+        if: always()
+        run: |
+          report=catalogue-report.json
+          if [[ ! -r ${report} ]]; then
+            printf 'no catalogue report\n' >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          # one annotation per failure and per warning; overlaps stand out
+          jq -r '.problems[] | "::error title=catalogue::" + .' "${report}"
+          jq -r '.results[] | select(.verdict == "fail") | "::error title=catalogue " + .entry + " on " + .put + "::" + .message' "${report}"
+          jq -r '.results[] | select(.verdict == "warning" and (.overlaps | length) > 0) | "::warning title=catalogue overlap " + .entry + " / " + (.overlaps | join(", ")) + "::" + .message' "${report}"
+          jq -r '.results[] | select(.verdict == "warning" and (.overlaps | length) == 0) | "::warning title=catalogue " + .entry + " on " + .put + "::" + .message' "${report}"
+          {
+            printf '## Catalogue: %s\n\n' '${{ inputs.name }}'
+            printf '| entry | witness | PUT | role | state | verdict | message |\n|---|---|---|---|---|---|---|\n'
+            jq -r '.results[] | "| " + .entry + " | " + .witness + " | " + .put + " | " + .role + " | " + .status + " | " + (if .verdict == "warning" and (.overlaps | length) > 0 then "**OVERLAP**" elif .verdict == "fail" then "**FAIL**" else .verdict end) + " | " + (.message | gsub("\\|"; "/")) + " |"' "${report}"
+            jq -r '.skipped[] | "| " + .[0].entry + " | " + .[0].witness + " | " + .[0].put + " | " + .[0].role + " | " + .[0].status + " | skipped | " + .[1] + " |"' "${report}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          overlaps=$(jq '[.results[] | select(.verdict == "warning" and (.overlaps | length) > 0)] | length' "${report}")
+          printf 'overlaps=%s\n' "${overlaps}" >> "${GITHUB_OUTPUT}"
+
+      # a check run of its own, neutral when a witness also triggers another bug: it stands out in the PR's checks
+      - name: overlap check run
+        if: always() && steps.summary.outputs.overlaps != ''
+        continue-on-error: true # no write token on PRs from forks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const overlaps = Number('${{ steps.summary.outputs.overlaps }}');
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'catalogue overlaps (${{ inputs.name }})',
+              head_sha: context.payload.pull_request ? context.payload.pull_request.head.sha : context.sha,
+              status: 'completed',
+              conclusion: overlaps > 0 ? 'neutral' : 'success',
+              output: {
+                title: overlaps > 0 ? `${overlaps} witness(es) also trigger another known bug` : 'no overlap',
+                summary: 'See the job summary of "catalogue ${{ inputs.name }}" for the matrix.',
+              },
+            });

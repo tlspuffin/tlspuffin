@@ -1,203 +1,55 @@
-[wolfsslmaster-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-fix = ["AllowClaim"]
+# The builds of wolfSSL: one per version below, and the aliases. Any other build is named with
+# modifiers (wolfssl:5.4.0,asan, wolfssl540-asan, wolfssl:5.4.0,only-BUF: `mk_vendor modifiers wolfssl`, puffin-build/README.md).
+format = 2
 
-[wolfsslmaster]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["AllowClaim"]
+[library]
+repo = "https://github.com/wolfSSL/wolfssl.git"
+builder = "wolfssl"
+ref = "v{version}-stable"
 
-[wolfssl584]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["AllowClaim"]
+[versions]
+"4.3.0" = {}
+"4.4.0" = {}
+"5.0.0" = {}
+"5.1.0" = {}
+"5.1.1" = {}
+"5.2.0" = {}
+"5.3.0" = {}
+"5.4.0" = {}
+"5.5.2" = {}
+"5.7.2" = {}
+"5.8.0" = {}
+"5.8.4" = {}
+"master" = { ref = "master" }
 
-[wolfssl584-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-asan = true
-fix = ["AllowClaim"]
+[modifiers]
+asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }
+sancov = { default = true, doc = "SanitizerCoverage: the edge coverage the fuzzer's feedback reads" }
+gcov = { default = false, doc = "gcov counters, to measure coverage (a build that is not fuzzed: implies no-sancov)" }
+llvm_cov = { default = false, doc = "LLVM source-based coverage counters, to measure coverage" }
+postauth = { default = true, doc = "--enable-postauth (off: the build of CVE-2022-38152, SDOS2)" }
 
-[wolfssl580]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["AllowClaim"]
+# The builds of the Vuln benchmarks (group A and B) and of Perf, by the names their history has.
+[aliases]
+wolfssl510-sig = "5.1.0,fix-CVE-2022-25640+CVE-2022-39173"
+wolfssl510-skip = "5.1.0,fix-CVE-2022-25638+CVE-2022-39173"
+wolfssl530-cdos = "5.3.0,fix-CVE-2022-39173"
+wolfssl540-asan-perf = "5.4.0,asan,fix-CVE-2022-39173+CVE-2022-42905"
+wolfssl540-buf = "5.4.0,fix-CVE-2022-42905"
+wolfssl540-heap = "5.4.0,asan,fix-CVE-2022-39173"
+wolfssl540-perf = "5.4.0,fix-CVE-2022-39173+CVE-2022-42905"
+wolfssl540-sdos2 = "5.4.0,no-postauth,fix-CVE-2022-39173"
 
-[wolfssl580-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-asan = true
-fix = ["AllowClaim"]
+# Claims instrumentation: from 5.5.0 on, AddPacketInfo skips the message callback for encrypted
+# records, so the claims of encrypted handshake messages were never reported. These patches remove
+# that check (instrumentation for tlspuffin's security oracle, not a bug fix). master is newer than
+# every release: it takes the 5.5.2 one.
+[[patches]]
+versions = ">= 5.5.0, < 5.5.2"
+files = ["patches/claims-AllowClaim-550.patch"]
+why = "claims instrumentation: report the claims of encrypted handshake messages (AddPacketInfo)"
 
-[wolfssl572]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["AllowClaim"]
-
-[wolfssl572-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-asan = true
-fix = ["AllowClaim"]
-
-[wolfssl552]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.5.2-stable", version = "5.5.2" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["AllowClaim"]
-
-[wolfssl552-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.5.2-stable", version = "5.5.2" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-asan = true
-fix = ["AllowClaim"]
-
-[wolfssl540-sdos2]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-postauth = false
-fix = ["CVE-2022-39173"]
-
-[wolfssl540-asan-perf]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-fix = ["CVE-2022-39173", "CVE-2022-42905"]
-
-[wolfssl540-perf]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["CVE-2022-39173", "CVE-2022-42905"]
-
-[wolfssl540-heap]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-fix = ["CVE-2022-39173"]
-
-[wolfssl540-buf]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["CVE-2022-42905"]
-
-[wolfssl540-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl540]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl530-cdos]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["CVE-2022-39173"]
-
-[wolfssl530-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl530]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl520-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.2.0-stable", version = "5.2.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl520]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.2.0-stable", version = "5.2.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl510-skip]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["CVE-2022-25638", "CVE-2022-39173"]
-
-[wolfssl510-sig]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-fix = ["CVE-2022-25640", "CVE-2022-39173"]
-
-[wolfssl511-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.1-stable", version = "5.1.1" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl511]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.1-stable", version = "5.1.1" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl510-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl510]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl500-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.0.0-stable", version = "5.0.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl500]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.0.0-stable", version = "5.0.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl440-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.4.0-stable", version = "4.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl440]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.4.0-stable", version = "4.4.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-
-[wolfssl430-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.3.0-stable", version = "4.3.0" }
-builder = { type = "builtin", name = "wolfssl" }
-asan = true
-sancov = true
-
-[wolfssl430]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.3.0-stable", version = "4.3.0" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
+[[patches]]
+versions = ">= 5.5.2"
+files = ["patches/claims-AllowClaim-552.patch"]
+why = "claims instrumentation: report the claims of encrypted handshake messages (AddPacketInfo)"

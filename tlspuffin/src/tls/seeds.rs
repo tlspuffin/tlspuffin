@@ -2532,6 +2532,11 @@ pub fn _seed_client_attacker_full_precomputation(
 
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
+///
+/// Also the witness of CVE-2022-38152: with `use_clear` (the entry's PUT option), the second
+/// session reuses the first one's `WOLFSSL` through wolfSSL_clear and crashes on the resumption
+/// ClientHello.
+#[puffin::witness("CVE-2022-38152")]
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,

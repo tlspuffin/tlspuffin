@@ -107,6 +107,15 @@ impl Put {
                 )
             });
 
+        // the PUTs where a known vulnerability is patched (for tests that the patch removes it)
+        fixed_vulnerabilities.iter().for_each(|vulnerability| {
+            println!(
+                "cargo:rustc-cfg=fixed_{}=\"{}\"",
+                make_rust_identifier(vulnerability),
+                self.name()
+            );
+        });
+
         lib.capabilities.iter().for_each(|capability| {
             println!(
                 "cargo:rustc-cfg={}=\"{}\"",
@@ -173,6 +182,19 @@ impl Put {
                 println!("cargo:rustc-link-lib=dylib=clang_rt.asan_osx_dynamic");
             } else {
                 println!("cargo:rustc-link-arg=-shared-libasan");
+
+                // NOTE keep libafl's stub of `__asan_region_is_poisoned` out of the dynamic
+                // symbols. libafl_targets' cmplog.c defines a weak
+                // `__asan_region_is_poisoned` returning NULL, for builds without
+                // ASAN. A build that links it (debug, without LTO) exports it, and
+                // the ASAN runtime's interceptors call it through the PLT: the stub answers "not
+                // poisoned" to every range check, and no overflow through memcpy, memset, strlen,
+                // ... is reported. The symbols of static libraries are then not exported at all
+                // (calls inside the executable are unchanged). Release builds (LTO: the workspace's
+                // release profile) do not link the stub and are left as they are.
+                if std::env::var("PROFILE").as_deref() != Ok("release") {
+                    println!("cargo:rustc-link-arg=-Wl,--exclude-libs,ALL");
+                }
             }
         }
 

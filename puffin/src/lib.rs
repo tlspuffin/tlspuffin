@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod algebra;
+pub mod catalogue;
 pub mod claims;
 pub mod cli;
 pub mod codec;
@@ -13,6 +14,7 @@ pub mod fuzzer;
 pub mod graphviz;
 pub mod harness;
 pub mod log;
+pub mod outcome;
 pub mod protocol;
 pub mod put;
 pub mod put_registry;
@@ -21,4 +23,5 @@ pub mod test_utils;
 pub mod trace;
 pub mod trace_helper;
 
-pub use {libafl, libafl_bolts};
+pub use puffin_macros::witness;
+pub use {libafl, libafl_bolts, linkme};

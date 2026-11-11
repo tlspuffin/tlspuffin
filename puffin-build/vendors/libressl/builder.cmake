@@ -48,7 +48,7 @@ cmake_builder(
 # without patching the library.
 set(INTERNAL_DIR "${CMAKE_INSTALL_PREFIX}/include/libressl_internal")
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "${INTERNAL_DIR}")
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "4.0.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "4.0.0")
   list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
     "<SOURCE_DIR>/ssl/ssl_local.h"
     "<SOURCE_DIR>/ssl/tls13_internal.h"

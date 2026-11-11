@@ -258,3 +258,93 @@ impl syn::parse::Parse for MacroCall {
         })
     }
 }
+
+/// Registers a function as a witness of a catalogue entry (`puffin::catalogue`), and leaves it as
+/// it is:
+///
+/// ```ignore
+/// #[puffin::witness("CVE-2022-39173")]
+/// pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolTypes> { ... }
+///
+/// // a trace that needs more PUT capabilities than its bug
+/// #[puffin::witness("CVE-2022-25640", extra = [client_authentication_transcript_extraction])]
+/// ```
+///
+/// The function is a seed (`fn(AgentName) -> Trace`, `fn(AgentName, AgentName) -> Trace`) or builds
+/// a `puffin::catalogue::WitnessRun` (`fn() -> WitnessRun`, for witnesses that prepare the PUT
+/// state first).
+#[proc_macro_attribute]
+pub fn witness(args: TokenStream, item: TokenStream) -> TokenStream {
+    let function = parse_macro_input!(item as syn::ItemFn);
+    let args = parse_macro_input!(args as WitnessArgs);
+
+    let name = &function.sig.ident;
+    let entry = &args.entry;
+    let extra = args.extra.iter().map(|ident| ident.to_string());
+    let registration = quote::format_ident!("__PUFFIN_WITNESS_{}", name.to_string().to_uppercase());
+
+    quote! {
+        #function
+
+        // in an anonymous const: a function may be the witness of several entries
+        const _: () = {
+            #[::puffin::linkme::distributed_slice(::puffin::catalogue::WITNESSES)]
+            #[linkme(crate = ::puffin::linkme)]
+            #[allow(non_upper_case_globals)]
+            #[doc(hidden)]
+            static #registration: ::puffin::catalogue::WitnessRegistration =
+                ::puffin::catalogue::WitnessRegistration {
+                    entry: #entry,
+                    name: ::std::stringify!(#name),
+                    module: ::std::module_path!(),
+                    extra_capabilities: &[#(#extra),*],
+                    protocol: {
+                        fn protocol() -> ::std::any::TypeId {
+                            ::puffin::catalogue::protocol_of(&#name)
+                        }
+                        protocol
+                    },
+                    build: {
+                        fn build() -> ::std::boxed::Box<dyn ::std::any::Any> {
+                            ::std::boxed::Box::new(::puffin::catalogue::IntoWitnessRun::into_witness_run(#name))
+                        }
+                        build
+                    },
+                };
+        };
+    }
+    .into()
+}
+
+struct WitnessArgs {
+    entry: syn::LitStr,
+    extra: Vec<syn::Ident>,
+}
+
+impl syn::parse::Parse for WitnessArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let entry: syn::LitStr = input.parse()?;
+        let mut extra = vec![];
+        if input.parse::<Option<syn::Token![,]>>()?.is_some() && !input.is_empty() {
+            let key: syn::Ident = input.parse()?;
+            if key != "extra" {
+                return Err(syn::Error::new(
+                    key.span(),
+                    "expected `extra = [<capability>, ...]`",
+                ));
+            }
+            input.parse::<syn::Token![=]>()?;
+            let content;
+            syn::bracketed!(content in input);
+            extra = content
+                .parse_terminated(syn::Ident::parse, syn::Token![,])?
+                .into_iter()
+                .collect();
+            input.parse::<Option<syn::Token![,]>>()?;
+        }
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens after the witness arguments"));
+        }
+        Ok(WitnessArgs { entry, extra })
+    }
+}

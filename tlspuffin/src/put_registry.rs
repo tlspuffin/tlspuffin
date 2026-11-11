@@ -33,6 +33,8 @@ pub mod registration {
         (
             $id:ident, $name:expr, $harness_version:expr, $library_version:expr, $capabilities:expr
         ) => {
+            // PUT ids keep the case of their name (derived names: `wolfssl540-only-CVE-2022-39173`)
+            #[allow(non_snake_case)]
             mod $id {
                 use crate::put::CPut;
                 use crate::put_registry::bindings::TLS_PUT_INTERFACE;
@@ -67,7 +69,7 @@ pub mod registration {
     include!(env!("RUST_PUTS_BUNDLE_FILE"));
 }
 
-pub use registration::for_puts;
+pub use registration::{catalogue_states, for_puts};
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     let puts: Vec<_> = registration::all()

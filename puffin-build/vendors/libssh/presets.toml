@@ -1,10 +1,17 @@
-[libssh0104-asan]
-sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
-builder = { type = "builtin", name = "libssh" }
-asan = true
-sancov = true
+# The builds of libssh: one per version below, and the aliases. Any other build is named with
+# modifiers (libssh:0.10.4,asan, libssh0104-asan: `mk_vendor modifiers libssh`, puffin-build/README.md).
+format = 2
 
-[libssh0104]
-sources = { repo = "https://gitlab.com/libssh/libssh-mirror.git", branch = "libssh-0.10.4", version = "0.10.4" }
-builder = { type = "builtin", name = "libssh" }
-sancov = true
+[library]
+repo = "https://gitlab.com/libssh/libssh-mirror.git"
+builder = "libssh"
+ref = "libssh-{version}"
+
+[versions]
+"0.10.4" = {}
+
+[modifiers]
+asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }
+sancov = { default = true, doc = "SanitizerCoverage: the edge coverage the fuzzer's feedback reads" }
+gcov = { default = false, doc = "gcov counters, to measure coverage (a build that is not fuzzed: implies no-sancov)" }
+llvm_cov = { default = false, doc = "LLVM source-based coverage counters, to measure coverage" }

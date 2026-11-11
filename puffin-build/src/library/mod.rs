@@ -4,7 +4,7 @@ mod metadata;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-pub use build::{Builder, Config, Options, Sources};
+pub use build::{presets, Builder, Config, Options, Sources};
 pub use metadata::Metadata;
 
 use crate::utils::make_rust_identifier;
@@ -51,6 +51,19 @@ impl Library {
 
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// The state of every catalogue entry in this build (`None`: a vendor without catalogue, or a
+    /// library built before catalogue states were recorded).
+    pub fn catalogue_state(&self) -> Option<crate::catalogue::LibraryState> {
+        std::fs::read_to_string(self.path().join(crate::catalogue::STATE_FILE))
+            .ok()
+            .and_then(|content| crate::catalogue::LibraryState::from_toml(&content).ok())
+    }
+
+    /// The raw content of the catalogue state file of this build.
+    pub fn catalogue_state_toml(&self) -> Option<String> {
+        std::fs::read_to_string(self.path().join(crate::catalogue::STATE_FILE)).ok()
     }
 
     pub fn include_dirs(&self) -> Vec<PathBuf> {

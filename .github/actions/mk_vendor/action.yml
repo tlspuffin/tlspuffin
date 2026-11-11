@@ -20,7 +20,9 @@ runs:
       shell: bash
       run: |
         #!/usr/bin/env bash
-        SCRIPTS=${{ hashFiles(format('puffin-build/vendors/{0}/**',inputs.vendor), 'puffin-build/builder/**', 'tlspuffin-claims/claim-interface.h') }}
+        # everything a vendor build depends on: the vendor's builder, presets, catalogue and patches, the generic
+        # build logic (CMake and Rust) and the claims interface
+        SCRIPTS=${{ hashFiles(format('puffin-build/vendors/{0}/**',inputs.vendor), 'puffin-build/cmake/**', 'puffin-build/src/**', 'tlspuffin-claims/claim-interface.h') }}
 
         printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"

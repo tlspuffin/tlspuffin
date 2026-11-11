@@ -1,8 +1,10 @@
+use std::io;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use super::Options;
+use crate::catalogue::{self, BuildPlan, Catalogue};
 use crate::error::{Error, Result};
 use crate::utils::cmake;
 
@@ -23,6 +25,20 @@ impl Builder {
         options: impl AsRef<Options>,
         cput: bool,
     ) -> Result<()> {
+        let failed = |reason: io::Error| Error::LibraryBuilderFailed {
+            builder: self.clone(),
+            sources: sources.as_ref().to_path_buf(),
+            options: options.as_ref().clone(),
+            reason,
+        };
+
+        // known vulnerabilities and fix patches come from the vendor's catalogue
+        let plan = match self {
+            Self::BuiltIn { name } => catalogue_plan(name, version.as_ref(), options.as_ref())
+                .map_err(|e| failed(io::Error::other(e)))?,
+            Self::CMake { .. } => None,
+        };
+
         match self {
             Self::BuiltIn { .. } | Self::CMake { .. } => {
                 let mut cmake_conf = match self {
@@ -37,6 +53,42 @@ impl Builder {
 
                 if let Self::BuiltIn { name, .. } = self {
                     cmake_conf.cfg_args.push(format!("-DBUILDER={}", name));
+
+                    // the patches of presets.toml for this version (instrumentation, build fixes);
+                    // a presets.toml that cannot be read fails the build rather
+                    // than build without them
+                    let library_patches = library_patches(name, version.as_ref())
+                        .map_err(|e| failed(io::Error::other(e)))?;
+                    if !library_patches.is_empty() {
+                        cmake_conf.cfg_args.push(format!(
+                            "-DLIBRARY_PATCHES={}",
+                            library_patches
+                                .iter()
+                                .map(|p| p.display().to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        ));
+                    }
+
+                    if let Some(plan) = plan {
+                        let join = |items: Vec<String>| items.join(",");
+                        cmake_conf.cfg_args.push("-DCATALOGUE=ON".into());
+                        cmake_conf
+                            .cfg_args
+                            .push(format!("-DCATALOGUE_KNOWN={}", join(plan.known)));
+                        cmake_conf
+                            .cfg_args
+                            .push(format!("-DCATALOGUE_FIXED={}", join(plan.fixed)));
+                        cmake_conf.cfg_args.push(format!(
+                            "-DCATALOGUE_PATCHES={}",
+                            join(
+                                plan.patches
+                                    .iter()
+                                    .map(|p| p.display().to_string())
+                                    .collect()
+                            )
+                        ));
+                    }
                 }
 
                 cmake_conf
@@ -59,11 +111,46 @@ impl Builder {
                 cmake_conf.build()
             }
         }
-        .map_err(|e| Error::LibraryBuilderFailed {
-            builder: self.clone(),
-            sources: sources.as_ref().to_path_buf(),
-            options: options.as_ref().clone(),
-            reason: e,
-        })
+        .map_err(failed)
     }
+}
+
+/// The patches of `vendor`'s presets.toml for `version` (format 2 `[[patches]]`): none without
+/// presets.toml; an error when it cannot be read, or the version is not one
+pub fn library_patches(
+    vendor: &str,
+    version: &str,
+) -> std::result::Result<Vec<std::path::PathBuf>, String> {
+    let dir = catalogue::vendors_dir().join(vendor);
+    if !dir.join("presets.toml").exists() {
+        return Ok(vec![]);
+    }
+    let presets = super::presets::load(vendor)?;
+    if version.parse::<crate::catalogue::Version>().is_err() {
+        return Err(format!(
+            "{vendor}: '{version}' is not a version: its patches cannot be chosen"
+        ));
+    }
+    Ok(presets.patches_for(&dir, version))
+}
+
+/// The catalogue plan of a build of the builtin vendor `vendor`, or `None` when the vendor has no
+/// catalogue file.
+pub fn catalogue_plan(
+    vendor: &str,
+    version: &str,
+    options: &Options,
+) -> std::result::Result<Option<BuildPlan>, String> {
+    if !catalogue::vendors_dir()
+        .join(vendor)
+        .join(catalogue::FILE_NAME)
+        .exists()
+    {
+        return Ok(None);
+    }
+
+    let catalogue = Catalogue::load(vendor).map_err(|e| e.to_string())?;
+    catalogue
+        .plan(version, &options.booleans(), &options.fix())
+        .map(Some)
 }

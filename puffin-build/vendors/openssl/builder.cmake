@@ -4,7 +4,7 @@ use_languages(C)
 #  - puffin_claims.h is copied next to ssl_local.h, which includes it
 #  - puffin_claims.c is appended to ssl/ssl_lib.c (claim registration and extraction)
 #  - apply_hooks.cmake inserts the one-line hooks (anchors are checked, the build fails on mismatch)
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "1.1.1")
   set(CLAIMS_DIR "${CMAKE_CURRENT_LIST_DIR}/claims")
 
   list(APPEND PATCH_COMMANDS
@@ -15,7 +15,7 @@ if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
 endif()
 
 # deterministic clock (OpenSSL >= 3.2): ossl_time_now() returns a fake, monotonic time
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.2.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.2.0")
   patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/deterministic-time.patch")
 endif()
 
@@ -72,42 +72,7 @@ set(CONFIGURE_FLAGS
   --libdir=lib  # force consistent libdir across platforms
 )
 
-string(REGEX MATCH "^([0-9]+\.[0-9]+\.[0-9]+)(.)" _match "${VENDOR_VERSION}")
-set(VERSION_LETTER "${CMAKE_MATCH_2}")
-
-# check for Heartbleed: CVE-2014-0160
-# see: https://www.openssl.org/news/vulnerabilities.html#y2014
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
-  set(VULN_LETTER "a;b;c;d;e;f")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2014-0160")
-  endif()
-endif()
-
-# check for FREAK: CVE-2015-0204
-# see: https://www.openssl.org/news/vulnerabilities.html#y2015
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.0" AND VENDOR_VERSION VERSION_LESS "1.0.1")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j;k;l;m;n;o")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2015-0204")
-  endif()
-endif()
-
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2015-0204")
-  endif()
-endif()
-
-# check for CVE-2021-3449
-# see: https://www.openssl.org/news/vulnerabilities.html#y2021
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1" AND VENDOR_VERSION VERSION_LESS "1.1.2")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2021-3449")
-  endif()
-endif()
+# Known vulnerabilities: vulnerabilities.toml
 
 set(CFLAGS
   -g
@@ -149,20 +114,20 @@ list(APPEND CONFIGURE_COMMANDS COMMAND
 
 list(APPEND BUILD_COMMANDS
   COMMAND make -C "<SOURCE_DIR>" depend
-  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.0>,-j1,-j>
+  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION_ORDER},1.1.0>,-j1,-j>
 )
 
 set(tls12 yes)
 set(tls12_session_resumption yes)
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "1.1.1")
   set(tls13 yes)
   set(tls13_session_resumption yes)
   set(psk_ke_support yes)
 endif()
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.4.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.4.0")
   set(allow_setting_tls12_ciphers yes)
 endif()
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.0.0")
+if(VENDOR_VERSION_ORDER VERSION_GREATER_EQUAL "3.0.0")
   set(allow_setting_tls13_ciphers yes)
 endif()
 set(transcript_extraction yes)

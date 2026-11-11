@@ -71,11 +71,14 @@ flowchart LR;
 
 The goal of `mk_vendor` is to automate the creation of vendor libraries by providing a number of *preset* configurations. Alongside the built library, it also dumps specific metadata that are used later by the harness.
 
-For example, building OpenSSL 3.1.2 and wolfSSL 5.3.0 with ASAN can be simply done with the two presets `openssl312` and `wolfssl530-asan`:
+For example, building OpenSSL 3.1.2, and wolfSSL 5.3.0 with ASAN:
 ```sh
-./tools/mk_vendor make openssl:openssl312
-./tools/mk_vendor make wolfssl:wolfssl530-asan
+./tools/mk_vendor make openssl:3.1.2          # or openssl:openssl312
+./tools/mk_vendor make wolfssl:5.3.0,asan     # or wolfssl:wolfssl530-asan
 ```
+A build is named `<vendor>:<version>[,<modifier>…]` (`mk_vendor modifiers <vendor>` lists them: `asan`, `no-sancov`,
+`gcov`, the builder's options, and the known bugs to patch or keep, e.g. `wolfssl:5.4.0,only-BUF`); `mk_vendor resolve
+<vendor>:<build>` shows what a name builds (see `puffin-build/README.md`).
 
 :::tip[wrapper script]
 
@@ -91,21 +94,26 @@ cargo run --bin mk_vendor -- [ARGS]
 
 :::
 
-Vendor library presets are stored in `puffin-build/vendors/<library>/presets.toml`. Each section in this file is a preset defining:
-- the url/path to fetch the library sources.
-- the script to build the library.
-- the options for the build script.
-
-For example, the section for the preset `openssl340-asan` is in `puffin-build/vendors/openssl/presets.toml`:
+Vendor library presets are stored in `puffin-build/vendors/<library>/presets.toml`: the library (where its sources are,
+its builder), the versions tested with the harness, the modifiers of its names, the builds named for benchmarks
+(aliases) and the patches every build of a version gets. For example, `puffin-build/vendors/openssl/presets.toml`:
 ```toml
-[openssl340-asan]
-sources = { repo = "https://github.com/openssl/openssl.git", branch = "openssl-3.4.0", version = "3.4.0" }
-builder = { type = "builtin", name = "openssl" }
-asan = true
-sancov = true
-```
+format = 2
 
-The exact format can be found by looking at the deserialized Rust struct <a href="/api/puffin_build/library/struct.Config.html">puffin_build::library::Config</a>.
+[library]
+repo = "https://github.com/openssl/openssl.git"
+builder = "openssl"
+ref = [
+  { versions = "< 3.0.0", ref = "OpenSSL_{version_}" },
+  { versions = ">= 3.0.0", ref = "openssl-{version}" },
+]
+
+[versions]
+"3.4.0" = {}
+...
+```
+`openssl:3.4.0,asan` (or `openssl340-asan`) is then the build of `openssl-3.4.0` with ASan. The format is described in
+`puffin-build/README.md`; a build's configuration is the Rust struct <a href="/api/puffin_build/library/struct.Config.html">puffin_build::library::Config</a>.
 
 ## Harnessing
 
