@@ -6,8 +6,9 @@
 //! with `#[puffin::witness("<ID>")]`. The catalogue test runs each witness on each PUT of its
 //! vendor that has the entry's capabilities, and checks the outcome against what the PUT's
 //! catalogue state says:
-//! - where the entry is the only active bug with a patch (`<preset>-only-<ID>`, or a preset fixing
-//!   all the others), the witness must give an objective matching the entry's oracle (positive
+//! - where the entry is active and every other active bug with a patch is patched
+//!   (`<preset>-only-<ID>`, a `-fix-all` build for an entry without patch, or a preset fixing all
+//!   the others), the witness must give an objective matching the entry's oracle (positive
 //!   control);
 //! - where the entry is patched and so is every other active bug with a patch (`<preset>-fix-all`),
 //!   the witness must not give the entry's signature, and any objective must come from a bug that
@@ -254,7 +255,9 @@ pub fn check_witnesses<PT: ProtocolTypes + 'static>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Role {
-    /// The entry is active and is the only active bug with a patch: the witness must trigger it
+    /// The entry is active and every other active bug with a patch is patched (the entry's own
+    /// `-only-` build, or a `-fix-all` build for an entry without patch): the witness must trigger
+    /// it
     Positive,
     /// The entry and every other active bug with a patch are patched: the witness must not trigger
     /// it
@@ -601,13 +604,25 @@ pub fn judge(
 
     match case.role {
         Role::Positive => match (own, objective) {
-            (Some(o), _) => result(case, "pass", format!("triggers {id}: {o}"), outcomes.clone(), vec![]),
+            // an active entry with the same signature: the witness may have triggered it as well
+            (Some(o), _) => {
+                let also = o
+                    .signature()
+                    .map(|s| explained_by(catalogue, state, id, &s, asan))
+                    .unwrap_or_default();
+                let message = if also.is_empty() {
+                    format!("triggers {id}: {o}")
+                } else {
+                    format!("triggers {id}: {o} (the signature of {} too)", also.join(", "))
+                };
+                result(case, "pass", message, outcomes.clone(), also)
+            }
             (None, Some(o)) => result(
                 case,
                 "fail",
                 format!(
-                    "{id} is the only active bug with a patch here, but its witness gives {o}, not its oracle \
-                     ({oracle}){}",
+                    "{id} is active here and every other bug with a patch is patched, but its witness gives {o}, \
+                     not its oracle ({oracle}){}",
                     if overlaps.is_empty() {
                         String::new()
                     } else {
@@ -621,7 +636,8 @@ pub fn judge(
                 case,
                 "fail",
                 format!(
-                    "{id} is the only active bug with a patch here, but its witness does not trigger it ({})",
+                    "{id} is active here and every other bug with a patch is patched, but its witness does not \
+                     trigger it ({})",
                     describe(None)
                 ),
                 outcomes.clone(),

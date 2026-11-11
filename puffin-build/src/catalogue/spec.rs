@@ -510,7 +510,9 @@ fn dashed_rest(
         if !is_modifier(context, modifier) {
             return Err(unknown_modifier(catalogue, context, token));
         }
-        flags.insert(modifier.to_string(), on);
+        if flags.insert(modifier.to_string(), on) == Some(!on) {
+            return Err(format!("both {modifier} and no-{modifier}"));
+        }
         if tail.is_empty() {
             return Ok((flags, None));
         }
@@ -613,6 +615,12 @@ fn build(
                         .into(),
                 );
             };
+            if select.ids.len() > 1 {
+                return Err(format!(
+                    "only-{}: several bugs need a version (each bug alone starts from its own reference build)",
+                    select.ids.join("+")
+                ));
+            }
             let reference = catalogue.reference_request(&select.ids[0], context)?;
             request.start = reference.start;
             for (modifier, on) in reference.flags {
@@ -1093,6 +1101,8 @@ mod tests {
         assert!(error("9.9.9").contains("neither a version nor a preset of wolfssl"));
         assert!(error("5.4.0,only-BUF,fix-HEAP").contains("not several"));
         assert!(error("5.4.0,asan,no-asan").contains("both asan and no-asan"));
+        assert!(error("540-asan-no-asan").contains("both asan and no-asan"));
+        assert!(error("only-BUF+HEAP").contains("several bugs need a version"));
         assert!(error("5.4.0,gcov,sancov").contains("gcov implies no-sancov"));
         assert!(error("wolfssl540-buf,only-HEAP").contains("wolfssl540-buf fixes CVE-2022-42905"));
         assert!(

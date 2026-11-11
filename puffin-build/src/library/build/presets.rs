@@ -108,6 +108,12 @@ pub fn load_from(vendor: &str, dir: &Path) -> Result<Presets, String> {
     let presets = parse(vendor, &content, &builder_defaults(dir))?;
     for patch in &presets.patches {
         for f in &patch.files {
+            if !catalogue::is_inside(f) {
+                return Err(format!(
+                    "presets.toml of {vendor}: patch file '{f}': a path inside the vendor directory \
+                     (relative, without '..')"
+                ));
+            }
             if !dir.join(f).is_file() {
                 return Err(format!(
                     "presets.toml of {vendor}: patch file {f} not found"

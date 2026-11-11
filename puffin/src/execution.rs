@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use nix::errno::Errno;
@@ -447,7 +448,11 @@ where
     for info in &mut signals {
         let source = info.process.map(|p| p.pid);
         result = match info.signal {
-            signal_hook::consts::SIGUSR1 if source == Some(std::process::id() as i32) => {
+            // the timeout of this execution's watchdog: a SIGUSR1 of an earlier execution's
+            // watchdog, delivered late, is not
+            signal_hook::consts::SIGUSR1
+                if source == Some(std::process::id() as i32) && watchdog.fired() =>
+            {
                 collect_child(executor_pid).ok();
                 Waited::Timeout
             }
@@ -466,11 +471,21 @@ where
 
 struct WatchDog {
     channel: Option<mpsc::Sender<()>>,
+    /// Set when this watchdog's timeout expires, before its first SIGUSR1
+    fired: Arc<AtomicBool>,
 }
 
 impl WatchDog {
-    pub const fn new() -> Self {
-        Self { channel: None }
+    pub fn new() -> Self {
+        Self {
+            channel: None,
+            fired: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Whether this watchdog's timeout expired.
+    pub fn fired(&self) -> bool {
+        self.fired.load(Ordering::SeqCst)
     }
 
     pub fn start(&mut self, timeout: Option<Duration>) {
@@ -482,6 +497,7 @@ impl WatchDog {
 
         let (send, recv) = mpsc::channel::<()>();
         self.channel = Some(send);
+        let fired = self.fired.clone();
 
         std::thread::spawn(move || {
             // NOTE wait on the channel, not with a sleep: when the execution ends first, the
@@ -492,10 +508,13 @@ impl WatchDog {
             {
                 return;
             }
+            fired.store(true, Ordering::SeqCst);
+            // signal the execution, again every 200 ms until it ends (its wait drops the watchdog)
             loop {
                 kill(nix::unistd::Pid::this(), Signal::SIGUSR1).unwrap();
-                if recv.recv_timeout(Duration::from_millis(200)).is_err() {
-                    break;
+                match recv.recv_timeout(Duration::from_millis(200)) {
+                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                    Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
         });
@@ -567,6 +586,22 @@ mod tests {
             .unwrap(),
             RawStatus::Exited(0)
         );
+
+        // a SIGUSR1 that is not this execution's watchdog's (one of an earlier execution, delivered
+        // late) does not time it out
+        let stale = std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_millis(200));
+            kill(Pid::this(), Signal::SIGUSR1).unwrap();
+        });
+        assert_eq!(
+            run_in_subprocess_raw(
+                || std::thread::sleep(Duration::from_millis(800)),
+                Duration::from_secs(5)
+            )
+            .unwrap(),
+            RawStatus::Exited(0)
+        );
+        stale.join().unwrap();
 
         // the statuses of the existing runner are unchanged
         assert_eq!(

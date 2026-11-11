@@ -35,7 +35,8 @@ enum Commands {
         #[arg(default_value_t = false)]
         force: bool,
 
-        /// Build with AddressSanitizer whatever the preset says
+        /// Build with AddressSanitizer whatever the name says, under that name (a name with asan,
+        /// e.g. 'wolfssl:5.4.0,asan', has it in the library's name)
         #[arg(long)]
         #[arg(default_value_t = false)]
         asan: bool,
@@ -151,6 +152,15 @@ fn make(
     asan: bool,
 ) -> Result<(), String> {
     let (mut config, build_name) = library::Config::resolve_named(vendor, name)?;
+    if asan && config.options().booleans().get("asan") != Some(&true) && output_name.is_none() {
+        let canonical = catalogue::resolve_name(vendor, name)
+            .map(|spec| spec.canonical)
+            .unwrap_or_else(|_| name.to_string());
+        log::warn!(
+            "--asan: building {vendor}:{name} with AddressSanitizer under the name {build_name}, which \
+             does not say it ({vendor}:{canonical},asan has it in its name)"
+        );
+    }
     if asan {
         config.option("asan", true);
     }
@@ -600,7 +610,8 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
             let patches: Vec<(&String, &catalogue::Patch)> = catalogue
                 .entries
                 .iter()
-                .filter(|(_, entry)| entry.is_active_in(info, &context))
+                // every patch of the version, whatever build options its entry requires: the
+                // builds of a version share their sources, checked once
                 .filter_map(|(id, entry)| entry.patch_for(&info.version).map(|p| (id, p)))
                 .collect();
             if patches.is_empty()

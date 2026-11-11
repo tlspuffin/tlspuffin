@@ -286,29 +286,32 @@ pub fn witness(args: TokenStream, item: TokenStream) -> TokenStream {
     quote! {
         #function
 
-        #[::puffin::linkme::distributed_slice(::puffin::catalogue::WITNESSES)]
-        #[linkme(crate = ::puffin::linkme)]
-        #[allow(non_upper_case_globals)]
-        #[doc(hidden)]
-        static #registration: ::puffin::catalogue::WitnessRegistration =
-            ::puffin::catalogue::WitnessRegistration {
-                entry: #entry,
-                name: ::std::stringify!(#name),
-                module: ::std::module_path!(),
-                extra_capabilities: &[#(#extra),*],
-                protocol: {
-                    fn protocol() -> ::std::any::TypeId {
-                        ::puffin::catalogue::protocol_of(&#name)
-                    }
-                    protocol
-                },
-                build: {
-                    fn build() -> ::std::boxed::Box<dyn ::std::any::Any> {
-                        ::std::boxed::Box::new(::puffin::catalogue::IntoWitnessRun::into_witness_run(#name))
-                    }
-                    build
-                },
-            };
+        // in an anonymous const: a function may be the witness of several entries
+        const _: () = {
+            #[::puffin::linkme::distributed_slice(::puffin::catalogue::WITNESSES)]
+            #[linkme(crate = ::puffin::linkme)]
+            #[allow(non_upper_case_globals)]
+            #[doc(hidden)]
+            static #registration: ::puffin::catalogue::WitnessRegistration =
+                ::puffin::catalogue::WitnessRegistration {
+                    entry: #entry,
+                    name: ::std::stringify!(#name),
+                    module: ::std::module_path!(),
+                    extra_capabilities: &[#(#extra),*],
+                    protocol: {
+                        fn protocol() -> ::std::any::TypeId {
+                            ::puffin::catalogue::protocol_of(&#name)
+                        }
+                        protocol
+                    },
+                    build: {
+                        fn build() -> ::std::boxed::Box<dyn ::std::any::Any> {
+                            ::std::boxed::Box::new(::puffin::catalogue::IntoWitnessRun::into_witness_run(#name))
+                        }
+                        build
+                    },
+                };
+        };
     }
     .into()
 }

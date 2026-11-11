@@ -37,6 +37,16 @@ pub const ID_SEPARATOR: char = '+';
 /// the source tree's (see [`build_dir`]).
 pub const BUILD_DIR_ENV: &str = "PUFFIN_BUILD_DIR";
 
+/// Whether a file named in a vendor's files (a patch) is a path inside the vendor directory:
+/// relative, without `..`.
+pub fn is_inside(file: &str) -> bool {
+    let path = Path::new(file);
+    !file.is_empty()
+        && path
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+}
+
 /// The puffin-build directory the catalogue is read from at run time (its vendors, the
 /// capabilities of vendorinfo.sh.in): that of the source tree this crate was built from, or
 /// `$PUFFIN_BUILD_DIR` when set, for a binary run outside its source tree (e.g. a copy kept in a
@@ -364,6 +374,11 @@ impl Catalogue {
         for entry in entries.values() {
             for patch in &entry.patches {
                 for file in &patch.files {
+                    if !is_inside(file) {
+                        return Err(err(format!(
+                            "patch file '{file}': a path inside the vendor directory (relative, without '..')"
+                        )));
+                    }
                     let path = dir.join(file);
                     let bytes = std::fs::read(&path)
                         .map_err(|e| err(format!("cannot read patch {}: {e}", path.display())))?;

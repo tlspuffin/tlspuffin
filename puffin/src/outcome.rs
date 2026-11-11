@@ -182,12 +182,21 @@ pub fn matches(oracle: &Oracle, signature: &Signature, asan_available: bool) -> 
         None => true,
         Some(wanted) => got.as_deref() == Some(wanted.as_str()),
     };
+    // an oracle that is an AddressSanitizer report cannot be recognised without ASan
+    if oracle.asan.is_some() && !asan_available {
+        return false;
+    }
 
     oracle.kind == signature.kind
         && field(&oracle.signal, &signature.signal)
-        && (!asan_available || field(&oracle.asan, &signature.asan))
+        && field(&oracle.asan, &signature.asan)
         && field(&oracle.violation, &signature.violation)
-        && field(&oracle.panic, &signature.panic)
+        // a Rust panic (of the harness, of the trace) is not the library's crash, unless the oracle
+        // is that panic
+        && match &oracle.panic {
+            None => signature.panic.is_none(),
+            Some(wanted) => signature.panic.as_deref() == Some(wanted.as_str()),
+        }
 }
 
 /// One execution of a trace with its configuration.
@@ -547,8 +556,34 @@ SUMMARY: AddressSanitizer: heap-buffer-overflow (/nix/store/x/libclang_rt.asan-x
         assert!(matches(&buf, &crash(Some("stack-buffer-overflow")), true));
         assert!(!matches(&buf, &crash(Some("heap-buffer-overflow")), true));
         assert!(!matches(&buf, &crash(None), true));
-        // without ASan, the type of report cannot be checked
-        assert!(matches(&buf, &crash(None), false));
+        // without ASan, an oracle that is an ASan report cannot be recognised: no crash is it
+        assert!(!matches(&buf, &crash(None), false));
+        // a Rust panic is not the library's crash, unless the oracle is that panic
+        let abort = Oracle {
+            kind: OracleKind::Crash,
+            signal: Some("SIGABRT".into()),
+            asan: None,
+            violation: None,
+            panic: None,
+        };
+        let panicked = Outcome::Crash {
+            signal: Some("SIGABRT".into()),
+            exit_code: None,
+            asan: None,
+            panic: Some("index out of bounds".into()),
+        }
+        .signature()
+        .unwrap();
+        assert!(matches(&abort, &crash(None), false));
+        assert!(!matches(&abort, &panicked, false));
+        assert!(matches(
+            &Oracle {
+                panic: Some("index out of bounds".into()),
+                ..abort.clone()
+            },
+            &panicked,
+            false
+        ));
 
         let sig = Oracle {
             kind: OracleKind::Claim,

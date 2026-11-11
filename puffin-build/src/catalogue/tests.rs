@@ -347,6 +347,29 @@ fn reference_and_check_builds_in_the_comma_form() {
 }
 
 #[test]
+fn patch_files_are_inside_the_vendor_directory() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    for outside in [
+        "../outside.patch",
+        "/etc/passwd",
+        "patches/../../x.patch",
+        "",
+    ] {
+        let content = BUF.replace("patches/fix-buf.patch", outside);
+        let problems = parse(&content, &dir)
+            .map(|_| vec![])
+            .unwrap_or_else(|e| e.problems);
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("a path inside the vendor directory")),
+            "{outside:?}: {problems:?}"
+        );
+    }
+    assert!(is_inside("patches/fix-buf.patch") && is_inside("fix.patch"));
+}
+
+#[test]
 fn ids_and_aliases_name_one_bug_each() {
     let dir = vendor_dir(&["fix-buf.patch", "fix-heap.patch"]);
     assert_problem(

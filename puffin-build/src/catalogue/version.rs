@@ -3,7 +3,9 @@
 //! A version is a dotted list of numbers, optionally followed by
 //! - letters: a patch release after the plain version (OpenSSL: `1.0.1` < `1.0.1a` < `1.0.1f` <
 //!   `1.0.1g`, and `0.9.8z` < `0.9.8za`);
-//! - `-<text>`: a pre-release, before the plain version (`3.0.0-alpha1` < `3.0.0`).
+//! - `-<text>`: a pre-release, before the plain version (`3.0.0-alpha1` < `3.0.0`);
+//! - `+<text>`: build metadata, not compared (BoringSSL's commits: `1.1.1g+git.368d0d87d0bd` =
+//!   `1.1.1g`).
 //!
 //! Missing numbers count as zero (`5.4` = `5.4.0`). A version that does not start with a digit
 //! (`master`, `main`) is a development head: newer than every release.
@@ -97,10 +99,24 @@ impl FromStr for Version {
             });
         }
 
-        let numeric_end = text
+        // build metadata: kept in the text, not compared
+        let compared = match text.split_once('+') {
+            Some((compared, metadata)) => {
+                if metadata.is_empty()
+                    || !metadata
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "-.".contains(c))
+                {
+                    return Err(format!("invalid build metadata in version '{text}'"));
+                }
+                compared
+            }
+            None => text,
+        };
+        let numeric_end = compared
             .find(|c: char| !(c.is_ascii_digit() || c == '.'))
-            .unwrap_or(text.len());
-        let (numeric, rest) = text.split_at(numeric_end);
+            .unwrap_or(compared.len());
+        let (numeric, rest) = compared.split_at(numeric_end);
 
         if numeric.ends_with('.') || numeric.contains("..") {
             return Err(format!("invalid version '{text}'"));
@@ -316,6 +332,17 @@ mod tests {
         assert!(v("master") > v("99.0.0"));
         assert!(!r("< 5.5.1").contains(&v("master")));
         assert!(r(">= 5.5.2").contains(&v("master")));
+    }
+
+    #[test]
+    fn build_metadata_is_kept_and_not_compared() {
+        let commit = v("1.1.1g+git.368d0d87d0bd");
+        assert_eq!(commit.as_str(), "1.1.1g+git.368d0d87d0bd");
+        assert_eq!(commit, v("1.1.1g"));
+        assert!(r("< 1.1.1h").contains(&commit) && !r(">= 1.1.1h").contains(&commit));
+        for bad in ["1.1.1+", "1.1.1+a b", "1.1.1+a+b"] {
+            assert!(bad.parse::<Version>().is_err(), "{bad:?} accepted");
+        }
     }
 
     #[test]

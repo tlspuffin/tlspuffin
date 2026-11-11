@@ -166,13 +166,18 @@ impl<'a> LibraryDir<'a> {
                 reason: io::Error::other(e),
             })?;
 
-        config.build(self.path(), cput).map(|_| {
-            if let Some(state) = state {
-                std::fs::write(self.path.join(catalogue::STATE_FILE), state.to_toml()).ok();
-            }
-            std::fs::write(self.config_file(), toml::to_string(config).unwrap()).ok();
-            self.path().to_path_buf()
-        })
+        config.build(self.path(), cput)?;
+        let unavailable = |reason| Error::VendorDirUnavailable {
+            dir: self.vendor_dir.clone(),
+            reason,
+        };
+        if let Some(state) = state {
+            std::fs::write(self.path.join(catalogue::STATE_FILE), state.to_toml())
+                .map_err(unavailable)?;
+        }
+        std::fs::write(self.config_file(), toml::to_string(config).unwrap())
+            .map_err(unavailable)?;
+        Ok(self.path().to_path_buf())
     }
 
     fn load_metadata(&self) -> Option<library::Metadata> {
