@@ -4,7 +4,7 @@ mod metadata;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-pub use build::{Builder, Config, Options, Sources};
+pub use build::{presets, Builder, Config, Options, Sources};
 pub use metadata::Metadata;
 
 use crate::utils::make_rust_identifier;

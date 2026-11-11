@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -83,19 +81,12 @@ impl Config {
         self.derived.as_ref()
     }
 
+    /// A build presets.toml names: the build of a version, or an alias (see [`super::presets`]).
     pub fn preset(vendor: impl AsRef<str>, name: impl AsRef<str>) -> Option<Config> {
-        // TODO gracefully handle error cases rather than using `unwrap`
-        let configs_str = fs::read_to_string(
-            catalogue::vendors_dir()
-                .join(vendor.as_ref())
-                .join("presets.toml"),
-        )
-        .ok()?;
-
-        toml::from_str::<HashMap<String, Config>>(&configs_str)
+        super::presets::load(vendor.as_ref())
             .ok()?
-            .get(name.as_ref())
-            .cloned()
+            .configs
+            .remove(name.as_ref())
     }
 
     pub fn build(&self, out_dir: impl AsRef<Path>, cput: bool) -> Result<()> {

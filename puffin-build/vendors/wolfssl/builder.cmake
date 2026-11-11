@@ -2,16 +2,8 @@ use_languages(C)
 
 option(postauth "Build with post-auth" ON)
 
-# Known vulnerabilities and their fix patches: vulnerabilities.toml (applied by puffin-build after the patches below).
-
-# Claims instrumentation: from 5.5.0 on, AddPacketInfo skips the message callback for encrypted records, so the
-# claims of encrypted handshake messages were never reported. The patch removes that check (instrumentation for
-# tlspuffin's security oracle, not a bug fix).
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
-  patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/claims-AllowClaim-552.patch")
-elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
-  patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/claims-AllowClaim-550.patch")
-endif()
+# Patches of every build of a version (the claims instrumentation, AllowClaim): presets.toml's [[patches]]. Known
+# vulnerabilities and their fix patches: vulnerabilities.toml. puffin-build applies both after the patches below.
 
 set(v440_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")

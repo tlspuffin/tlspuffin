@@ -1,43 +1,21 @@
-[boringsslmain-asan]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "main" }
-builder = { type = "builtin", name = "boringssl" }
-asan = true
-sancov = true
+# The builds of BoringSSL: one per version below, and the aliases. Any other build is named with
+# modifiers (boringssl:main,asan, boringsslmain-asan: `mk_vendor modifiers boringssl`, puffin-build/README.md).
+format = 2
 
-[boringsslmain]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "main" }
-builder = { type = "builtin", name = "boringssl" }
-sancov = true
+[library]
+repo = "https://github.com/google/boringssl.git"
+builder = "boringssl"
+ref = "{version}"
 
-[boringssl20260508-asan]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "0.20260508.0", version = "0.20260508.0" }
-builder = { type = "builtin", name = "boringssl" }
-asan = true
-sancov = true
+# main, a release, and two commits of 2023 and 2024 (named, with the versions they always had)
+[versions]
+"main" = {}
+"0.20260508.0" = { name = "boringssl20260508" }
+"1.1.1g+git.368d0d87d0bd" = { name = "boringssl202403", commit = "368d0d87d0bd00f8227f74ce18e8e4384eaf6afa" }
+"1.1.1g+git.698aa894c964" = { name = "boringssl202311", commit = "698aa894c96412d4df20e2bb031d9eb9c9d5919a" }
 
-[boringssl20260508]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "0.20260508.0", version = "0.20260508.0" }
-builder = { type = "builtin", name = "boringssl" }
-sancov = true
-
-[boringssl202403-asan]
-sources = { repo = "https://github.com/google/boringssl.git", commit = "368d0d87d0bd00f8227f74ce18e8e4384eaf6afa", version = "1.1.1g+git.368d0d87d0bd" }
-builder = { type = "builtin", name = "boringssl" }
-asan = true
-sancov = true
-
-[boringssl202403]
-sources = { repo = "https://github.com/google/boringssl.git", commit = "368d0d87d0bd00f8227f74ce18e8e4384eaf6afa", version = "1.1.1g+git.368d0d87d0bd" }
-builder = { type = "builtin", name = "boringssl" }
-sancov = true
-
-[boringssl202311-asan]
-sources = { repo = "https://github.com/google/boringssl.git", commit = "698aa894c96412d4df20e2bb031d9eb9c9d5919a", version = "1.1.1g+git.698aa894c964" }
-builder = { type = "builtin", name = "boringssl" }
-asan = true
-sancov = true
-
-[boringssl202311]
-sources = { repo = "https://github.com/google/boringssl.git", commit = "698aa894c96412d4df20e2bb031d9eb9c9d5919a", version = "1.1.1g+git.698aa894c964" }
-builder = { type = "builtin", name = "boringssl" }
-sancov = true
+[modifiers]
+asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }
+sancov = { default = true, doc = "SanitizerCoverage: the edge coverage the fuzzer's feedback reads" }
+gcov = { default = false, doc = "gcov counters, to measure coverage (a build that is not fuzzed: implies no-sancov)" }
+llvm_cov = { default = false, doc = "LLVM source-based coverage counters, to measure coverage" }

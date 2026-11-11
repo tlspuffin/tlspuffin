@@ -37,6 +37,13 @@ if(EXISTS "${BUILDER}" AND NOT IS_DIRECTORY "${BUILDER}")
 elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
   include("${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
 
+  # The patches of the vendor's presets.toml for this version ([[patches]]: instrumentation for tlspuffin, build
+  # fixes), after the builder's own patches and before the catalogue's fixes.
+  string(REPLACE "," ";" LIBRARY_PATCHES "${LIBRARY_PATCHES}")
+  foreach(patch_file IN LISTS LIBRARY_PATCHES)
+    patch(FILE "${patch_file}")
+  endforeach()
+
   # The vendor's vulnerability catalogue (vendors/<vendor>/vulnerabilities.toml) is the only source of its known
   # vulnerabilities: puffin-build reads it and passes the known ones, the fixed ones and the patches fixing them.
   # The patches apply after the builder's own patches.

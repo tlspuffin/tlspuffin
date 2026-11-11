@@ -54,6 +54,23 @@ impl Builder {
                 if let Self::BuiltIn { name, .. } = self {
                     cmake_conf.cfg_args.push(format!("-DBUILDER={}", name));
 
+                    // the patches of presets.toml for this version (instrumentation, build fixes)
+                    let library_patches = super::presets::load(name)
+                        .map(|p| {
+                            p.patches_for(&catalogue::vendors_dir().join(name), version.as_ref())
+                        })
+                        .unwrap_or_default();
+                    if !library_patches.is_empty() {
+                        cmake_conf.cfg_args.push(format!(
+                            "-DLIBRARY_PATCHES={}",
+                            library_patches
+                                .iter()
+                                .map(|p| p.display().to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        ));
+                    }
+
                     if let Some(plan) = plan {
                         let join = |items: Vec<String>| items.join(",");
                         cmake_conf.cfg_args.push("-DCATALOGUE=ON".into());

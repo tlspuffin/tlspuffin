@@ -76,17 +76,17 @@ newer than every release. Ranges: comparisons (`<`, `<=`, `>`, `>=`, `=`) joined
 shown on NVD when NIST gives none (`source = "cna:<name>"`). Never a v2 or v4.0 score. The vector is stored with the
 score and the loader recomputes the score from it.
 
-**Default reference build.** The newest version with the bug; among its presets, an ASan one first, then the one with
-the fewest fixes, then the shortest name.
+**Default reference build.** The newest version with the bug; among its builds (presets.toml's), the one with the
+fewest fixes (the version's own build rather than an alias), then an ASan one, then the shortest name.
 
 ### What the loader refuses
 
 Every build and test loads the catalogue and refuses: unknown fields, invalid ids or ranges, missing patch files, a
 patch for a preset's version that is not affected, two patches of an entry for one preset's version, a CVSS score that
 does not match its vector, `requires` naming no option of builder.cmake, unknown capabilities, incomplete oracles, an
-entry without patch, CVSS or (for a witnessed entry) oracle that does not say why, a `reference` or `check` preset
-without the bug, presets fixing an unknown entry, one that does not affect them or one without a patch at their
-version, preset names that would read as derived names.
+entry without patch, CVSS or (for a witnessed entry) oracle that does not say why, a `reference` or `check` build
+without the bug, builds of presets.toml fixing an unknown entry, one that does not affect them or one without a patch
+at their version, names of presets.toml that would read as other names (`-only-`, `-fix-`, `,`, a bug's ID or alias).
 
 ### Builds
 
@@ -97,8 +97,9 @@ states, and PUTs get the cfgs `<ID> = "<put>"` (active) and `fixed_<ID> = "<put>
 
 `mk_vendor make` builds any name of a build, `<vendor>:<version>[,<modifier>…]` (the canonical form; `mk_vendor
 modifiers <vendor>` lists the modifiers, `mk_vendor resolve <vendor>:<build>` shows what a name builds). The library
-directory and the PUT are named after the build: the name of a preset with that build, else today's dashed form (its
-*slug*), so that every existing build keeps its name.
+directory and the PUT are named after the build: the name presets.toml gives that build (a version's own build, an
+alias), else the dashed form (its *slug*: `wolfssl540-asan`, `wolfssl540-asan-only-CVE-2022-39173`), so that every
+build keeps its name.
 
 | name | builds |
 |---|---|
@@ -115,10 +116,48 @@ joined by `+`. Versions as the presets write them, or without their dots when un
 replace `,` (`540-asan-only-BUF`). Every spelling of a build gets one canonical name (`5.4.0,only-CVE-2022-39173`) and
 one slug.
 
-`mk_vendor list <vendor>:<name> [--json]` shows the state of every entry in a build and the *validation set* of a preset
+`mk_vendor list <vendor>:<name> [--json]` shows the state of every entry in a build and the *validation set* of a build
 (its `-fix-all` build and one `-only-<ID>` build per active bug with a patch). `mk_vendor list --check [--json]` gives
-the presets the CI checks the catalogue on. `mk_vendor check-patches [<vendor>]` dry-runs every patch on the sources of
-every preset of its range, alone and with the preset's other patches.
+the builds the CI checks the catalogue on. `mk_vendor check-patches [<vendor>]` dry-runs every patch on the sources of
+every version of its range, after the presets.toml patches of that version, alone and with the version's other
+patches.
+
+### presets.toml
+
+Each vendor directory has a `presets.toml` (format 2): the library once, the versions tested with the harness, and the
+builds named for benchmarks. Every other build is a name (above): no preset per ASan or option variant.
+
+```toml
+format = 2
+
+[library]
+repo = "https://github.com/wolfSSL/wolfssl.git"     # git sources (url = "<template>": archives, e.g. LibreSSL)
+builder = "wolfssl"                                # the builtin builder (builder.cmake)
+ref = "v{version}-stable"                          # branch or tag of a version; OpenSSL: rules by range,
+                                                   # [{ versions = "< 3.0.0", ref = "OpenSSL_{version_}" }, …]
+
+[versions]                                         # a build per version, named <vendor>{compact}: wolfssl540
+"5.4.0" = {}
+"master" = { ref = "master" }                      # its own ref, commit, repo, url, hash or name
+
+[modifiers]                                        # every modifier of the vendor's names, its value in a
+asan = { default = false, doc = "AddressSanitizer: …" }   # version's build (sancov on, the rest as the builder's
+sancov = { default = true, doc = "…" }             # defaults: checked)
+postauth = { default = true, doc = "…" }           # an option() of builder.cmake
+
+[aliases]                                          # builds named for benchmarks (their history): a version,
+wolfssl540-buf = "5.4.0,fix-CVE-2022-42905"        # modifiers and fix-<ID>+<ID> (IDs of the catalogue)
+
+[[patches]]                                        # applied to every build of these versions, after the
+versions = ">= 5.5.2, < master"                    # builder's own patches, before the catalogue's fixes
+files = ["patches/claims-AllowClaim-552.patch"]
+why = "claims instrumentation: …"
+```
+
+Templates: `{version}`, `{version_}` (its dots as `_`), `{compact}` (without dots). Two kinds of patches, two files:
+presets.toml's are applied to every build of their versions (instrumentation for tlspuffin, build fixes); the
+catalogue's fix a bug, applied only when that bug is fixed (`fix-…`, `only-…`, `fix-all`). Rewrite patterns for "every
+version that has this code" (`patch(PATTERN …)`) stay in builder.cmake.
 
 ### Witnesses and the catalogue test
 

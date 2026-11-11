@@ -18,7 +18,7 @@ Then build *tlspuffin* with the harnesses (CPUTs) of all the libraries that have
 cargo build --release -p tlspuffin --features=cputs
 ```
 
-The ASAN variants are separate presets (e.g. `openssl:openssl340-asan`).
+ASAN is a modifier of the name (e.g. `openssl:3.4.0,asan`, also written `openssl:openssl340-asan`): `mk_vendor modifiers <vendor>` lists them.
 
 <Tabs>
 

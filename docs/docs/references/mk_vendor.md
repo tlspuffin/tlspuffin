@@ -33,7 +33,8 @@ resolve: what a name builds (canonical name, directory and PUT name, sources, op
 modifiers: the modifiers of a vendor (asan, sancov, gcov, llvm_cov, its builder's options) and its versions
 list: the known vulnerabilities of a build and their state, the validation set of a preset
 list --check: the builds the vulnerability catalogue is checked on
-check-patches: dry-run the catalogue's patches on the sources of the presets of their ranges
+check-patches: dry-run the catalogue's patches on the sources of the versions of their ranges (after
+               the patches presets.toml applies to each version)
 ```
 
 For the complete list of preconfigured targets `<CONFIG>`, you can look at our [support matrix](./support-matrix).

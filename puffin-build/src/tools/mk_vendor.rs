@@ -88,10 +88,10 @@ enum Commands {
         json: bool,
     },
 
-    /// `mk_vendor check-patches [<vendor>]`: dry-run the catalogue's patches on the sources of
-    /// every preset whose version one of them is for: each patch alone, then all the preset's
-    /// patches together (as its `-fix-all` build applies them, without the builder's own
-    /// patches).
+    /// `mk_vendor check-patches [<vendor>]`: apply the patches of presets.toml and dry-run the
+    /// catalogue's on the sources of every version one of them is for: the presets.toml patches of
+    /// the version, then each catalogue patch alone, then all of them together (as its `-fix-all`
+    /// build applies them, without the builder's own patches).
     CheckPatches {
         /// Only this vendor
         vendor: Option<String>,
@@ -473,13 +473,8 @@ fn modifiers(vendor: &str, json: bool) -> Result<(), String> {
             catalogue::vendors().join(", ")
         ));
     }
-    let read = |path: std::path::PathBuf| std::fs::read_to_string(path).unwrap_or_default();
-    let mut docs = catalogue::parse_option_docs(&read(
-        catalogue::build_dir().join("cmake/builder/run.cmake"),
-    ));
-    docs.extend(catalogue::parse_option_docs(&read(
-        dir.join("builder.cmake"),
-    )));
+    // presets.toml's [modifiers] (their docs), in the order of the names
+    let declared = library::presets::load(vendor)?.modifiers;
     let list: Vec<Modifier> = catalogue::spec::modifiers(&context)
         .into_iter()
         .map(|m| Modifier {
@@ -489,17 +484,7 @@ fn modifiers(vendor: &str, json: bool) -> Result<(), String> {
                 "option"
             },
             default: catalogue::spec::plain_value(&context, &m),
-            doc: match m.as_str() {
-                "sancov" => format!(
-                    "{} (the coverage the fuzzer's feedback reads)",
-                    docs.get(&m).cloned().unwrap_or_default()
-                ),
-                "gcov" => format!(
-                    "{} (a build that is not fuzzed: implies no-sancov)",
-                    docs.get(&m).cloned().unwrap_or_default()
-                ),
-                _ => docs.get(&m).cloned().unwrap_or_default(),
-            },
+            doc: declared.get(&m).map(|d| d.doc.clone()).unwrap_or_default(),
             name: m,
         })
         .collect();
@@ -609,6 +594,7 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
         let context = VendorContext::load(&vendor, &catalogue.dir).map_err(|e| e.to_string())?;
 
         // one check per sources (several presets of a version share them)
+        let presets = library::presets::load(&vendor)?;
         let mut checked: Vec<library::Sources> = vec![];
         for (preset, info) in &context.presets {
             let patches: Vec<(&String, &catalogue::Patch)> = catalogue
@@ -617,7 +603,11 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
                 .filter(|(_, entry)| entry.is_active_in(info, &context))
                 .filter_map(|(id, entry)| entry.patch_for(&info.version).map(|p| (id, p)))
                 .collect();
-            if patches.is_empty() {
+            if patches.is_empty()
+                && presets
+                    .patches_for(&catalogue.dir, &info.version)
+                    .is_empty()
+            {
                 continue;
             }
             let config = library::Config::resolve(&vendor, preset)?;
@@ -661,6 +651,21 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
                 _ => extracted.clone(),
             };
 
+            // the patches of presets.toml for this version first, as a build applies them
+            let library_patches = presets.patches_for(&catalogue.dir, &info.version);
+            for file in &library_patches {
+                let (ok, err) = apply(&dir, file, false)?;
+                println!(
+                    "{} {vendor} {} presets.toml {}",
+                    if ok { "ok  " } else { "FAIL" },
+                    info.version,
+                    file.strip_prefix(&catalogue.dir).unwrap_or(file).display()
+                );
+                if !ok {
+                    failures += 1;
+                    println!("     {err}");
+                }
+            }
             for (id, patch) in &patches {
                 for file in &patch.files {
                     let (ok, err) = apply(&dir, &catalogue.dir.join(file), true)?;

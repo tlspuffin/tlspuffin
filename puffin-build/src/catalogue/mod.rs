@@ -1230,6 +1230,23 @@ impl Catalogue {
                 chosen.extend(newest);
             }
             for preset in chosen {
+                // the CI builds them with ASan: a version's own build, by the name of its ASan
+                // build
+                let preset = match context.presets.get(&preset) {
+                    Some(info)
+                        if !info.asan
+                            && info.fix.is_empty()
+                            && spec::modifiers(context)
+                                .iter()
+                                .filter(|m| *m != "asan")
+                                .all(|m| {
+                                    spec::value(info, context, m) == spec::plain_value(context, m)
+                                }) =>
+                    {
+                        format!("{preset}-asan")
+                    }
+                    _ => preset,
+                };
                 let ids = presets.entry(preset).or_default();
                 if !ids.contains(id) {
                     ids.push(id.clone());
@@ -1377,9 +1394,9 @@ impl fmt::Display for Oracle {
     }
 }
 
-/// Order of preference between presets with the bug: the newest version, then an ASan preset
-/// (derived builds force ASan anyway), then the fewest fixes, then the shortest name (the plain
-/// preset rather than a variant).
+/// Order of preference between presets with the bug: the newest version, then the fewest fixes
+/// (a version's own build rather than an alias), then an ASan preset (derived builds force ASan
+/// anyway), then the shortest name.
 fn prefer(
     va: &Version,
     ia: &PresetInfo,
@@ -1389,8 +1406,8 @@ fn prefer(
     nb: &String,
 ) -> std::cmp::Ordering {
     va.cmp(vb)
-        .then_with(|| ia.asan.cmp(&ib.asan))
         .then_with(|| ib.fix.len().cmp(&ia.fix.len()))
+        .then_with(|| ia.asan.cmp(&ib.asan))
         .then_with(|| nb.len().cmp(&na.len()))
         .then_with(|| nb.cmp(na))
 }
@@ -1409,10 +1426,15 @@ impl VendorContext {
     pub fn load(vendor: &str, dir: &Path) -> Result<VendorContext, CatalogueError> {
         let err = |msg: String| CatalogueError::new(vendor, msg);
 
-        let presets = match std::fs::read_to_string(dir.join("presets.toml")) {
-            Ok(content) => parse_presets(&content).map_err(err)?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => BTreeMap::new(),
-            Err(e) => return Err(err(format!("cannot read presets.toml: {e}"))),
+        let presets = if dir.join("presets.toml").exists() {
+            crate::library::presets::load_from(vendor, dir)
+                .map_err(err)?
+                .configs
+                .iter()
+                .map(|(name, config)| (name.clone(), PresetInfo::of(config)))
+                .collect()
+        } else {
+            BTreeMap::new()
         };
 
         let builder_options = std::fs::read_to_string(dir.join("builder.cmake"))
@@ -1432,49 +1454,17 @@ impl VendorContext {
     }
 }
 
-fn parse_presets(content: &str) -> Result<BTreeMap<String, PresetInfo>, String> {
-    let table: toml::Table =
-        toml::from_str(content).map_err(|e| format!("invalid presets.toml: {e}"))?;
-    table
-        .into_iter()
-        .map(|(name, value)| {
-            let preset = value
-                .as_table()
-                .ok_or_else(|| format!("presets.toml: '{name}' is not a table"))?;
-            let version = preset
-                .get("sources")
-                .and_then(|s| s.get("version"))
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| format!("presets.toml: '{name}' has no sources.version"))?
-                .to_string();
-            let fix = match preset.get("fix") {
-                None => vec![],
-                Some(toml::Value::Array(ids)) => ids
-                    .iter()
-                    .map(|id| {
-                        id.as_str()
-                            .map(String::from)
-                            .ok_or_else(|| format!("presets.toml: '{name}': fix ids are strings"))
-                    })
-                    .collect::<Result<_, _>>()?,
-                Some(_) => return Err(format!("presets.toml: '{name}': fix is a list of ids")),
-            };
-            let options = preset
-                .iter()
-                .filter_map(|(k, v)| v.as_bool().map(|b| (k.clone(), b)))
-                .collect::<BTreeMap<_, _>>();
-            let asan = options.get("asan").copied().unwrap_or(false);
-            Ok((
-                name,
-                PresetInfo {
-                    version,
-                    asan,
-                    fix,
-                    options,
-                },
-            ))
-        })
-        .collect()
+impl PresetInfo {
+    /// What the catalogue needs of a build's configuration.
+    pub fn of(config: &crate::library::Config) -> PresetInfo {
+        let options = config.options().booleans();
+        PresetInfo {
+            version: config.sources().version(),
+            asan: options.get("asan").copied().unwrap_or(false),
+            fix: config.options().fix(),
+            options,
+        }
+    }
 }
 
 /// `option(<name> "<doc>" ON|OFF)` lines of a builder.cmake.
@@ -1485,17 +1475,6 @@ pub fn parse_builder_options(content: &str) -> BTreeMap<String, bool> {
     .expect("invalid regex");
     re.captures_iter(content)
         .map(|c| (c[1].to_string(), &c[2] == "ON"))
-        .collect()
-}
-
-/// The descriptions of the `option(<name> "<doc>" ON|OFF)` lines of a builder.cmake or run.cmake.
-pub fn parse_option_docs(content: &str) -> BTreeMap<String, String> {
-    let re = regex::Regex::new(
-        r#"(?m)^\s*option\(\s*([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]*)"\s+(ON|OFF)\s*\)"#,
-    )
-    .expect("invalid regex");
-    re.captures_iter(content)
-        .map(|c| (c[1].to_string(), c[2].to_string()))
         .collect()
 }
 
