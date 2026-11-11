@@ -205,9 +205,11 @@ pub fn vendors_with_harness(protocol: &str) -> Vec<String> {
 }
 
 /// The two-way check of witnesses and entries: every entry of `catalogues` has a witness or says
-/// why not (`no_witness`), every witness names an existing entry. Returns the problems found.
+/// why not (`no_witness`), every witness names an entry of `every` (the catalogues of every vendor:
+/// a binary with the PUTs of some vendors has the witnesses of all). Returns the problems found.
 pub fn check_witnesses<PT: ProtocolTypes + 'static>(
     catalogues: &BTreeMap<String, Catalogue>,
+    every: &BTreeMap<String, Catalogue>,
     witnesses: &[Witness<PT>],
 ) -> Vec<String> {
     let mut problems = vec![];
@@ -228,8 +230,10 @@ pub fn check_witnesses<PT: ProtocolTypes + 'static>(
         }
     }
 
+    // a witness names an entry of any vendor's catalogue (a binary with the PUTs of some vendors
+    // only still has the witnesses of the others)
     for witness in witnesses {
-        if !catalogues
+        if !every
             .values()
             .any(|c| c.entries.contains_key(witness.entry))
         {
@@ -238,7 +242,7 @@ pub fn check_witnesses<PT: ProtocolTypes + 'static>(
                 witness.module,
                 witness.name,
                 witness.entry,
-                catalogues.keys().cloned().collect::<Vec<_>>().join(", ")
+                every.keys().cloned().collect::<Vec<_>>().join(", ")
             ));
         }
     }
@@ -560,6 +564,34 @@ pub fn judge(
         .and_then(|o| o.signature())
         .map(|s| explained_by(catalogue, state, id, &s, asan))
         .unwrap_or_default();
+    // every objective of the executions, with the other active entries that explain it: the first
+    // one none explains decides, whichever execution gave it
+    let explained: Vec<(&Outcome, Vec<String>)> = outcomes
+        .iter()
+        .filter(|o| o.is_objective())
+        .map(|o| {
+            let by = o
+                .signature()
+                .map(|s| explained_by(catalogue, state, id, &s, asan))
+                .unwrap_or_default();
+            (o, by)
+        })
+        .collect();
+    let unexplained = explained
+        .iter()
+        .find(|(_, by)| by.is_empty())
+        .map(|(o, _)| *o);
+    let all_overlaps: Vec<String> = {
+        let mut all: Vec<String> = explained
+            .iter()
+            .flat_map(|(_, by)| by.iter().cloned())
+            .collect();
+        all.sort();
+        all.dedup();
+        all
+    };
+    // no execution ran to an outcome: a witness that only times out shows nothing
+    let only_timeouts = outcomes.iter().all(|o| matches!(o, Outcome::Timeout));
     let declared = |others: &[String]| others.iter().all(|o| entry.also_triggers.contains(o));
     let describe = |o: Option<&Outcome>| {
         o.map(|o| o.to_string())
@@ -596,15 +628,15 @@ pub fn judge(
                 vec![],
             ),
         },
-        Role::Negative => match (own, objective) {
-            (Some(o), _) if overlaps.is_empty() => result(
+        Role::Negative => match (unexplained, objective) {
+            (Some(o), _) if o.signature().is_some_and(|s| matches(oracle, &s, asan)) => result(
                 case,
                 "fail",
                 format!("{id} is patched here, but its witness still gives its signature: {o}"),
                 outcomes.clone(),
                 vec![],
             ),
-            (_, Some(o)) if overlaps.is_empty() => result(
+            (Some(o), _) => result(
                 case,
                 "fail",
                 format!(
@@ -614,52 +646,69 @@ pub fn judge(
                 outcomes.clone(),
                 vec![],
             ),
-            (_, Some(o)) if declared(&overlaps) => result(
+            (None, Some(o)) if declared(&all_overlaps) => result(
                 case,
                 "pass",
-                format!("gives {o}: {} (declared in also_triggers)", overlaps.join(", ")),
+                format!("gives {o}: {} (declared in also_triggers)", all_overlaps.join(", ")),
                 outcomes.clone(),
-                overlaps,
+                all_overlaps,
             ),
-            (_, Some(o)) => result(
+            (None, Some(o)) => result(
                 case,
                 "warning",
                 format!(
                     "overlap: the witness of {id} also triggers {} ({o})",
-                    overlaps.join(", ")
+                    all_overlaps.join(", ")
                 ),
                 outcomes.clone(),
-                overlaps,
+                all_overlaps,
             ),
-            (_, None) => result(case, "pass", format!("{id} patched: {}", describe(None)), outcomes.clone(), vec![]),
-        },
-        Role::Other => match objective {
-            // the witness triggers its own bug where the bug is: as expected
-            Some(_) if own.is_some() && active => result(case, "pass", describe(own), outcomes.clone(), vec![]),
-            Some(o) if !overlaps.is_empty() && declared(&overlaps) => {
-                result(case, "pass", format!("gives {o}: {}", overlaps.join(", ")), outcomes.clone(), overlaps)
-            }
-            Some(o) if !overlaps.is_empty() => result(
+            (None, None) if only_timeouts => result(
                 case,
-                "warning",
+                "fail",
                 format!(
-                    "overlap: the witness of {id} also triggers {} ({o})",
-                    overlaps.join(", ")
-                ),
-                outcomes.clone(),
-                overlaps,
-            ),
-            Some(o) => result(
-                case,
-                "warning",
-                format!(
-                    "{id} is {} here, and its witness gives {o}, which no active entry explains (check the \
-                     affected range)",
-                    case.status
+                    "{id} is patched here, but no execution of its witness ended in time ({}): nothing shows that \
+                     the patch removes the bug",
+                    describe(None)
                 ),
                 outcomes.clone(),
                 vec![],
             ),
+            (None, None) => result(case, "pass", format!("{id} patched: {}", describe(None)), outcomes.clone(), vec![]),
+        },
+        Role::Other => match objective {
+            // the witness triggers its own bug where the bug is: as expected
+            Some(_) if own.is_some() && active => result(case, "pass", describe(own), outcomes.clone(), vec![]),
+            Some(o) => match unexplained {
+                None if declared(&all_overlaps) => result(
+                    case,
+                    "pass",
+                    format!("gives {o}: {}", all_overlaps.join(", ")),
+                    outcomes.clone(),
+                    all_overlaps,
+                ),
+                None => result(
+                    case,
+                    "warning",
+                    format!(
+                        "overlap: the witness of {id} also triggers {} ({o})",
+                        all_overlaps.join(", ")
+                    ),
+                    outcomes.clone(),
+                    all_overlaps,
+                ),
+                Some(u) => result(
+                    case,
+                    "warning",
+                    format!(
+                        "{id} is {} here, and its witness gives {u}, which no active entry explains (check the \
+                         affected range)",
+                        case.status
+                    ),
+                    outcomes.clone(),
+                    vec![],
+                ),
+            },
             None if active && !entry.witness_reaches(&state.version) => result(
                 case,
                 "pass",
@@ -675,6 +724,13 @@ pub fn judge(
                 case,
                 "warning",
                 format!("{id} is active here, but its witness does not trigger it ({})", describe(None)),
+                outcomes.clone(),
+                vec![],
+            ),
+            None if only_timeouts => result(
+                case,
+                "warning",
+                format!("no execution of the witness of {id} ended in time ({})", describe(None)),
                 outcomes.clone(),
                 vec![],
             ),
@@ -776,9 +832,11 @@ where
     PB::ProtocolTypes: 'static,
 {
     let catalogues = load_catalogues(vendors)?;
+    let every_vendor = puffin_build::catalogue::vendors();
+    let every = load_catalogues(&every_vendor.iter().map(String::as_str).collect::<Vec<_>>())?;
     let witnesses = witnesses::<PB::ProtocolTypes>();
     let mut report = Report {
-        problems: check_witnesses(&catalogues, &witnesses),
+        problems: check_witnesses(&catalogues, &every, &witnesses),
         results: vec![],
         skipped: vec![],
     };
@@ -901,7 +959,7 @@ where
         let witnesses = witnesses.clone();
         let report = report.clone();
         trials.push(Trial::test("catalogue::witnesses", move || {
-            let problems = check_witnesses(&catalogues, &witnesses);
+            let problems = check_witnesses(&catalogues, &catalogues, &witnesses);
             report.lock().unwrap().problems.extend(problems.clone());
             if problems.is_empty() {
                 Ok(())
@@ -980,4 +1038,166 @@ where
     }
 
     conclusion.exit_code()
+}
+
+#[cfg(test)]
+mod tests {
+    use puffin_build::catalogue::{PresetInfo, VendorContext};
+
+    use super::*;
+    use crate::algebra::test_signature::TestProtocolTypes;
+    use crate::outcome::AsanReport;
+
+    const CATALOGUE: &str = r#"
+[BUG-A]
+summary = "the witness's bug"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "heap-buffer-overflow" }
+
+[[BUG-A.patches]]
+versions = "< 2.0.0"
+files = ["patches/a.patch"]
+
+[BUG-B]
+summary = "another bug, without patch"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "SEGV" }
+no_patch = "none yet"
+"#;
+
+    /// The catalogue above, and the state of its `-fix-all` build: BUG-A fixed, BUG-B active (no
+    /// patch).
+    fn fixture() -> (tempfile::TempDir, Catalogue, LibraryState) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("patches")).unwrap();
+        std::fs::write(dir.path().join("patches/a.patch"), "patch a\n").unwrap();
+        let context = VendorContext {
+            presets: BTreeMap::from([(
+                "lib100".to_string(),
+                PresetInfo {
+                    version: "1.0.0".into(),
+                    asan: true,
+                    fix: vec![],
+                    options: BTreeMap::from([("asan".to_string(), true)]),
+                },
+            )]),
+            ..VendorContext::default()
+        };
+        let catalogue = Catalogue::parse("lib", dir.path(), CATALOGUE, &context).unwrap();
+        let plan = catalogue
+            .plan("1.0.0", &BTreeMap::new(), &["BUG-A".to_string()])
+            .unwrap();
+        let state = catalogue.library_state("1.0.0", &plan);
+        (dir, catalogue, state)
+    }
+
+    fn crash(asan: &str) -> Outcome {
+        Outcome::Crash {
+            signal: Some("SIGABRT".into()),
+            exit_code: None,
+            asan: Some(AsanReport {
+                kind: asan.into(),
+                frames: vec![],
+            }),
+            panic: None,
+        }
+    }
+
+    fn negative(outcomes: Vec<Outcome>) -> CaseResult {
+        let (_dir, catalogue, state) = fixture();
+        let case = Case {
+            entry: "BUG-A".into(),
+            witness: "witness".into(),
+            put: "lib100-fix-all".into(),
+            role: Role::Negative,
+            status: "fixed".into(),
+        };
+        judge(
+            &case,
+            catalogue.entry("BUG-A").unwrap(),
+            &catalogue,
+            &state,
+            true,
+            outcomes,
+        )
+    }
+
+    #[test]
+    fn a_negative_control_judges_every_objective() {
+        // BUG-B explains the first objective, nothing explains the second
+        let result = negative(vec![crash("SEGV"), crash("stack-buffer-overflow")]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(
+            result.message.contains("which no active entry explains"),
+            "{}",
+            result.message
+        );
+        // the witness's own signature in a later run
+        let result = negative(vec![crash("SEGV"), crash("heap-buffer-overflow")]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(
+            result.message.contains("still gives its signature"),
+            "{}",
+            result.message
+        );
+        // every objective explained: an overlap, not declared in also_triggers
+        let result = negative(vec![crash("SEGV"), crash("SEGV")]);
+        assert_eq!(result.verdict, "warning", "{}", result.message);
+        assert_eq!(result.overlaps, vec!["BUG-B".to_string()]);
+    }
+
+    #[test]
+    fn a_negative_control_that_only_times_out_fails() {
+        let result = negative(vec![Outcome::Timeout, Outcome::Timeout, Outcome::Timeout]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(
+            result
+                .message
+                .contains("no execution of its witness ended in time"),
+            "{}",
+            result.message
+        );
+        // one execution that ran to its end is enough
+        let result = negative(vec![Outcome::Timeout, Outcome::None]);
+        assert_eq!(result.verdict, "pass", "{}", result.message);
+    }
+
+    #[test]
+    fn witnesses_are_checked_against_every_catalogue() {
+        let (_dir, catalogue, _) = fixture();
+        let one = BTreeMap::from([("lib".to_string(), catalogue.clone())]);
+        let (_other_dir, other, _) = fixture();
+        let mut other = other;
+        other.vendor = "other".into();
+        other.entries =
+            BTreeMap::from([("BUG-OTHER".to_string(), catalogue.entries["BUG-B"].clone())]);
+        let every = BTreeMap::from([("lib".to_string(), catalogue), ("other".to_string(), other)]);
+        // the entries of `lib` say why they have no witness: only the witnesses matter here
+        let names = |problems: Vec<String>| {
+            problems
+                .into_iter()
+                .filter(|p| p.starts_with("witness "))
+                .collect::<Vec<_>>()
+        };
+        fn never_run() -> Box<dyn Any> {
+            unreachable!("only registrations are checked")
+        }
+        let witness_of = |entry: &'static str| Witness::<TestProtocolTypes> {
+            entry,
+            name: "w",
+            module: "m",
+            extra_capabilities: &[],
+            build: never_run,
+            _protocol: std::marker::PhantomData,
+        };
+        let witnesses = [witness_of("BUG-A"), witness_of("BUG-OTHER")];
+        assert!(names(check_witnesses(&one, &every, &witnesses)).is_empty());
+        assert_eq!(
+            names(check_witnesses(&one, &one, &witnesses)).len(),
+            1,
+            "BUG-OTHER is unknown to lib alone"
+        );
+    }
 }
