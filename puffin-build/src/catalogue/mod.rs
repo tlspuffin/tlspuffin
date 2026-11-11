@@ -963,6 +963,11 @@ pub struct LibraryState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub derived: Option<Derived>,
     pub entries: BTreeMap<String, EntryState>,
+    /// The patches of presets.toml applied to this version (the claims instrumentation, build
+    /// fixes): file -> sha256 of its content, so that a library built before one of them
+    /// changed is stale
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub library_patches: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1053,6 +1058,7 @@ impl Catalogue {
             catalogue: self.hash.clone(),
             derived: None,
             entries,
+            library_patches: BTreeMap::new(),
         }
     }
 }

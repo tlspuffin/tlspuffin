@@ -513,7 +513,11 @@ impl WatchDog {
             fired.store(true, Ordering::SeqCst);
             // signal the execution, again every 200 ms until it ends (its wait drops the watchdog)
             loop {
-                kill(nix::unistd::Pid::this(), Signal::SIGUSR1).unwrap();
+                // a signal to this process cannot fail; if it ever did, the thread stops (no panic)
+                if let Err(e) = kill(nix::unistd::Pid::this(), Signal::SIGUSR1) {
+                    log::error!("watchdog: cannot signal the timeout: {e}");
+                    break;
+                }
                 match recv.recv_timeout(Duration::from_millis(200)) {
                     Err(mpsc::RecvTimeoutError::Timeout) => continue,
                     Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,

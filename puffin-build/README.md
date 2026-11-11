@@ -69,7 +69,7 @@ is the objective's; the ASan type is only checked on PUTs built with ASan. Stack
 of one bug reach it through other paths.
 
 **Versions.** Dotted numbers with an optional suffix: letters after the plain version (OpenSSL: `1.0.1` < `1.0.1a` <
-... < `1.0.1g`, `0.9.8z` < `0.9.8za`), `-<pre>` before it. A version that does not start with a digit (`master`) is
+... < `1.0.1g`, `0.9.8z` < `0.9.8za`), `-<pre>` before it. A version that does not start with a digit and has none (`master`, `main`; `v5.4.0` is refused) is
 newer than every release. Ranges: comparisons (`<`, `<=`, `>`, `>=`, `=`) joined by `,` (and) and `||` (or):
 `">= 1.0.0, < 1.0.0p || >= 1.0.1, < 1.0.1k"`.
 

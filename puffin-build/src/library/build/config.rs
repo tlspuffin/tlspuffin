@@ -114,6 +114,18 @@ impl Config {
         let catalogue = Catalogue::load(name).map_err(|e| e.to_string())?;
         let mut state = catalogue.library_state(&version, &plan);
         state.derived = self.derived.clone();
+        // the patches of presets.toml for this version, by the hash of their content
+        for path in super::builder::library_patches(name, &version)? {
+            let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let file = path
+                .strip_prefix(crate::catalogue::vendors_dir().join(name))
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            state
+                .library_patches
+                .insert(file, sha256::digest(bytes.as_slice()));
+        }
         Ok(Some(state))
     }
 

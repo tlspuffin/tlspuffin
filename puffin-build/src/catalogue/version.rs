@@ -8,7 +8,8 @@
 //!   `1.1.1g`).
 //!
 //! Missing numbers count as zero (`5.4` = `5.4.0`). A version that does not start with a digit
-//! (`master`, `main`) is a development head: newer than every release.
+//! (`master`, `main`, a name without numbers) is a development head: newer than every release; one
+//! that has numbers (`v5.4.0`) is refused.
 //!
 //! A range is a list of alternatives separated by `||`, each a list of comparisons separated by `,`
 //! that must all hold: `">= 1.0.0, < 1.0.0p || >= 1.0.1, < 1.0.1k"`. Comparisons: `<`, `<=`, `>`,
@@ -92,6 +93,15 @@ impl FromStr for Version {
                 .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
             {
                 return Err(format!("invalid version '{text}'"));
+            }
+            // a development head is a branch name without numbers (master, main): "v5.4.0" is a
+            // release written with a prefix, which would otherwise sort after every
+            // release
+            if text.contains(|c: char| c.is_ascii_digit()) {
+                return Err(format!(
+                    "invalid version '{text}': a version starts with a digit (5.4.0); a development head (master, \
+                     main) has none"
+                ));
             }
             return Ok(Version {
                 text: text.into(),
@@ -329,6 +339,13 @@ mod tests {
     #[test]
     fn development_heads_are_newer_than_every_release() {
         assert!(v("master").is_head());
+        assert!(v("main").is_head());
+        // a release with a prefix is not a head
+        assert!("v5.4.0"
+            .parse::<Version>()
+            .unwrap_err()
+            .contains("starts with a digit"));
+        assert!("release-5.x".parse::<Version>().is_err());
         assert!(v("master") > v("99.0.0"));
         assert!(!r("< 5.5.1").contains(&v("master")));
         assert!(r(">= 5.5.2").contains(&v("master")));

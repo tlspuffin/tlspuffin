@@ -342,9 +342,19 @@ fn parse_v2(
             .ok_or_else(|| format!("alias {alias}: '{version}' is not a version of [versions]"))?;
         let mut config = configs[base].clone();
         let mut fix: Vec<String> = vec![];
+        // the rules of the names typed elsewhere (catalogue::spec): a modifier said once, gcov
+        // implies no-sancov
+        let mut said: BTreeMap<String, bool> = BTreeMap::new();
         for token in tokens {
             if let Some(ids) = token.strip_prefix("fix-") {
-                fix.extend(ids.split(catalogue::ID_SEPARATOR).map(String::from));
+                for id in ids.split(catalogue::ID_SEPARATOR) {
+                    if id.is_empty() || fix.iter().any(|f| f == id) {
+                        return Err(format!(
+                            "alias {alias}: '{token}': an empty or repeated bug"
+                        ));
+                    }
+                    fix.push(id.to_string());
+                }
                 continue;
             }
             let (modifier, on) = match token.strip_prefix("no-") {
@@ -356,7 +366,20 @@ fn parse_v2(
                     "alias {alias}: '{token}' (an alias is a version, modifiers of [modifiers] and fix-<ID>+<ID>)"
                 ));
             }
+            if said.insert(modifier.to_string(), on).is_some() {
+                return Err(format!("alias {alias}: {modifier} said twice"));
+            }
             config.options_mut().insert(modifier, on);
+        }
+        if said.get("gcov") == Some(&true) {
+            if said.get("sancov") == Some(&true) {
+                return Err(format!(
+                    "alias {alias}: gcov and sancov (a gcov build measures coverage, it is not fuzzed: gcov implies no-sancov)"
+                ));
+            }
+            if file.modifiers.contains_key("sancov") {
+                config.options_mut().insert("sancov", false);
+            }
         }
         if !fix.is_empty() {
             config.options_mut().insert("fix", fix);
@@ -459,6 +482,14 @@ why = "claims"
     }
 
     #[test]
+    fn an_alias_with_gcov_is_not_fuzzed() {
+        let presets = parse("lib", &V2.replace("no-postauth,asan", "gcov"), &defaults()).unwrap();
+        let options = presets.configs["lib341-sdos"].options().booleans();
+        assert_eq!(options.get("gcov"), Some(&true));
+        assert_eq!(options.get("sancov"), Some(&false));
+    }
+
+    #[test]
     fn format_2_says_what_is_wrong() {
         let error = |content: String| parse("lib", &content, &defaults()).unwrap_err();
         assert!(
@@ -471,6 +502,15 @@ why = "claims"
         );
         assert!(error(V2.replace("no-postauth", "tls13")).contains("alias lib341-sdos: 'tls13'"));
         assert!(error(V2.replace("\"3.4.1,no", "\"9.9.9,no")).contains("'9.9.9' is not a version"));
+        // the rules of the names typed elsewhere (catalogue::spec)
+        assert!(error(V2.replace("no-postauth,asan", "asan,no-asan")).contains("asan said twice"));
+        assert!(
+            error(V2.replace("no-postauth,asan", "gcov,sancov")).contains("gcov implies no-sancov")
+        );
+        assert!(
+            error(V2.replace("CVE-1+CVE-2", "CVE-1+CVE-1")).contains("an empty or repeated bug")
+        );
+        assert!(error(V2.replace("fix-CVE-1+CVE-2", "fix-")).contains("an empty or repeated bug"));
         assert!(error(V2.replace("format = 2", "format = 3")).contains("unknown format 3"));
         assert!(error(V2.replace("format = 2", ""))
             .contains("format 1 (one table per build) is no longer read"));

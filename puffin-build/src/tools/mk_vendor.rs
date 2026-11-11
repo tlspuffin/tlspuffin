@@ -242,8 +242,12 @@ fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
         .entries
         .iter()
         .map(|(id, entry_state)| {
-            let entry = catalogue.entry(id).expect("state of an unknown entry");
-            EntryLine {
+            // the state comes from the catalogue just loaded: an entry it lacks means the files
+            // changed meanwhile
+            let entry = catalogue.entry(id).ok_or_else(|| {
+                format!("{vendor}: {id} is no longer in the catalogue (changed while listing?)")
+            })?;
+            Ok(EntryLine {
                 id: id.clone(),
                 alias: entry.alias.clone(),
                 state: entry_state.state,
@@ -257,9 +261,9 @@ fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
                 no_witness: entry.no_witness.clone(),
                 hash: catalogue.entry_hash(id).unwrap_or_default().to_string(),
                 build_hash: entry_state.hash.clone(),
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, String>>()?;
 
     Ok(Listing {
         vendor: vendor.into(),

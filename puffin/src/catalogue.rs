@@ -16,7 +16,9 @@
 //! - elsewhere the result is reported, and only warned about.
 //!
 //! An objective that matches another active entry's oracle is an overlap: the witness of X also
-//! reaches Y. It is a warning, unless X declares `also_triggers = ["Y"]`.
+//! reaches Y. It is a warning, unless X declares `also_triggers = ["Y"]`; on a build where X is
+//! patched, an objective with X's own oracle that Y shares fails unless declared (it would hide a
+//! broken patch of X).
 
 use std::any::{Any, TypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -148,7 +150,7 @@ pub fn witnesses<PT: ProtocolTypes + 'static>() -> Vec<Witness<PT>> {
             _protocol: std::marker::PhantomData,
         })
         .collect();
-    witnesses.sort_by_key(|w| (w.entry, w.name));
+    witnesses.sort_by_key(|w| (w.entry, w.name, w.module));
     witnesses
 }
 
@@ -719,6 +721,20 @@ pub fn judge(
                 outcomes.clone(),
                 all_overlaps,
             ),
+            // its own signature, which active bugs share: its patch may not work, or the witness triggers them too;
+            // only an overlap the entry declares (also_triggers) tells, otherwise it would hide a broken patch
+            (None, Some(_)) if own.is_some() => result(
+                case,
+                "fail",
+                format!(
+                    "{id} is patched here, but its witness still gives its signature ({}), which {} share: a broken patch, \
+                     or the witness triggers them too (then declare them in also_triggers)",
+                    describe(own),
+                    all_overlaps.join(", ")
+                ),
+                outcomes.clone(),
+                all_overlaps,
+            ),
             (None, Some(o)) => result(
                 case,
                 "warning",
@@ -843,7 +859,8 @@ impl Report {
         puts.extend(self.skipped.iter().map(|(c, _)| c.put.as_str()));
         puts.sort();
         puts.dedup();
-        let mut rows: BTreeMap<(String, String), BTreeMap<&str, &str>> = BTreeMap::new();
+        // a row per witness (two modules may name theirs alike): entry, witness, module
+        let mut rows: BTreeMap<(String, String, String), BTreeMap<&str, &str>> = BTreeMap::new();
         for r in &self.results {
             let mark = match (r.verdict, r.case.role) {
                 ("fail", _) => "FAIL",
@@ -852,12 +869,16 @@ impl Report {
                 (_, _) if r.outcomes.iter().any(|o| o.is_objective()) => "triggers",
                 _ => "-",
             };
-            rows.entry((r.case.entry.clone(), r.case.witness.clone()))
-                .or_default()
-                .insert(&r.case.put, mark);
+            rows.entry((
+                r.case.entry.clone(),
+                r.case.witness.clone(),
+                r.case.module.clone(),
+            ))
+            .or_default()
+            .insert(&r.case.put, mark);
         }
         for (c, _) in &self.skipped {
-            rows.entry((c.entry.clone(), c.witness.clone()))
+            rows.entry((c.entry.clone(), c.witness.clone(), c.module.clone()))
                 .or_default()
                 .insert(&c.put, "skipped");
         }
@@ -865,7 +886,7 @@ impl Report {
         for put in &puts {
             out.push_str(&format!("  {put}\n"));
         }
-        for ((entry, witness), cells) in rows {
+        for ((entry, witness, _module), cells) in rows {
             out.push_str(&format!("{entry} {witness}:"));
             for put in &puts {
                 out.push_str(&format!(" {}", cells.get(put).copied().unwrap_or("")));
@@ -1063,7 +1084,10 @@ where
     }
 
     for (case, runnable) in cases(&registry(), &catalogues, &witnesses) {
-        let name = format!("{}::{}::{}", case.entry, case.witness, case.put);
+        let name = format!(
+            "{}::{}::{}::{}",
+            case.entry, case.module, case.witness, case.put
+        );
         let catalogues = catalogues.clone();
         let witnesses = witnesses.clone();
         let report = report.clone();
@@ -1156,6 +1180,14 @@ oracle = { kind = "crash", asan = "double-free" }
 [[BUG-C.patches]]
 versions = ">= 1.5.0, < 2.0.0"
 files = ["patches/c.patch"]
+
+[BUG-D]
+summary = "a bug with the oracle of BUG-A, without patch"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "heap-buffer-overflow" }
+no_patch = "none yet"
+no_witness = "none yet"
 "#;
 
     fn preset(version: &str) -> PresetInfo {
@@ -1252,6 +1284,48 @@ files = ["patches/c.patch"]
         let result = negative(vec![crash("SEGV"), crash("SEGV")]);
         assert_eq!(result.verdict, "warning", "{}", result.message);
         assert_eq!(result.overlaps, vec!["BUG-B".to_string()]);
+    }
+
+    #[test]
+    fn a_patched_bug_still_giving_its_signature_fails_unless_the_overlap_is_declared() {
+        // BUG-D, active and reachable, has the oracle of BUG-A: the witness of patched BUG-A still
+        // gives that signature, which BUG-D explains: a broken patch of BUG-A cannot be
+        // told from BUG-D, so it fails
+        let all = ["BUG-A", "BUG-B", "BUG-C", "BUG-D"];
+        let result = negative_with(&all, vec![crash("heap-buffer-overflow")]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(
+            result.message.contains("which BUG-D share"),
+            "{}",
+            result.message
+        );
+        assert_eq!(result.overlaps, vec!["BUG-D".to_string()]);
+        // declared: the witness of BUG-A triggers BUG-D too
+        let (_dir, catalogue, state) = fixture();
+        let mut entry = catalogue.entry("BUG-A").unwrap().clone();
+        entry.also_triggers = vec!["BUG-D".into()];
+        let case = Case {
+            entry: "BUG-A".into(),
+            witness: "witness".into(),
+            module: "m".into(),
+            put: "lib100-fix-all".into(),
+            role: Role::Negative,
+            status: "fixed".into(),
+        };
+        let reachable: BTreeSet<String> = all.iter().map(|s| s.to_string()).collect();
+        let result = judge(
+            &case,
+            &entry,
+            &catalogue,
+            &state,
+            &reachable,
+            true,
+            vec![crash("heap-buffer-overflow")],
+        );
+        assert_eq!(result.verdict, "pass", "{}", result.message);
+        // another bug's signature only (not its own): still an overlap to look at, not a failure
+        let result = negative_with(&all, vec![crash("SEGV")]);
+        assert_eq!(result.verdict, "warning", "{}", result.message);
     }
 
     #[test]

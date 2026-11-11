@@ -229,6 +229,7 @@ fn same_state(recorded: Option<&LibraryState>, now: Option<&LibraryState>) -> bo
                 && r.version == n.version
                 && r.derived == n.derived
                 && r.entries == n.entries
+                && r.library_patches == n.library_patches
         }
         _ => false,
     }
@@ -255,6 +256,7 @@ mod tests {
                     patches: vec![],
                 },
             )]),
+            library_patches: BTreeMap::new(),
         }
     }
 
@@ -271,5 +273,44 @@ mod tests {
         assert!(!same_state(None, Some(&state("h1"))));
         // a vendor without catalogue
         assert!(same_state(None, None));
+        // a patch of presets.toml for its version changed (the claims instrumentation), or was
+        // added
+        let mut patched = state("h1");
+        patched
+            .library_patches
+            .insert("patches/claims.patch".into(), "p1".into());
+        assert!(!same_state(Some(&state("h1")), Some(&patched)));
+        let mut changed = patched.clone();
+        changed
+            .library_patches
+            .insert("patches/claims.patch".into(), "p2".into());
+        assert!(!same_state(Some(&patched), Some(&changed)));
+        assert!(same_state(Some(&patched), Some(&patched.clone())));
+    }
+
+    #[test]
+    fn the_state_of_a_build_records_the_patches_of_its_version() {
+        // wolfSSL 5.5.2 takes the claims instrumentation of presets.toml, 5.4.0 none
+        let state = |name: &str| {
+            crate::library::Config::resolve("wolfssl", name)
+                .unwrap()
+                .catalogue_state()
+                .unwrap()
+                .unwrap()
+        };
+        let with = state("wolfssl552-asan");
+        assert_eq!(
+            with.library_patches.keys().cloned().collect::<Vec<_>>(),
+            vec!["patches/claims-AllowClaim-552.patch".to_string()]
+        );
+        assert_eq!(with.library_patches.values().next().unwrap().len(), 64);
+        assert!(state("wolfssl540-asan").library_patches.is_empty());
+        // a state written before the field reads as without patches: stale, rebuilt once
+        let mut before = with.clone();
+        before.library_patches.clear();
+        let text = before.to_toml();
+        assert!(!text.contains("library_patches"), "{text}");
+        let read: LibraryState = toml::from_str(&text).unwrap();
+        assert!(!same_state(Some(&read), Some(&with)));
     }
 }
