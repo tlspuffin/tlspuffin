@@ -64,6 +64,15 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// `mk_vendor check-patches [<vendor>]`: dry-run the catalogue's patches on the sources of
+    /// every preset whose version one of them is for: each patch alone, then all the preset's
+    /// patches together (as its `-fix-all` build applies them, without the builder's own
+    /// patches).
+    CheckPatches {
+        /// Only this vendor
+        vendor: Option<String>,
+    },
 }
 
 pub fn main() -> std::process::ExitCode {
@@ -93,6 +102,7 @@ pub fn main() -> std::process::ExitCode {
         Commands::List {
             check: true, json, ..
         } => list_check(json),
+        Commands::CheckPatches { vendor } => check_patches(vendor.as_deref()),
         Commands::List { .. } => Err("expected <vendor>:<name> or --check".into()),
     };
 
@@ -320,6 +330,131 @@ fn list_check(json: bool) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn check_patches(only: Option<&str>) -> Result<(), String> {
+    use std::process::Command;
+
+    let apply = |dir: &std::path::Path, file: &std::path::Path, check: bool| {
+        let mut cmd = Command::new("git");
+        cmd.arg("--git-dir=").arg("-C").arg(dir).arg("apply");
+        if check {
+            cmd.arg("--check");
+        }
+        cmd.arg(file)
+            .output()
+            .map(|o| {
+                (
+                    o.status.success(),
+                    String::from_utf8_lossy(&o.stderr).trim().to_string(),
+                )
+            })
+            .map_err(|e| format!("cannot run git: {e}"))
+    };
+
+    let mut failures = 0;
+    for vendor in catalogue::vendors()
+        .into_iter()
+        .filter(|v| only.is_none_or(|o| o == v))
+    {
+        let catalogue = Catalogue::load(&vendor).map_err(|e| e.to_string())?;
+        let context = VendorContext::load(&vendor, &catalogue.dir).map_err(|e| e.to_string())?;
+
+        // one check per sources (several presets of a version share them)
+        let mut checked: Vec<library::Sources> = vec![];
+        for (preset, info) in &context.presets {
+            let patches: Vec<(&String, &catalogue::Patch)> = catalogue
+                .entries
+                .iter()
+                .filter(|(_, entry)| entry.is_active_in(info, &context))
+                .filter_map(|(id, entry)| entry.patch_for(&info.version).map(|p| (id, p)))
+                .collect();
+            if patches.is_empty() {
+                continue;
+            }
+            let config = library::Config::resolve(&vendor, preset)?;
+            if checked.contains(config.sources()) {
+                continue;
+            }
+            checked.push(config.sources().clone());
+
+            let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+            let archive = config
+                .sources()
+                .download(tmp.path().join("download"))
+                .map_err(|e| {
+                    format!(
+                        "{vendor} {}: cannot download the sources: {e}",
+                        info.version
+                    )
+                })?;
+            let extracted = tmp.path().join("src");
+            std::fs::create_dir_all(&extracted).map_err(|e| e.to_string())?;
+            let status = Command::new("tar")
+                .arg("-xf")
+                .arg(&archive)
+                .arg("-C")
+                .arg(&extracted)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err(format!(
+                    "{vendor} {}: cannot extract {}",
+                    info.version,
+                    archive.display()
+                ));
+            }
+            let entries: Vec<_> = std::fs::read_dir(&extracted)
+                .map_err(|e| e.to_string())?
+                .filter_map(|e| e.ok())
+                .collect();
+            let dir = match entries.as_slice() {
+                [single] if single.path().is_dir() => single.path(),
+                _ => extracted.clone(),
+            };
+
+            for (id, patch) in &patches {
+                for file in &patch.files {
+                    let (ok, err) = apply(&dir, &catalogue.dir.join(file), true)?;
+                    println!(
+                        "{} {vendor} {} {id} {file}",
+                        if ok { "ok  " } else { "FAIL" },
+                        info.version
+                    );
+                    if !ok {
+                        failures += 1;
+                        println!("     {err}");
+                    }
+                }
+            }
+            // all together, in the order of a build's fix list
+            let mut together = true;
+            for (id, patch) in &patches {
+                for file in &patch.files {
+                    let (ok, err) = apply(&dir, &catalogue.dir.join(file), false)?;
+                    if !ok {
+                        together = false;
+                        failures += 1;
+                        println!("FAIL {vendor} {} all patches together: {id} {file} does not apply after the others", info.version);
+                        println!("     {err}");
+                    }
+                }
+            }
+            if together && patches.len() > 1 {
+                println!(
+                    "ok   {vendor} {} all {} patches together",
+                    info.version,
+                    patches.len()
+                );
+            }
+        }
+    }
+
+    if failures > 0 {
+        Err(format!("{failures} patch check(s) failed"))
+    } else {
+        Ok(())
+    }
 }
 
 fn parse_config_arg(s: &str) -> Result<(String, String), String> {

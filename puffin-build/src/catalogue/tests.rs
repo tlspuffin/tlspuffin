@@ -582,3 +582,22 @@ fn library_states_record_every_entry() {
     assert_eq!(state.status("CVE-2022-39173"), Some(Status::Unaffected));
     assert_eq!(state.status("CVE-2022-42905"), Some(Status::Unaffected));
 }
+
+#[test]
+fn every_vendor_with_entries_has_a_harness_whose_crate_checks_its_witnesses() {
+    // the catalogue test of a protocol crate (e.g. tlspuffin/tests/catalogue.rs) checks the vendors
+    // whose C harness is in `<protocol>puffin/harness/<vendor>`: entries of any other vendor
+    // would have no witness check
+    for vendor in vendors() {
+        let catalogue = Catalogue::load(&vendor).unwrap();
+        let harnessed = std::fs::read_dir(crate::puffin::project_dir())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.path().join("harness").join(&vendor).is_dir());
+        assert!(
+            catalogue.entries.is_empty() || harnessed,
+            "{vendor} has catalogue entries but no C harness in a protocol crate: no catalogue test checks their \
+             witnesses"
+        );
+    }
+}

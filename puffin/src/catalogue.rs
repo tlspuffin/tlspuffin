@@ -737,6 +737,104 @@ impl Report {
     }
 }
 
+/// The vendors of the PUTs of `registry` that carry a catalogue state.
+pub fn bundled_vendors<PB: ProtocolBehavior>(registry: &PutRegistry<PB>) -> Vec<String> {
+    let mut vendors: Vec<String> = registry
+        .puts()
+        .filter_map(|(_, f)| f.catalogue())
+        .filter_map(|c| c.state.ok().map(|s| s.vendor))
+        .collect();
+    vendors.sort();
+    vendors.dedup();
+    vendors
+}
+
+/// The catalogue check of the PUTs of `registry` (what the catalogue test does, in sequence): the
+/// two-way check of witnesses and entries, the catalogue state of each PUT, and every case.
+pub fn check<PB: ProtocolBehavior>(
+    registry: &PutRegistry<PB>,
+    vendors: &[&str],
+) -> Result<Report, String>
+where
+    PB::ProtocolTypes: 'static,
+{
+    let catalogues = load_catalogues(vendors)?;
+    let witnesses = witnesses::<PB::ProtocolTypes>();
+    let mut report = Report {
+        problems: check_witnesses(&catalogues, &witnesses),
+        results: vec![],
+        skipped: vec![],
+    };
+    report
+        .problems
+        .extend(state_problems(registry, &catalogues));
+    for (case, runnable) in cases(registry, &catalogues, &witnesses) {
+        match runnable {
+            Err(reason) => report.skipped.push((case, reason)),
+            Ok(()) => {
+                let witness = witnesses
+                    .iter()
+                    .find(|w| w.entry == case.entry && w.name == case.witness)
+                    .expect("case of an unknown witness");
+                report
+                    .results
+                    .push(run_case(registry, &catalogues, witness, &case, RUNS));
+            }
+        }
+    }
+    Ok(report)
+}
+
+/// The state of one PUT, as listed by `catalogue --json`.
+#[derive(Debug, Serialize)]
+pub struct PutListing {
+    pub put: String,
+    pub instrumentation: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<LibraryState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// One witness, as listed by `catalogue --json`.
+#[derive(Debug, Serialize)]
+pub struct WitnessListing {
+    pub entry: String,
+    pub name: String,
+    pub module: String,
+    pub extra_capabilities: Vec<String>,
+}
+
+/// What a binary knows about the catalogue: its PUTs' states and its witnesses.
+pub fn listing<PB: ProtocolBehavior>(
+    registry: &PutRegistry<PB>,
+) -> (Vec<PutListing>, Vec<WitnessListing>)
+where
+    PB::ProtocolTypes: 'static,
+{
+    let mut puts: Vec<PutListing> = registry
+        .puts()
+        .filter_map(|(name, f)| f.catalogue().map(|c| (name.to_string(), c)))
+        .map(|(put, c)| PutListing {
+            put,
+            instrumentation: c.instrumentation,
+            error: c.state.as_ref().err().cloned(),
+            state: c.state.ok(),
+        })
+        .collect();
+    puts.sort_by(|a, b| a.put.cmp(&b.put));
+    let witnesses = witnesses::<PB::ProtocolTypes>()
+        .iter()
+        .map(|w| WitnessListing {
+            entry: w.entry.into(),
+            name: w.name.into(),
+            module: w.module.into(),
+            extra_capabilities: w.extra_capabilities.iter().map(|s| s.to_string()).collect(),
+        })
+        .collect();
+    (puts, witnesses)
+}
+
 /// The generic catalogue test of a protocol crate (a test target with `harness = false`):
 ///
 /// ```ignore
