@@ -164,8 +164,11 @@ struct EntryLine {
     cvss: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     no_witness: Option<String>,
-    /// hash of the entry (definition and patches), as recorded by builds
+    /// hash of the entry (its whole definition and its patches): validations record it
     hash: String,
+    /// hash of what the build takes from the entry (affected versions, options, patches), as the
+    /// build records it
+    build_hash: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -209,7 +212,8 @@ fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
                 category: entry.category.clone(),
                 cvss: entry.cvss.as_ref().map(|c| c.score),
                 no_witness: entry.no_witness.clone(),
-                hash: entry_state.hash.clone(),
+                hash: catalogue.entry_hash(id).unwrap_or_default().to_string(),
+                build_hash: entry_state.hash.clone(),
             }
         })
         .collect();

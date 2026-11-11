@@ -31,10 +31,25 @@ pub const DERIVED_FIX: &str = "-fix-";
 pub const DERIVED_FIX_ALL: &str = "-fix-all";
 pub const ID_SEPARATOR: char = '+';
 
+/// Environment variable naming the puffin-build directory to read the catalogue from instead of
+/// the source tree's (see [`build_dir`]).
+pub const BUILD_DIR_ENV: &str = "PUFFIN_BUILD_DIR";
+
+/// The puffin-build directory the catalogue is read from at run time (its vendors, the
+/// capabilities of vendorinfo.sh.in): that of the source tree this crate was built from, or
+/// `$PUFFIN_BUILD_DIR` when set, for a binary run outside its source tree (e.g. a copy kept in a
+/// cache: the `puffin-build` of a checkout of the same commit).
+pub fn build_dir() -> PathBuf {
+    match std::env::var_os(BUILD_DIR_ENV) {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+    }
+}
+
 /// Directory holding one sub-directory per vendor (`presets.toml`, `builder.cmake`, the catalogue
-/// and its patches).
+/// and its patches), in [`build_dir`].
 pub fn vendors_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("vendors")
+    build_dir().join("vendors")
 }
 
 /// Names of the vendors that have a directory in [`vendors_dir`].
@@ -114,6 +129,11 @@ pub struct Entry {
     /// Other entries the witness of this one is known to trigger too
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub also_triggers: Vec<String>,
+    /// Library versions on which the witnesses reach the bug, when they cannot on every affected
+    /// version (e.g. a record size older releases refuse): elsewhere they are not expected to
+    /// trigger it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub witness_versions: Option<VersionRange>,
     /// Why there is no witness trace (the entry then cannot be checked on executions)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub no_witness: Option<String>,
@@ -261,6 +281,7 @@ pub struct Catalogue {
     /// Hash of the catalogue file and of every patch it uses
     pub hash: String,
     entry_hashes: BTreeMap<String, String>,
+    build_hashes: BTreeMap<String, String>,
     patch_hashes: BTreeMap<String, String>,
 }
 
@@ -340,6 +361,7 @@ impl Catalogue {
             entries,
             hash: String::new(),
             entry_hashes: BTreeMap::new(),
+            build_hashes: BTreeMap::new(),
             patch_hashes,
         };
 
@@ -365,6 +387,11 @@ impl Catalogue {
             .iter()
             .map(|(id, entry)| (id.clone(), catalogue.compute_entry_hash(id, entry)))
             .collect();
+        catalogue.build_hashes = catalogue
+            .entries
+            .iter()
+            .map(|(id, entry)| (id.clone(), catalogue.compute_build_hash(id, entry)))
+            .collect();
         catalogue.hash = sha256::digest(
             std::iter::once(content.to_string())
                 .chain(
@@ -389,6 +416,14 @@ impl Catalogue {
         self.entry_hashes.get(id).map(String::as_str)
     }
 
+    /// Hash of what a library build takes from an entry: its affected versions and commits, the
+    /// options it requires, its patches and their content. Builds record it (see
+    /// [`LibraryState`]): an edit of the rest of the entry (oracle, witness versions,
+    /// description) leaves the builds as they are.
+    pub fn build_hash(&self, id: &str) -> Option<&str> {
+        self.build_hashes.get(id).map(String::as_str)
+    }
+
     /// Hash of a patch file (path relative to the vendor directory).
     pub fn patch_hash(&self, file: &str) -> Option<&str> {
         self.patch_hashes.get(file).map(String::as_str)
@@ -396,6 +431,32 @@ impl Catalogue {
 
     fn compute_entry_hash(&self, id: &str, entry: &Entry) -> String {
         let definition = toml::to_string(&BTreeMap::from([(id, entry)]))
+            .expect("failed to serialize a catalogue entry");
+        let patches = entry
+            .patches
+            .iter()
+            .flat_map(|p| p.files.iter())
+            .map(|f| format!("{f} {}", self.patch_hashes[f]))
+            .collect::<Vec<_>>()
+            .join("\n");
+        sha256::digest(format!("{definition}\n{patches}"))
+    }
+
+    fn compute_build_hash(&self, id: &str, entry: &Entry) -> String {
+        #[derive(Serialize)]
+        struct BuildPart<'a> {
+            affected: Option<&'a str>,
+            affected_commits: Option<&'a str>,
+            requires: &'a BTreeMap<String, bool>,
+            patches: &'a [Patch],
+        }
+        let part = BuildPart {
+            affected: entry.affected.as_ref().map(|r| r.as_str()),
+            affected_commits: entry.affected_commits.as_deref(),
+            requires: &entry.requires,
+            patches: &entry.patches,
+        };
+        let definition = toml::to_string(&BTreeMap::from([(id, part)]))
             .expect("failed to serialize a catalogue entry");
         let patches = entry
             .patches
@@ -511,6 +572,9 @@ impl Catalogue {
         if let Some(reason) = &entry.no_witness {
             if reason.trim().is_empty() {
                 problem("empty no_witness reason".into());
+            }
+            if entry.witness_versions.is_some() {
+                problem("witness_versions without witness (no_witness)".into());
             }
         }
 
@@ -778,8 +842,8 @@ impl Catalogue {
 pub const STATE_FILE: &str = ".catalogue";
 
 /// What a library build records about every entry of its vendor's catalogue: whether the build has
-/// the bug, the hashes of the catalogue and of each entry (definition and patches) it was built
-/// with.
+/// the bug, the hashes of the catalogue and of what the build took from each entry (affected
+/// versions, options, patches).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LibraryState {
@@ -797,7 +861,7 @@ pub struct LibraryState {
 #[serde(deny_unknown_fields)]
 pub struct EntryState {
     pub state: Status,
-    /// Hash of the entry (definition and patches)
+    /// Build hash of the entry (see [`Catalogue::build_hash`])
     pub hash: String,
     /// Hashes of the patch files fixing the entry at this version: applied when fixed, empty when
     /// there is no patch for this version
@@ -868,7 +932,7 @@ impl Catalogue {
                     id.clone(),
                     EntryState {
                         state,
-                        hash: self.entry_hashes[id].clone(),
+                        hash: self.build_hashes[id].clone(),
                         patches,
                     },
                 )
@@ -1112,6 +1176,16 @@ impl LibraryState {
 }
 
 impl Entry {
+    /// Whether the entry's witnesses are expected to reach the bug on `version` (see
+    /// `witness_versions`).
+    pub fn witness_reaches(&self, version: &str) -> bool {
+        match (&self.witness_versions, version.parse::<Version>()) {
+            (None, _) => true,
+            (Some(range), Ok(v)) => range.contains(&v),
+            (Some(_), Err(_)) => false,
+        }
+    }
+
     /// Whether the bug is in a build of the preset (version affected and `requires` met), before
     /// any fix.
     pub fn is_active_in(&self, preset: &PresetInfo, context: &VendorContext) -> bool {
@@ -1254,8 +1328,7 @@ impl VendorContext {
             .map(|content| parse_builder_options(&content))
             .unwrap_or_default();
 
-        let vendorinfo =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("cmake/builder/cmake/vendorinfo.sh.in");
+        let vendorinfo = build_dir().join("cmake/builder/cmake/vendorinfo.sh.in");
         let capabilities = std::fs::read_to_string(&vendorinfo)
             .map(|content| parse_capabilities(&content))
             .map_err(|e| err(format!("cannot read {}: {e}", vendorinfo.display())))?;

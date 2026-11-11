@@ -113,6 +113,8 @@ affected = "< 5.5.2"
 capabilities = ["tls13"]
 oracle = { kind = "crash", asan = "heap-buffer-overflow" }
 top_frames = ["AddPacketInfo", "DoTls13HandShakeMsgType"]
+# the witness sends a record of about 17 KB: 4.4.0, 5.1.1 and 5.3.0 refuse it ("malformed buffer input") before the bug
+witness_versions = ">= 5.4.0"
 references = ["https://nvd.nist.gov/vuln/detail/CVE-2022-42905", "https://github.com/wolfSSL/wolfssl/releases/tag/v5.5.2-stable"]
 
 [CVE-2022-42905.find]
@@ -137,3 +139,22 @@ references = ["https://nvd.nist.gov/vuln/detail/CVE-2024-5814", "https://doi.org
 
 [CVE-2024-5814.find]
 by_puffin = false
+
+[CVE-2021-3336]
+summary = "TLS 1.3 client accepts a CertificateVerify whose signature has no matching key in the server's certificate (e.g. an empty certificate chain): server impersonation"
+category = "auth-bypass"
+cwe = "CWE-295"
+cvss = { version = "3.1", score = 8.1, vector = "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H", source = "nvd" }
+affected = "< 4.7.0"
+capabilities = ["tls13"]
+oracle = { kind = "claim", violation = "Authentication bypass" }
+top_frames = ["DoTls13CertificateVerify"]
+references = ["https://nvd.nist.gov/vuln/detail/CVE-2021-3336", "https://github.com/wolfSSL/wolfssl/pull/3676"]
+
+[CVE-2021-3336.find]
+by_puffin = false
+
+[[CVE-2021-3336.patches]]
+versions = ">= 4.4.0, < 4.7.0"
+files = ["patches/fix-CVE-2021-3336.patch"]
+upstream = "fad1e67677bf7797b6bd6e1f21a513c289d963a7"

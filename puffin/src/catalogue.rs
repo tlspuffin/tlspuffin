@@ -337,11 +337,17 @@ where
                 .status(witness.entry)
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "unknown".into());
+            // where the witness is known not to reach the bug, nothing is decided from its outcome
+            let role = if entry.witness_reaches(&state.version) {
+                role(state, witness.entry)
+            } else {
+                Role::Other
+            };
             let case = Case {
                 entry: witness.entry.into(),
                 witness: witness.name.into(),
                 put: name.to_string(),
-                role: role(state, witness.entry),
+                role,
                 status,
             };
 
@@ -353,10 +359,10 @@ where
                         .to_string(),
                 )
             } else if state.entries.get(witness.entry).map(|e| e.hash.as_str())
-                != catalogue.entry_hash(witness.entry)
+                != catalogue.build_hash(witness.entry)
             {
                 Err(format!(
-                    "the PUT was built with another version of {} (catalogue entry or patch changed): rebuild it",
+                    "the PUT was built with another version of {} (affected versions, options or patches): rebuild it",
                     witness.entry
                 ))
             } else {
@@ -406,13 +412,13 @@ pub fn state_problems<PB: ProtocolBehavior>(
                         .keys()
                         .filter(|id| {
                             state.entries.get(*id).map(|e| e.hash.as_str())
-                                != catalogue.entry_hash(id)
+                                != catalogue.build_hash(id)
                         })
                         .map(String::as_str)
                         .collect();
                     if !stale.is_empty() {
                         problems.push(format!(
-                            "PUT {name}: built with another version of {} (rebuild it with mk_vendor)",
+                            "PUT {name}: built with another version of {} (affected versions, options or patches: rebuild it with mk_vendor)",
                             stale.join(", ")
                         ));
                     }
@@ -650,6 +656,17 @@ pub fn judge(
                     "{id} is {} here, and its witness gives {o}, which no active entry explains (check the \
                      affected range)",
                     case.status
+                ),
+                outcomes.clone(),
+                vec![],
+            ),
+            None if active && !entry.witness_reaches(&state.version) => result(
+                case,
+                "pass",
+                format!(
+                    "{id} is active here, but its witness only reaches it on {} ({})",
+                    entry.witness_versions.as_ref().map(|r| r.as_str()).unwrap_or("-"),
+                    describe(None)
                 ),
                 outcomes.clone(),
                 vec![],

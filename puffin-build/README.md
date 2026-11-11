@@ -57,6 +57,9 @@ Other fields:
   `commits = ...` instead of `versions`.
 - `replayable = false`: objectives found by fuzzing do not reproduce on their own (e.g. they need earlier state).
 - `also_triggers = ["<ID>"]`: other entries the witness is known to trigger too (no overlap warning).
+- `witness_versions = "<range>"`: the library versions on which the witnesses reach the bug, when they cannot on every
+  affected version; elsewhere their outcome decides nothing (e.g. HEAP's witness sends a 17 KB record that releases
+  before 5.4.0 refuse).
 
 **Oracle.** `kind = "crash"` with any of `signal` (e.g. "SIGSEGV"), `asan` (the ASan report type, e.g.
 "heap-buffer-overflow", "SEGV", "bad-free"), `panic` (a panic message); or `kind = "claim"` with `violation` (the

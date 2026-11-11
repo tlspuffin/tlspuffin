@@ -601,3 +601,45 @@ fn every_vendor_with_entries_has_a_harness_whose_crate_checks_its_witnesses() {
         );
     }
 }
+
+#[test]
+fn build_hashes_only_follow_what_builds_take_from_an_entry() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    let before = parse(BUF, &dir).unwrap();
+    let id = "CVE-2022-39173";
+
+    // a new summary or oracle: the entry changes, its builds do not
+    let described = parse(
+        &BUF.replace("RefineSuites\"", "RefineSuites, described again\"")
+            .replace(
+                "stack-buffer-overflow\" }",
+                "stack-buffer-overflow\", signal = \"SIGABRT\" }",
+            ),
+        &dir,
+    )
+    .unwrap();
+    assert_ne!(before.entry_hash(id), described.entry_hash(id));
+    assert_eq!(before.build_hash(id), described.build_hash(id));
+
+    // another affected range or another patch: the builds change
+    let narrowed = parse(
+        &BUF.replace("affected = \"< 5.5.1\"", "affected = \"< 5.5.0\""),
+        &dir,
+    )
+    .unwrap();
+    assert_ne!(before.build_hash(id), narrowed.build_hash(id));
+    std::fs::write(
+        dir.0.path().join("patches/fix-buf.patch"),
+        "another patch\n",
+    )
+    .unwrap();
+    let patched = parse(BUF, &dir).unwrap();
+    assert_ne!(before.build_hash(id), patched.build_hash(id));
+
+    // what a build records
+    let plan = before.plan("5.4.0", &BTreeMap::new(), &[]).unwrap();
+    assert_eq!(
+        before.library_state("5.4.0", &plan).entries[id].hash,
+        before.build_hash(id).unwrap()
+    );
+}
