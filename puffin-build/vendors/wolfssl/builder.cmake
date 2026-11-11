@@ -2,35 +2,15 @@ use_languages(C)
 
 option(postauth "Build with post-auth" ON)
 
-if(VENDOR_VERSION VERSION_LESS "5.2.0")
-  declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
-  declare_vulnerability("CVE-2022-25640" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25640.patch)
-endif()
+# Known vulnerabilities and their fix patches: vulnerabilities.toml (applied by puffin-build after the patches below).
 
-if(VENDOR_VERSION VERSION_EQUAL "5.3.0")
-  declare_vulnerability("CVE-2022-38153")
-endif()
-
-if(VENDOR_VERSION VERSION_LESS "5.5.0" AND NOT postauth)
-  declare_vulnerability("CVE-2022-38152")
-endif()
-
-if(VENDOR_VERSION VERSION_LESS "5.5.1")
-  declare_vulnerability("CVE-2022-39173" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-39173.patch)
-endif()
-
-if(VENDOR_VERSION VERSION_LESS "5.5.2")
-  declare_vulnerability("CVE-2022-42905" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
-endif()
-
-if(VENDOR_VERSION VERSION_LESS "5.7.2")
-  declare_vulnerability("CVE-2024-5814")
-endif()
-
+# Claims instrumentation: from 5.5.0 on, AddPacketInfo skips the message callback for encrypted records, so the
+# claims of encrypted handshake messages were never reported. The patch removes that check (instrumentation for
+# tlspuffin's security oracle, not a bug fix).
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
-  declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
+  patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/claims-AllowClaim-552.patch")
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
-  declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-550.patch)
+  patch(FILE "${CMAKE_CURRENT_LIST_DIR}/patches/claims-AllowClaim-550.patch")
 endif()
 
 set(v440_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},4.4.0>")
@@ -43,19 +23,6 @@ set(require_user_ticks "${CPUT}")
 # reuse the output register to address the status flag, which crashes the library when it is
 # built with ASAN. The constraint is fixed in every version that has it (present in 4.3.0 and 5.x).
 patch(PATTERN [===[s/"=r"\\((\\*\\w+)\\), "=qm"\\(ok\\)/"=&r"($1), "=qm"(ok)/]===] <SOURCE_DIR>/wolfcrypt/src/random.c)
-
-foreach(CVE IN LISTS fix)
-  if(NOT HAS_${CVE})
-    message(FATAL_ERROR "Requested fix for unknown CVE '${CVE}'")
-  endif()
-
-  if(NOT PATCH_${CVE})
-    message(FATAL_ERROR "Requested fix for CVE '${CVE}' but no patch is known")
-  endif()
-
-  patch(FILE ${PATCH_${CVE}})
-  list(APPEND FIXED_VULNERABILITIES ${CVE})
-endforeach()
 
 autotools_builder(
   FEATURES

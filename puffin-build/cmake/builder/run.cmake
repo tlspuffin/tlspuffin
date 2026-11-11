@@ -36,6 +36,24 @@ if(EXISTS "${BUILDER}" AND NOT IS_DIRECTORY "${BUILDER}")
   include("${BUILDER}")
 elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
   include("${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
+
+  # The vendor's vulnerability catalogue (vendors/<vendor>/vulnerabilities.toml) is the only source of its known
+  # vulnerabilities: puffin-build reads it and passes the known ones, the fixed ones and the patches fixing them.
+  # The patches apply after the builder's own patches.
+  if(CATALOGUE)
+    if(KNOWN_VULNERABILITIES)
+      message(FATAL_ERROR "[${BUILDER}] builder.cmake declares vulnerabilities (${KNOWN_VULNERABILITIES}), but the "
+                          "vendor has a catalogue: declare them in vulnerabilities.toml")
+    endif()
+
+    string(REPLACE "," ";" KNOWN_VULNERABILITIES "${CATALOGUE_KNOWN}")
+    string(REPLACE "," ";" FIXED_VULNERABILITIES "${CATALOGUE_FIXED}")
+    string(REPLACE "," ";" CATALOGUE_PATCHES "${CATALOGUE_PATCHES}")
+    foreach(patch_file IN LISTS CATALOGUE_PATCHES)
+      patch(FILE "${patch_file}")
+    endforeach()
+  endif()
+
   string(REPLACE ";" " " FIXED_VULNERABILITIES "${FIXED_VULNERABILITIES}")
   string(REPLACE ";" " " KNOWN_VULNERABILITIES "${KNOWN_VULNERABILITIES}")
   generate_vendorinfo_script(vendorinfo_script)

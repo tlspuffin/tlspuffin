@@ -5,7 +5,7 @@ use std::{env, fmt, fs, io};
 
 use crate::error::{Error, Result};
 use crate::library::Library;
-use crate::{library, puffin};
+use crate::{catalogue, library, puffin};
 
 pub fn from_env() -> VendorDir {
     VendorDir::from_env()
@@ -154,7 +154,22 @@ impl<'a> LibraryDir<'a> {
         // NOTE ensure intermediate folders exist and there is no artifact from a previous build
         self.remove()?;
 
+        // the state of the catalogue entries is computed before the build: a build fails anyway
+        // when the catalogue is invalid, and the state then records exactly what the build
+        // applied
+        let state = config
+            .catalogue_state()
+            .map_err(|e| Error::LibraryBuilderFailed {
+                builder: config.builder().clone(),
+                sources: self.path().join("src"),
+                options: config.options().clone(),
+                reason: io::Error::other(e),
+            })?;
+
         config.build(self.path(), cput).map(|_| {
+            if let Some(state) = state {
+                std::fs::write(self.path.join(catalogue::STATE_FILE), state.to_toml()).ok();
+            }
             std::fs::write(self.config_file(), toml::to_string(config).unwrap()).ok();
             self.path().to_path_buf()
         })

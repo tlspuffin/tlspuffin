@@ -53,6 +53,19 @@ impl Library {
         &self.metadata
     }
 
+    /// The state of every catalogue entry in this build (`None`: a vendor without catalogue, or a
+    /// library built before catalogue states were recorded).
+    pub fn catalogue_state(&self) -> Option<crate::catalogue::LibraryState> {
+        std::fs::read_to_string(self.path().join(crate::catalogue::STATE_FILE))
+            .ok()
+            .and_then(|content| crate::catalogue::LibraryState::from_toml(&content).ok())
+    }
+
+    /// The raw content of the catalogue state file of this build.
+    pub fn catalogue_state_toml(&self) -> Option<String> {
+        std::fs::read_to_string(self.path().join(crate::catalogue::STATE_FILE)).ok()
+    }
+
     pub fn include_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = vec![self.path().join("include")];
         let vendor_src = self.path().join("src").join("vendor");

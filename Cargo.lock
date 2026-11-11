@@ -1936,6 +1936,7 @@ dependencies = [
  "nix 0.29.0",
  "regex",
  "serde",
+ "serde_json",
  "sha256",
  "syn 2.0.114",
  "tempfile",

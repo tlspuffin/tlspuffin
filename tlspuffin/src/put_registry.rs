@@ -67,7 +67,7 @@ pub mod registration {
     include!(env!("RUST_PUTS_BUNDLE_FILE"));
 }
 
-pub use registration::for_puts;
+pub use registration::{catalogue_states, for_puts};
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     let puts: Vec<_> = registration::all()

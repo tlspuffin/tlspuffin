@@ -20,6 +20,7 @@ env_logger = { workspace = true }
 clap = { workspace = true, features = ["cargo", "derive"] }
 serde = { workspace = true, features = ["derive"] }
 toml = { workspace = true }
+serde_json = { workspace = true }
 itertools = { workspace = true }
 tempfile = { workspace = true }
 sha256 = { workspace = true }

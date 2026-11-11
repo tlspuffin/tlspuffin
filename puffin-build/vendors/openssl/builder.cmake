@@ -72,42 +72,7 @@ set(CONFIGURE_FLAGS
   --libdir=lib  # force consistent libdir across platforms
 )
 
-string(REGEX MATCH "^([0-9]+\.[0-9]+\.[0-9]+)(.)" _match "${VENDOR_VERSION}")
-set(VERSION_LETTER "${CMAKE_MATCH_2}")
-
-# check for Heartbleed: CVE-2014-0160
-# see: https://www.openssl.org/news/vulnerabilities.html#y2014
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
-  set(VULN_LETTER "a;b;c;d;e;f")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2014-0160")
-  endif()
-endif()
-
-# check for FREAK: CVE-2015-0204
-# see: https://www.openssl.org/news/vulnerabilities.html#y2015
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.0" AND VENDOR_VERSION VERSION_LESS "1.0.1")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j;k;l;m;n;o")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2015-0204")
-  endif()
-endif()
-
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2015-0204")
-  endif()
-endif()
-
-# check for CVE-2021-3449
-# see: https://www.openssl.org/news/vulnerabilities.html#y2021
-if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1" AND VENDOR_VERSION VERSION_LESS "1.1.2")
-  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
-  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
-    declare_vulnerability("CVE-2021-3449")
-  endif()
-endif()
+# Known vulnerabilities: vulnerabilities.toml
 
 set(CFLAGS
   -g

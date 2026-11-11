@@ -32,12 +32,32 @@ impl BundleBuilder {
                 vec![None, {registration}].into_iter().flatten().collect()
             }}
 
+            /// The catalogue state of the library of each bundled PUT (`.catalogue` of its library directory, TOML),
+            /// by PUT name: which known vulnerabilities the PUT has, which are patched, with the hashes of the
+            /// catalogue entries it was built with.
+            #[allow(dead_code)]
+            pub fn catalogue_states() -> Vec<(&'static str, Option<&'static str>)> {{
+                vec![{catalogue_states}]
+            }}
+
             {puts_modules}
             "#,
             registration = self
                 .puts
                 .iter()
                 .map(|put| format!("{}::register()", put.id()))
+                .join(", "),
+            catalogue_states = self
+                .puts
+                .iter()
+                .map(|put| format!(
+                    "(r#\"{name}\"#, {state})",
+                    name = put.name(),
+                    state = match put.library().catalogue_state_toml() {
+                        Some(toml) => format!("Some(r####\"{toml}\"####)"),
+                        None => "None".to_string(),
+                    }
+                ))
                 .join(", "),
             puts_modules = self
                 .puts
