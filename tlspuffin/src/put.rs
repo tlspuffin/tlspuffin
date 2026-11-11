@@ -129,6 +129,15 @@ impl Factory<TLSProtocolBehavior> for CPut {
         self.capabilities.contains(capability)
     }
 
+    fn catalogue(&self) -> Option<puffin::catalogue::PutCatalogue> {
+        crate::put_registry::catalogue_states()
+            .into_iter()
+            .find(|(name, _, _)| *name == self.name)
+            .map(|(_, state, instrumentation)| {
+                puffin::catalogue::PutCatalogue::from_bundle(state, instrumentation)
+            })
+    }
+
     fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
         Box::new(self.clone())
     }
