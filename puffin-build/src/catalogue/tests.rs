@@ -290,12 +290,77 @@ fn reference_must_have_the_bug() {
     assert_problem(
         &BUF.replace("affected = ", "reference = \"lib552-asan\"\naffected = "),
         &dir,
-        "reference: the bug is not in preset 'lib552-asan'",
+        "reference: the bug is not in 'lib552-asan'",
     );
     assert_problem(
         &BUF.replace("affected = ", "reference = \"lib540-buf\"\naffected = "),
         &dir,
-        "reference: preset 'lib540-buf' fixes it",
+        "reference: 'lib540-buf' fixes it",
+    );
+    assert_problem(
+        &BUF.replace("affected = ", "reference = \"5.5.2,asan\"\naffected = "),
+        &dir,
+        "reference: the bug is not in '5.5.2,asan'",
+    );
+    assert_problem(
+        &BUF.replace("affected = ", "reference = \"5.4.0,only-BUF\"\naffected = "),
+        &dir,
+        "reference: '5.4.0,only-BUF': a preset, or a version and modifiers",
+    );
+    assert_problem(
+        &BUF.replace("affected = ", "reference = \"5.4.0,tls13\"\naffected = "),
+        &dir,
+        "reference: 'tls13': not a modifier of lib",
+    );
+}
+
+#[test]
+fn reference_and_check_builds_in_the_comma_form() {
+    let dir = vendor_dir(&["fix-buf.patch"]);
+    let ctx = context();
+    let catalogue = parse(
+        &BUF.replace(
+            "affected = ",
+            "reference = \"5.4.0,asan\"\ncheck = [\"5.1.0,no-postauth\"]\naffected = ",
+        ),
+        &dir,
+    )
+    .unwrap();
+    let entry = catalogue.entry("CVE-2022-39173").unwrap();
+    assert_eq!(
+        catalogue.reference_preset("CVE-2022-39173", entry, &ctx),
+        Ok("5.4.0,asan".into())
+    );
+    // the CI checks named builds by their names (slugs)
+    let checks = catalogue.check_presets(&ctx);
+    assert!(checks.contains_key("lib510-no-postauth"), "{checks:?}");
+    assert_eq!(
+        catalogue.validation_set("lib510-no-postauth", &ctx),
+        vec![
+            "lib510-no-postauth-fix-all".to_string(),
+            "lib510-no-postauth-only-CVE-2022-39173".to_string()
+        ]
+    );
+    // `<ID>` starts from the reference build
+    let single = catalogue.derive("CVE-2022-39173", &ctx).unwrap().unwrap();
+    assert_eq!(single.derived.base, "lib540-asan");
+}
+
+#[test]
+fn ids_and_aliases_name_one_bug_each() {
+    let dir = vendor_dir(&["fix-buf.patch", "fix-heap.patch"]);
+    assert_problem(
+        &format!(
+            "{BUF}{}",
+            HEAP.replace("alias = \"HEAP\"", "alias = \"buf\"")
+        ),
+        &dir,
+        "'buf' also names CVE-2022-39173",
+    );
+    assert_problem(
+        &BUF.replace("alias = \"BUF\"", "alias = \"B,UF\""),
+        &dir,
+        "invalid alias 'B,UF'",
     );
 }
 

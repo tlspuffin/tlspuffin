@@ -29,8 +29,8 @@ capabilities = ["tls13", "tls13_session_resumption"]   # PUT capabilities its wi
 put_options = { use_clear = "true" } # PUT options its witnesses run with, default: none
 oracle = { kind = "crash", asan = "stack-buffer-overflow" }
 top_frames = ["RefineSuites"]        # shown to people, never used to decide
-reference = "wolfssl540-asan"        # preset of `<vendor>:<ID>` (default below)
-check = []                           # more presets for the CI to check the entry on
+reference = "5.4.0,asan"             # the build `wolfssl:only-CVE-2022-39173` starts from (default below)
+check = []                           # more builds for the CI to check the entry on (`5.4.0,no-postauth`)
 references = ["https://nvd.nist.gov/vuln/detail/CVE-2022-39173"]
 
 [CVE-2022-39173.find]                # how puffin finds it (informational)
@@ -76,7 +76,7 @@ newer than every release. Ranges: comparisons (`<`, `<=`, `>`, `>=`, `=`) joined
 shown on NVD when NIST gives none (`source = "cna:<name>"`). Never a v2 or v4.0 score. The vector is stored with the
 score and the loader recomputes the score from it.
 
-**Default reference preset.** The newest version with the bug; among its presets, an ASan one first, then the one with
+**Default reference build.** The newest version with the bug; among its presets, an ASan one first, then the one with
 the fewest fixes, then the shortest name.
 
 ### What the loader refuses
@@ -95,15 +95,25 @@ list, whose patches it applies. It records in `.catalogue` (library directory) t
 fixed, unaffected) with the hashes of the catalogue, of each entry and of its patches; the PUT bundle embeds these
 states, and PUTs get the cfgs `<ID> = "<put>"` (active) and `fixed_<ID> = "<put>"`.
 
-`mk_vendor make` also builds names derived from the catalogue (the derived name is the library directory and the PUT
-name):
+`mk_vendor make` builds any name of a build, `<vendor>:<version>[,<modifier>…]` (the canonical form; `mk_vendor
+modifiers <vendor>` lists the modifiers, `mk_vendor resolve <vendor>:<build>` shows what a name builds). The library
+directory and the PUT are named after the build: the name of a preset with that build, else today's dashed form (its
+*slug*), so that every existing build keeps its name.
 
 | name | builds |
 |---|---|
-| `wolfssl:CVE-2022-39173` | the bug's reference preset, every other active bug with a patch patched, ASan |
-| `wolfssl:wolfssl540-asan-only-CVE-2022-39173` | the preset, every other active bug with a patch patched |
-| `wolfssl:wolfssl540-asan-fix-CVE-2022-39173+CVE-2022-42905` | the preset with these patched too |
-| `wolfssl:wolfssl540-asan-fix-all` | the preset with every active bug that has a patch patched |
+| `wolfssl:5.4.0`, `wolfssl:5.4.0,asan` | the plainest preset of the version (`wolfssl540`), with ASan (`wolfssl540-asan`) |
+| `wolfssl:5.4.0,only-BUF` | every other active bug with a patch patched; what BUF needs comes with it (ASan: its oracle is an ASan report): `wolfssl540-asan-only-CVE-2022-39173` |
+| `wolfssl:5.4.0,only-SDOS2` | the same for SDOS2, with `no-postauth` (its `requires`): `wolfssl540-asan-no-postauth-only-CVE-2022-38152` |
+| `wolfssl:5.4.0,fix-BUF+HEAP`, `wolfssl:5.4.0,fix-all` | these bugs patched; every active bug with a patch patched |
+| `wolfssl:only-BUF`, `wolfssl:CVE-2022-39173` | from the bug's reference build (`reference`), only that bug left (the second: always ASan) |
+| `wolfssl:wolfssl540-asan-only-CVE-2022-39173` | a preset followed by `-<modifier>`s and `-only-<IDs>`, `-fix-<IDs>`, `-fix-all`: exactly that, nothing implied |
+
+Modifiers: `asan`, `sancov` (on by default: the coverage the fuzzer's feedback reads), `gcov` (implies `no-sancov`),
+`llvm_cov`, the builder's options (wolfSSL: `postauth`), each also `no-<modifier>`; bugs by ID or alias, any case,
+joined by `+`. Versions as the presets write them, or without their dots when unambiguous (`540`, `111j`); `-` may
+replace `,` (`540-asan-only-BUF`). Every spelling of a build gets one canonical name (`5.4.0,only-CVE-2022-39173`) and
+one slug.
 
 `mk_vendor list <vendor>:<name> [--json]` shows the state of every entry in a build and the *validation set* of a preset
 (its `-fix-all` build and one `-only-<ID>` build per active bug with a patch). `mk_vendor list --check [--json]` gives

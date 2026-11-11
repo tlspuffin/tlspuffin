@@ -12,22 +12,21 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// `mk_vendor make [--force] [--asan] [--name=<name>] <vendor>:<name>`
+    /// `mk_vendor make [--force] [--asan] [--name=<name>] <vendor>:<build>`
     ///
-    /// <name> is a preset of the vendor's presets.toml, or a name derived from its vulnerability
-    /// catalogue: `<ID>` (the bug's reference preset with every other active bug patched,
-    /// ASan), `<preset>-only-<ID>[+<ID>...]` (every other active bug patched),
-    /// `<preset>-fix-<ID>[+<ID>...]` (these patched too), `<preset>-fix-all` (every active bug
-    /// that has a patch patched).
+    /// <build>: `<version>[,<modifier>…]` (`5.4.0,asan,only-BUF`: see `mk_vendor modifiers
+    /// <vendor>`), a preset of the vendor's presets.toml (`wolfssl540-asan`), a preset followed
+    /// by `-<modifier>`s and `-only-<IDs>`, `-fix-<IDs>` or `-fix-all`, or a bug of the catalogue
+    /// alone (`CVE-2022-39173`: its reference build, only that bug left, ASan). The library
+    /// directory and the PUT are named after the build (`mk_vendor resolve` shows it).
     #[command(arg_required_else_help = true)]
     Make {
-        /// The configuration to build (e.g. 'openssl:openssl312',
-        /// 'wolfssl:wolfssl540-only-CVE-2022-39173')
+        /// The build (e.g. 'openssl:1.1.1j,asan', 'wolfssl:5.4.0,only-BUF', 'openssl:openssl312')
         #[arg(value_name = "CONFIG")]
         #[arg(value_parser = parse_config_arg)]
         config: (String, String),
 
-        /// Override the preset's name
+        /// Name the library directory and the PUT otherwise
         #[arg(short, long)]
         name: Option<String>,
 
@@ -59,6 +58,30 @@ enum Commands {
         #[arg(long)]
         #[arg(conflicts_with = "config")]
         check: bool,
+
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// `mk_vendor resolve <vendor>:<build> [--json]`: what a name builds: its canonical name, the
+    /// name of its directory and PUT, its sources, options, fixes and the bugs it has.
+    #[command(arg_required_else_help = true)]
+    Resolve {
+        #[arg(value_name = "CONFIG")]
+        #[arg(value_parser = parse_config_arg)]
+        config: (String, String),
+
+        /// Output JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// `mk_vendor modifiers <vendor> [--json]`: the modifiers a name of the vendor's builds may
+    /// use.
+    #[command(arg_required_else_help = true)]
+    Modifiers {
+        vendor: String,
 
         /// Output JSON
         #[arg(long)]
@@ -102,6 +125,11 @@ pub fn main() -> std::process::ExitCode {
         Commands::List {
             check: true, json, ..
         } => list_check(json),
+        Commands::Resolve {
+            config: (vendor, name),
+            json,
+        } => resolve(&vendor, &name, json),
+        Commands::Modifiers { vendor, json } => modifiers(&vendor, json),
         Commands::CheckPatches { vendor } => check_patches(vendor.as_deref()),
         Commands::List { .. } => Err("expected <vendor>:<name> or --check".into()),
     };
@@ -122,7 +150,7 @@ fn make(
     force: bool,
     asan: bool,
 ) -> Result<(), String> {
-    let mut config = library::Config::resolve(vendor, name)?;
+    let (mut config, build_name) = library::Config::resolve_named(vendor, name)?;
     if asan {
         config.option("asan", true);
     }
@@ -130,7 +158,7 @@ fn make(
     // an invalid catalogue fails here, before `--force` removes the library
     config.catalogue_state()?;
 
-    let output_name = output_name.unwrap_or_else(|| name.to_string());
+    let output_name = output_name.unwrap_or(build_name);
 
     vendor_dir::VendorDir::default()
         .library_dir(&output_name)
@@ -175,6 +203,10 @@ struct EntryLine {
 struct Listing {
     vendor: String,
     name: String,
+    /// the canonical name of the build (`<vendor>:<version>[,<modifier>…]`)
+    canonical: String,
+    /// the name of its library directory and PUT
+    slug: String,
     version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     derived: Option<catalogue::Derived>,
@@ -189,6 +221,7 @@ struct Listing {
 
 fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
     let config = library::Config::resolve(vendor, name)?;
+    let spec = catalogue::resolve_name(vendor, name)?;
     let state: LibraryState = config
         .catalogue_state()?
         .ok_or_else(|| format!("vendor '{vendor}' has no catalogue"))?;
@@ -221,6 +254,8 @@ fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
     Ok(Listing {
         vendor: vendor.into(),
         name: name.into(),
+        canonical: format!("{vendor}:{}", spec.canonical),
+        slug: spec.slug.clone(),
         version: state.version.clone(),
         derived: state.derived.clone(),
         fix: config.options().fix(),
@@ -235,7 +270,7 @@ fn listing(vendor: &str, name: &str) -> Result<Listing, String> {
         validation_set: if config.derived().is_some() {
             vec![]
         } else {
-            catalogue.validation_set(name, &context)
+            catalogue.validation_set(&spec.slug, &context)
         },
     })
 }
@@ -249,7 +284,13 @@ fn list(vendor: &str, name: &str, json: bool) -> Result<(), String> {
     }
 
     println!(
-        "{vendor}:{name}: version {}{}{}",
+        "{}{}: version {}{}{}",
+        listing.canonical,
+        if listing.slug != name {
+            format!(" ({})", listing.slug)
+        } else {
+            String::new()
+        },
         listing.version,
         if listing.asan { ", ASan" } else { "" },
         listing
@@ -287,6 +328,209 @@ fn list(vendor: &str, name: &str, json: bool) -> Result<(), String> {
             println!("  {vendor}:{build}");
         }
     }
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+struct Resolved {
+    vendor: String,
+    name: String,
+    /// `<vendor>:<version>[,<modifier>…]`
+    canonical: String,
+    /// the name of its library directory and PUT
+    slug: String,
+    /// the preset whose sources and builder it uses
+    preset: String,
+    version: String,
+    /// every modifier and its value in the build
+    options: std::collections::BTreeMap<String, bool>,
+    fix: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    derived: Option<catalogue::Derived>,
+    /// the bugs of the catalogue the build has (affected, not fixed)
+    active: Vec<String>,
+}
+
+fn resolve(vendor: &str, name: &str, json: bool) -> Result<(), String> {
+    let spec = catalogue::resolve_name(vendor, name)?;
+    let catalogue = Catalogue::load(vendor).map_err(|e| e.to_string())?;
+    let context = VendorContext::load(vendor, &catalogue.dir).map_err(|e| e.to_string())?;
+    let resolved = Resolved {
+        vendor: vendor.into(),
+        name: name.into(),
+        canonical: format!("{vendor}:{}", spec.canonical),
+        slug: spec.slug.clone(),
+        preset: spec.preset.clone(),
+        version: spec.info.version.clone(),
+        options: catalogue::spec::modifiers(&context)
+            .into_iter()
+            .map(|m| {
+                let on = catalogue::spec::value(&spec.info, &context, &m);
+                (m, on)
+            })
+            .collect(),
+        fix: spec.info.fix.clone(),
+        derived: spec.derived.clone(),
+        active: catalogue
+            .entries
+            .iter()
+            .filter(|(id, entry)| {
+                entry.is_active_in(&spec.info, &context) && !spec.info.fix.contains(id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect(),
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&resolved).unwrap());
+        return Ok(());
+    }
+    let with_alias = |id: &String| match catalogue.entry(id).and_then(|e| e.alias.as_deref()) {
+        Some(alias) => format!("{id} ({alias})"),
+        None => id.clone(),
+    };
+    let on_off = |on: bool| -> Vec<&str> {
+        resolved
+            .options
+            .iter()
+            .filter(|(_, v)| **v == on)
+            .map(|(m, _)| m.as_str())
+            .collect()
+    };
+    println!("{}", resolved.canonical);
+    println!("  name     {} (library directory and PUT)", resolved.slug);
+    println!(
+        "  sources  {} {} (preset {})",
+        vendor, resolved.version, resolved.preset
+    );
+    println!(
+        "  options  on: {}; off: {}",
+        on_off(true).join(", "),
+        on_off(false).join(", ")
+    );
+    println!(
+        "  fixes    {}",
+        if resolved.fix.is_empty() {
+            "-".to_string()
+        } else {
+            resolved
+                .fix
+                .iter()
+                .map(with_alias)
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+    );
+    if let Some(derived) = &resolved.derived {
+        println!(
+            "  derived  {} {}, from {}",
+            derived.kind,
+            derived.ids.join("+"),
+            derived.base
+        );
+    }
+    println!(
+        "  bugs     {}",
+        if resolved.active.is_empty() {
+            "-".to_string()
+        } else {
+            resolved
+                .active
+                .iter()
+                .map(|id| {
+                    let patch = catalogue
+                        .entry(id)
+                        .and_then(|e| e.patch_for(&resolved.version))
+                        .is_some();
+                    format!(
+                        "{}{}",
+                        with_alias(id),
+                        if patch { "" } else { " (no patch)" }
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+    );
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+struct Modifier {
+    name: String,
+    /// "instrumentation" (every vendor) or "option" (of the vendor's builder.cmake)
+    kind: &'static str,
+    /// its value in a plain build
+    default: bool,
+    doc: String,
+}
+
+fn modifiers(vendor: &str, json: bool) -> Result<(), String> {
+    let dir = catalogue::vendors_dir().join(vendor);
+    let context = VendorContext::load(vendor, &dir).map_err(|e| e.to_string())?;
+    if context.presets.is_empty() {
+        return Err(format!(
+            "unknown vendor '{vendor}' (vendors: {})",
+            catalogue::vendors().join(", ")
+        ));
+    }
+    let read = |path: std::path::PathBuf| std::fs::read_to_string(path).unwrap_or_default();
+    let mut docs = catalogue::parse_option_docs(&read(
+        catalogue::build_dir().join("cmake/builder/run.cmake"),
+    ));
+    docs.extend(catalogue::parse_option_docs(&read(
+        dir.join("builder.cmake"),
+    )));
+    let list: Vec<Modifier> = catalogue::spec::modifiers(&context)
+        .into_iter()
+        .map(|m| Modifier {
+            kind: if catalogue::spec::INSTRUMENTATION.contains(&m.as_str()) {
+                "instrumentation"
+            } else {
+                "option"
+            },
+            default: catalogue::spec::plain_value(&context, &m),
+            doc: match m.as_str() {
+                "sancov" => format!(
+                    "{} (the coverage the fuzzer's feedback reads)",
+                    docs.get(&m).cloned().unwrap_or_default()
+                ),
+                "gcov" => format!(
+                    "{} (a build that is not fuzzed: implies no-sancov)",
+                    docs.get(&m).cloned().unwrap_or_default()
+                ),
+                _ => docs.get(&m).cloned().unwrap_or_default(),
+            },
+            name: m,
+        })
+        .collect();
+    if json {
+        println!("{}", serde_json::to_string_pretty(&list).unwrap());
+        return Ok(());
+    }
+    println!(
+        "{vendor}:<version>[,<modifier>…], the modifiers in any order, each also no-<modifier>:"
+    );
+    for m in &list {
+        println!(
+            "  {:<10} {:<16} {:<12} {}",
+            m.name,
+            m.kind,
+            if m.default {
+                "default on"
+            } else {
+                "default off"
+            },
+            m.doc
+        );
+    }
+    println!(
+        "  only-<bugs>, fix-<bugs>, fix-all: the bugs of the catalogue (IDs or aliases joined by \
+         '+'; `mk_vendor list {vendor}:<version>`)"
+    );
+    println!(
+        "versions: {}",
+        catalogue::spec::versions(&context).join(", ")
+    );
     Ok(())
 }
 

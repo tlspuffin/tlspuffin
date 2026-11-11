@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::builder::Builder;
 use super::options::Options;
 use super::sources::Sources;
-use crate::catalogue::{self, Catalogue, Derived, LibraryState, VendorContext};
+use crate::catalogue::{self, Catalogue, Derived, LibraryState, Spec};
 use crate::error::Result;
 use crate::utils::Value;
 
@@ -40,34 +40,42 @@ impl Config {
         }
     }
 
-    /// The configuration of a vendor name: a preset of `vendors/<vendor>/presets.toml`, or a name
-    /// derived from the vendor's catalogue (see [`Catalogue::derive`]): `<ID>`,
-    /// `<preset>-only-<ID>`, `<preset>-fix-<ID>+<ID>`, `<preset>-fix-all`. A derived name is
-    /// resolved to its base preset with an explicit fix list.
+    /// The configuration of the name of a build: a preset of `vendors/<vendor>/presets.toml` as it
+    /// is, or any other name of a build (`5.4.0,asan,only-BUF`, `wolfssl540-asan-only-…`, `<ID>`:
+    /// see [`catalogue::spec`]): the preset it uses, with the build's options and fix list.
     pub fn resolve(vendor: &str, name: &str) -> std::result::Result<Config, String> {
+        Config::resolve_named(vendor, name).map(|(config, _)| config)
+    }
+
+    /// [`Config::resolve`], with the name of the build: its library directory and PUT (a preset's
+    /// name, or the slug of the build).
+    pub fn resolve_named(
+        vendor: &str,
+        name: &str,
+    ) -> std::result::Result<(Config, String), String> {
         if let Some(config) = Config::preset(vendor, name) {
-            return Ok(config);
+            return Ok((config, name.to_string()));
         }
+        let spec = catalogue::resolve_name(vendor, name)?;
+        Ok((Config::of_spec(vendor, &spec)?, spec.slug))
+    }
 
-        let dir = catalogue::vendors_dir().join(vendor);
-        if !dir.join("presets.toml").exists() {
-            return Err(format!("unknown vendor '{vendor}'"));
+    /// The configuration of a resolved name: its preset's, with the options that differ and the
+    /// fix list.
+    pub fn of_spec(vendor: &str, spec: &Spec) -> std::result::Result<Config, String> {
+        let mut config = Config::preset(vendor, &spec.preset)
+            .ok_or_else(|| format!("preset '{}' not found", spec.preset))?;
+        for (option, on) in &spec.changes {
+            config.options.insert(option.as_str(), *on);
         }
-        let context = VendorContext::load(vendor, &dir).map_err(|e| e.to_string())?;
-        let catalogue = Catalogue::load(vendor).map_err(|e| e.to_string())?;
-        let derivation = catalogue.derive(name, &context)?.ok_or_else(|| {
-            format!(
-                "'{name}' is neither a preset of {vendor} nor a name derived from its catalogue"
-            )
-        })?;
-
-        let mut config = Config::preset(vendor, &derivation.derived.base)
-            .ok_or_else(|| format!("preset '{}' not found", derivation.derived.base))?;
-        config.options.insert("fix", derivation.fix);
-        if derivation.force_asan {
-            config.options.insert("asan", true);
+        let mut fix = spec.info.fix.clone();
+        let mut preset_fix = config.options.fix();
+        fix.sort();
+        preset_fix.sort();
+        if spec.derived.is_some() || fix != preset_fix {
+            config.options.insert("fix", spec.info.fix.clone());
         }
-        config.derived = Some(derivation.derived);
+        config.derived = spec.derived.clone();
         Ok(config)
     }
 
@@ -77,11 +85,8 @@ impl Config {
 
     pub fn preset(vendor: impl AsRef<str>, name: impl AsRef<str>) -> Option<Config> {
         // TODO gracefully handle error cases rather than using `unwrap`
-
-        // FIXME don't use harcoded path to configuration files (CARGO_MANIFEST_DIR, ...)
         let configs_str = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("vendors")
+            catalogue::vendors_dir()
                 .join(vendor.as_ref())
                 .join("presets.toml"),
         )

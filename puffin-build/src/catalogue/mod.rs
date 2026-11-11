@@ -11,6 +11,7 @@
 //! catalogue").
 
 mod cvss;
+pub mod spec;
 mod version;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,6 +20,7 @@ use std::path::{Path, PathBuf};
 
 pub use cvss::{base_score_v31, Cvss};
 use serde::{Deserialize, Serialize};
+pub use spec::Spec;
 pub use version::{Version, VersionRange};
 
 /// Name of the catalogue file in a vendor directory.
@@ -65,6 +67,20 @@ pub fn vendors() -> Vec<String> {
         .unwrap_or_default();
     names.sort();
     names
+}
+
+/// Resolve the name of a build of `vendor` (a preset, `5.4.0,asan,only-BUF`, ...: see [`spec`]).
+pub fn resolve_name(vendor: &str, name: &str) -> Result<Spec, String> {
+    let dir = vendors_dir().join(vendor);
+    if !dir.join("presets.toml").exists() {
+        return Err(format!(
+            "unknown vendor '{vendor}' (vendors: {})",
+            vendors().join(", ")
+        ));
+    }
+    let context = VendorContext::load(vendor, &dir).map_err(|e| e.to_string())?;
+    let catalogue = Catalogue::load_from(vendor, &dir, &context).map_err(|e| e.to_string())?;
+    spec::resolve(&catalogue, &context, name)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,10 +133,11 @@ pub struct Entry {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub top_frames: Vec<String>,
 
-    /// Preset of `<vendor>:<ID>` (default: the newest preset with the bug, ASan presets first)
+    /// The build `<vendor>:<ID>` and `<vendor>:only-<ID>` start from: a preset, or a version and
+    /// modifiers (`5.4.0,asan`); default: the newest preset with the bug, ASan presets first
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,
-    /// Extra presets the CI checks the entry on
+    /// More builds the CI checks the entry on (presets, or versions and modifiers)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub check: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -375,6 +392,19 @@ impl Catalogue {
             );
         }
         problems.extend(catalogue.check_preset_fixes(context));
+        // a bug is named by its ID or its alias, in any case
+        let mut names: BTreeMap<String, &str> = BTreeMap::new();
+        for (id, entry) in &catalogue.entries {
+            for name in std::iter::once(id.as_str()).chain(entry.alias.as_deref()) {
+                if let Some(other) = names.insert(name.to_ascii_lowercase(), id) {
+                    if other != id {
+                        problems.push(format!(
+                            "{id}: '{name}' also names {other} (IDs and aliases are unique, in any case)"
+                        ));
+                    }
+                }
+            }
+        }
         if !problems.is_empty() {
             return Err(CatalogueError {
                 vendor: vendor.into(),
@@ -476,6 +506,14 @@ impl Catalogue {
             problem(format!(
                 "invalid id: use letters, digits, '-', '_' and '.' (not '{ID_SEPARATOR}'), and not \"all\""
             ));
+        }
+        if let Some(alias) = &entry.alias {
+            if !is_valid_id(alias) || alias.contains(',') {
+                problem(format!(
+                    "invalid alias '{alias}': use letters, digits, '-', '_' and '.' (it names the \
+                     bug in vendor names: only-{alias})"
+                ));
+            }
         }
         if entry.summary.trim().is_empty() {
             problem("empty summary".into());
@@ -671,11 +709,11 @@ impl Catalogue {
             problem(e);
         }
 
-        for preset in &entry.check {
-            match context.presets.get(preset) {
-                None => problem(format!("check: unknown preset '{preset}'")),
-                Some(info) if !entry.is_active_in(info, context) => {
-                    problem(format!("check: the bug is not in preset '{preset}'"))
+        for build in &entry.check {
+            match spec::named_build(self, context, build) {
+                Err(e) => problem(format!("check: {e}")),
+                Ok((_, info)) if !entry.is_active_in(&info, context) => {
+                    problem(format!("check: the bug is not in '{build}'"))
                 }
                 _ => (),
             }
@@ -689,11 +727,12 @@ impl Catalogue {
         for (preset, info) in &context.presets {
             if preset.contains(DERIVED_ONLY)
                 || preset.contains(DERIVED_FIX)
-                || self.entries.contains_key(preset)
+                || preset.contains(',')
+                || spec::names_a_bug(self, preset)
             {
                 problems.push(format!(
-                    "preset '{preset}': preset names cannot contain '{DERIVED_ONLY}' or '{DERIVED_FIX}' nor be an \
-                     entry id (they would read as derived names)"
+                    "preset '{preset}': preset names cannot contain '{DERIVED_ONLY}', '{DERIVED_FIX}' or ',' \
+                     nor be the ID or the alias of a bug (they would read as other names)"
                 ));
             }
             for id in &info.fix {
@@ -721,7 +760,8 @@ impl Catalogue {
         problems
     }
 
-    /// Preset of the derived name `<vendor>:<ID>`.
+    /// The build `<vendor>:<ID>` starts from, as the entry names it (a preset, or a version and
+    /// modifiers), else the newest preset with the bug; empty for a bug of the harness.
     pub fn reference_preset(
         &self,
         id: &str,
@@ -734,15 +774,13 @@ impl Catalogue {
         }
 
         if let Some(reference) = &entry.reference {
-            let info = context
-                .presets
-                .get(reference)
-                .ok_or_else(|| format!("reference: unknown preset '{reference}'"))?;
-            if !entry.is_active_in(info, context) {
-                return Err(format!("reference: the bug is not in preset '{reference}'"));
+            let (_, info) = spec::named_build(self, context, reference)
+                .map_err(|e| format!("reference: {e}"))?;
+            if !entry.is_active_in(&info, context) {
+                return Err(format!("reference: the bug is not in '{reference}'"));
             }
             if info.fix.contains(&id.to_string()) {
-                return Err(format!("reference: preset '{reference}' fixes it"));
+                return Err(format!("reference: '{reference}' fixes it"));
             }
             return Ok(reference.clone());
         }
@@ -762,7 +800,9 @@ impl Catalogue {
             })
             .max_by(|(va, ia, na), (vb, ib, nb)| prefer(va, ia, na, vb, ib, nb))
             .map(|(_, _, name)| name.clone())
-            .ok_or_else(|| "no preset has the bug: give reference = \"<preset>\"".into())
+            .ok_or_else(|| {
+                "no preset has the bug: give reference = \"<version>,<modifier>…\"".into()
+            })
     }
 }
 
@@ -973,19 +1013,13 @@ impl Catalogue {
         name: &str,
         context: &VendorContext,
     ) -> Result<Option<Derivation>, String> {
-        if let Some(entry) = self.entries.get(name) {
-            let base = self.reference_preset(name, entry, context)?;
-            if base.is_empty() {
-                return Err(format!(
-                    "'{name}' is a bug of the harness: it has no reference preset"
-                ));
-            }
-            return self
-                .derive_from(&base, "only", &[name.to_string()], context)
-                .map(|mut d| {
-                    d.force_asan = true;
-                    Some(d)
-                });
+        if self.entries.contains_key(name) {
+            let spec = spec::resolve(self, context, name)?;
+            return Ok(spec.derived.map(|derived| Derivation {
+                derived,
+                fix: spec.info.fix,
+                force_asan: true,
+            }));
         }
 
         let (base, kind, ids) = if let Some(base) = name.strip_suffix(DERIVED_FIX_ALL) {
@@ -1020,7 +1054,19 @@ impl Catalogue {
         ids: &[String],
         context: &VendorContext,
     ) -> Result<Derivation, String> {
-        let preset = &context.presets[base];
+        self.derive_on(base, &context.presets[base], kind, ids, context)
+    }
+
+    /// Derive a build of `kind` ("only", "fix", "fix-all") from the build `preset` (a preset, or a
+    /// version and options, named `base`; its fixes stay).
+    pub fn derive_on(
+        &self,
+        base: &str,
+        preset: &PresetInfo,
+        kind: &str,
+        ids: &[String],
+        context: &VendorContext,
+    ) -> Result<Derivation, String> {
         let active: Vec<&String> = self
             .entries
             .iter()
@@ -1032,6 +1078,13 @@ impl Catalogue {
         if kind != "fix-all" && ids.is_empty() {
             return Err(format!("'{base}-{kind}-': no ids after '{kind}-'"));
         }
+        for id in &preset.fix {
+            if !active.contains(&id) || !patchable(id) {
+                return Err(format!(
+                    "'{base}' fixes '{id}', which is not in this build or has no patch for it"
+                ));
+            }
+        }
         for id in ids {
             if !self.entries.contains_key(id) {
                 return Err(format!(
@@ -1040,13 +1093,34 @@ impl Catalogue {
                 ));
             }
             if !active.contains(&id) {
-                return Err(format!(
-                    "'{id}' does not affect preset '{base}' (version {})",
-                    preset.version
-                ));
+                let entry = &self.entries[id];
+                let needs: Vec<String> = entry
+                    .requires
+                    .iter()
+                    .filter(|(option, wanted)| spec::value(preset, context, option) != **wanted)
+                    .map(|(option, wanted)| {
+                        if *wanted {
+                            option.clone()
+                        } else {
+                            format!("no-{option}")
+                        }
+                    })
+                    .collect();
+                return Err(if needs.is_empty() {
+                    format!(
+                        "'{id}' does not affect {base} (version {}; affected: {})",
+                        preset.version,
+                        entry.affected.as_ref().map(|r| r.as_str()).unwrap_or("-")
+                    )
+                } else {
+                    format!(
+                        "'{id}' does not affect {base}: it needs {}",
+                        needs.join(", ")
+                    )
+                });
             }
             if preset.fix.contains(id) {
-                return Err(format!("preset '{base}' already fixes '{id}'"));
+                return Err(format!("'{base}' already fixes '{id}'"));
             }
             if kind == "fix" && !patchable(id) {
                 return Err(format!(
@@ -1078,12 +1152,28 @@ impl Catalogue {
         })
     }
 
-    /// The validation set of a preset: its `-fix-all` build and one `-only-<ID>` build per active
-    /// bug that has a patch for its version.
-    pub fn validation_set(&self, preset: &str, context: &VendorContext) -> Vec<String> {
-        let Some(info) = context.presets.get(preset) else {
-            return vec![];
-        };
+    /// The validation set of a build (a preset, or a name that is not derived from the catalogue):
+    /// its `-fix-all` build and one `-only-<ID>` build per active bug that has a patch for its
+    /// version, named after its slug.
+    pub fn validation_set(&self, name: &str, context: &VendorContext) -> Vec<String> {
+        if let Some(info) = context.presets.get(name) {
+            return self.validation_set_of(name, info, context);
+        }
+        match spec::resolve(self, context, name) {
+            Ok(spec) if spec.derived.is_none() => {
+                self.validation_set_of(&spec.slug, &spec.info, context)
+            }
+            _ => vec![],
+        }
+    }
+
+    /// The validation set of the build `info`, named `preset`.
+    pub fn validation_set_of(
+        &self,
+        preset: &str,
+        info: &PresetInfo,
+        context: &VendorContext,
+    ) -> Vec<String> {
         std::iter::once(format!("{preset}{DERIVED_FIX_ALL}"))
             .chain(
                 self.entries
@@ -1098,19 +1188,20 @@ impl Catalogue {
             .collect()
     }
 
-    /// The presets the CI checks the catalogue on: for every entry with a witness, the newest
-    /// preset of each of its patch ranges (ASan presets first), its reference preset when it
-    /// has no patch, and its `check` presets.
+    /// The builds the CI checks the catalogue on, by their slugs: for every entry with a witness,
+    /// the newest preset of each of its patch ranges (ASan presets first), its reference build when
+    /// it has no patch, and its `check` builds.
     pub fn check_presets(&self, context: &VendorContext) -> BTreeMap<String, Vec<String>> {
         let mut presets: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for (id, entry) in &self.entries {
             if entry.no_witness.is_some() || entry.affected.is_none() {
                 continue;
             }
-            let mut chosen: Vec<String> = entry.check.clone();
+            let slug = |name: &str| spec::named_build(self, context, name).ok().map(|(s, _)| s);
+            let mut chosen: Vec<String> = entry.check.iter().filter_map(|c| slug(c)).collect();
             if entry.patches.is_empty() {
                 if let Ok(reference) = self.reference_preset(id, entry, context) {
-                    chosen.push(reference);
+                    chosen.extend(slug(&reference));
                 }
             }
             for patch in &entry.patches {
@@ -1394,6 +1485,17 @@ pub fn parse_builder_options(content: &str) -> BTreeMap<String, bool> {
     .expect("invalid regex");
     re.captures_iter(content)
         .map(|c| (c[1].to_string(), &c[2] == "ON"))
+        .collect()
+}
+
+/// The descriptions of the `option(<name> "<doc>" ON|OFF)` lines of a builder.cmake or run.cmake.
+pub fn parse_option_docs(content: &str) -> BTreeMap<String, String> {
+    let re = regex::Regex::new(
+        r#"(?m)^\s*option\(\s*([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]*)"\s+(ON|OFF)\s*\)"#,
+    )
+    .expect("invalid regex");
+    re.captures_iter(content)
+        .map(|c| (c[1].to_string(), c[2].to_string()))
         .collect()
 }
 
