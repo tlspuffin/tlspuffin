@@ -11,7 +11,6 @@ use libafl::inputs::Input;
 use log::LevelFilter;
 use puffin_build::puffin;
 
-use crate::agent::AgentName;
 use crate::algebra::TermType;
 use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
@@ -272,7 +271,13 @@ where
             experiment_path
         } else {
             // Case of non-experiment: plain fuzzing, trace executions, etc.
-            env::current_dir().unwrap()
+            match env::current_dir() {
+                Ok(dir) => dir,
+                Err(err) => {
+                    eprintln!("error: failed to read the current directory: {err}");
+                    return ExitCode::FAILURE;
+                }
+            }
         };
 
     config.corpus_dir = base_directory.join("corpus");
@@ -343,30 +348,13 @@ where
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
 
-        let mut paths = inputs
-            .flat_map(|input| {
-                let input = PathBuf::from(input);
-
-                if input.is_dir() {
-                    fs::read_dir(input)
-                        .expect("failed to read directory")
-                        .map(|entry| entry.expect("failed to read path in directory").path())
-                        .filter(|path| {
-                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
-                        })
-                        .collect()
-                } else {
-                    vec![input]
-                }
-            })
-            .collect::<Vec<_>>();
-
-        paths.sort_by_key(|path| {
-            fs::metadata(path)
-                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
-                .modified()
-                .unwrap()
-        });
+        let paths = match trace_files(inputs) {
+            Ok(paths) => paths,
+            Err(err) => {
+                log::error!("execute: {err}");
+                return ExitCode::FAILURE;
+            }
+        };
 
         let n: usize = *matches.get_one("number").unwrap_or(&paths.len());
 
@@ -402,21 +390,20 @@ where
         if !with_bit_level {
             log::info!("Execution without payload evaluations...");
         }
-        for path in lookup_paths {
+        for (_, path) in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path, config_trace);
+            if let Err(err) = execute(&runner, path, config_trace) {
+                log::error!("execute: failed to execute trace {}: {err}", path.display());
+                return ExitCode::FAILURE;
+            }
         }
 
-        if !lookup_paths.is_empty() {
+        if let Some((modified, _)) = lookup_paths.first() {
             println!(
                 "{}",
-                fs::metadata(&lookup_paths[0])
-                    .unwrap_or_else(|_| panic!("missing trace file {}", lookup_paths[0].display()))
-                    .modified()
-                    .unwrap()
+                modified
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis()
+                    .map_or(0, |since| since.as_millis())
             );
         }
 
@@ -523,7 +510,17 @@ where
             .unwrap_or(&44338u16)
             .to_string();
 
-        let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(input) {
+            Ok(trace) => trace,
+            Err(err) => {
+                log::error!("Invalid trace file {input}: {err}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let Some(server) = trace.descriptors.first().map(|descriptor| descriptor.name) else {
+            log::error!("tcp: the trace {input} has no agent");
+            return ExitCode::FAILURE;
+        };
 
         let mut options = vec![("port", port.as_str()), ("host", host)];
 
@@ -539,17 +536,25 @@ where
             options.push(("cwd", cwd));
         }
 
-        let server = trace.descriptors[0].name;
         let put = PutDescriptor::new(TCP_PUT, options);
         let runner = Runner::new(
             put_registry.clone(),
             Spawner::new(put_registry).with_mapping(&[(server, put)]),
         );
-        let mut context = runner.execute(trace, &mut 0).unwrap();
-
-        let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
-        log::info!("{}", shutdown);
+        let mut context = match runner.execute(trace, &mut 0) {
+            Ok(context) => context,
+            Err(err) => {
+                log::error!("tcp: failed to execute trace {input}: {err}");
+                return ExitCode::FAILURE;
+            }
+        };
+        match context.find_agent_mut(server) {
+            Ok(agent) => log::info!("{}", agent.shutdown()),
+            Err(err) => {
+                log::error!("tcp: {err}");
+                return ExitCode::FAILURE;
+            }
+        }
 
         return ExitCode::SUCCESS;
     } else if let Some(sub_matches) = matches.subcommand_matches("mapper") {
@@ -861,16 +866,54 @@ fn check_if_corpora_exist<'a, PB: ProtocolBehavior>(
     }
 }
 
+/// The trace files of `inputs`, oldest first, with their modification time: a file as given, the
+/// files of a directory but its hidden ones.
+fn trace_files<'a>(
+    inputs: impl Iterator<Item = &'a String>,
+) -> Result<Vec<(std::time::SystemTime, PathBuf)>, String> {
+    let mut paths = Vec::new();
+    for input in inputs.map(PathBuf::from) {
+        if !input.is_dir() {
+            paths.push(input);
+            continue;
+        }
+        let unreadable =
+            |err: std::io::Error| format!("failed to read directory {}: {err}", input.display());
+        for entry in fs::read_dir(&input).map_err(unreadable)? {
+            let path = entry.map_err(unreadable)?.path();
+            if !path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+            {
+                paths.push(path);
+            }
+        }
+    }
+    let mut files = paths
+        .into_iter()
+        .map(
+            |path| match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
+                Ok(modified) => Ok((modified, path)),
+                Err(err) => Err(format!("missing trace file {}: {err}", path.display())),
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    files.sort_by_key(|(modified, _)| *modified);
+    Ok(files)
+}
+
+/// Executes the trace in `input` in a forked process: an invalid trace file is skipped (logged), an
+/// execution that cannot run (e.g. no fork) is an error.
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     runner: &Runner<PB>,
     input: P,
     config_trace: ConfigTrace,
-) {
+) -> Result<(), String> {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
         log::error!("Invalid trace file {}", input.as_ref().display());
-        return;
+        return Ok(());
     };
 
     log::debug!("Agents: {:?}", &trace.descriptors);
@@ -881,8 +924,11 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0);
 
     match status {
-        Ok(s) => log::info!("execution finished with status {s:?}"),
-        Err(reason) => panic!("failed to execute trace: {reason}"),
+        Ok(s) => {
+            log::info!("execution finished with status {s:?}");
+            Ok(())
+        }
+        Err(reason) => Err(reason.to_string()),
     }
 }
 
@@ -1052,4 +1098,43 @@ fn mapper_cmd<PT: ProtocolTypes>(sub_matches: &clap::ArgMatches) -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime};
+
+    use super::trace_files;
+
+    #[test]
+    fn the_trace_files_of_a_directory_are_its_visible_files_oldest_first() {
+        let dir = std::env::temp_dir().join(format!("puffin-trace-files-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let start = SystemTime::now();
+        for (name, age) in [("new.trace", 1), ("old.trace", 3), (".hidden", 2)] {
+            let file = std::fs::File::create(dir.join(name)).unwrap();
+            file.set_modified(start - Duration::from_secs(age)).unwrap();
+        }
+        let single = dir.join("new.trace").display().to_string();
+        let inputs = [dir.display().to_string(), single];
+
+        let files: Vec<PathBuf> = trace_files(inputs.iter())
+            .unwrap()
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect();
+        let missing = trace_files([dir.join("none").display().to_string()].iter());
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        assert_eq!(
+            files,
+            vec![
+                dir.join("old.trace"),
+                dir.join("new.trace"),
+                dir.join("new.trace")
+            ]
+        );
+        assert!(missing.unwrap_err().starts_with("missing trace file"));
+    }
 }
