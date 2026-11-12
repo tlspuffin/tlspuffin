@@ -86,6 +86,31 @@ pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnEr
     })
 }
 
+/// Fragment a handshake message into two records within an OpaqueMessageFlight.
+pub fn fn_split_handshake_flight(msg: &Message) -> Result<OpaqueMessageFlight, FnError> {
+    let mut bytes = Vec::new();
+    msg.payload.encode(&mut bytes);
+    let split = bytes.len() / 2;
+    if split <= 4 || split >= bytes.len() {
+        return Err(FnError::Malformed(
+            "Cannot split handshake message into fragments".into(),
+        ));
+    }
+    let frag1 = OpaqueMessage {
+        typ: msg.payload.content_type(),
+        version: msg.version,
+        payload: Payload(bytes[..split].to_vec()),
+    };
+    let frag2 = OpaqueMessage {
+        typ: msg.payload.content_type(),
+        version: msg.version,
+        payload: Payload(bytes[split..].to_vec()),
+    };
+    Ok(OpaqueMessageFlight {
+        messages: vec![frag1, frag2],
+    })
+}
+
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }

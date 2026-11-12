@@ -146,7 +146,8 @@ affected = ">= 5.5.2, < 5.6.6"
 capabilities = ["tls13"]
 oracle = { kind = "crash", asan = "heap-buffer-overflow" }
 top_frames = ["AddPacketInfo", "DoTls13HandShakeMsgType"]
-no_witness = "no witness trace in tlspuffin: its finds are validated by patch differential (its patch), without the controls of a witness"
+also_triggers = ["CVE-2022-42905"]
+witness_versions = ">= 5.5.2"
 references = ["https://nvd.nist.gov/vuln/detail/CVE-2023-6936", "https://github.com/wolfSSL/wolfssl/pull/6949"]
 
 [CVE-2023-6936.find]
