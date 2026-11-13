@@ -427,6 +427,75 @@ fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
     root_size
 }
 
+/// Like [`reservoir_sample`], but samples only from `trace.prior_traces` (recursively - a
+/// prior trace can itself have its own `prior_traces`), never from `trace.steps` itself.
+///
+/// `prior_traces` run to completion, into the same [`crate::trace::TraceContext`], before the
+/// main trace's own steps start (see `Trace::execute_until_step_wrap`): the knowledge/claims
+/// they produce are already available to every step of `trace` by construction, so a term
+/// found here (e.g. a `Variable` referencing an agent that only appears in `prior_traces`,
+/// such as the `ServerHello` of a handshake that cached a session later resumed by the main
+/// trace) resolves at execution time exactly like any other term - no rewriting needed when
+/// it is copied into `trace.steps`.
+///
+/// Returns only the term, not a [`TracePath`]: the position of a prior-trace term is never a
+/// valid target for a replacement in `trace` (prior traces are setup to run once, not a
+/// mutation target), so there is nothing a caller could legitimately do with that path. Use
+/// [`reservoir_sample`]/[`choose_term_path_filtered`] on `trace` itself to pick where the
+/// returned term gets spliced in.
+pub fn reservoir_sample_in_prior_traces<
+    'a,
+    R: Rand,
+    PT: ProtocolTypes,
+    P: Fn(&Term<PT>) -> bool + Copy,
+>(
+    trace: &'a Trace<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+) -> Option<&'a Term<PT>> {
+    let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
+    let mut visited = 0;
+    let mut path = TermPath::new();
+
+    for prior in &trace.prior_traces {
+        fold_trace_into_reservoir(prior, &filter, constraints, rand, &mut path, &mut reservoir, &mut visited);
+    }
+
+    reservoir.map(|(term, _)| term)
+}
+
+/// Folds one trace's own `steps` into the running reservoir, then recurses into *its*
+/// `prior_traces` too. Helper for [`reservoir_sample_in_prior_traces`]; the `step_index` it
+/// records in the (discarded) [`TracePath`] is only an artifact of reusing [`sample_subterms`]
+/// across possibly several distinct `Trace`s, and is never read back.
+#[allow(clippy::too_many_arguments)]
+fn fold_trace_into_reservoir<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
+    trace: &'a Trace<PT>,
+    filter: &P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+    path: &mut TermPath,
+    reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+    visited: &mut usize,
+) {
+    for (step_index, step) in trace.steps.iter().enumerate() {
+        if let Action::Input(input) = &step.action {
+            let term = &input.recipe;
+            if !constraints.satisfy_size_max_constraints(term) {
+                continue;
+            }
+            path.clear();
+            sample_subterms(
+                term, step_index, path, true, filter, constraints, rand, reservoir, visited,
+            );
+        }
+    }
+    for prior in &trace.prior_traces {
+        fold_trace_into_reservoir(prior, filter, constraints, rand, path, reservoir, visited);
+    }
+}
+
 pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
     term: &'a mut Term<PT>,
     term_path: &[usize],
@@ -670,7 +739,10 @@ mod tests {
     use libafl_bolts::rands::StdRand;
 
     use super::*;
+    use crate::agent::{AgentDescriptor, AgentName};
     use crate::algebra::test_signature::*;
+    use crate::term;
+    use crate::trace::InputAction;
 
     /// Verbatim copy of the recursive `sample_subterms` this module replaced, kept as the
     /// behavioural reference for `test_sample_subterms_matches_recursive_reference`.
@@ -920,5 +992,97 @@ mod tests {
             "unlocked anchors should span multiple steps, saw {:?}",
             seen
         );
+    }
+
+    #[test_log::test]
+    fn test_reservoir_sample_in_prior_traces() {
+        let prior = setup_simple_trace();
+
+        // An outer trace whose own step uses a term (`fn_seq_1`) that never appears in
+        // `prior`, so anything found in the outer trace's own steps is trivially
+        // distinguishable (by pointer identity) from anything reachable only via `prior`.
+        let server = AgentName::first();
+        let outer = TestTrace {
+            prior_traces: vec![prior.clone()],
+            descriptors: vec![AgentDescriptor::from_name(server)],
+            steps: vec![Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    precomputations: vec![],
+                    recipe: term! { fn_seq_1 },
+                }),
+            }],
+            ..Default::default()
+        };
+        // Taken from its final resting place in `outer`, not from the local that was moved
+        // into it - a moved value's old address is not where the data actually lives.
+        let outer_term_ptr = match &outer.steps[0].action {
+            Action::Input(input) => &input.recipe as *const TestTerm,
+            Action::Output(_) => unreachable!(),
+        };
+
+        let mut rand = StdRand::with_seed(7);
+
+        // `reservoir_sample` on the outer trace must only ever find its own step's term -
+        // never anything from `prior_traces`.
+        for _ in 0..500 {
+            if let Some((term, _)) =
+                reservoir_sample(&outer, |_| true, &TermConstraints::default(), &mut rand)
+            {
+                assert_eq!(
+                    term as *const _, outer_term_ptr,
+                    "reservoir_sample picked a term that must have come from prior_traces"
+                );
+            }
+        }
+
+        // `reservoir_sample_in_prior_traces` must reach exactly the terms `prior`'s own
+        // (non-recursive) `reservoir_sample` can reach, and never the outer trace's term.
+        let mut seen_in_prior: HashSet<*const TestTerm> = HashSet::new();
+        for _ in 0..2000 {
+            if let Some(term) = reservoir_sample_in_prior_traces(
+                &outer,
+                |_| true,
+                &TermConstraints::default(),
+                &mut rand,
+            ) {
+                let ptr = term as *const _;
+                assert_ne!(
+                    ptr, outer_term_ptr,
+                    "reservoir_sample_in_prior_traces must never see the outer trace's own steps"
+                );
+                seen_in_prior.insert(ptr);
+            }
+        }
+
+        let mut expected: HashSet<*const TestTerm> = HashSet::new();
+        for _ in 0..2000 {
+            if let Some((term, _)) =
+                reservoir_sample(
+                    &outer.prior_traces[0],
+                    |_| true,
+                    &TermConstraints::default(),
+                    &mut rand,
+                )
+            {
+                expected.insert(term as *const _);
+            }
+        }
+
+        assert_eq!(prior.count_functions(), expected.len());
+        assert_eq!(
+            seen_in_prior, expected,
+            "reservoir_sample_in_prior_traces did not reach exactly the terms prior's own reservoir_sample does"
+        );
+
+        // A trace with no prior_traces at all must make it return `None`, not panic.
+        let no_prior = setup_simple_trace();
+        assert!(reservoir_sample_in_prior_traces(
+            &no_prior,
+            |_| true,
+            &TermConstraints::default(),
+            &mut rand
+        )
+        .is_none());
     }
 }
