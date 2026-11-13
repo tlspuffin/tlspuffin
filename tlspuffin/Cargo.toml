@@ -68,6 +68,7 @@ security-claims = { path = "../tlspuffin-claims", version = "0.1.0", optional = 
 
 tempfile = { workspace = true, optional = true }
 puffin-build = { path = "../puffin-build" }
+p256 = { version = "0.13.2", features = ["ecdsa"] }
 
 [build-dependencies]
 puffin-build = { path = "../puffin-build" }

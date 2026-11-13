@@ -42,6 +42,8 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        seed_cve_2025_11934: put.supports("tls13"),
     )
 }
 
