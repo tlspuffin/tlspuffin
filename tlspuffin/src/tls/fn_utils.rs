@@ -6,7 +6,7 @@ use puffin::codec::{Codec, Reader};
 use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};
 
 use crate::protocol::{MessageFlight, OpaqueMessageFlight};
-use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
+use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets, tls12_resumed_secrets};
 use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -822,6 +822,70 @@ pub fn fn_decrypt12(
 
     Message::try_from(plain)
         .map_err(|_| FnError::Codec("Failed to parse decrypted TLS 1.2 message".to_string()))
+}
+
+/// Like `fn_decrypt12`, but for a TLS 1.2 *abbreviated* (resumed) handshake: keys are
+/// derived from a reused master secret (see `fn_get_master_secret12`) instead of a peer
+/// ECDH public key. Used to decrypt the server's own `Finished` in an abbreviated
+/// handshake, which is needed as input to the client's own `Finished` transcript hash
+/// (in an abbreviated handshake the server's `Finished` is sent *before* the client's, so
+/// RFC 5246's "all messages up to but not including this one" includes it). Used for
+/// CVE-2026-11703.
+pub fn fn_decrypt12_resumed(
+    message: &Message,
+    server_random: &Random,
+    master_secret: &Vec<u8>,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Message, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets =
+        tls12_resumed_secrets(server_random, client_random, supported_suite, master_secret)?;
+
+    let (decrypter, _encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
+
+    let opaque = PlainMessage::from(message.clone()).into_unencrypted_opaque();
+
+    let plain = decrypter.decrypt(opaque, *sequence).map_err(|_err| {
+        FnError::Crypto("Failed to decrypt it fn_decrypt12_resumed".to_string())
+    })?;
+
+    Message::try_from(plain)
+        .map_err(|_| FnError::Codec("Failed to parse decrypted TLS 1.2 message".to_string()))
+}
+
+/// Like `fn_encrypt12`, but for a TLS 1.2 *abbreviated* (resumed) handshake: no key
+/// exchange, so the connection's keys are derived straight from a reused master secret
+/// (see `fn_get_master_secret12`) instead of a peer ECDH public key. Used for
+/// CVE-2026-11703.
+pub fn fn_encrypt12_resumed(
+    message: &Message,
+    server_random: &Random,
+    master_secret: &Vec<u8>,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets =
+        tls12_resumed_secrets(server_random, client_random, supported_suite, master_secret)?;
+
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
+    let encrypted = encrypter
+        .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12_resumed".to_string()))?;
+    Ok(encrypted)
 }
 
 pub fn fn_new_certificate() -> Result<Certificate, FnError> {

@@ -144,10 +144,9 @@ pub fn fn_new_session_ticket_extensions_append(
 //
 
 /// ServerName => 0x0000,
-pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
-    let dns_name = "inria.fr";
+pub fn fn_server_name_extension(hostname: &Vec<u8>) -> Result<ClientExtension, FnError> {
+    let dns_name = std::str::from_utf8(hostname).map_err(|err| FnError::Codec(err.to_string()))?;
     Ok(ClientExtension::ServerName(ServerNameRequest(vec![
-        // TODO-Mapper: could be extended to change this field
         ServerName {
             typ: ServerNameType::HostName,
             payload: ServerNamePayload::HostName((
@@ -158,6 +157,14 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
             )),
         },
     ])))
+}
+pub fn fn_default_server_name() -> Result<Vec<u8>, FnError> {
+    Ok(b"inria.fr".to_vec())
+}
+/// A second, distinct host name - used to prove that a resumed session is bound to the SNI
+/// presented when it was first established (see `seed_cve_2026_11703`).
+pub fn fn_other_server_name() -> Result<Vec<u8>, FnError> {
+    Ok(b"attacker.example".to_vec())
 }
 pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)

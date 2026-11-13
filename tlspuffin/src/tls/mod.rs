@@ -133,6 +133,8 @@ define_signature!(
     fn_new_session_ticket_extensions_new
     fn_new_session_ticket_extensions_append
     fn_server_name_extension
+    fn_default_server_name
+    fn_other_server_name
     fn_server_name_server_extension
     fn_status_request_extension
     fn_status_request_server_extension
@@ -215,6 +217,8 @@ define_signature!(
     fn_verify_data_server [opaque]
     fn_client_sign_transcript [opaque]
     fn_server_sign_transcript [opaque]
+    fn_get_master_secret12 [get]
+    fn_client_sign_transcript_resumed12 [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -266,6 +270,8 @@ define_signature!(
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
     fn_decrypt12 [no_gen]
+    fn_encrypt12_resumed [opaque]
+    fn_decrypt12_resumed [no_gen]
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]

@@ -200,6 +200,14 @@ pub struct Finished {
     #[comparable_ignore]
     pub session_id: SmallVec<[u8; 32]>,
 
+    /// SNI host name presented by the ClientHello of this connection, if any (empty
+    /// when no SNI extension was sent). See [`crate::tls::violation`] for why this is
+    /// tracked separately from `session_id`: wolfSSL's stateful (session-ID) session
+    /// resumption never compares it against the SNI bound to the cached session
+    /// (CVE-2026-11703).
+    #[comparable_ignore]
+    pub server_name: SmallVec<[u8; 32]>,
+
     #[comparable_ignore]
     pub authenticate_peer: bool,
     /// DER encoded certificate. DER works, because:
@@ -443,6 +451,9 @@ pub mod claims_helpers {
                     server_random: SmallVec::from(claim.server_random.data),
                     session_id: SmallVec::from_slice(
                         &claim.session_id.data[..claim.session_id.length as usize],
+                    ),
+                    server_name: SmallVec::from_slice(
+                        &claim.sni.data[..claim.sni.length as usize],
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
                     peer_certificate,

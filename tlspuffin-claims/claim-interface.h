@@ -7,6 +7,7 @@
 #define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
 #define CLAIM_SESSION_ID_LENGTH 32
 #define CLAIM_MAX_CERTIFICATE_LENGTH 10240
+#define CLAIM_MAX_SNI_LENGTH 256 /* DNS hostnames are at most 253 bytes */
 
 typedef enum ClaimTLSVersion
 {
@@ -107,6 +108,16 @@ typedef struct ClaimSessionId
     unsigned char data[CLAIM_SESSION_ID_LENGTH];
 } ClaimSessionId;
 
+/* The SNI host name presented by the ClientHello of the current connection
+ * (length == 0 when no SNI extension was sent). Used to detect servers that
+ * resume a cached session under a different SNI than the one that was bound
+ * to it when the session was first established (CVE-2026-11703). */
+typedef struct ClaimServerName
+{
+    int length;
+    unsigned char data[CLAIM_MAX_SNI_LENGTH];
+} ClaimServerName;
+
 typedef struct ClaimTranscript
 {
     int length;
@@ -127,6 +138,9 @@ typedef struct Claim
 
     // Session ID
     ClaimSessionId session_id;
+
+    // SNI host name seen in this connection's ClientHello, if any
+    ClaimServerName sni;
 
     // Randoms
     ClaimRandom server_random;

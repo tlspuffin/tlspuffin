@@ -282,6 +282,30 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     claim->session_id.length = session_size;
     memcpy(claim->session_id.data, session->sessionID, claim->session_id.length);
 
+#ifdef HAVE_SNI
+    {
+        // SNI host name presented by the ClientHello of the *current* connection, if
+        // any. Used to detect servers that resume a cached session under a different
+        // SNI than the one bound to it when the session was first established
+        // (CVE-2026-11703): wolfSSL's stateful (session-ID) resumption never compares
+        // this against anything recorded on the cached session.
+        void *sni_data = NULL;
+        word16 sni_len = wolfSSL_SNI_GetRequest(agent->ssl, WOLFSSL_SNI_HOST_NAME, &sni_data);
+        if (sni_len > CLAIM_MAX_SNI_LENGTH)
+        {
+            sni_len = CLAIM_MAX_SNI_LENGTH;
+            _log(PUFFIN.warn, "not enough space in sni buffer in claim");
+        }
+        claim->sni.length = sni_len;
+        if (sni_len > 0 && sni_data != NULL)
+        {
+            memcpy(claim->sni.data, sni_data, sni_len);
+        }
+    }
+#else
+    claim->sni.length = 0;
+#endif /* HAVE_SNI */
+
     int buffer_size = wolfSSL_get_client_random(agent->ssl, NULL, 0);
     if (buffer_size > 0)
     {
@@ -434,6 +458,11 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     }
 
     int32_t secret_size = agent->ssl->specs.hash_size;
+    // The TLS 1.2 master secret is always 48 bytes (RFC 5246 Section 8.1), regardless of
+    // the cipher suite's hash algorithm - unlike `secret_size` above (`specs.hash_size`,
+    // the PRF/MAC digest size, e.g. 32 for *_SHA256 suites), which would silently
+    // truncate it.
+    int32_t master_secret_12_size = 48;
 
     if (agent->ssl->arrays != NULL)
     {
@@ -441,7 +470,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         {
             memcpy(claim->master_secret_12.secret,
                    agent->ssl->arrays->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   MIN(master_secret_12_size, CLAIM_MAX_SECRET_SIZE));
         }
         else
         {
@@ -462,7 +491,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         {
             memcpy(claim->master_secret_12.secret,
                    session->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   MIN(master_secret_12_size, CLAIM_MAX_SECRET_SIZE));
         }
         else
         {
@@ -1282,6 +1311,31 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         goto ERROR__wolfssl_create_agent;
     }
 
+#ifdef HAVE_SNI
+    if (is_server)
+    {
+        // Without this, wolfSSL's server-side SNI_Parse() skips storing the received SNI
+        // entirely ("SNI not enabled at server side") unless the server previously
+        // registered interest via wolfSSL_CTX_UseSNI/wolfSSL_UseSNI - it would otherwise
+        // process/accept the ClientHello normally but wolfSSL_SNI_GetRequest() would
+        // always return empty, even though the extension was received. An empty match
+        // value means "accept and remember any SNI" (WOLFSSL_SNI_HOST_NAME request
+        // sent by clients is always matched). Needed to populate the `sni` claim used
+        // for CVE-2026-11703.
+        int_retval = wolfSSL_CTX_UseSNI(agent->ctx, WOLFSSL_SNI_HOST_NAME, "", 0);
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            strncpy(error_msg, "wolfSSL_CTX_UseSNI failed", 128);
+            goto ERROR__wolfssl_create_agent;
+        }
+        // The empty match value above never matches a real SNI by itself, which would
+        // otherwise make wolfSSL reject the handshake outright; this tells it to accept
+        // (and keep answering/continuing) regardless of mismatch, instead of aborting.
+        wolfSSL_CTX_SNI_SetOptions(agent->ctx, WOLFSSL_SNI_HOST_NAME,
+                                    WOLFSSL_SNI_ANSWER_ON_MISMATCH);
+    }
+#endif /* HAVE_SNI */
+
 #if LIBWOLFSSL_VERSION_HEX >= 0x05000000
     int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
     if (int_retval != WOLFSSL_SUCCESS)
@@ -1313,12 +1367,15 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-    int_retval = wolfSSL_CTX_set_session_cache_mode(agent->ctx, SSL_SESS_CACHE_OFF);
-    if (int_retval != WOLFSSL_SUCCESS)
-    {
-        strncpy(error_msg, "wolfssl set session cache mode failed", 128);
-        goto ERROR__wolfssl_create_agent;
-    }
+    // Session cache left at wolfSSL's own default (on for servers) so stateful
+    // (session-ID) resumption actually works - see CVE-2026-11703. It used to be forced
+    // off unconditionally here to mitigate a 2022 bug where this process-global cache
+    // (it is not scoped per WOLFSSL_CTX - see ssl_sess.c's "Session cache is global")
+    // could hand back a session cached under one TLS version to a connection of a
+    // different version. wolfSSL's own `CheckSessionMatch` (ssl_sess.c) now rejects a
+    // cache hit whenever `IsAtLeastTLSv1_3(ssl->version) != IsAtLeastTLSv1_3(sess->version)`,
+    // so that specific confusion can no longer happen regardless of which CTX/agent
+    // presents the session ID.
 
     char const *cipher_string = NULL;
     switch (descriptor->tls_version)

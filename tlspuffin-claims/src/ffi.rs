@@ -23,6 +23,7 @@ impl fmt::Display for Claim {
             version: {},\
             server: {},\
             session_id: {},\
+            sni: {},\
             server_random: {},\
             client_random: {},\
             cert: {},\
@@ -55,6 +56,7 @@ impl fmt::Display for Claim {
             self.version,
             self.server,
             self.session_id,
+            self.sni,
             self.server_random,
             self.client_random,
             self.cert,
@@ -104,6 +106,12 @@ impl fmt::Display for ClaimCipher {
 }
 
 impl fmt::Display for ClaimSessionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.data[0..self.length as usize]),)
+    }
+}
+
+impl fmt::Display for ClaimServerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.data[0..self.length as usize]),)
     }

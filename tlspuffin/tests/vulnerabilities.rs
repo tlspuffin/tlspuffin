@@ -165,6 +165,30 @@ fn test_seed_cve_2022_38153(put: &str) {
     );
 }
 
+// CVE-2026-11703: wolfSSL's stateful (session-ID) TLS 1.2 resumption never checks that the
+// ClientHello's SNI matches the SNI bound to the session when it was first established.
+// `seed_cve_2026_11703` performs a full handshake under hostname A (caching a session on
+// `initial_server`), then reuses that same agent/process (`server`, via `prior_traces`) to
+// complete a genuine abbreviated handshake resuming that exact session, but under hostname B
+// instead (see the seed's doc comment for how the master secret is carried over). A patched
+// server would decline resumption and fall back to a full handshake (RFC 6066 Section 3); the
+// vulnerable one resumes anyway, which the `tls::violation::check_violation` rule added for
+// this CVE (see `violation.rs`) detects automatically from the resulting `Finished` claims.
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Resumed session under a different SNI")],
+    filter = all(
+        CVE_2026_11703,
+        tls12,
+        tls12_session_resumption,
+    )
+)]
+fn test_seed_cve_2026_11703(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2026_11703.build_trace();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+    assert!(ctx.agents_successful());
+}
+
 // Test whether we can refind cve_2022_38153 through bit-level mutations by first:
 // 1. Mutating with MakeMessage the sub-term of interest
 // 2. Applying HAVOC mutations randomly

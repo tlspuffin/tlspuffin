@@ -5,7 +5,8 @@ use puffin::algebra::error::FnError;
 use puffin::codec::{Codec, Reader};
 
 use super::suite_as_supported_suite;
-use crate::tls::key_exchange::tls12_new_secrets;
+use crate::claims::Finished;
+use crate::tls::key_exchange::{tls12_new_secrets, tls12_resumed_secrets};
 use crate::tls::key_schedule::dhe_key_schedule;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key_log::NoKeyLog;
@@ -224,6 +225,44 @@ pub fn fn_server_sign_transcript(
 
     let vh = transcript.get_current_hash();
     Ok(secrets.server_verify_data(&vh))
+}
+
+/// Extracts the master secret a PUT reports via its claims for a completed TLS 1.2
+/// connection. Unlike `SessionID`/`Certificate`/etc., this value never appears on the
+/// wire - it only exists in the PUT's internal state, which the Claims/Security-Claims
+/// instrumentation exposes for exactly this kind of use (see `TraceContext::find_claim`,
+/// used as the fallback source for a `Variable` term whose `Source` is an agent). Used to
+/// complete a cryptographically valid abbreviated (resumed) handshake for CVE-2026-11703.
+pub fn fn_get_master_secret12(finished: &Finished) -> Result<Vec<u8>, FnError> {
+    // The C claim struct has no length field for this secret - it's a fixed
+    // `CLAIM_MAX_SECRET_SIZE` (64) byte buffer reused for several secret kinds. The TLS 1.2
+    // master secret is always exactly 48 bytes (RFC 5246 Section 8.1); the rest is padding.
+    if finished.master_secret.len() < 48 {
+        return Err(FnError::Malformed(
+            "master secret claim shorter than 48 bytes".to_string(),
+        ));
+    }
+    Ok(finished.master_secret[..48].to_vec())
+}
+
+/// Like `fn_client_sign_transcript`, but for a TLS 1.2 *abbreviated* (resumed) handshake:
+/// there is no key exchange, so instead of a peer ECDH public key this takes the master
+/// secret directly (reused from the connection that first established the session - see
+/// `fn_get_master_secret12`).
+pub fn fn_client_sign_transcript_resumed12(
+    server_random: &Random,
+    master_secret: &Vec<u8>,
+    transcript: &HandshakeHash,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets =
+        tls12_resumed_secrets(server_random, client_random, supported_suite, master_secret)?;
+
+    let vh = transcript.get_current_hash();
+    Ok(secrets.client_verify_data(&vh))
 }
 
 // ----

@@ -76,6 +76,27 @@ pub fn tls12_new_secrets(
     Ok(secrets)
 }
 
+/// Builds the keying material for a TLS 1.2 *abbreviated* (resumed) handshake: no key
+/// exchange happens, the master secret is simply carried over from the connection that
+/// established it, mixed with this connection's own client/server randoms (RFC 5246
+/// Section 8.1). Used to demonstrate CVE-2026-11703 (stateful session-ID resumption not
+/// re-checking the SNI bound to the cached session).
+pub fn tls12_resumed_secrets(
+    server_random: &Random,
+    client_random: &Random,
+    suite: SupportedCipherSuite,
+    master_secret: &[u8],
+) -> Result<ConnectionSecrets, FnError> {
+    let randoms = ConnectionRandoms {
+        client: client_random.0,
+        server: server_random.0,
+    };
+    let suite = suite
+        .tls12()
+        .ok_or_else(|| FnError::Malformed("VersionNotCompatibleError".to_string()))?;
+    Ok(ConnectionSecrets::new_resume(randoms, suite, master_secret))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tls::key_exchange::deterministic_key_exchange;
