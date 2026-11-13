@@ -126,6 +126,7 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     SkipMutator<S>,
     ReplaceReuseMutator<S>,
     ReplaceMatchMutator<S, PT>,
+    ReplaceFunctionReshapeMutator<S, PT>,
     RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
@@ -667,7 +668,8 @@ use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
     dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
-    ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
+    ReplaceFunctionReshapeMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
+    SwapMutator,
 };
 use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
 use crate::put_registry::PutRegistry;
