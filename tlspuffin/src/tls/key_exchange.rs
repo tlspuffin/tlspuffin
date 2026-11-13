@@ -94,7 +94,8 @@ pub fn tls12_resumed_secrets(
     let suite = suite
         .tls12()
         .ok_or_else(|| FnError::Malformed("VersionNotCompatibleError".to_string()))?;
-    Ok(ConnectionSecrets::new_resume(randoms, suite, master_secret))
+    ConnectionSecrets::new_resume(randoms, suite, master_secret)
+        .map_err(|err| FnError::Crypto(err.to_string()))
 }
 
 #[cfg(test)]

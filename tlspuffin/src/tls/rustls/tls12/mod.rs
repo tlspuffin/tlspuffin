@@ -243,14 +243,22 @@ impl ConnectionSecrets {
         randoms: ConnectionRandoms,
         suite: &'static Tls12CipherSuite,
         master_secret: &[u8],
-    ) -> Self {
+    ) -> Result<Self, Error> {
+        // `master_secret` can come from a mutated/fuzzed term, so it may not be the expected
+        // 48 bytes (RFC 5246 Section 8.1) - reject it instead of letting `copy_from_slice` panic.
+        if master_secret.len() != 48 {
+            return Err(Error::General(format!(
+                "resumed master secret must be 48 bytes, got {}",
+                master_secret.len()
+            )));
+        }
         let mut ret = Self {
             randoms,
             suite,
             master_secret: [0u8; 48],
         };
         ret.master_secret.copy_from_slice(master_secret);
-        ret
+        Ok(ret)
     }
 
     /// Make a `MessageCipherPair` based on the given supported ciphersuite `scs`,
