@@ -8,6 +8,7 @@ use puffin::algebra::{DYTerm, Term};
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
+use crate::claims::Finished;
 use crate::protocol::{
     AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
     TLSVersion,
@@ -2115,6 +2116,285 @@ pub fn seed_session_resumption_ke(
     }
 }
 
+/// Legitimate TLS 1.2 *stateful* (session-ID) resumption: a full handshake under a given
+/// SNI caches a session on `initial_server`, then `server` reuses the same OS
+/// process/`WOLFSSL_CTX` (via `prior_traces` + a matching `AgentDescriptor`, exactly like
+/// `seed_session_resumption_dhe` does for TLS 1.3 PSK) to resume that exact session - under
+/// the *same* SNI this time, so this is the positive/legitimate counterpart of
+/// `seed_cve_2026_11703` (which presents a different SNI on resumption).
+///
+/// Unlike TLS 1.3 PSK resumption (where the ticket carries the resumption secret, readable
+/// from the wire), TLS 1.2 stateful resumption never puts the master secret on the wire -
+/// it only exists in the PUT's internal state. Completing the abbreviated handshake here
+/// reads it out of `initial_server`'s own claims (`fn_get_master_secret12`), the same way a
+/// real Dolev-Yao attacker could not; see that function's doc comment.
+pub fn seed_session_resumption_id12(
+    initial_server: AgentName,
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    let hostname = term! { fn_default_server_name };
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                  fn_cipher_suite12
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
+                            )),
+                            fn_ec_point_formats_extension
+                        )),
+                        fn_signed_certificate_timestamp_extension
+                    )),
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
+                )),
+                (fn_server_name_extension((@hostname)))
+            ))
+        )))
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                (@client_hello)
+            )),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))])
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))])
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))])
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))])
+        )
+    };
+
+    let client_key_exchange = term! {
+        fn_client_key_exchange(
+            (fn_encode_ec_pubkey12(
+                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
+            ))
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@server_hello_done_transcript),
+            (@client_key_exchange)
+        )
+    };
+
+    let client_verify_data = term! {
+        fn_client_sign_transcript(
+            ((initial_server, 0)),
+            (fn_decode_server_ecdh_pubkey(
+                ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+            )),
+            (@client_key_exchange_transcript),
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    // Step 1: a full handshake that leaves a session cached on `initial_server`.
+    let initial_handshake = Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(initial_server, TLSVersion::V1_2)],
+        steps: vec![
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { client_hello }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { client_key_exchange }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec } }),
+            },
+            Step {
+                agent: initial_server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@client_verify_data))),
+                            ((initial_server, 0)),
+                            (fn_decode_server_ecdh_pubkey(
+                                ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            )),
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    };
+
+    // Session ID the server itself assigned to the cached session above.
+    let resumed_session_id = term! {
+        (initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID
+    };
+
+    // Step 2: `server` reuses the same OS process/`WOLFSSL_CTX` as `initial_server` (same
+    // descriptor config -> `is_reusable_with` renames and resets it instead of spawning a
+    // fresh one), so its session cache still holds the session from step 1. This ClientHello
+    // asks to resume that exact session (by ID), under the same SNI as before.
+    let resumption_client_hello = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            (@resumed_session_id),
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite12
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    (fn_server_name_extension((@hostname)))
+                ))
+            ))
+        )
+    };
+
+    // Transcript of the resumed connection only: ClientHello + ServerHello, nothing else
+    // (an abbreviated handshake has no Certificate/ServerKeyExchange/ServerHelloDone).
+    let resumed_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                (@resumption_client_hello)
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))])
+        )
+    };
+
+    // The master secret never appears on the wire - see `fn_get_master_secret12`.
+    let master_secret = term! {
+        fn_get_master_secret12(
+            ((initial_server, 0) / Finished)
+        )
+    };
+
+    // In an abbreviated handshake the server sends its own Finished *before* the client's
+    // (right after ServerHello, since there is no key exchange to wait for), so the
+    // client's Finished transcript hash must include it too.
+    let server_finished_resumed = term! {
+        fn_decrypt12_resumed(
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(None))]),
+            ((server, 0)),
+            (@master_secret),
+            fn_true,
+            fn_seq_0,
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    let resumed_transcript_with_server_finished = term! {
+        fn_append_transcript(
+            (@resumed_transcript),
+            (@server_finished_resumed)
+        )
+    };
+
+    let client_verify_data_resumed = term! {
+        fn_client_sign_transcript_resumed12(
+            ((server, 0)),
+            (@master_secret),
+            (@resumed_transcript_with_server_finished),
+            fn_new_random,
+            fn_cipher_suite12
+        )
+    };
+
+    Trace {
+        prior_traces: vec![initial_handshake],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_2)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { resumption_client_hello }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec } }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12_resumed(
+                            (fn_finished((@client_verify_data_resumed))),
+                            ((server, 0)),
+                            (@master_secret),
+                            fn_true,
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn seed_client_attacker_full(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker_full(server).0
 }
@@ -2782,6 +3062,11 @@ pub fn create_corpus(
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
+        // wolfSSL-only for now: the forced cipher suite (ECDHE-RSA-AES128-GCM-SHA256) does
+        // not negotiate against OpenSSL/BoringSSL/LibreSSL's default TLS 1.2 server
+        // config ("no shared cipher") - a pre-existing gap in this cipher choice/config
+        // combination, not something this seed introduces.
+        seed_session_resumption_id12: put.name().starts_with("wolfssl") && put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
         seed_server_attacker_full_coalesced: put.supports("tls13"),
@@ -2964,6 +3249,17 @@ pub mod tests {
     fn test_seed_session_resumption_ke(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    // wolfSSL-only: see the corpus registration comment in `create_corpus` above.
+    #[apply(test_puts, filter = all(tls12, tls12_session_resumption, wolfssl))]
+    fn test_seed_session_resumption_id12(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_session_resumption_id12.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
