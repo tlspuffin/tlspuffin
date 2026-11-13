@@ -37,6 +37,7 @@ extern "C"
         TLS_VERSION tls_version;
         bool client_authentication;
         bool server_authentication;
+        bool post_handshake_auth;
         const char *cipher_string_tls13;
         const char *cipher_string_tls12;
         const char *cipher_string_tlsboth;

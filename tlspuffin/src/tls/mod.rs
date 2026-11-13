@@ -177,6 +177,7 @@ define_signature!(
     fn_psk_exchange_mode_dhe_ke_extension
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
+    fn_post_handshake_auth_extension
     fn_signature_algorithm_cert_extension
     fn_key_share_deterministic
     fn_key_share_extension_make
@@ -213,6 +214,7 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
+    fn_verify_data_post_handshake [opaque]
     fn_client_sign_transcript [opaque]
     fn_server_sign_transcript [opaque]
     fn_cipher_suites_make

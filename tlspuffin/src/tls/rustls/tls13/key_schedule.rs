@@ -262,6 +262,14 @@ impl KeyScheduleTrafficWithClientFinishedPending {
         self.sign_client_finish_raw(hs_hash.as_ref())
     }
 
+    /// Sign the Finished of a post-handshake client authentication (RFC 8446 section 4.4.4): the
+    /// base key is the client application traffic secret, not the client handshake one.
+    pub fn sign_post_handshake_client_finish_raw(&self, hs_hash: &[u8]) -> hmac::Tag {
+        self.traffic
+            .ks
+            .sign_finish_raw(&self.traffic.current_client_traffic_secret, hs_hash)
+    }
+
     pub fn sign_client_finish_raw(
         self,
         hs_hash: &[u8],

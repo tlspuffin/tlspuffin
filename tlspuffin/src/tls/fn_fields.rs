@@ -6,7 +6,7 @@ use puffin::codec::{Codec, Reader};
 
 use super::suite_as_supported_suite;
 use crate::tls::key_exchange::tls12_new_secrets;
-use crate::tls::key_schedule::dhe_key_schedule;
+use crate::tls::key_schedule::{dhe_key_schedule, tls13_application_traffic_secret};
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key_log::NoKeyLog;
 use crate::tls::rustls::msgs::enums::{
@@ -151,6 +151,39 @@ pub fn fn_verify_data(
 
     let (_traffic, tag, _client_secret) =
         pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
+    Ok(Vec::from(tag.as_ref()))
+}
+
+/// Verify data of the Finished sent by a client in answer to a post-handshake
+/// CertificateRequest (TLS 1.3 post-handshake authentication, RFC 8446 section 4.4.4).
+///
+/// It is computed with the client application traffic secret, over `post_handshake_transcript`:
+/// the transcript up to the end of the handshake followed by the post-handshake messages.
+pub fn fn_verify_data_post_handshake(
+    post_handshake_transcript: &HandshakeHash,
+    server_finished: &HandshakeHash,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (_client_secret, pending) = tls13_application_traffic_secret(
+        server_hello,
+        server_finished,
+        server_key_share,
+        psk,
+        group,
+        true,
+        client_random,
+        &supported_suite,
+    )?;
+
+    let tag = pending
+        .sign_post_handshake_client_finish_raw(&post_handshake_transcript.get_current_hash_raw());
     Ok(Vec::from(tag.as_ref()))
 }
 

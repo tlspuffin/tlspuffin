@@ -103,6 +103,23 @@ fn test_seed_cve_2022_25638(put: &str) {
 }
 
 #[apply(test_puts,
+    attrs = [should_panic(expected = "Authentication bypass")],
+    filter = all(
+        CVE_2026_55962,
+        tls13,
+        post_handshake_auth
+    )
+)]
+fn test_seed_cve_2026_55962(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2026_55962.build_trace();
+
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+
+    assert!(ctx.agents_successful());
+}
+
+#[apply(test_puts,
     filter = all(
         CVE_2022_38152,
         tls12,

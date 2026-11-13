@@ -127,6 +127,25 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Authentication bypass");
                 }
             }
+
+            // The peer can be authenticated after the first Finished (TLS 1.3 post-handshake
+            // authentication): the PUT then only sets `authenticate_peer` on the Finished claims
+            // made once the authentication was requested, so every one of them has to be checked.
+            let post_handshake_bypass = claims.iter().any(|claim| match &claim.data {
+                ClaimData::Message(ClaimDataMessage::Finished(finished))
+                    if !finished.outbound && finished.authenticate_peer =>
+                {
+                    match claim.origin {
+                        AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,
+                        AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT.1,
+                    }
+                }
+                _ => false,
+            });
+
+            if post_handshake_bypass {
+                return Some("Authentication bypass");
+            }
         }
 
         None

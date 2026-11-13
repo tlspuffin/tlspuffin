@@ -27,6 +27,10 @@ if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
 endif()
 
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.4" AND VENDOR_VERSION VERSION_LESS "5.9.2" AND postauth)
+  declare_vulnerability("CVE-2026-55962" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2026-55962.patch)
+endif()
+
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
@@ -140,4 +144,7 @@ set(allow_setting_tls13_ciphers yes)
 
 if(NOT postauth)
   set(disable_postauth yes)
+elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.0")
+  # the harness can request a client certificate after the handshake
+  set(post_handshake_auth yes)
 endif()

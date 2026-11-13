@@ -417,6 +417,7 @@ fn make_descriptor(
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
+        post_handshake_auth: config.descriptor.protocol_config.post_handshake_auth,
         cipher_string_tls13: ciphers_tls13.as_ptr(),
         cipher_string_tls12: ciphers_tls12.as_ptr(),
         cipher_string_tlsboth: ciphers_tlsboth.as_ptr(),

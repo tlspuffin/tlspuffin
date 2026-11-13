@@ -2327,6 +2327,330 @@ pub fn _seed_client_attacker_full(
     )
 }
 
+/// Server wolfSSL-style post-handshake authentication (TLS 1.3, RFC 8446 section 4.6.2): the
+/// handshake completes without client certificate, then the server requests one.
+///
+/// Returns a trace which stops once the server has sent its post-handshake CertificateRequest,
+/// and the terms needed to answer it:
+///  - the transcript up to the ServerHello and up to the server Finished
+///  - the CertificateRequest, decrypted
+///  - the transcript the client answer has to extend: the handshake transcript up to the client
+///    Finished, followed by the CertificateRequest (RFC 8446 section 4.4.4)
+///
+/// The answer is sent with the client application traffic secret, record sequence 0 being its
+/// first message.
+pub fn _seed_client_attacker_post_handshake_auth(
+    server: AgentName,
+) -> (
+    Trace<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+) {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
+                )),
+                fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                // The server only requests a certificate after the handshake if the client
+                // announces it supports it
+                fn_post_handshake_auth_extension
+            ))
+        )))
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                (@client_hello) // ClientHello
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+        )
+    };
+
+    let extensions = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
+        )
+    };
+
+    let encrypted_extension_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (fn_find_encrypted_extensions((@extensions)))
+        )
+    };
+
+    let server_certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extension_transcript),
+            (fn_find_server_certificate((@extensions)))
+        )
+    };
+
+    let server_certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_transcript),
+            (fn_find_server_certificate_verify((@extensions)))
+        )
+    };
+
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_verify_transcript),
+            (fn_find_server_finished((@extensions)))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+             ))
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_finished_transcript),
+            (@client_finished)
+        )
+    };
+
+    // The server sends two NewSessionTickets (application data #4 and #5, record sequences 0
+    // and 1) then the post-handshake CertificateRequest (application data #6, record sequence 2)
+    let certificate_request = term! {
+        fn_decrypt_application(
+            ((server, 6)[Some(TlsQueryMatcher::ApplicationData)]),
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_2,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
+        )
+    };
+
+    let post_handshake_transcript = term! {
+        fn_append_transcript(
+            (@client_finished_transcript),
+            (@certificate_request)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                client_authentication: true,
+                post_handshake_auth: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (@server_hello_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    };
+
+    (
+        trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        certificate_request,
+        post_handshake_transcript,
+    )
+}
+
+/// The most standard post-handshake authentication: the client answers the server's
+/// CertificateRequest with a Certificate, a CertificateVerify and a Finished, so that it gets
+/// authenticated after the handshake.
+///
+/// All three messages are sent with the client application traffic secret (record sequences 0, 1
+/// and 2) and the transcript of each of them extends the one of the previous message.
+pub fn seed_client_attacker_post_handshake_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let (
+        mut trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        certificate_request,
+        post_handshake_transcript,
+    ) = _seed_client_attacker_post_handshake_auth(server);
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_get_context((@certificate_request))))),
+            (fn_certificate_entries_make(
+            (fn_chain_append_certificate_entry(
+                fn_empty_certificate_chain,
+                (fn_certificate_entry_extensions(
+                    fn_bob_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
+            ))))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@post_handshake_transcript),
+            (@certificate)
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_client(
+                    (@certificate_transcript),
+                    fn_bob_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify)
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data_post_handshake(
+                (@certificate_verify_transcript),
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+             ))
+        )
+    };
+
+    for (message, sequence) in [
+        (certificate, term! { fn_seq_0 }),
+        (certificate_verify, term! { fn_seq_1 }),
+        (client_finished, term! { fn_seq_2 }),
+    ] {
+        trace.steps.push(Step {
+            agent: server,
+            action: Action::Input(input_action! { term! {
+                    fn_encrypt_application(
+                        (@message),
+                        (@server_hello_transcript),
+                        (@server_finished_transcript),
+                        (fn_get_server_key_share(((server, 0)))),
+                        fn_no_psk,
+                        fn_named_group_secp384r1,
+                        (@sequence),
+                        fn_new_random,
+                        fn_cipher_suite13_aes_128_gcm_sha256
+                    )
+                }
+            }),
+        });
+    }
+
+    trace
+}
+
 pub fn seed_client_attacker_full_precomputation(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker_full_precomputation(server).0
 }
@@ -2778,6 +3102,7 @@ pub fn create_corpus(
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        seed_client_attacker_post_handshake_auth: put.supports("tls13") && put.supports("post_handshake_auth"),
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
@@ -2846,6 +3171,16 @@ pub mod tests {
     fn test_seed_client_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_full.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, post_handshake_auth))]
+    fn test_seed_client_attacker_post_handshake_auth(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_client_attacker_post_handshake_auth.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 

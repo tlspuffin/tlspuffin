@@ -19,6 +19,12 @@
 #define thread_local _Thread_local
 #endif
 
+// Post-handshake authentication (server requests a client certificate after the handshake). The
+// WOLFSSL_VERIFY_POST_HANDSHAKE verify mode is not available in old versions.
+#if defined(WOLFSSL_POST_HANDSHAKE_AUTH) && LIBWOLFSSL_VERSION_HEX >= 0x05000000
+#define PUFFIN_POST_HANDSHAKE_AUTH
+#endif
+
 #if LIBWOLFSSL_VERSION_HEX < 0x04004000
 // the timeout type of wolfSSL_accept_ex / wolfSSL_connect_ex was renamed in 4.4
 #define WOLFSSL_TIMEVAL Timeval
@@ -68,6 +74,8 @@ struct AGENT_TYPE
     bool handshake_done;
     enum ClaimType transcriptType;
     bool peer_authentication;
+    bool post_handshake_auth_requested; /* server: wolfSSL_request_certificate already called */
+    bool post_handshake_auth_claimed;   /* server: Finished claim made for the answer to it */
     uint32_t secret_size;
     uint8_t handshake_secret[SECRET_LEN];
     uint16_t peer_sig_wire_value;  /* peer CertificateVerify sig algo, TLS wire format */
@@ -266,6 +274,16 @@ static void fill_claim(AGENT agent, struct Claim *claim)
 
     claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
     claim->peer_authentication = agent->peer_authentication;
+#ifdef PUFFIN_POST_HANDSHAKE_AUTH
+    // Post-handshake authentication: the client is authenticated once the server accepted a
+    // Finished answering its CertificateRequest (wolfSSL_request_certificate resets
+    // got_finished, it is set again when a Finished is accepted). The server then must hold the
+    // client certificate.
+    if (agent->post_handshake_auth_requested && agent->ssl->msgsReceived.got_finished)
+    {
+        claim->peer_authentication = true;
+    }
+#endif
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05003000
     WOLFSSL_SESSION *session = agent->ssl->session;
@@ -927,7 +945,18 @@ static RESULT wolfssl_progress(AGENT agent)
 
     // fprintf(stderr, "agent: %2.2x progress\n", agent->name);
 
-    if (wolfSSL_is_init_finished(agent->ssl))
+    bool init_finished = wolfSSL_is_init_finished(agent->ssl);
+#ifdef PUFFIN_POST_HANDSHAKE_AUTH
+    // wolfSSL resets its handshake state when it processes the post-handshake Certificate of the
+    // client: the handshake is not finished anymore for it but the server has to keep reading
+    // the rest of the client's answer.
+    if (agent->post_handshake_auth_requested)
+    {
+        init_finished = true;
+    }
+#endif
+
+    if (init_finished)
     {
         // trigger another read
         uint8_t buf[128];
@@ -965,6 +994,19 @@ static RESULT wolfssl_progress(AGENT agent)
         {
             agent->handshake_done = true;
             result = PUFFIN.make_result(RESULT_OK, "handshake done");
+
+#ifdef PUFFIN_POST_HANDSHAKE_AUTH
+            if (wolfSSL_is_server(agent->ssl) && agent->descriptor.post_handshake_auth &&
+                !agent->post_handshake_auth_requested)
+            {
+                // Request the client certificate now that the handshake is done
+                agent->post_handshake_auth_requested = true;
+                if (wolfSSL_request_certificate(agent->ssl) != WOLFSSL_SUCCESS)
+                {
+                    _log(PUFFIN.warn, "wolfSSL_request_certificate failed");
+                }
+            }
+#endif
         }
         else
         {
@@ -975,6 +1017,21 @@ static RESULT wolfssl_progress(AGENT agent)
             free(reason);
         }
     }
+
+#ifdef PUFFIN_POST_HANDSHAKE_AUTH
+    // wolfSSL does not call the message callback for the post-handshake Finished: make the claim
+    // as soon as the server has accepted the Finished which answers its CertificateRequest.
+    if ((agent->claimer.notify != NULL) && agent->post_handshake_auth_requested &&
+        !agent->post_handshake_auth_claimed && agent->ssl->msgsReceived.got_finished)
+    {
+        agent->post_handshake_auth_claimed = true;
+
+        struct Claim claim = {};
+        claim.typ = CLAIM_FINISHED;
+        fill_claim(agent, &claim);
+        agent->claimer.notify(agent->claimer.context, &claim);
+    }
+#endif
 
     // deferred_transcript_extraction
     if ((agent->claimer.notify != NULL) && (agent->transcriptType != CLAIM_NOT_SET))
@@ -1116,6 +1173,15 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
     agent->transcriptType = CLAIM_NOT_SET;
     agent->peer_authentication = descriptor->role == CLIENT ? descriptor->server_authentication
                                                             : descriptor->client_authentication;
+    agent->post_handshake_auth_requested = false;
+    agent->post_handshake_auth_claimed = false;
+    if (is_server && descriptor->post_handshake_auth)
+    {
+        // The client is only authenticated after the post-handshake CertificateRequest: claims
+        // must not require a peer certificate until it has been requested (see
+        // wolfssl_progress).
+        agent->peer_authentication = false;
+    }
     agent->secret_size = 0;
     memset(agent->handshake_secret, 0, SECRET_LEN);
 
@@ -1383,7 +1449,16 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 
     if (peer_authentication)
     {
-        wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+        int verify_mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+#ifdef PUFFIN_POST_HANDSHAKE_AUTH
+        if (is_server && descriptor->post_handshake_auth)
+        {
+            // Do not request a client certificate during the handshake, it is requested
+            // afterwards with wolfSSL_request_certificate
+            verify_mode |= WOLFSSL_VERIFY_POST_HANDSHAKE;
+        }
+#endif
+        wolfSSL_CTX_set_verify(agent->ctx, verify_mode, NULL);
 
         for (size_t i = 0; i < descriptor->store_length; ++i)
         {

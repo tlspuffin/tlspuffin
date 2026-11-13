@@ -346,6 +346,17 @@ pub struct TLSDescriptorConfig {
     /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
     /// If `None`, use the default PUT signature algorithms.
     pub sigalgs: Option<String>,
+    /// If agent is a server:
+    ///   Defer the client authentication to after the handshake (TLS 1.3 post-handshake
+    ///   authentication): the handshake completes without requesting a client certificate, then
+    ///   the PUT requests one. Requires `client_authentication` to be set and a PUT built with
+    ///   post-handshake authentication support.
+    /// If agent is a client:
+    ///   No effect.
+    ///
+    /// Default: false
+    #[serde(default)]
+    pub post_handshake_auth: bool,
 }
 
 impl TLSDescriptorConfig {
@@ -428,6 +439,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
             && self.sigalgs == other.sigalgs
+            && self.post_handshake_auth == other.post_handshake_auth
     }
 }
 
@@ -632,6 +644,7 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
             sigalgs: None,
+            post_handshake_auth: false,
         }
     }
 }
