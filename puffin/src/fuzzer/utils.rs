@@ -282,7 +282,42 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
     let mut visited = 0;
     let mut path = TermPath::new();
 
-    let locked = step_lock();
+    fold_steps_into_reservoir(
+        trace,
+        &filter,
+        constraints,
+        rand,
+        &mut path,
+        &mut reservoir,
+        &mut visited,
+        true,
+    );
+
+    reservoir
+}
+
+/// Folds one trace's own `steps` into a running reservoir-sampling accumulator. Shared by
+/// [`reservoir_sample`] (which only ever looks at the given `trace`'s own `steps`) and
+/// [`choose_term`] (which, unlike every other selection helper here, also continues the same
+/// reservoir into `trace.prior_traces` - see its doc comment for why that is safe).
+///
+/// `respect_lock`: the per-stage anchor step lock ([`step_lock`]) is an index into *this
+/// specific* `steps` array, so it is only meaningful for the outermost trace being sampled.
+/// Callers that recurse into `prior_traces` (a trace with its own, unrelated step-index
+/// space) must pass `false` there, or risk a locked index coincidentally matching an
+/// unrelated step of a prior trace.
+#[allow(clippy::too_many_arguments)]
+fn fold_steps_into_reservoir<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
+    trace: &'a Trace<PT>,
+    filter: &P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+    path: &mut TermPath,
+    reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+    visited: &mut usize,
+    respect_lock: bool,
+) {
+    let locked = if respect_lock { step_lock() } else { None };
     for (step_index, step) in trace.steps.iter().enumerate() {
         // Anchor step lock: when a stage has locked a step, only draw anchors from that step.
         if let Some(k) = locked {
@@ -304,15 +339,7 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
 
                 path.clear();
                 sample_subterms(
-                    term,
-                    step_index,
-                    &mut path,
-                    true,
-                    &filter,
-                    constraints,
-                    rand,
-                    &mut reservoir,
-                    &mut visited,
+                    term, step_index, path, true, filter, constraints, rand, reservoir, visited,
                 );
             }
             Action::Output(_) => {
@@ -320,8 +347,26 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
             }
         }
     }
+}
 
-    reservoir
+/// Recurses [`fold_steps_into_reservoir`] into every trace nested under `trace.prior_traces`
+/// (a prior trace can itself have its own `prior_traces`), continuing the same running
+/// reservoir. Never applies the anchor step lock (see `fold_steps_into_reservoir`'s doc
+/// comment) and never visits `trace`'s own `steps` - only what is nested under its
+/// `prior_traces`.
+fn fold_prior_traces_into_reservoir<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
+    trace: &'a Trace<PT>,
+    filter: &P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+    path: &mut TermPath,
+    reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+    visited: &mut usize,
+) {
+    for prior in &trace.prior_traces {
+        fold_steps_into_reservoir(prior, filter, constraints, rand, path, reservoir, visited, false);
+        fold_prior_traces_into_reservoir(prior, filter, constraints, rand, path, reservoir, visited);
+    }
 }
 
 /// Post-order half of [`reservoir_sample`]: offers every selectable sub-term of `term` to the
@@ -537,12 +582,51 @@ pub fn choose_mut<'a, R: Rand, PT: ProtocolTypes>(
     }
 }
 
+/// Unlike every other selection helper in this module, this one also considers
+/// `trace.prior_traces` (recursively), not just `trace.steps`: it is the only one that never
+/// hands its caller a [`TracePath`] - only the term itself - so there is no risk of it being
+/// used to address a write (a replacement destination, a removal, ...) into `prior_traces`,
+/// which must never be mutated (it is setup that runs once, not a target). The only current
+/// caller, [`super::mutations::ReplaceReuseMutator`], only ever reads the term back as a
+/// *replacement value*.
+///
+/// This is safe/meaningful because `prior_traces` run to completion into the same
+/// [`crate::trace::TraceContext`] before `trace`'s own steps start (see
+/// `Trace::execute_until_step_wrap`): any term found here - e.g. a `Variable` referencing the
+/// `ServerHello` of a handshake that cached a session, later resumed by `trace` itself (see
+/// `seed_session_resumption_dhe`/`seed_cve_2026_11703`) - resolves at execution time exactly
+/// like any other term, with no rewriting needed when copied into `trace.steps`.
 pub fn choose_term<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a Trace<PT>,
     constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<&'a Term<PT>> {
-    reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
+    let filter = |_: &Term<PT>| true;
+    let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
+    let mut visited = 0;
+    let mut path = TermPath::new();
+
+    fold_steps_into_reservoir(
+        trace,
+        &filter,
+        constraints,
+        rand,
+        &mut path,
+        &mut reservoir,
+        &mut visited,
+        true,
+    );
+    fold_prior_traces_into_reservoir(
+        trace,
+        &filter,
+        constraints,
+        rand,
+        &mut path,
+        &mut reservoir,
+        &mut visited,
+    );
+
+    reservoir.map(|(term, _)| term)
 }
 
 pub fn choose_term_mut<'a, R: Rand, PT: ProtocolTypes>(
@@ -670,7 +754,10 @@ mod tests {
     use libafl_bolts::rands::StdRand;
 
     use super::*;
+    use crate::agent::{AgentDescriptor, AgentName};
     use crate::algebra::test_signature::*;
+    use crate::term;
+    use crate::trace::InputAction;
 
     /// Verbatim copy of the recursive `sample_subterms` this module replaced, kept as the
     /// behavioural reference for `test_sample_subterms_matches_recursive_reference`.
@@ -919,6 +1006,141 @@ mod tests {
             seen.len() > 1,
             "unlocked anchors should span multiple steps, saw {:?}",
             seen
+        );
+    }
+
+    /// Builds a trace whose own step only ever contains `fn_seq_1` (never used by
+    /// `setup_simple_trace`), carrying a full `setup_simple_trace()` as its `prior_trace`.
+    /// Anything pointer-equal to `fn_seq_1`'s term came from the outer trace's own steps;
+    /// anything else reachable here can only have come from `prior_traces`.
+    fn setup_trace_with_prior() -> (TestTrace, *const TestTerm) {
+        let server = AgentName::first();
+        let outer = TestTrace {
+            prior_traces: vec![setup_simple_trace()],
+            descriptors: vec![AgentDescriptor::from_name(server)],
+            steps: vec![Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    precomputations: vec![],
+                    recipe: term! { fn_seq_1 },
+                }),
+            }],
+            ..Default::default()
+        };
+        // Taken from its final resting place in `outer`, not from a local that got moved
+        // into it - a moved value's old address is not where the data actually lives.
+        let outer_term_ptr = match &outer.steps[0].action {
+            Action::Input(input) => &input.recipe as *const TestTerm,
+            Action::Output(_) => unreachable!(),
+        };
+        (outer, outer_term_ptr)
+    }
+
+    #[test_log::test]
+    fn test_reservoir_sample_never_sees_prior_traces() {
+        let (outer, outer_term_ptr) = setup_trace_with_prior();
+        let mut rand = StdRand::with_seed(7);
+
+        for _ in 0..500 {
+            if let Some((term, _)) =
+                reservoir_sample(&outer, |_| true, &TermConstraints::default(), &mut rand)
+            {
+                assert_eq!(
+                    term as *const _, outer_term_ptr,
+                    "reservoir_sample picked a term that must have come from prior_traces"
+                );
+            }
+        }
+    }
+
+    #[test_log::test]
+    fn test_choose_term_path_filtered_never_sees_prior_traces() {
+        let (outer, outer_term_ptr) = setup_trace_with_prior();
+        let mut rand = StdRand::with_seed(7);
+
+        for _ in 0..500 {
+            if let Some(path) =
+                choose_term_path_filtered(&outer, |_| true, &TermConstraints::default(), &mut rand)
+            {
+                let term = find_term(&outer, &path).unwrap();
+                assert_eq!(
+                    term as *const _, outer_term_ptr,
+                    "choose_term_path_filtered picked a term that must have come from \
+                     prior_traces - it returns a TracePath, which can be used to write, so \
+                     this must never happen"
+                );
+            }
+        }
+    }
+
+    /// `choose_term` is the one exception: it never hands back a [`TracePath`] (only the
+    /// term), so there is nothing a caller could use to write into `prior_traces` with its
+    /// result - see its doc comment. This confirms it actually reaches `prior_traces`
+    /// (unlike every other helper above), and reaches every term there that a direct
+    /// `reservoir_sample` on the prior trace itself would.
+    #[test_log::test]
+    fn test_choose_term_reaches_prior_traces() {
+        let (outer, outer_term_ptr) = setup_trace_with_prior();
+        let mut rand = StdRand::with_seed(7);
+
+        let mut seen_from_prior: HashSet<*const TestTerm> = HashSet::new();
+        for _ in 0..3000 {
+            if let Some(term) = choose_term(&outer, &TermConstraints::default(), &mut rand) {
+                let ptr = term as *const _;
+                if ptr != outer_term_ptr {
+                    seen_from_prior.insert(ptr);
+                }
+            }
+        }
+        assert!(
+            !seen_from_prior.is_empty(),
+            "choose_term never picked anything from prior_traces across 3000 draws"
+        );
+
+        let mut expected: HashSet<*const TestTerm> = HashSet::new();
+        for _ in 0..3000 {
+            if let Some((term, _)) = reservoir_sample(
+                &outer.prior_traces[0],
+                |_| true,
+                &TermConstraints::default(),
+                &mut rand,
+            ) {
+                expected.insert(term as *const _);
+            }
+        }
+        assert_eq!(outer.prior_traces[0].count_functions(), expected.len());
+        assert_eq!(
+            seen_from_prior, expected,
+            "choose_term did not reach exactly the terms a direct reservoir_sample on the \
+             prior trace does"
+        );
+    }
+
+    #[test_log::test]
+    fn test_choose_term_step_lock_only_constrains_the_outer_trace() {
+        // The lock is an index into the *outer* trace's own steps. Locking an index `outer`
+        // does not have (it only has step 0) must exclude the outer trace's own term
+        // entirely, while still letting choose_term reach prior_traces - proving the lock
+        // never applies there.
+        let (outer, outer_term_ptr) = setup_trace_with_prior();
+        let mut rand = StdRand::with_seed(7);
+
+        let prev = set_step_lock(Some(999));
+        let mut saw_any = false;
+        for _ in 0..500 {
+            if let Some(term) = choose_term(&outer, &TermConstraints::default(), &mut rand) {
+                saw_any = true;
+                assert_ne!(
+                    term as *const _, outer_term_ptr,
+                    "step 0 is locked out (lock is on a nonexistent step), so choose_term \
+                     must never return the outer trace's own term"
+                );
+            }
+        }
+        set_step_lock(prev);
+        assert!(
+            saw_any,
+            "choose_term returned nothing at all: the lock must not have blocked prior_traces too"
         );
     }
 }
