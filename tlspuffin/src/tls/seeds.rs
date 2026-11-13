@@ -2764,6 +2764,203 @@ fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
     }
 }
 
+/// Steps of one TLS 1.3 connection between `client` and a server played by the attacker, as in
+/// [`seed_server_attacker_full`] but with `server_extensions` in EncryptedExtensions: the client's
+/// ClientHello, then the server flight (ServerHello, EncryptedExtensions, Certificate,
+/// CertificateVerify, Finished), after which the client has completed the handshake.
+fn server_attacker_connection_steps(
+    client: AgentName,
+    server_extensions: Term<TLSProtocolTypes>,
+) -> Vec<Step<TLSProtocolTypes>> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            (@server_extensions)
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_alice_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+            ))))
+            ))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    let encrypted_step = |message, seq| Step {
+        agent: client,
+        action: Action::Input(input_action! { term! {
+                fn_encrypt_handshake(
+                    (@message),
+                    (@server_hello_transcript),
+                    (fn_get_client_key_share(((client, 0)), (@curve))),
+                    fn_no_psk,
+                    (@curve),
+                    fn_false,
+                    (@seq),
+                    fn_new_random,
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                )
+            }
+        }),
+    };
+
+    vec![
+        OutputAction::new_step(client),
+        Step {
+            agent: client,
+            action: Action::Input(input_action! { server_hello }),
+        },
+        encrypted_step(encrypted_extensions, term! { fn_seq_0 }),
+        encrypted_step(certificate, term! { fn_seq_1 }),
+        encrypted_step(certificate_verify, term! { fn_seq_2 }),
+        encrypted_step(server_finished, term! { fn_seq_3 }),
+    ]
+}
+
+/// Two consecutive TLS 1.3 connections of the same client with a server played by the attacker.
+/// The first connection has `server_extensions` in EncryptedExtensions, the second one none.
+/// The second trace uses a client with the same configuration, so the first client agent is reused
+/// (reset with `wolfSSL_clear`/`SSL_clear` when the PUT option `use_clear` is set, otherwise freed
+/// and recreated) for a new full handshake. State the client keeps across connections (e.g. ECH
+/// retry configs, see `seed_cve_2026_5503`) is only reachable this way: mutations do not add
+/// prior traces or agents.
+pub fn _seed_server_attacker_reconnect(
+    client: AgentName,
+    reconnecting_client: AgentName,
+    server_extensions: Term<TLSProtocolTypes>,
+) -> Trace<TLSProtocolTypes> {
+    let client_config = TLSDescriptorConfig {
+        tls_version: TLSVersion::V1_3,
+        typ: AgentType::Client,
+        // `wolfSSL_CTX_set1_groups_list` adds a supported-groups extension to the context (the
+        // ECH client bug CVE-2026-5503 needs a non-empty context extension list).
+        groups: Some(String::from("P-256:P-384")),
+        ..TLSDescriptorConfig::default()
+    };
+
+    let first_connection = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(client, client_config.clone())],
+        steps: server_attacker_connection_steps(client, server_extensions),
+        ..Default::default()
+    };
+
+    Trace {
+        prior_traces: vec![first_connection],
+        // Same configuration as the first client: the agent is reused instead of spawning a new
+        // one.
+        descriptors: vec![AgentDescriptor::from_config(
+            reconnecting_client,
+            client_config,
+        )],
+        steps: server_attacker_connection_steps(
+            reconnecting_client,
+            term! { fn_server_extensions_new },
+        ),
+        ..Default::default()
+    }
+}
+
+/// [`_seed_server_attacker_reconnect`] with empty EncryptedExtensions.
+pub fn seed_server_attacker_reconnect(
+    client: AgentName,
+    reconnecting_client: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_reconnect(client, reconnecting_client, term! { fn_server_extensions_new })
+}
+
 pub fn create_corpus(
     put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
@@ -2787,6 +2984,9 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        // Second connection of the same client (needs the PUT option `use_clear` to keep state).
+        // Restricted to ECH PUTs for now: it only matters for client state such as ECH configs.
+        seed_server_attacker_reconnect: put.supports("tls13") && put.supports("ech_support"),
     )
 }
 
@@ -2870,6 +3070,20 @@ pub mod tests {
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, ech_support))]
+    fn test_seed_server_attacker_reconnect(put: &str) {
+        let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
+        let trace = seed_server_attacker_reconnect.build_trace();
+
+        // the first connection completes
+        let ctx = runner.execute(trace.prior_traces[0].clone(), &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        // the reused client then completes a second handshake
+        let ctx = runner.execute(trace, &mut 0).unwrap();
         assert!(ctx.agents_successful());
     }
 

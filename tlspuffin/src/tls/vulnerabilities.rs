@@ -42,6 +42,10 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Malicious server: ECH retry_configs, then a second connection on the same client
+        // (needs PUT support for ECH, and the PUT option `use_clear` to trigger).
+        seed_cve_2026_5503: put.supports("tls13") && put.supports("ech_support"),
     )
 }
 
@@ -1543,6 +1547,45 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
         ],
         ..Default::default()
     }
+}
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2026-5503>
+///
+/// Heap out-of-bounds write in `SendTls13ClientHello` of wolfSSL <= 5.9.0 built with
+/// `--enable-ech`, fixed in 5.9.1 by commit 1823f2e9fcdf0c3a6a41d255033d817d23a5ebb3
+/// (in <https://github.com/wolfSSL/wolfssl/pull/10102>).
+///
+/// Root cause (CWE-787): a client offering ECH without an SNI of its own sizes the inner
+/// ClientHello first, then sizes the outer one: `TLSX_EchChangeSNI` adds an SNI extension holding
+/// the ECH `public_name` to the context's extensions (it only needs them to be non-empty), and
+/// `TLSX_EchRestoreSNI` never removes it. The inner ClientHello, written last into a buffer sized
+/// without SNI (plus 0-31 bytes of padding), then gets that SNI too (`public_name` + 9 bytes): a
+/// `public_name` of 23 bytes or more always overflows the buffer, by up to ~230 bytes.
+///
+/// Reachability (malicious server, no client-side ECH configuration):
+/// - first connection (prior trace): an ECH-enabled client with no ECH config sends a GREASE ECH
+///   extension, and adopts the server's `retry_configs` from EncryptedExtensions without checking
+///   them ([`fn_ech_retry_configs_server_extension`] with a 100-byte `public_name`, short enough
+///   for a well-formed ECHConfig, which the fixed 5.9.1 also adopts). The
+///   handshake then completes normally;
+/// - `wolfSSL_clear` keeps these ECH configs: the client agent is reused for a second connection
+///   (needs the PUT option `use_clear`), whose first ClientHello offers real ECH with the
+///   attacker's `public_name` and overflows. Setting the client's groups makes the context's
+///   extension list non-empty; the client never sets an SNI.
+pub fn seed_cve_2026_5503(
+    client: AgentName,
+    reconnecting_client: AgentName,
+) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker_reconnect(
+        client,
+        reconnecting_client,
+        term! {
+            fn_server_extensions_append(
+                fn_server_extensions_new,
+                (fn_ech_retry_configs_server_extension(fn_medium_bytes_vec))
+            )
+        },
+    )
 }
 
 #[cfg(test)]

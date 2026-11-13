@@ -87,6 +87,7 @@ define_signature!(
     fn_large_length
     fn_empty_bytes_vec
     fn_large_bytes_vec [no_bit] // exclude MakeMessage and thus bit-level mutations
+    fn_medium_bytes_vec
     // messages
     fn_alert_close_notify
     fn_application_data
@@ -191,6 +192,7 @@ define_signature!(
     fn_renegotiation_info_server_extension
     fn_transport_parameters_draft_extension
     fn_transport_parameters_draft_server_extension
+    fn_ech_retry_configs_server_extension
     fn_unknown_client_extension
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension

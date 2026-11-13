@@ -682,6 +682,41 @@ pub fn fn_transport_parameters_draft_server_extension(
         parameters.clone(),
     ))
 }
+
+/// ECH (Encrypted Client Hello, RFC 9849) server extension (0xfe0d) as sent in
+/// EncryptedExtensions: `retry_configs`, an ECHConfigList with a single ECHConfig whose
+/// `public_name` is `public_name`. The config uses DHKEM(X25519, HKDF-SHA256) with the X25519
+/// base point as public key and the cipher suite HKDF-SHA256 / AES-128-GCM, which wolfSSL
+/// supports and therefore stores. The name is copied unchanged (as payloads must be, for
+/// bit-level mutations), so its 1-byte length wraps above 255 bytes.
+pub fn fn_ech_retry_configs_server_extension(
+    public_name: &Vec<u8>,
+) -> Result<ServerExtension, FnError> {
+    let mut contents = vec![0x01]; // config_id
+    contents.extend_from_slice(&[0x00, 0x20]); // kem_id: DHKEM(X25519, HKDF-SHA256)
+    contents.extend_from_slice(&[0x00, 0x20]); // public_key length
+    let mut public_key = [0u8; 32];
+    public_key[0] = 9; // X25519 base point
+    contents.extend_from_slice(&public_key);
+    contents.extend_from_slice(&[0x00, 0x04, 0x00, 0x01, 0x00, 0x01]); // HKDF-SHA256, AES-128-GCM
+    contents.push(0x00); // maximum_name_length
+    contents.push(public_name.len() as u8);
+    contents.extend_from_slice(public_name);
+    contents.extend_from_slice(&[0x00, 0x00]); // no ECHConfig extensions
+
+    let mut config = vec![0xfe, 0x0d]; // version
+    config.extend_from_slice(&(contents.len() as u16).to_be_bytes());
+    config.extend_from_slice(&contents);
+
+    let mut list = (config.len() as u16).to_be_bytes().to_vec();
+    list.extend_from_slice(&config);
+
+    Ok(ServerExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xfe0d),
+        payload: Payload::new(list),
+    }))
+}
+
 // Unknown extensions
 
 pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {

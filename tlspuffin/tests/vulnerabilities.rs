@@ -625,6 +625,72 @@ fn test_seed_cve_2022_39173_minimized(put: &str) {
     );
 }
 
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_5503,
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_5503(put: &str) {
+    expect_trace_crash(
+        seed_cve_2026_5503.build_trace(),
+        default_runner_for_desc(puffin::put::PutDescriptor::new(
+            put,
+            vec![("use_clear", "true")],
+        )),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
+// Negative control: on PUTs with ECH where CVE-2026-5503 is fixed (e.g. wolfssl591-asan-ech), the
+// same trace must not crash: the client refuses to send the ECH ClientHello.
+#[apply(test_puts,
+    filter = all(
+        not(CVE_2026_5503),
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_5503_fixed(put: &str) {
+    // In-process (a crash aborts the test binary): forking concurrently with
+    // `test_seed_cve_2026_5503_needs_clear` sometimes deadlocks the forked children.
+    let runner = default_runner_for_desc(puffin::put::PutDescriptor::new(
+        put,
+        vec![("use_clear", "true")],
+    ));
+    // The fix makes the second ClientHello fail cleanly: ECH without an inner SNI is rejected
+    // with BAD_FUNC_ARG. Getting this error shows the attacker's retry_configs were adopted.
+    match runner.execute(seed_cve_2026_5503.build_trace(), &mut 0) {
+        Err(e) => assert!(
+            e.to_string().contains("Bad function argument"),
+            "unexpected error: {e}"
+        ),
+        Ok(_) => panic!("expected the fixed client to refuse ECH without an inner SNI"),
+    }
+}
+
+// Without `use_clear`, the second connection uses a fresh `WOLFSSL` object that does not inherit
+// the attacker's ECH configs: the client sends GREASE ECH again and nothing overflows.
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_5503,
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_5503_needs_clear(put: &str) {
+    // In-process (a crash aborts the test binary), see `test_seed_cve_2026_5503_fixed`.
+    let runner = default_runner_for(put);
+    runner
+        .execute(seed_cve_2026_5503.build_trace(), &mut 0)
+        .expect("trace without use_clear should execute");
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {

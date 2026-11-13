@@ -24,6 +24,23 @@ sancov = true
 asan = true
 fix = ["AllowClaim"]
 
+[wolfssl584-asan-ech]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim"]
+
+# CVE-2026-5503 fixed upstream: negative control for wolfssl584-asan-ech
+[wolfssl591-asan-ech]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.1-stable", version = "5.9.1" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }

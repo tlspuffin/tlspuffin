@@ -76,3 +76,9 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
 pub fn fn_large_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![42; 700])
 }
+
+/// A medium-size byte vector, between [`fn_empty_bytes_vec`] and [`fn_large_bytes_vec`]: still fits
+/// fields with a 1-byte length.
+pub fn fn_medium_bytes_vec() -> Result<Vec<u8>, FnError> {
+    Ok(vec![42; 100])
+}

@@ -1,6 +1,7 @@
 use_languages(C)
 
 option(postauth "Build with post-auth" ON)
+option(ech "Build with TLS 1.3 Encrypted Client Hello (ECH)" OFF)
 
 if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
@@ -25,6 +26,11 @@ endif()
 
 if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
+endif()
+
+# Only reachable when ECH is compiled in (TLSX_EchChangeSNI is behind HAVE_ECH, off by default).
+if(ech AND VENDOR_VERSION VERSION_LESS "5.9.1")
+  declare_vulnerability("CVE-2026-5503")
 endif()
 
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
@@ -87,6 +93,9 @@ autotools_builder(
 
     $<IF:$<BOOL:${postauth}>,--enable-postauth,--disable-postauth>
 
+    # ECH also enables its dependencies (HPKE, Curve25519, SNI, ...) unless disabled explicitly
+    $<$<BOOL:${ech}>:--enable-ech>
+
   CFLAGS
     -g
     -fPIC
@@ -140,4 +149,9 @@ set(allow_setting_tls13_ciphers yes)
 
 if(NOT postauth)
   set(disable_postauth yes)
+endif()
+
+# Supports TLS 1.3 Encrypted Client Hello
+if(ech)
+  set(ech_support yes)
 endif()
