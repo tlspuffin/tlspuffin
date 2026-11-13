@@ -5,8 +5,8 @@ use libafl_bolts::prelude::*;
 
 use super::utils::{
     choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_path_filtered,
-    find_all_sub_term_filtered, find_all_term_filtered, find_term, find_term_mut,
-    reservoir_sample, reservoir_sample_in_prior_traces, Choosable, TermConstraints, TracePath,
+    find_all_sub_term_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
+    Choosable, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -392,7 +392,6 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     RepeatMutator<S>,
     SkipMutator<S>,
     ReplaceReuseMutator<S>,
-    ReplaceFromPriorTraceMutator<S>,
     ReplaceMatchMutator<S, PT>,
     RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
@@ -422,7 +421,6 @@ where
         RepeatMutator::new(max_result_trace_length, with_dy),
         SkipMutator::new(min_trace_length, with_dy),
         ReplaceReuseMutator::new(mutation_config),
-        ReplaceFromPriorTraceMutator::new(mutation_config),
         ReplaceMatchMutator::new(mutation_config, signature),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
@@ -850,104 +848,6 @@ where
     }
 }
 
-/// REPLACE-FROM-PRIOR-TRACE: like [`ReplaceReuseMutator`], but the replacement term is drawn
-/// from `trace.prior_traces` instead of from `trace` itself.
-///
-/// A trace that reuses the same agent/process across two connections (e.g. a full handshake
-/// that caches a session, followed by a resumption attempt crafted against that same agent -
-/// `seed_session_resumption_dhe`/`seed_session_resumption_id12`/`seed_cve_2026_11703`) always
-/// expresses the first connection as a `prior_trace`, not as steps of the same `Trace`. Every
-/// other DY mutator only ever looks at `trace.steps` (see [`reservoir_sample`]/[`choose_term`]),
-/// so a term produced during that first connection - e.g. the cached session's `SessionID`,
-/// read off its `ServerHello` - can never be discovered as a candidate to splice into the
-/// resumption attempt's own `ClientHello`, even though doing so is semantically valid (see
-/// [`reservoir_sample_in_prior_traces`]). This mutator is the source-side counterpart that
-/// makes that splice reachable, while still never treating `prior_traces` as something that
-/// can itself be mutated or have a term removed from it: only `trace.steps` is ever written to.
-pub struct ReplaceFromPriorTraceMutator<S>
-where
-    S: HasRand,
-{
-    config: MutationConfig,
-    phantom_s: std::marker::PhantomData<S>,
-}
-
-impl<S> ReplaceFromPriorTraceMutator<S>
-where
-    S: HasRand,
-{
-    #[must_use]
-    pub const fn new(config: MutationConfig) -> Self {
-        Self {
-            config,
-            phantom_s: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceFromPriorTraceMutator<S>
-where
-    S: HasRand,
-{
-    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
-        log::debug!("[DY] Start mutate with {}", self.name());
-        if !self.config.with_dy {
-            return Ok(MutationResult::Skipped);
-        }
-        if trace.prior_traces.is_empty() {
-            log::debug!("       Skipped {}", self.name());
-            return Ok(MutationResult::Skipped);
-        }
-        let rand = state.rand_mut();
-        if let Some(replacement) =
-            reservoir_sample_in_prior_traces(trace, |_| true, &self.config.term_constraints, rand)
-                .cloned()
-        {
-            if let Some(to_replace_path) = choose_term_path_filtered(
-                trace,
-                |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
-                &self.config.term_constraints,
-                rand,
-            ) {
-                let Some(to_replace) = find_term(trace, &to_replace_path).cloned() else {
-                    log::debug!("       Skipped {}", self.name());
-                    return Ok(MutationResult::Skipped);
-                };
-                let targets =
-                    scoped_targets(trace, &to_replace_path, &to_replace, &self.config, rand);
-                log::debug!(
-                    "[Mutation] Mutate ReplaceFromPriorTraceMutator on terms\n {} and\n{}",
-                    to_replace,
-                    replacement
-                );
-                return Ok(apply_to_targets(
-                    trace,
-                    &targets,
-                    &replacement,
-                    &to_replace,
-                    self.config.with_bit_level,
-                    &self.config.term_constraints,
-                ));
-            }
-        }
-        log::debug!("       Skipped {}", self.name());
-        Ok(MutationResult::Skipped)
-    }
-
-    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
-impl<S> Named for ReplaceFromPriorTraceMutator<S>
-where
-    S: HasRand,
-{
-    fn name(&self) -> &Cow<'static, str> {
-        &Cow::Borrowed("ReplaceFromPriorTraceMutator")
-    }
-}
-
 /// SKIP:  Removes an input step
 pub struct SkipMutator<S>
 where
@@ -1214,7 +1114,7 @@ mod tests {
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 
     use super::*;
-    use crate::agent::{AgentDescriptor, AgentName};
+    use crate::agent::AgentName;
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
@@ -1693,69 +1593,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test_log::test]
-    fn test_replace_from_prior_trace_mutator() {
-        let mut state = create_state();
-        let server = AgentName::first();
-        let mut mutator = ReplaceFromPriorTraceMutator::new(MutationConfig::default_with_bit());
-
-        fn count_client_hello(trace: &TestTrace) -> usize {
-            trace.count_functions_by_name(fn_client_hello.name())
-        }
-
-        fn count_finished(trace: &TestTrace) -> usize {
-            trace.count_functions_by_name(fn_finished.name())
-        }
-
-        // `outer` has no client_hello of its own - only `fn_finished`, nested inside its one
-        // step - but it carries `setup_simple_trace()` (which does have a client_hello) as a
-        // `prior_trace`. `ReplaceReuseMutator` alone could never produce a client_hello here
-        // (there is nothing of that shape anywhere in `outer.steps`); only sourcing from
-        // `prior_traces` can.
-        loop {
-            let mut outer = TestTrace {
-                prior_traces: vec![setup_simple_trace()],
-                descriptors: vec![AgentDescriptor::from_name(server)],
-                steps: vec![Step {
-                    agent: server,
-                    action: Action::Input(InputAction {
-                        precomputations: vec![],
-                        recipe: term! {fn_encrypt12(fn_finished, fn_seq_0)},
-                    }),
-                }],
-                ..Default::default()
-            };
-            assert_eq!(count_client_hello(&outer), 0);
-            assert_eq!(count_finished(&outer), 1);
-
-            let result = mutator.mutate(&mut state, &mut outer).unwrap();
-
-            if result == MutationResult::Mutated {
-                assert_eq!(
-                    count_finished(&outer.prior_traces[0]),
-                    1,
-                    "prior_traces must never be mutated, only read from"
-                );
-                if count_client_hello(&outer) == 1 && count_finished(&outer) == 0 {
-                    // the outer trace's own `fn_finished` was replaced by a client_hello
-                    // spliced in from `prior_traces`
-                    break;
-                }
-            }
-        }
-    }
-
-    #[test_log::test]
-    fn test_replace_from_prior_trace_mutator_skips_without_prior_traces() {
-        let mut state = create_state();
-        let mut mutator = ReplaceFromPriorTraceMutator::new(MutationConfig::default_with_bit());
-        let mut trace = setup_simple_trace();
-        assert!(trace.prior_traces.is_empty());
-
-        let result = mutator.mutate(&mut state, &mut trace).unwrap();
-        assert_eq!(result, MutationResult::Skipped);
     }
 
     #[test_log::test]
