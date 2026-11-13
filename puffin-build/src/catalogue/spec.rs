@@ -1039,7 +1039,10 @@ mod tests {
             buf.canonical, "5.4.0,only-CVE-2022-39173",
             "ASan comes with BUF's oracle"
         );
-        assert_eq!(buf.info.fix, vec!["CVE-2022-42905".to_string()]);
+        assert_eq!(
+            buf.info.fix,
+            vec!["CVE-2022-42905".to_string(), "CVE-2024-5814".to_string()]
+        );
         assert_eq!(buf.derived.as_ref().unwrap().base, "wolfssl540-asan");
         for same in [
             "5.4.0,only-buf",

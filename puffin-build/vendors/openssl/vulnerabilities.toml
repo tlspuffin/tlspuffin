@@ -17,11 +17,15 @@ capabilities = ["tls12"]
 # not checked on an execution (no witness): the usual AddressSanitizer report of Heartbleed
 oracle = { kind = "crash", asan = "heap-buffer-overflow" }
 no_witness = "seed_heartbleed was removed with the size-cheating function symbols (a18d6c294): a heartbeat with a forged length is now only reachable through bit-level payloads"
-no_patch = "no patch written yet (upstream fix: 96db9023b881d7cd9f379b0c154650d6c108e9a3)"
 references = ["https://nvd.nist.gov/vuln/detail/CVE-2014-0160", "https://heartbleed.com/"]
 
 [CVE-2014-0160.find]
 by_puffin = false
+
+[[CVE-2014-0160.patches]]
+versions = ">= 1.0.1, < 1.0.1g"
+files = ["patches/fix-CVE-2014-0160.patch"]
+upstream = "96db9023b881d7cd9f379b0c154650d6c108e9a3"
 
 [CVE-2015-0204]
 alias = "FREAK"
@@ -32,11 +36,15 @@ no_cvss = "NVD gives only a CVSS v2 score"
 affected = "< 0.9.8zd || >= 1.0.0, < 1.0.0p || >= 1.0.1, < 1.0.1k"
 capabilities = ["tls12"]
 no_witness = "seed_freak exists, but no oracle observes the downgrade: its test has been ignored since 482ebfe1e (\"We cannot check for this vulnerability right now\")"
-no_patch = "no patch written yet"
 references = ["https://nvd.nist.gov/vuln/detail/CVE-2015-0204"]
 
 [CVE-2015-0204.find]
 by_puffin = false
+
+[[CVE-2015-0204.patches]]
+versions = ">= 1.0.1, < 1.0.1k"
+files = ["patches/fix-CVE-2015-0204.patch"]
+upstream = "37580f43b5a39f5f4e920d17273fab9713d3a744"
 
 [CVE-2021-3449]
 alias = "SDOS1"
