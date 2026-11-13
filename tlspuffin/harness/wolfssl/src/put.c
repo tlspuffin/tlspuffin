@@ -74,7 +74,7 @@ struct AGENT_TYPE
     bool handshake_done;
     enum ClaimType transcriptType;
     bool peer_authentication;
-    bool post_handshake_auth_requested; /* server: wolfSSL_request_certificate already called */
+    bool post_handshake_auth_requested; /* server: wolfSSL_request_certificate succeeded */
     bool post_handshake_auth_claimed;   /* server: Finished claim made for the answer to it */
     uint32_t secret_size;
     uint8_t handshake_secret[SECRET_LEN];
@@ -999,9 +999,14 @@ static RESULT wolfssl_progress(AGENT agent)
             if (wolfSSL_is_server(agent->ssl) && agent->descriptor.post_handshake_auth &&
                 !agent->post_handshake_auth_requested)
             {
-                // Request the client certificate now that the handshake is done
-                agent->post_handshake_auth_requested = true;
-                if (wolfSSL_request_certificate(agent->ssl) != WOLFSSL_SUCCESS)
+                // Request the client certificate now that the handshake is done. It fails when
+                // the client did not announce the post_handshake_auth extension: nothing is
+                // requested then, and the claims must not expect a post-handshake answer.
+                if (wolfSSL_request_certificate(agent->ssl) == WOLFSSL_SUCCESS)
+                {
+                    agent->post_handshake_auth_requested = true;
+                }
+                else
                 {
                     _log(PUFFIN.warn, "wolfSSL_request_certificate failed");
                 }
