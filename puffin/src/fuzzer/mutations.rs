@@ -4,9 +4,9 @@ use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 use super::utils::{
-    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_path_filtered,
-    find_all_sub_term_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
-    Choosable, TermConstraints, TracePath,
+    choose, choose_filtered, choose_iter, choose_term, choose_term_filtered_mut,
+    choose_term_path_filtered, find_all_sub_term_filtered, find_all_term_filtered, find_term,
+    find_term_mut, reservoir_sample, Choosable, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -393,6 +393,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     SkipMutator<S>,
     ReplaceReuseMutator<S>,
     ReplaceMatchMutator<S, PT>,
+    ReplaceFunctionReshapeMutator<S, PT>,
     RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
@@ -422,6 +423,7 @@ where
         SkipMutator::new(min_trace_length, with_dy),
         ReplaceReuseMutator::new(mutation_config),
         ReplaceMatchMutator::new(mutation_config, signature),
+        ReplaceFunctionReshapeMutator::new(mutation_config, signature),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
             0,
@@ -759,6 +761,189 @@ where
 {
     fn name(&self) -> &Cow<'static, str> {
         &Cow::Borrowed("ReplaceMatchMutator")
+    }
+}
+
+/// RESHAPE: Replaces a function symbol with a different one that has the same return type but a
+/// *different* argument shape (arity and/or argument types), reusing existing sub-terms wherever
+/// an old argument's type still fits a slot of the new function instead of discarding everything.
+///
+/// `ReplaceMatchMutator` requires `argument_types` to match exactly, so it can never even propose
+/// a function whose arity differs - e.g. swapping a 3-argument signing call for a 2-argument one
+/// that drops the algorithm-selector argument is structurally unreachable for it, regardless of
+/// how many times it runs. `GenerateMutator` *can* change the shape (it only filters by return
+/// type), but it replaces every argument with a freshly zoo-generated sub-term, including ones
+/// that need to reconstruct deep, context-specific values (such as a transcript built from the
+/// exact prior messages) - a fresh random draw essentially never produces the right one.
+///
+/// Here, for each slot of the new function, in order:
+/// 1. If the old argument at the same position has the same type, keep it.
+/// 2. Otherwise, among the old arguments not already reused, pick uniformly at random one whose
+///    type matches the slot, if any.
+/// 3. Otherwise, reuse an existing same-type sub-term found elsewhere in the trace (as
+///    `ReplaceReuseMutator` does) - if none exists, the mutation is skipped.
+///
+/// Old arguments that find no home in the new shape are dropped. This keeps semantically-linked
+/// arguments (e.g. a signing call's transcript and key) attached to the new function call without
+/// requiring them to be regenerated or to coincidentally match by luck.
+pub struct ReplaceFunctionReshapeMutator<S, PT: ProtocolTypes>
+where
+    S: HasRand,
+{
+    config: MutationConfig,
+    signature: &'static Signature<PT>,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S, PT: ProtocolTypes> ReplaceFunctionReshapeMutator<S, PT>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub const fn new(config: MutationConfig, signature: &'static Signature<PT>) -> Self {
+        Self {
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    // forbid reshaping function symbols in terms with payloads
+                    must_be_symbolic: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
+            signature,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceFunctionReshapeMutator<S, PT>
+where
+    S: HasRand,
+{
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        log::debug!("[DY] Start mutate with {}", self.name());
+        if !self.config.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
+
+        let Some(to_mutate_path) = choose_term_path_filtered(
+            trace,
+            |_| true,
+            &self.config.term_constraints,
+            state.rand_mut(),
+        ) else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        let Some(to_mutate) = find_term(trace, &to_mutate_path).cloned() else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+
+        // Only applies to function applications - variables/constants have no arguments to
+        // reconcile, and are already covered by ReplaceMatchMutator.
+        let DYTerm::Application(func, old_args) = &to_mutate.term else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        let old_shape = func.shape().clone();
+
+        let rand = state.rand_mut();
+
+        // The actual novelty over ReplaceMatchMutator: argument_types may differ.
+        let Some((new_shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+            |(shape, _)| {
+                func.shape() != shape
+                    && func.shape().return_type == shape.return_type
+                    && func.shape().argument_types != shape.argument_types
+            },
+            rand,
+        ) else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        let (new_shape, dynamic_fn) = (new_shape.clone(), dynamic_fn.clone());
+
+        let mut consumed = vec![false; old_args.len()];
+        let mut new_args: Vec<Option<Term<PT>>> = vec![None; new_shape.argument_types.len()];
+
+        // Pass 1: same position, same type.
+        for i in 0..new_args.len().min(old_args.len()) {
+            if new_shape.argument_types[i] == old_shape.argument_types[i] {
+                new_args[i] = Some(old_args[i].clone());
+                consumed[i] = true;
+            }
+        }
+
+        // Pass 2: any remaining old argument of the right type, chosen uniformly among ties.
+        for (new_arg, wanted) in new_args.iter_mut().zip(new_shape.argument_types.iter()) {
+            if new_arg.is_some() {
+                continue;
+            }
+            let candidates: Vec<usize> = (0..old_args.len())
+                .filter(|&j| !consumed[j] && old_shape.argument_types[j] == *wanted)
+                .collect();
+            if let Some(j) = choose_iter(candidates, rand) {
+                *new_arg = Some(old_args[j].clone());
+                consumed[j] = true;
+            }
+        }
+
+        // Pass 3: a genuinely new slot - reuse an existing same-type sub-term from elsewhere in
+        // the trace. If none exists, this mutation cannot produce a well-typed replacement.
+        for (new_arg, wanted) in new_args.iter_mut().zip(new_shape.argument_types.iter()) {
+            if new_arg.is_some() {
+                continue;
+            }
+            let Some(filled) = choose_filtered(
+                trace,
+                &self.config.term_constraints,
+                move |term: &Term<PT>| term.get_type_shape() == wanted,
+                rand,
+            )
+            .map(|(term, _)| term.clone()) else {
+                log::debug!(
+                    "       Skipped {} (no sub-term available for a new argument slot)",
+                    self.name()
+                );
+                return Ok(MutationResult::Skipped);
+            };
+            *new_arg = Some(filled);
+        }
+
+        let new_args: Vec<Term<PT>> = new_args.into_iter().map(|a| a.unwrap()).collect();
+        let new_term = Term::from(DYTerm::Application(
+            Function::new(new_shape, dynamic_fn),
+            new_args,
+        ));
+
+        log::debug!(
+            "[Mutation] ReplaceFunctionReshapeMutator on term\n{}\n ----------------\n{}",
+            to_mutate,
+            new_term
+        );
+
+        Ok(apply_scoped_mutation(
+            trace,
+            &to_mutate_path,
+            &to_mutate,
+            &new_term,
+            &self.config,
+            rand,
+        ))
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<S, PT: ProtocolTypes> Named for ReplaceFunctionReshapeMutator<S, PT>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReplaceFunctionReshapeMutator")
     }
 }
 
@@ -1534,6 +1719,40 @@ mod tests {
                         }
                     },
                     Action::Output(_) => {}
+                }
+            }
+        }
+    }
+
+    /// `fn_encrypt12(finished, seq)` has a same-return-type, different-arity alternative in the
+    /// test signature: `fn_encrypt12_authenticated(finished, nonce, seq)`. This exercises all
+    /// three reconciliation passes at once: `finished` is reused by position (pass 1), `seq`
+    /// moves from position 1 to 2 but is still reused by type (pass 2), and the new `nonce` slot
+    /// (type `Random`, no corresponding old argument) is filled from the `fn_new_random` call
+    /// already present inside the trace's `ClientHello` (pass 3).
+    #[test_log::test]
+    fn test_replace_function_reshape_mutator() {
+        let mut state = create_state();
+        let mut mutator = ReplaceFunctionReshapeMutator::new(
+            MutationConfig::default_with_bit(),
+            &TEST_SIGNATURE,
+        );
+
+        loop {
+            let mut trace = setup_simple_trace();
+            mutator.mutate(&mut state, &mut trace).unwrap();
+
+            if let Some(last) = trace.steps.iter().last() {
+                if let Action::Input(input) = &last.action {
+                    if let DYTerm::Application(func, subterms) = &input.recipe.term {
+                        if func.shape().name == fn_encrypt12_authenticated.name() {
+                            assert_eq!(subterms.len(), 3);
+                            assert_eq!(subterms[0].name(), fn_finished.name());
+                            assert_eq!(subterms[1].name(), fn_new_random.name());
+                            assert_eq!(subterms[2].name(), fn_seq_0.name());
+                            break;
+                        }
+                    }
                 }
             }
         }

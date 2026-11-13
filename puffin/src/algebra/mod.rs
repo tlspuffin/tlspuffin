@@ -263,6 +263,19 @@ pub mod test_signature {
         Ok(Encrypted)
     }
 
+    /// Same return type as [`fn_encrypt12`] but a different arity: `finished` stays in position
+    /// 0 (reusable by a direct positional match), a brand new `Random` slot is inserted in the
+    /// middle (no corresponding old argument - must be pulled from elsewhere in the trace), and
+    /// `seq` moves from position 1 to position 2 (still reusable, but only by type, not position).
+    /// Used to exercise all three reconciliation passes of `ReplaceFunctionReshapeMutator`.
+    pub fn fn_encrypt12_authenticated(
+        _finished: &HandshakeMessage,
+        _nonce: &Random,
+        _seq: &u32,
+    ) -> Result<Encrypted, FnError> {
+        Ok(Encrypted)
+    }
+
     pub fn fn_seq_0() -> Result<u32, FnError> {
         Ok(0)
     }
@@ -371,6 +384,7 @@ pub mod test_signature {
         fn_cipher_suite12
         fn_compressions
         fn_encrypt12
+        fn_encrypt12_authenticated
         fn_seq_0
         fn_seq_1
     );
