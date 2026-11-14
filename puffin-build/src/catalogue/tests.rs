@@ -855,3 +855,78 @@ fn build_hashes_only_follow_what_builds_take_from_an_entry() {
         before.build_hash(id).unwrap()
     );
 }
+
+/// The README's table of the CVEs tlspuffin found, against the catalogues, the only source: each
+/// CVE of a catalogue has there its CVSS score, whether puffin found it first ("Novel":
+/// `find.by_puffin`) and a type of its category.
+#[test]
+fn the_readme_table_of_cves_agrees_with_the_catalogues() {
+    let readme =
+        std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../README.md"))
+            .expect("the README of the tree");
+    // | [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449) | 5.9 | Server DoS | ❌ | ...
+    let rows: BTreeMap<String, (String, String, String)> = readme
+        .lines()
+        .filter_map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            let year_number = cells.get(1)?.strip_prefix('[')?.split(']').next()?;
+            Some((
+                format!("CVE-{year_number}"),
+                (
+                    cells.get(2)?.to_string(),
+                    cells.get(3)?.to_string(),
+                    cells.get(4)?.to_string(),
+                ),
+            ))
+        })
+        .collect();
+    let mut problems = vec![];
+    let mut checked = 0;
+    for vendor in vendors() {
+        let catalogue = Catalogue::load(&vendor).unwrap();
+        for (id, entry) in &catalogue.entries {
+            let Some((cvss, kind, novel)) = rows.get(id) else {
+                continue;
+            };
+            checked += 1;
+            let score: String = cvss
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            if let Some(c) = &entry.cvss {
+                if score.parse::<f64>().ok() != Some(c.score) {
+                    problems.push(format!(
+                        "{id}: CVSS {score} in the README, {} in the catalogue (source: {})",
+                        c.score, c.source
+                    ));
+                }
+            }
+            let new = entry.find.as_ref().is_some_and(|f| f.by_puffin);
+            if (novel == "✅") != new {
+                problems.push(format!(
+                    "{id}: Novel {novel} in the README, find.by_puffin = {new} in the catalogue"
+                ));
+            }
+            let kinds: &[&str] = match entry.category.as_str() {
+                "auth-bypass" => &["Auth. Bypass"],
+                "downgrade" => &["Downgrade"],
+                "dos" => &["Server DoS", "Client DoS"],
+                "info-leak" => &["Info. Leak", "Confidentiality"],
+                "memory" => &["Server DoS", "Client DoS", "Info. Leak"],
+                _ => &[],
+            };
+            if !kinds.is_empty() && !kinds.contains(&kind.as_str()) {
+                problems.push(format!(
+                    "{id}: type {kind} in the README, category {} in the catalogue ({})",
+                    entry.category,
+                    kinds.join(" or ")
+                ));
+            }
+        }
+    }
+    assert!(
+        checked >= 10,
+        "only {checked} CVEs of the README's table are in the catalogues"
+    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
