@@ -13,7 +13,10 @@
 //! - where the entry is patched and so is every other active bug with a patch (`<preset>-fix-all`),
 //!   the witness must not give the entry's signature, and any objective must come from a bug that
 //!   is still active (negative control);
-//! - elsewhere the result is reported, and only warned about.
+//! - elsewhere the result is reported, and only warned about, but on a build where every bug with a
+//!   patch is patched (a `-fix-all` build, which validation takes as free of the known bugs): there
+//!   an objective no active entry explains fails, whichever witness gives it (a bug the catalogue
+//!   misses at this version, e.g. one a backported fix brings).
 //!
 //! An objective that matches another active entry's oracle is an overlap: the witness of X also
 //! reaches Y. It is a warning, unless X declares `also_triggers = ["Y"]`; on a build where X is
@@ -264,7 +267,8 @@ pub enum Role {
     /// The entry and every other active bug with a patch are patched: the witness must not trigger
     /// it
     Negative,
-    /// Any other PUT: the result is reported, never fails
+    /// Any other PUT: the result is reported, and fails only for an objective no active entry
+    /// explains on a build where every bug with a patch is patched (`every_patch_applied`)
     Other,
 }
 
@@ -408,6 +412,17 @@ pub fn role(state: &LibraryState, catalogue: &Catalogue, id: &str) -> Role {
         Some(EntryStatus::Fixed) if others_with_patch_fixed => Role::Negative,
         _ => Role::Other,
     }
+}
+
+/// Whether every bug with a patch at this version is patched in the PUT (a `-fix-all` build, or a
+/// preset fixing them all): the build validation takes as free of the known bugs that have a
+/// patch, where an objective no active entry explains is a bug the catalogue does not know there.
+pub fn every_patch_applied(state: &LibraryState, catalogue: &Catalogue) -> bool {
+    state
+        .entries
+        .iter()
+        .filter(|(other, _)| catalogue.entries.contains_key(*other))
+        .all(|(other, e)| e.state != EntryStatus::Active || !state.patchable(other))
 }
 
 /// Problems with the catalogue state of the PUTs of a binary (missing state, state of another
@@ -777,6 +792,20 @@ fn judge(
                     ),
                     outcomes.clone(),
                     all_overlaps,
+                ),
+                // where every bug with a patch is patched, nothing known explains it: the build the
+                // bench takes as clean has a bug (a patch that brings one, a wrong affected range)
+                Some(u) if every_patch_applied(state, catalogue) => result(
+                    case,
+                    "fail",
+                    format!(
+                        "every bug with a patch is patched here, and the witness of {id} ({} here) gives {u}, \
+                         which no active entry explains (a patch that brings a bug, or an affected range to \
+                         correct)",
+                        case.status
+                    ),
+                    outcomes.clone(),
+                    vec![],
                 ),
                 Some(u) => result(
                     case,
@@ -1386,6 +1415,125 @@ no_witness = "none yet"
         stale.entries.insert("BUG-GONE".into(), gone);
         assert_eq!(role(&stale, &catalogue, "BUG-A"), Role::Negative);
         assert_eq!(role(&stale, &catalogue, "BUG-B"), Role::Positive);
+    }
+
+    /// BUG-A with a patch, BUG-B without, and BUG-E of later versions only (the code of BUG-A's fix
+    /// has it there, as CVE-2023-6936 that of CVE-2022-42905's), at 1.0.0 with `fix` fixed.
+    fn later_bug(fix: &[&str]) -> (tempfile::TempDir, Catalogue, LibraryState) {
+        const LATER: &str = r#"
+[BUG-A]
+summary = "a bug with a patch"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "heap-buffer-overflow" }
+
+[[BUG-A.patches]]
+versions = "< 2.0.0"
+files = ["patches/a.patch"]
+
+[BUG-B]
+summary = "a bug without patch"
+category = "memory"
+affected = "< 2.0.0"
+oracle = { kind = "crash", asan = "SEGV" }
+no_patch = "none yet"
+
+[BUG-E]
+summary = "a bug of the code of the fix of BUG-A"
+category = "memory"
+affected = ">= 2.0.0, < 3.0.0"
+oracle = { kind = "crash", asan = "use-after-free" }
+
+[[BUG-E.patches]]
+versions = ">= 2.0.0, < 3.0.0"
+files = ["patches/e.patch"]
+"#;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("patches")).unwrap();
+        for patch in ["a", "e"] {
+            std::fs::write(dir.path().join(format!("patches/{patch}.patch")), "patch\n").unwrap();
+        }
+        let context = VendorContext {
+            presets: BTreeMap::from([
+                ("lib100".to_string(), preset("1.0.0")),
+                ("lib200".to_string(), preset("2.0.0")),
+            ]),
+            ..VendorContext::default()
+        };
+        let catalogue = Catalogue::parse("lib", dir.path(), LATER, &context).unwrap();
+        let fix: Vec<String> = fix.iter().map(|id| (*id).to_string()).collect();
+        let plan = catalogue.plan("1.0.0", &BTreeMap::new(), &fix).unwrap();
+        let state = catalogue.library_state("1.0.0", &plan);
+        (dir, catalogue, state)
+    }
+
+    /// The witness of BUG-E on a build of 1.0.0, with every entry reachable.
+    fn later_witness(fix: &[&str], put: &str, outcomes: Vec<Outcome>) -> CaseResult {
+        let (_dir, catalogue, state) = later_bug(fix);
+        assert_eq!(role(&state, &catalogue, "BUG-E"), Role::Other);
+        let case = Case {
+            entry: "BUG-E".into(),
+            witness: "witness".into(),
+            module: "m".into(),
+            put: put.into(),
+            role: Role::Other,
+            status: "unaffected".into(),
+        };
+        let reachable: BTreeSet<String> = ["BUG-A", "BUG-B", "BUG-E"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        judge(
+            &case,
+            catalogue.entry("BUG-E").unwrap(),
+            &catalogue,
+            &state,
+            &reachable,
+            true,
+            outcomes,
+        )
+    }
+
+    #[test]
+    fn an_objective_nothing_explains_fails_where_every_bug_with_a_patch_is_patched() {
+        // which builds have every bug with a patch patched: -fix-all, not a plain build
+        let (_dir, catalogue, state) = later_bug(&["BUG-A"]);
+        assert!(every_patch_applied(&state, &catalogue));
+        let (_dir, catalogue, state) = later_bug(&[]);
+        assert!(!every_patch_applied(&state, &catalogue));
+
+        // BUG-E does not affect 1.0.0, but its witness crashes the -fix-all build with its
+        // signature (BUG-A's patch brought it): the build validation takes as clean is not
+        let result = later_witness(&["BUG-A"], "lib100-fix-all", vec![crash("use-after-free")]);
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+        assert!(
+            result
+                .message
+                .contains("every bug with a patch is patched here")
+                && result.message.contains("which no active entry explains"),
+            "{}",
+            result.message
+        );
+        // whichever objective nothing explains
+        let result = later_witness(
+            &["BUG-A"],
+            "lib100-fix-all",
+            vec![crash("stack-buffer-overflow")],
+        );
+        assert_eq!(result.verdict, "fail", "{}", result.message);
+
+        // an objective an active entry explains there (BUG-B, without patch): an overlap, as before
+        let result = later_witness(&["BUG-A"], "lib100-fix-all", vec![crash("SEGV")]);
+        assert_eq!(result.verdict, "warning", "{}", result.message);
+        assert_eq!(result.overlaps, vec!["BUG-B".to_string()]);
+        // no objective: nothing to say
+        let result = later_witness(&["BUG-A"], "lib100-fix-all", vec![Outcome::None]);
+        assert_eq!(result.verdict, "pass", "{}", result.message);
+
+        // a build where a bug with a patch is active (BUG-A: the plain build) is not taken as
+        // clean: a warning, as before
+        let result = later_witness(&[], "lib100", vec![crash("use-after-free")]);
+        assert_eq!(result.verdict, "warning", "{}", result.message);
     }
 
     #[test]

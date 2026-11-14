@@ -188,7 +188,10 @@ needs besides its entry's.
   Where it and every other bug with a patch are patched (`-fix-all`), it must not: an objective with the entry's own
   signature fails (a broken patch, unless the bugs still active that share it are declared in `also_triggers`), any
   other objective must come from a bug still active (an overlap: a warning unless declared), and a witness none of
-  whose executions ran to its end fails (nothing shows the patch works). Elsewhere results are only warned about.
+  whose executions ran to its end fails (nothing shows the patch works). Elsewhere results are only warned about, but on
+  a build where every bug with a patch is patched (`-fix-all`, the build validation takes as free of the known bugs): an
+  objective no active entry explains fails there, whichever witness gives it (a bug the catalogue does not know at that
+  version, e.g. one a backported fix brings, or an affected range to correct).
 
 The test prints the matrix of results and writes them as JSON to `$PUFFIN_CATALOGUE_REPORT`. The same check runs from a
 binary: `tlspuffin catalogue check`; `tlspuffin witness <ID> --put <put>` runs the witnesses of one entry, and

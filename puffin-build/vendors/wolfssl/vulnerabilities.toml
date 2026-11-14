@@ -131,7 +131,10 @@ asan = true
 
 [[CVE-2022-42905.patches]]
 versions = ">= 5.4.0, < 5.5.0"
-files = ["patches/fix-CVE-2022-42905.patch"]
+# with the fix of CVE-2023-6936 (CALLB) after it: the upstream fix of HEAP brings CALLB's over-read (fixed upstream in
+# 5.6.6), which a 5.4.0 build fixing HEAP would otherwise have (CALLB does not affect 5.4.0: its range is the code of
+# the fix)
+files = ["patches/fix-CVE-2022-42905.patch", "patches/fix-CVE-2023-6936-540.patch"]
 upstream = "f19e7daf5b60e253042600424c18d008c526d828"
 
 [CVE-2023-6936]
