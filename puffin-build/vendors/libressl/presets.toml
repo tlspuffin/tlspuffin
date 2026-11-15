@@ -5,6 +5,7 @@ format = 2
 [library]
 url = "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-{version}.tar.gz"
 builder = "libressl"
+latest = "4.2.1" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
 "3.3.3" = { hash = "sha256:a471565b36ccd1a70d0bd7d37c6e95c43a26a62829b487d9d2cdebfe58be3066" }

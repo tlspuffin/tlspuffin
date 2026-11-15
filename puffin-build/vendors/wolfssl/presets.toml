@@ -6,6 +6,7 @@ format = 2
 repo = "https://github.com/wolfSSL/wolfssl.git"
 builder = "wolfssl"
 ref = "v{version}-stable"
+latest = "5.8.4" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
 "4.3.0" = {}

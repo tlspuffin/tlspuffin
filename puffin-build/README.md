@@ -142,6 +142,10 @@ repo = "https://github.com/wolfSSL/wolfssl.git"     # git sources (url = "<templ
 builder = "wolfssl"                                # the builtin builder (builder.cmake)
 ref = "v{version}-stable"                          # branch or tag of a version; OpenSSL: rules by range,
                                                    # [{ versions = "< 3.0.0", ref = "OpenSSL_{version_}" }, …]
+latest = "5.8.4"                                   # the newest release, one of [versions]: what tools take
+                                                   # for "the latest version" (names need not sort: BoringSSL's
+                                                   # 1.1.1g+git.… are older than 0.20260508.0); update it with
+                                                   # [versions] (`mk_vendor modifiers <vendor>` shows it)
 
 [versions]                                         # a build per version, named <vendor>{compact}: wolfssl540
 "5.4.0" = {}

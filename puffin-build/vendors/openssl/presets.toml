@@ -9,6 +9,7 @@ ref = [
   { versions = "< 3.0.0", ref = "OpenSSL_{version_}" },
   { versions = ">= 3.0.0", ref = "openssl-{version}" },
 ]
+latest = "3.4.1" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
 "1.0.1f" = {}

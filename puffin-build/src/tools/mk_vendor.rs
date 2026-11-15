@@ -79,7 +79,7 @@ enum Commands {
     },
 
     /// `mk_vendor modifiers <vendor> [--json]`: the modifiers a name of the vendor's builds may
-    /// use.
+    /// use; its versions and its latest release (presets.toml `[library] latest`) without --json.
     #[command(arg_required_else_help = true)]
     Modifiers {
         vendor: String,
@@ -486,8 +486,9 @@ fn modifiers(vendor: &str, json: bool) -> Result<(), String> {
             catalogue::vendors().join(", ")
         ));
     }
-    // presets.toml's [modifiers] (their docs), in the order of the names
-    let declared = library::presets::load(vendor)?.modifiers;
+    // presets.toml's [modifiers] (their docs), in the order of the names, and its latest release
+    let loaded = library::presets::load(vendor)?;
+    let declared = &loaded.modifiers;
     let list: Vec<Modifier> = catalogue::spec::modifiers(&context)
         .into_iter()
         .map(|m| Modifier {
@@ -529,6 +530,9 @@ fn modifiers(vendor: &str, json: bool) -> Result<(), String> {
         "versions: {}",
         catalogue::spec::versions(&context).join(", ")
     );
+    if let Some(latest) = &loaded.latest {
+        println!("latest release: {latest}");
+    }
     Ok(())
 }
 

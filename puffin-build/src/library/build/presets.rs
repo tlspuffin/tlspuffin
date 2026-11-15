@@ -12,6 +12,10 @@
 //! ref = "v{version}-stable"                       # branch or tag of a version, or rules by range:
 //!                                                 # [{ versions = "< 3.0.0", ref = "OpenSSL_{version_}" }]
 //! name = "wolfssl{compact}"                       # name of a version's build (default: <vendor>{compact})
+//! latest = "5.8.4"                                # the newest release, one of [versions] (what "the latest
+//!                                                 # version" of the vendor means: its versions' names
+//!                                                 # need not sort, e.g. BoringSSL's 1.1.1g+git.… then
+//!                                                 # 0.20260508.0)
 //!
 //! [versions]                                      # tested with the harness
 //! "5.4.0" = {}
@@ -61,6 +65,8 @@ pub struct Presets {
     pub modifiers: BTreeMap<String, Modifier>,
     /// The version of each version's build, by its name
     pub versions: BTreeMap<String, String>,
+    /// The newest release of the vendor (`[library] latest`, one of `[versions]`), when given
+    pub latest: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -180,6 +186,8 @@ struct LibraryV2 {
     reference: Option<RefRule>,
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    latest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -228,6 +236,13 @@ fn parse_v2(
     defaults: &BTreeMap<String, bool>,
 ) -> Result<Presets, String> {
     let file: FileV2 = toml::from_str(content).map_err(|e| e.to_string())?;
+    if let Some(latest) = &file.library.latest {
+        if !file.versions.contains_key(latest) {
+            return Err(format!(
+                "[library] latest = '{latest}': not a version of [versions]"
+            ));
+        }
+    }
 
     // the modifiers: the instrumentation and the builder's options, each with its plain value
     let declared: Vec<&String> = file.modifiers.keys().collect();
@@ -385,6 +400,7 @@ fn parse_v2(
         patches: file.patches,
         modifiers: file.modifiers,
         versions,
+        latest: file.library.latest,
     })
 }
 
@@ -409,6 +425,7 @@ format = 2
 repo = "https://example.org/lib.git"
 builder = "lib"
 ref = [{ versions = "< 3.0.0", ref = "Lib_{version_}" }, { versions = ">= 3.0.0", ref = "lib-{version}" }]
+latest = "3.4.1"
 
 [versions]
 "1.1.1j" = {}
@@ -472,6 +489,35 @@ why = "claims"
         );
         assert!(presets.patches_for(dir, "1.1.1j").is_empty());
         assert!(presets.patches_for(dir, "master").is_empty());
+        // the newest release, as the file says (no order of the versions' names is assumed)
+        assert_eq!(presets.latest.as_deref(), Some("3.4.1"));
+        let without = parse("lib", &V2.replace("latest = \"3.4.1\"\n", ""), &defaults()).unwrap();
+        assert_eq!(without.latest, None);
+    }
+
+    #[test]
+    fn every_vendor_says_its_latest_release() {
+        // the presets.toml of every vendor of this repository: its [library] latest, a version
+        let vendors = Path::new(env!("CARGO_MANIFEST_DIR")).join("vendors");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&vendors).unwrap() {
+            let file = entry.unwrap().path().join("presets.toml");
+            if !file.exists() {
+                continue;
+            }
+            let text = std::fs::read_to_string(&file).unwrap();
+            let library: toml::Value = toml::from_str(&text).unwrap();
+            let latest = library["library"].get("latest").and_then(|v| v.as_str());
+            let latest =
+                latest.unwrap_or_else(|| panic!("{}: no [library] latest", file.display()));
+            assert!(
+                library["versions"].get(latest).is_some(),
+                "{}: latest = '{latest}' is not a version",
+                file.display()
+            );
+            checked += 1;
+        }
+        assert!(checked > 0);
     }
 
     #[test]
@@ -495,6 +541,10 @@ why = "claims"
         );
         assert!(error(V2.replace("no-postauth", "tls13")).contains("alias lib341-sdos: 'tls13'"));
         assert!(error(V2.replace("\"3.4.1,no", "\"9.9.9,no")).contains("'9.9.9' is not a version"));
+        assert!(
+            error(V2.replace("latest = \"3.4.1\"", "latest = \"3.4.2\""))
+                .contains("[library] latest = '3.4.2': not a version of [versions]")
+        );
         // the rules of the names typed elsewhere (catalogue::spec)
         assert!(
             error(V2.replace("no-postauth,asan", "asan,no-asan")).contains("both asan and no-asan")

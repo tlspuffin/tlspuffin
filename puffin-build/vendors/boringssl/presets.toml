@@ -6,6 +6,7 @@ format = 2
 repo = "https://github.com/google/boringssl.git"
 builder = "boringssl"
 ref = "{version}"
+latest = "0.20260508.0" # the newest release (a vendor's versions need not sort by their names)
 
 # main, a release, and two commits of 2023 and 2024 (named, with the versions they always had)
 [versions]
