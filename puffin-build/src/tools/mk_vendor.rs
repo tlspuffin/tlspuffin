@@ -680,9 +680,27 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
                     println!("     {err}");
                 }
             }
+            // each patch on its own, its files in order, as a build applies them: a file of a patch
+            // can need the ones before it (5.4.0: the lateRL fix of CVE-2023-6936 after
+            // the fix of CVE-2022-42905), so a patch is applied to a copy of the
+            // sources, file after file
             for (id, patch) in &patches {
+                let alone = tempfile::tempdir().map_err(|e| e.to_string())?;
+                let copy = alone.path().join("src");
+                let copied = Command::new("cp")
+                    .arg("-a")
+                    .arg(&dir)
+                    .arg(&copy)
+                    .status()
+                    .map_err(|e| e.to_string())?;
+                if !copied.success() {
+                    return Err(format!(
+                        "{vendor} {}: cannot copy the sources",
+                        info.version
+                    ));
+                }
                 for file in &patch.files {
-                    let (ok, err) = apply(&dir, &catalogue.dir.join(file), true)?;
+                    let (ok, err) = apply(&copy, &catalogue.dir.join(file), false)?;
                     println!(
                         "{} {vendor} {} {id} {file}",
                         if ok { "ok  " } else { "FAIL" },
@@ -691,6 +709,8 @@ fn check_patches(only: Option<&str>) -> Result<(), String> {
                     if !ok {
                         failures += 1;
                         println!("     {err}");
+                        // the next files of the patch apply after this one
+                        break;
                     }
                 }
             }
