@@ -291,9 +291,14 @@ define_signature!(
     // certificate functions
     fn_bob_cert
     fn_bob_key
+    fn_bob_ec_cert
+    fn_bob_ec_key
     fn_alice_cert
     fn_alice_key
+    fn_alice_ec_cert
+    fn_alice_ec_key
     fn_eve_cert
+    fn_eve_ec_cert
     fn_random_ec_cert
     fn_random_ec_key
     fn_certificate_from_vec_u8

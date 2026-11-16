@@ -3,7 +3,8 @@
 use puffin::algebra::error::FnError;
 
 use crate::static_certs::{
-    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+    ALICE_CERT, ALICE_EC_CERT, ALICE_EC_PRIVATE_KEY, ALICE_PRIVATE_KEY, BOB_CERT, BOB_EC_CERT,
+    BOB_EC_PRIVATE_KEY, BOB_PRIVATE_KEY, EVE_CERT, EVE_EC_CERT, RANDOM_EC_CERT,
     RANDOM_EC_PRIVATE_KEY_PKCS8,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -36,6 +37,36 @@ pub fn fn_alice_key() -> Result<Vec<u8>, FnError> {
 
 pub fn fn_eve_cert() -> Result<Vec<u8>, FnError> {
     Ok(EVE_CERT.1.into())
+}
+
+/// EC counterpart of [`fn_alice_cert`] - same identity, usable with ECDSA signing (see
+/// [`fn_alice_ec_key`]).
+pub fn fn_alice_ec_cert() -> Result<Vec<u8>, FnError> {
+    Ok(ALICE_EC_CERT.1.into())
+}
+
+/// EC counterpart of [`fn_alice_key`].
+pub fn fn_alice_ec_key() -> Result<Vec<u8>, FnError> {
+    Ok(ALICE_EC_PRIVATE_KEY.1.into())
+}
+
+/// EC counterpart of [`fn_bob_cert`] - same identity, usable with ECDSA signing (see
+/// [`fn_bob_ec_key`]).
+pub fn fn_bob_ec_cert() -> Result<Vec<u8>, FnError> {
+    Ok(BOB_EC_CERT.1.into())
+}
+
+/// EC counterpart of [`fn_bob_key`].
+pub fn fn_bob_ec_key() -> Result<Vec<u8>, FnError> {
+    Ok(BOB_EC_PRIVATE_KEY.1.into())
+}
+
+/// EC counterpart of [`fn_eve_cert`]. Deliberately has no `fn_eve_ec_key` counterpart, same as
+/// `fn_eve_cert` itself has no `fn_eve_key` - Eve's private key(s) must not be directly usable by
+/// the symbolic attacker, or security-violation oracles that rely on the attacker not actually
+/// holding Eve's key would false-positive.
+pub fn fn_eve_ec_cert() -> Result<Vec<u8>, FnError> {
+    Ok(EVE_EC_CERT.1.into())
 }
 
 pub fn fn_random_ec_cert() -> Result<Vec<u8>, FnError> {

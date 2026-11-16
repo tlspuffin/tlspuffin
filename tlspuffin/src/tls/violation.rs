@@ -4,7 +4,18 @@ use security_claims::ClaimTLSVersion;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
 use crate::protocol::AgentType;
-use crate::static_certs::{ALICE_CERT, BOB_CERT};
+use crate::static_certs::{ALICE_CERT, ALICE_EC_CERT, BOB_CERT, BOB_EC_CERT};
+
+/// Whether `cert` is Alice's identity, in either of her two key types (RSA or EC) - see
+/// [`ALICE_EC_CERT`]'s doc comment: same identity, just a different certificate/key pair.
+fn is_alice(cert: &[u8]) -> bool {
+    cert == ALICE_CERT.1 || cert == ALICE_EC_CERT.1
+}
+
+/// Whether `cert` is Bob's identity, in either of his two key types (RSA or EC).
+fn is_bob(cert: &[u8]) -> bool {
+    cert == BOB_CERT.1 || cert == BOB_EC_CERT.1
+}
 
 pub struct TlsSecurityViolationPolicy;
 
@@ -39,11 +50,11 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("mismatching signature algorithms");
                 }
 
-                if server.authenticate_peer && server.peer_certificate.as_slice() != BOB_CERT.1 {
+                if server.authenticate_peer && !is_bob(server.peer_certificate.as_slice()) {
                     return Some("Authentication bypass");
                 }
 
-                if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT.1 {
+                if client.authenticate_peer && !is_alice(client.peer_certificate.as_slice()) {
                     return Some("Authentication bypass");
                 }
 
@@ -148,8 +159,8 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
 
                 let violation = finished.authenticate_peer
                     && match claim.origin {
-                        AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,
-                        AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT.1,
+                        AgentType::Server => !is_bob(finished.peer_certificate.as_slice()),
+                        AgentType::Client => !is_alice(finished.peer_certificate.as_slice()),
                     };
 
                 if violation {

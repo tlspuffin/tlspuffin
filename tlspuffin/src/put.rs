@@ -23,7 +23,10 @@ use crate::protocol::{
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_EC_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_EC_CERT, BOB_PRIVATE_KEY, EVE_CERT,
+    EVE_EC_CERT,
+};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 
 /// Static configuration for creating a new agent state for the PUT
@@ -177,13 +180,31 @@ macro_rules! r_ccall {
 impl CAgent {
     fn new(put: &CPut, config: TlsPutConfig) -> Result<Self, Error> {
         let server_cert = pem!(ALICE_CERT);
+        let server_ec_cert = pem!(ALICE_EC_CERT);
         let server_pkey = pem!(ALICE_PRIVATE_KEY);
         let client_cert = pem!(BOB_CERT);
+        let client_ec_cert = pem!(BOB_EC_CERT);
         let client_pkey = pem!(BOB_PRIVATE_KEY);
         let other_cert = pem!(EVE_CERT);
+        let other_ec_cert = pem!(EVE_EC_CERT);
 
-        let server_store = [&client_cert as *const _, &other_cert];
-        let client_store = [&server_cert as *const _, &other_cert];
+        // Each store trusts both the RSA and EC certificate of the legitimate peer identity, plus
+        // both of Eve's (the attacker's identity - see EVE_PRIVATE_KEY's doc comment: trusted so
+        // that an attacker-crafted trace presenting Eve's certificate completes the handshake,
+        // letting the symbolic security oracle - not wolfSSL's X.509 validation - be the one to
+        // catch the substitution).
+        let server_store = [
+            &client_cert as *const _,
+            &client_ec_cert,
+            &other_cert,
+            &other_ec_cert,
+        ];
+        let client_store = [
+            &server_cert as *const _,
+            &server_ec_cert,
+            &other_cert,
+            &other_ec_cert,
+        ];
         let ciphers_tls13 =
             CString::new(config.descriptor.protocol_config.get_cipher_string_13()).unwrap();
         let ciphers_tls12 =
