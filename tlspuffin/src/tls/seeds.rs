@@ -1465,6 +1465,135 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// Same handshake as [`seed_client_attacker`], against a server with an ECH config (descriptor
+/// option `server_ech`), with a ClientHello carrying an outer ECH (Encrypted Client Hello, RFC
+/// 9849) extension whose encrypted inner ClientHello is `payload` (see
+/// [`fn_ech_outer_client_extension`]; `enc` is an X25519 public key).
+pub fn _seed_client_attacker_ech(
+    server: AgentName,
+    payload: Term<TLSProtocolTypes>,
+) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
+                )),
+                fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
+            )),
+            (fn_ech_outer_client_extension(
+                (fn_new_pubkey12(fn_named_group_x25519)),
+                (@payload)
+            ))
+            ))
+        )))
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                server_ech: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Happy flow with ECH from a client attacker: like a GREASE ECH client (RFC 9849, section 6.2),
+/// the outer ECH extension carries a well-formed `enc` and a 700-byte payload that the server
+/// cannot decrypt. The server therefore ignores ECH, completes the handshake with the outer
+/// ClientHello and sends its ECH config as `retry_configs` in EncryptedExtensions. Puts the ECH
+/// parsing code of the server in the corpus (e.g. replacing the payload by an empty one gives
+/// `seed_cve_2026_3549`).
+pub fn seed_client_attacker_ech(server: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_client_attacker_ech(server, term! { fn_large_bytes_vec })
+}
+
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker12(server).0
 }
@@ -2777,6 +2906,8 @@ pub fn create_corpus(
         // Client Attackers
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
+        // Server with an ECH config (descriptor `server_ech`).
+        seed_client_attacker_ech: put.supports("tls13") && put.supports("ech_support"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
@@ -2826,6 +2957,17 @@ pub mod tests {
     fn test_seed_client_attacker(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    // The server must not crash on the ECH extension, decline ECH and complete the handshake.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, ech_support))]
+    fn test_seed_client_attacker_ech(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_client_attacker_ech.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 

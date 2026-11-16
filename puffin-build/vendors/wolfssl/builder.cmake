@@ -1,6 +1,7 @@
 use_languages(C)
 
 option(postauth "Build with post-auth" ON)
+option(ech "Build with TLS 1.3 Encrypted Client Hello (ECH)" OFF)
 
 if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
@@ -25,6 +26,31 @@ endif()
 
 if(VENDOR_VERSION VERSION_LESS "5.7.2")
   declare_vulnerability("CVE-2024-5814")
+endif()
+
+# Only reachable when ECH is compiled in (TLSX_EchChangeSNI is behind HAVE_ECH, off by default).
+if(ech AND VENDOR_VERSION VERSION_LESS "5.9.1")
+  declare_vulnerability("CVE-2026-5503")
+endif()
+
+# Only reachable when ECH is compiled in (wc_HpkeLabeledExtract is called on an ECHConfig
+# from the server only by the ECH client code, behind HAVE_ECH, off by default).
+if(ech AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.6.0" AND VENDOR_VERSION VERSION_LESS "5.9.0")
+  declare_vulnerability("CVE-2026-3849")
+endif()
+
+# Server side, only reachable when ECH is compiled in (TLSX_ECH_Parse is behind HAVE_ECH) and the
+# server has an ECH config. The patch is a backport (wolfSSL PR 9817), only checked against 5.8.4.
+if(ech AND VENDOR_VERSION VERSION_LESS "5.9.0")
+  declare_vulnerability("CVE-2026-3549" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2026-3549-58x.patch)
+endif()
+
+# Not a CVE as far as we know: an ECH server dereferences a NULL innerClientHello in
+# DoTls13ClientHello on any TLS 1.3 ClientHello without ECH extension (5.9.0 checks it). Only
+# checked on 5.8.4; tests that need a working ECH server are filtered on it. The patch backports
+# the 5.9.0 handling of ClientHellos without ECH, only checked against 5.8.4.
+if(ech AND VENDOR_VERSION VERSION_LESS "5.9.0")
+  declare_vulnerability("ECH-SERVER-NULL-DEREF" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-ECH-SERVER-NULL-DEREF-58x.patch)
 endif()
 
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
@@ -87,6 +113,9 @@ autotools_builder(
 
     $<IF:$<BOOL:${postauth}>,--enable-postauth,--disable-postauth>
 
+    # ECH also enables its dependencies (HPKE, Curve25519, SNI, ...) unless disabled explicitly
+    $<$<BOOL:${ech}>:--enable-ech>
+
   CFLAGS
     -g
     -fPIC
@@ -140,4 +169,9 @@ set(allow_setting_tls13_ciphers yes)
 
 if(NOT postauth)
   set(disable_postauth yes)
+endif()
+
+# Supports TLS 1.3 Encrypted Client Hello
+if(ech)
+  set(ech_support yes)
 endif()

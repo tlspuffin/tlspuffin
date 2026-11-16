@@ -198,6 +198,7 @@ define_signature!(
     fn_new_session_ticket_extensions [list]
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
+    fn_ech_outer_client_extension
     // fields
     fn_protocol_version13
     fn_protocol_version12

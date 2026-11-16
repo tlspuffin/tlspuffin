@@ -678,3 +678,89 @@ fn test_seed_cve_2024_5814(put: &str) {
     let ctx = runner.execute(trace, &mut 0).unwrap();
     assert!(ctx.agents_successful());
 }
+
+#[apply(test_puts,
+    filter = all(
+        CVE_2026_3549,
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+// The overflow is a ~64 KiB `memset` past a heap copy of the ClientHello. The debug test binary
+// does not check `memset` ranges (libafl stub for `__asan_region_is_poisoned`), so here the crash
+// is a later SEGV reading past the heap in the AES-GCM decryption of the same underflowed length;
+// the release binary (`tlspuffin --put wolfssl584-asan-ech execute`) reports the
+// heap-buffer-overflow WRITE in `TLSX_ECH_Parse` itself. Whether that later read leaves mapped
+// memory depends on the heap of the test process: the test crashes reliably alone or with
+// `--test-threads=1`, but can miss the crash while other tests run in parallel.
+fn test_seed_cve_2026_3549(put: &str) {
+    expect_trace_crash(
+        seed_cve_2026_3549.build_trace(),
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
+// Negative control: on PUTs with ECH where CVE-2026-3549 is fixed (wolfssl584-asan-ech-fixed with
+// only the backported check, wolfssl590-asan-ech and later upstream), the server reaches the new
+// check on the payload length and rejects the ClientHello cleanly with BUFFER_ERROR.
+#[apply(test_puts,
+    filter = all(
+        not(CVE_2026_3549),
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2026_3549_fixed(put: &str) {
+    // In-process (a crash aborts the test binary).
+    let runner = default_runner_for(put);
+    match runner.execute(seed_cve_2026_3549.build_trace(), &mut 0) {
+        Err(e) => assert!(
+            e.to_string().contains("malformed buffer input error"),
+            "unexpected error: {e}"
+        ),
+        Ok(_) => panic!("expected the fixed server to reject the empty ECH payload"),
+    }
+}
+
+// The ECH server option alone does not break ordinary handshakes: a full TLS 1.3 handshake
+// without ECH extension completes against a server with an ECH config...
+#[apply(test_puts,
+    filter = all(
+        not(ECH_SERVER_NULL_DEREF),
+        tls13,
+        ech_support,
+    )
+)]
+fn test_seed_client_attacker_server_ech(put: &str) {
+    let runner = default_runner_for(put);
+    let mut trace = seed_client_attacker.build_trace();
+    trace.descriptors[0].protocol_config.server_ech = true;
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+    assert!(ctx.agents_successful());
+}
+
+// ...except on wolfSSL < 5.9.0, where the ECH server writes the handshake header of the inner
+// ClientHello through a NULL pointer (`innerClientHello`, never allocated when the ClientHello
+// has no ECH extension) at the end of `DoTls13ClientHello`.
+#[apply(test_puts,
+    filter = all(
+        ECH_SERVER_NULL_DEREF,
+        tls13,
+        ech_support,
+        asan,
+    )
+)]
+fn test_ech_server_null_deref(put: &str) {
+    let mut trace = seed_client_attacker.build_trace();
+    trace.descriptors[0].protocol_config.server_ech = true;
+    expect_trace_crash(
+        trace,
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}

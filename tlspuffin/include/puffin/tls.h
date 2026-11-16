@@ -37,6 +37,9 @@ extern "C"
         TLS_VERSION tls_version;
         bool client_authentication;
         bool server_authentication;
+        /* Server only: generate an ECH (Encrypted Client Hello) config so that the server
+         * processes the ECH extension of incoming ClientHellos */
+        bool server_ech;
         const char *cipher_string_tls13;
         const char *cipher_string_tls12;
         const char *cipher_string_tlsboth;

@@ -1381,6 +1381,24 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
+    if (descriptor->server_ech)
+    {
+        // Set on the context: the server then adds an ECH extension to every WOLFSSL object it
+        // creates and parses the ECH extension of incoming ClientHellos. 0 selects wolfSSL's
+        // default KEM / KDF / AEAD (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM).
+#ifdef HAVE_ECH
+        int_retval = is_server ? wolfSSL_CTX_GenerateEchConfig(agent->ctx, "ech.example", 0, 0, 0)
+                               : WOLFSSL_FAILURE;
+#else
+        int_retval = WOLFSSL_FAILURE;
+#endif
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            snprintf(error_msg, 128, "wolfssl generate ECH config failed: %d", int_retval);
+            goto ERROR__wolfssl_create_agent;
+        }
+    }
+
     if (peer_authentication)
     {
         wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);

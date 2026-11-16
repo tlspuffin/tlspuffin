@@ -1,0 +1,52 @@
+Subject: [PATCH] Fix ECH server handling of ClientHellos without ECH (backport from 5.9.0)
+
+An ECH server (with ECH configs) receiving a TLS 1.3 ClientHello without ECH extension keeps the
+ECH state ECH_WRITE_NONE with no inner ClientHello: DoTls13ClientHello skips the rest of the
+ClientHello processing, then writes the handshake header of the (NULL) inner ClientHello, and
+DoTls13HandShakeMsgType processes the (NULL) inner ClientHello again. Backport the 5.9.0 handling:
+only take the inner ClientHello path when innerClientHello != NULL, and otherwise do not answer
+with an empty ECH extension. Only checked against 5.8.4.
+
+--- a/src/tls13.c
++++ b/src/tls13.c
+@@ -7025,9 +7025,17 @@
+     }
+ 
+ #if defined(HAVE_ECH)
+-    /* jump to the end to clean things up */
+-    if (echX != NULL && ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE)
+-        goto exit_dch;
++    if (echX != NULL && ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE) {
++        if (((WOLFSSL_ECH*)echX->data)->innerClientHello != NULL) {
++            /* jump to the end to clean things up */
++            goto exit_dch;
++        }
++        else {
++            /* Server has ECH but client did not send ECH: do not write an
++             * empty ECH extension in EncryptedExtensions. */
++            echX->resp = 0;
++        }
++    }
+ #endif
+ 
+ #ifdef HAVE_SNI
+@@ -7346,7 +7354,8 @@
+ 
+ #if defined(HAVE_ECH)
+     if (ret == 0 && echX != NULL &&
+-        ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE) {
++        ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE &&
++        ((WOLFSSL_ECH*)echX->data)->innerClientHello != NULL) {
+ 
+         /* add the header to the inner hello */
+         AddTls13HandShakeHeader(((WOLFSSL_ECH*)echX->data)->innerClientHello,
+@@ -12849,7 +12858,8 @@
+             echX = TLSX_Find(ssl->extensions, TLSX_ECH);
+ 
+             if (echX != NULL &&
+-                ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE) {
++                ((WOLFSSL_ECH*)echX->data)->state == ECH_WRITE_NONE &&
++                ((WOLFSSL_ECH*)echX->data)->innerClientHello != NULL) {
+                 /* reset the inOutIdx to the outer start */
+                 *inOutIdx = echInOutIdx;
+                 /* call again with the inner hello */

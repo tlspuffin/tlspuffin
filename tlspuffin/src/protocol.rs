@@ -332,6 +332,15 @@ pub struct TLSDescriptorConfig {
     ///
     /// Default: true
     pub server_authentication: bool,
+    /// If agent is a server:
+    ///   Generate an ECH (Encrypted Client Hello) config at creation time, so that the server
+    ///   processes the ECH extension of incoming ClientHellos (needs the `ech_support`
+    ///   capability; other PUTs refuse to create such an agent).
+    /// If agent is a client:
+    ///   Must be false.
+    ///
+    /// Default: false
+    pub server_ech: bool,
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
@@ -424,6 +433,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ
             && self.tls_version == other.tls_version
+            && self.server_ech == other.server_ech
             && self._cipher_string_tls13 == other._cipher_string_tls13
             && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
@@ -626,6 +636,7 @@ impl Default for TLSDescriptorConfig {
             tls_version: TLSVersion::V1_3,
             client_authentication: false,
             server_authentication: true,
+            server_ech: false,
             try_reuse: false,
             typ: AgentType::Server,
             _cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),

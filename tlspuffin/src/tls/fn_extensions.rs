@@ -725,3 +725,28 @@ pub fn fn_unknown_certificate_extension() -> Result<CertificateExtension, FnErro
         payload: Payload::new([42; 10]),
     }))
 }
+
+/// ECH (Encrypted Client Hello, RFC 9849) client extension (0xfe0d) of an outer ClientHello:
+/// type `outer`, cipher suite HKDF-SHA256 / AES-128-GCM, config_id 1, then the HPKE
+/// encapsulated key `enc` and the encrypted inner ClientHello `payload`, each with a 2-byte length
+/// prefix. Both are copied unchanged (as payloads must be, for bit-level mutations); the lengths
+/// are computed from them (and wrap above 65535 bytes). A real client's `enc` is an ephemeral
+/// public key for the server's KEM (e.g. X25519) and `payload` is at least one AEAD tag (16
+/// bytes) long.
+pub fn fn_ech_outer_client_extension(
+    enc: &Vec<u8>,
+    payload: &Vec<u8>,
+) -> Result<ClientExtension, FnError> {
+    let mut contents = vec![0x00]; // ECHClientHelloType: outer
+    contents.extend_from_slice(&[0x00, 0x01, 0x00, 0x01]); // HKDF-SHA256, AES-128-GCM
+    contents.push(0x01); // config_id
+    contents.extend_from_slice(&(enc.len() as u16).to_be_bytes());
+    contents.extend_from_slice(enc);
+    contents.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+    contents.extend_from_slice(payload);
+
+    Ok(ClientExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xfe0d),
+        payload: Payload::new(contents),
+    }))
+}

@@ -631,6 +631,13 @@ static SSL_CTX *configure_common(const TLS_AGENT_DESCRIPTOR *descriptor)
 
 AGENT boringssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
+    if (descriptor->server_ech)
+    {
+        // Not supported by this harness: refuse rather than silently ignore ECH.
+        _log(PUFFIN.error, "server_ech is not supported by this PUT");
+        return NULL;
+    }
+
     if (descriptor->role == CLIENT)
     {
         return boringssl_create_client(descriptor);

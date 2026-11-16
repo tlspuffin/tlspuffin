@@ -24,6 +24,52 @@ sancov = true
 asan = true
 fix = ["AllowClaim"]
 
+[wolfssl584-asan-ech]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim"]
+
+# CVE-2026-3549 fix backported, nothing else changed: negative control for wolfssl584-asan-ech
+[wolfssl584-asan-ech-fixed]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim", "CVE-2026-3549"]
+
+# Campaign target for CVE-2026-3549: ECH server NULL dereference fixed (backport), so that only
+# CVE-2026-3549 crashes an ECH server on a client-attacker trace
+[wolfssl584-asan-ech-nullfix]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim", "ECH-SERVER-NULL-DEREF"]
+
+# CVE-2026-3549 and CVE-2026-3849 fixed upstream (CVE-2026-5503 is not): negative control for
+# wolfssl584-asan-ech
+[wolfssl590-asan-ech]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.0-stable", version = "5.9.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim"]
+
+# CVE-2026-5503 fixed upstream: negative control for wolfssl584-asan-ech
+[wolfssl591-asan-ech]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.1-stable", version = "5.9.1" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+ech = true
+fix = ["AllowClaim"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }

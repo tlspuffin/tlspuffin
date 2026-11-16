@@ -42,6 +42,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Server with an ECH config (descriptor `server_ech`, needs PUT support for ECH).
+        seed_cve_2026_3549: put.supports("tls13") && put.supports("ech_support"),
     )
 }
 
@@ -1545,6 +1548,29 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// <https://nvd.nist.gov/vuln/detail/CVE-2026-3549>
+///
+/// Heap buffer overflow in `TLSX_ECH_Parse` of wolfSSL < 5.9.0 built with `--enable-ech`, fixed
+/// in 5.9.0 by commit 10325b458770056cb96af1bcf493323629a48f4d (in
+/// <https://github.com/wolfSSL/wolfssl/pull/9817>).
+///
+/// Root cause (CWE-191 leading to CWE-122): an ECH server parsing the `encrypted_client_hello`
+/// extension of an outer ClientHello reads the length of the encrypted inner ClientHello
+/// (`innerClientHelloLen`, a `word16`) from the wire and subtracts the AEAD tag size (16) without
+/// checking it first: a length of 0 to 15 wraps around to 65520..65535. The server then zeroes
+/// `innerClientHelloLen + 16` (about 64 KiB) bytes from the start of the payload in a heap copy of
+/// the ClientHello (`aadCopy`, as large as the ClientHello), before any decryption is attempted.
+///
+/// Reachability (malicious client, first ClientHello of a fresh connection): the server only
+/// parses the extension when it has an ECH config of its own (`wolfSSL_CTX_GenerateEchConfig`),
+/// set here with the descriptor option `server_ech` (PUT configuration, out of reach of
+/// mutations). The trace is [`seed_client_attacker_ech`] (default corpus for ECH PUTs) with an
+/// empty ECH payload instead of a 700-byte one: the config_id need not match and nothing has to
+/// decrypt, the overflow happens while the ClientHello's ECH extension is parsed.
+pub fn seed_cve_2026_3549(server: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_client_attacker_ech(server, term! { fn_empty_bytes_vec })
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1566,6 +1592,7 @@ pub mod tests {
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
+            seed_cve_2026_3549.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),
