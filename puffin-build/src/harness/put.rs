@@ -107,6 +107,15 @@ impl Put {
                 )
             });
 
+        // the PUTs where a known vulnerability is patched (for tests that the patch removes it)
+        fixed_vulnerabilities.iter().for_each(|vulnerability| {
+            println!(
+                "cargo:rustc-cfg=fixed_{}=\"{}\"",
+                make_rust_identifier(vulnerability),
+                self.name()
+            );
+        });
+
         lib.capabilities.iter().for_each(|capability| {
             println!(
                 "cargo:rustc-cfg={}=\"{}\"",
@@ -177,8 +186,24 @@ impl Put {
                 // NOTE export puffin's `__asan_default_options` (puffin::fuzzer::sanitizer::asan)
                 // so that the shared ASAN runtime calls it at startup: it binds the hook to the
                 // binary's definition only if the binary exports it, and finds its own, empty,
-                // otherwise (an ASan report would then end a fuzzing client with exit()).
+                // otherwise (an ASan report would then end a fuzzing client with exit()). Release
+                // builds export it. Debug builds do not: they hide the symbols of every static
+                // library (below), puffin's included, and `cargo run` and `cargo test` give them
+                // .cargo/config.toml's ASAN_OPTIONS.
                 println!("cargo:rustc-link-arg=-Wl,--export-dynamic-symbol=__asan_default_options");
+
+                // NOTE keep libafl's stub of `__asan_region_is_poisoned` out of the dynamic
+                // symbols. libafl_targets' cmplog.c defines a weak
+                // `__asan_region_is_poisoned` returning NULL, for builds without
+                // ASAN. A build that links it (debug, without LTO) exports it, and
+                // the ASAN runtime's interceptors call it through the PLT: the stub answers "not
+                // poisoned" to every range check, and no overflow through memcpy, memset, strlen,
+                // ... is reported. The symbols of static libraries are then not exported at all
+                // (calls inside the executable are unchanged). Release builds (LTO: the workspace's
+                // release profile) do not link the stub and are left as they are.
+                if std::env::var("PROFILE").as_deref() != Ok("release") {
+                    println!("cargo:rustc-link-arg=-Wl,--exclude-libs,ALL");
+                }
             }
         }
 

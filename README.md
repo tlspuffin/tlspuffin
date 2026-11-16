@@ -56,7 +56,7 @@ We answer in [1] by proposing a novel and effective technique called DY model-gu
 [tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built
 modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated
 the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 12 CVEs (see table
-below), including five new ones (including a critical one) that were all acknowledged and patched.
+below), including five new ones (two of them critical) that were all acknowledged and patched.
 Interestingly and as a witness to the claims above,
 those five newly found bugs are not currently found by state-of-the-art fuzzers [1].
 
@@ -69,11 +69,11 @@ those five newly found bugs are not currently found by state-of-the-art fuzzers 
 | [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153) | 5.9   | Client DoS      | ✅     | 5.3.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
 | [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173) | 7.5❗  | Server DoS      | ✅     | 5.5.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
 | [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905) | 9.1❗  | Info. Leak      | ✅     | 5.5.0   | WolfSSL | ASAN       | ❌         | ✅    | -     |
-| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)   | 5.3   | Info. Leak      | ✅     | 5.6.6   | WolfSSL | ASAN       | ❌         | ✅    | -     |
-| [2024-5814](https://www.cve.org/CVERecord?id=CVE-2024-5814)   | 5.1   | Downgrade       | ❌     | 5.7.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
+| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)   | 9.1❗  | Info. Leak      | ✅     | 5.6.6   | WolfSSL | ASAN       | ❌         | ✅    | -     |
+| [2024-5814](https://www.cve.org/CVERecord?id=CVE-2024-5814)   | 5.3   | Downgrade       | ❌     | 5.7.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
 | [2023-3724](https://www.cve.org/CVERecord?id=CVE-2023-3724)   | 9.1❗  | Weak key        | ❌     | 5.6.0   | WolfSSL | Diff       | ❌         | ❌    | ✅     |
 | [2023-6937](https://www.cve.org/CVERecord?id=CVE-2023-6937)   | 5.3   | Confidentiality | ❌     | 5.6.4   | WolfSSL | Diff       | ❌         | ❌    | ✅     |
-| [2021-3336](https://www.cve.org/CVERecord?id=CVE-2021-3336)   | 8.1❗  | Info. Leak      | ❌     | 4.6.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
+| [2021-3336](https://www.cve.org/CVERecord?id=CVE-2021-3336)   | 8.1❗  | Auth. Bypass    | ❌     | 4.6.0   | WolfSSL | DY or Diff | ❌         | ✅    | ✅     |
 
 
 Some features:
