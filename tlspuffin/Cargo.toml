@@ -87,6 +87,11 @@ tlspuffin = { path = ".", default-features = false, features = ["test-utils"] }
 name = "benchmark"
 harness = false
 
+# the catalogue test generates its tests at run time (one per witness and PUT)
+[[test]]
+name = "catalogue"
+harness = false
+
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
