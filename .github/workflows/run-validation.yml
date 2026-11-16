@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  checks: write # the catalogue overlap check runs
 
 jobs:
   configure:
@@ -61,6 +62,62 @@ jobs:
           for conf in $(jq -r '.[].name | @sh' <(printf "%s" '${{ steps.configure-checks.outputs.matrix }}') | tr -d \'\"); do
             printf '    - %s\n' "${conf}"
           done
+
+  # the presets the vulnerability catalogue is checked on, with their validation sets, generated from the catalogue: a
+  # new entry or patch range adds its checks by itself
+  configure-catalogue:
+    needs: [configure]
+    if: ${{ inputs.profile != 'none' }}
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.catalogue-matrix.outputs.matrix }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - id: catalogue-matrix
+        name: catalogue checks
+        run: |
+          #!/usr/bin/env bash
+          set -o pipefail
+          matrix=$(just run cargo run --quiet -p puffin-build --bin mk_vendor -- list --check --json | jq -c '.')
+          printf 'matrix=%s\n' "${matrix}" >> "${GITHUB_OUTPUT}"
+          jq -r '.[] | "  - " + .vendor + ":" + .preset + " (" + (.entries | join(", ")) + "): " + (.builds | join(" "))' <<< "${matrix}"
+
+  # every entry has a witness (or says why not) and every witness names an entry: no PUT needed, on every PR
+  catalogue-witnesses:
+    needs: [configure]
+    if: ${{ inputs.profile != 'none' }}
+    name: catalogue witnesses
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: catalogue test without PUTs
+        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--test catalogue"
+      - name: patches apply where the catalogue says
+        run: just run cargo run --quiet -p puffin-build --bin mk_vendor -- check-patches
+
+  catalogue:
+    needs: [configure-catalogue]
+    if: ${{ needs.configure-catalogue.outputs.matrix != '[]' && needs.configure-catalogue.outputs.matrix != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.configure-catalogue.outputs.matrix) }}
+    uses: ./.github/workflows/run-catalogue-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      vendor: ${{ matrix.vendor }}
+      preset: ${{ matrix.preset }}
+      builds: ${{ toJson(matrix.builds) }}
 
   check:
     needs: [configure]
