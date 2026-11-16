@@ -26,6 +26,10 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
             ),
         ],
         steps: vec![
+            // after each input, the receiving agent's output (progress, then read): libssh writes
+            // what it sends on its next progress, and the output puffin reads after an
+            // input does not progress the agent (since dff9692b4): without it, the
+            // server's banner was never read
             OutputAction::new_step(client),
             // Client -> Server: Banner
             InputAction::new_step(
@@ -36,6 +40,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             // Server -> Client: Banner
             InputAction::new_step(
                 client,
@@ -45,6 +50,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             // Client -> Server: KexInit
             InputAction::new_step(
                 server,
@@ -62,6 +68,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             // Server -> Client: KexInit
             InputAction::new_step(
                 client,
@@ -79,6 +86,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             // Client -> Server: ECDH Init
             InputAction::new_step(
                 server,
@@ -88,6 +96,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             // Server -> Client: ECDH Reply
             InputAction::new_step(
                 client,
@@ -99,6 +108,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             InputAction::new_step(
                 server,
                 term! {
@@ -107,6 +117,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             // auth finished in this input step
             // in auto-output step the client auth is called
             InputAction::new_step(
@@ -117,6 +128,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             InputAction::new_step(
                 client,
                 term! {
@@ -125,6 +137,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             InputAction::new_step(
                 server,
                 term! {
@@ -133,6 +146,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             InputAction::new_step(
                 client,
                 term! {
@@ -141,6 +155,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
             InputAction::new_step(
                 server,
                 term! {
@@ -149,6 +164,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(server),
             InputAction::new_step(
                 client,
                 term! {
@@ -157,6 +173,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                     )
                 },
             ),
+            OutputAction::new_step(client),
         ],
         ..Default::default()
     }

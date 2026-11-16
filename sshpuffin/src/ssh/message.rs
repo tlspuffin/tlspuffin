@@ -25,12 +25,12 @@ impl Codec for OnWireData {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub enum RawSshMessage {
-    #[extractable_no_recursion]
-    Banner(String),
-    #[extractable_no_recursion]
-    Packet(BinaryPacket),
-    #[extractable_no_recursion]
-    OnWire(OnWireData),
+    // (the macro reads its attributes on fields: on a variant, they were ignored, and the fields
+    // of a packet, its payload, padding and MAC, came first among the knowledge of its
+    // sender)
+    Banner(#[extractable_no_recursion] String),
+    Packet(#[extractable_no_recursion] BinaryPacket),
+    OnWire(#[extractable_no_recursion] OnWireData),
 }
 
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
