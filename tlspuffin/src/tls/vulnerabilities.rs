@@ -48,6 +48,12 @@ pub fn create_corpus(
 
         // Fragmented TLS 1.3 ClientHello (<123 bytes) triggers heap-buffer-overflow in AddPacketInfo.
         seed_cve_2023_6936: put.supports("tls13"),
+
+        // TLS 1.3 client given a ServerHello of about 17 KB (ALPN extensions with certificates).
+        seed_cve_2022_42905: put.supports("tls13"),
+
+        // TLS 1.3 server attacker: an empty certificate chain, then an RSA-PSS CertificateVerify.
+        seed_server_attacker_full_cve_2021_3336: put.supports("tls13"),
     )
 }
 
