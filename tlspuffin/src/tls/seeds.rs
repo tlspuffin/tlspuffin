@@ -2402,7 +2402,35 @@ pub fn _seed_client_attacker_post_handshake_auth(
         )))
     };
 
+    // The transcripts used as they are (key derivation, record encryption) come from the PUT
+    // claims: this keeps the terms small, a term which contains a whole transcript is multiplied
+    // by each of its uses. A claim is only a hash though: it cannot be extended with the
+    // messages which follow, see `explicit_server_finished_transcript` below.
     let server_hello_transcript = term! {
+        fn_server_hello_transcript(((server, 0)))
+    };
+
+    let server_finished_transcript = term! {
+        fn_server_finished_transcript(((server, 0)))
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+             ))
+        )
+    };
+
+    // The post-handshake messages extend the transcript of the handshake: it has to be built
+    // from the messages.
+    let explicit_server_hello_transcript = term! {
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
@@ -2426,51 +2454,25 @@ pub fn _seed_client_attacker_post_handshake_auth(
         )
     };
 
-    let encrypted_extension_transcript = term! {
+    let explicit_server_finished_transcript = term! {
         fn_append_transcript(
-            (@server_hello_transcript),
-            (fn_find_encrypted_extensions((@extensions)))
-        )
-    };
-
-    let server_certificate_transcript = term! {
-        fn_append_transcript(
-            (@encrypted_extension_transcript),
-            (fn_find_server_certificate((@extensions)))
-        )
-    };
-
-    let server_certificate_verify_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_transcript),
-            (fn_find_server_certificate_verify((@extensions)))
-        )
-    };
-
-    let server_finished_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_verify_transcript),
+            (fn_append_transcript(
+                (fn_append_transcript(
+                    (fn_append_transcript(
+                        (@explicit_server_hello_transcript),
+                        (fn_find_encrypted_extensions((@extensions)))
+                    )),
+                    (fn_find_server_certificate((@extensions)))
+                )),
+                (fn_find_server_certificate_verify((@extensions)))
+            )),
             (fn_find_server_finished((@extensions)))
-        )
-    };
-
-    let client_finished = term! {
-        fn_finished(
-            (fn_verify_data(
-                (@server_finished_transcript),
-                (@server_hello_transcript),
-                (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk,
-                fn_named_group_secp384r1,
-                fn_new_random,
-                fn_cipher_suite13_aes_128_gcm_sha256
-             ))
         )
     };
 
     let client_finished_transcript = term! {
         fn_append_transcript(
-            (@server_finished_transcript),
+            (@explicit_server_finished_transcript),
             (@client_finished)
         )
     };
@@ -3102,7 +3104,7 @@ pub fn create_corpus(
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
-        seed_client_attacker_post_handshake_auth: put.supports("tls13") && put.supports("post_handshake_auth"),
+        seed_client_attacker_post_handshake_auth: put.supports("tls13") && put.supports("post_handshake_auth") && put.supports("transcript_extraction"),
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
@@ -3177,7 +3179,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, post_handshake_auth))]
+    #[apply(test_puts, filter = all(tls13, post_handshake_auth, transcript_extraction))]
     fn test_seed_client_attacker_post_handshake_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_post_handshake_auth.build_trace();
@@ -3185,6 +3187,37 @@ pub mod tests {
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
+    }
+
+    /// A step whose recipe is at least `max_term_size` nodes large is skipped by the mutators
+    /// (see `reservoir_sample`): none of its sub-terms can be mutated. The post-handshake
+    /// authentication seeds are gated by capabilities and thus not checked by
+    /// `test_corpus_file_sizes`, which uses the default PUT: check them here.
+    #[test_log::test]
+    fn test_post_handshake_auth_seeds_are_mutable() {
+        use puffin::trace::Action;
+
+        let max_term_size = TermConstraints::default().max_term_size;
+        for (name, trace) in [
+            (
+                "seed_client_attacker_post_handshake_auth",
+                seed_client_attacker_post_handshake_auth.build_trace(),
+            ),
+            (
+                "seed_cve_2026_55962",
+                crate::tls::vulnerabilities::seed_cve_2026_55962.build_trace(),
+            ),
+        ] {
+            for (index, step) in trace.steps.iter().enumerate() {
+                if let Action::Input(input) = &step.action {
+                    let size = input.recipe.size();
+                    assert!(
+                        size < max_term_size,
+                        "{name} step {index} has size {size} >= {max_term_size}: it cannot be mutated"
+                    );
+                }
+            }
+        }
     }
 
     /// Run seed_client_attacker_full_precomputation to test precomputations

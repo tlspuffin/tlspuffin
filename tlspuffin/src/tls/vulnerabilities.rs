@@ -45,7 +45,7 @@ pub fn create_corpus(
 
         // The server requests the client certificate after the handshake (post-handshake
         // authentication): descriptor sets `client_authentication` and `post_handshake_auth`.
-        seed_cve_2026_55962: put.supports("tls13") && put.supports("post_handshake_auth"),
+        seed_cve_2026_55962: put.supports("tls13") && put.supports("post_handshake_auth") && put.supports("transcript_extraction"),
     )
 }
 

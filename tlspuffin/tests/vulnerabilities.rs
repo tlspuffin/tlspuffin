@@ -107,7 +107,8 @@ fn test_seed_cve_2022_25638(put: &str) {
     filter = all(
         CVE_2026_55962,
         tls13,
-        post_handshake_auth
+        post_handshake_auth,
+        transcript_extraction
     )
 )]
 fn test_seed_cve_2026_55962(put: &str) {
