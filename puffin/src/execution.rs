@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use nix::errno::Errno;
@@ -324,6 +325,14 @@ pub struct ForkError {
     reason: String,
 }
 
+impl ForkError {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+}
+
 impl std::fmt::Display for ForkError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "forked trace execution error: {}", self.reason)
@@ -338,10 +347,57 @@ impl From<Errno> for ForkError {
     }
 }
 
+/// How a forked child ended, with the details [`ExecutionStatus`] leaves out.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum RawStatus {
+    Exited(i32),
+    /// Name of the signal (e.g. "SIGSEGV")
+    Signaled(String),
+    Timeout,
+}
+
 pub fn run_in_subprocess<R>(
     func: R,
     timeout: impl Into<Option<Duration>>,
 ) -> Result<ExecutionStatus, ForkError>
+where
+    R: FnOnce(),
+{
+    run_in_subprocess_wait(func, timeout).and_then(|status| match status {
+        Waited::Status(status) => status.try_into(),
+        Waited::Timeout => Ok(ExecutionStatus::Timeout),
+    })
+}
+
+/// Run `func` in a forked child and return how the child ended.
+pub fn run_in_subprocess_raw<R>(
+    func: R,
+    timeout: impl Into<Option<Duration>>,
+) -> Result<RawStatus, ForkError>
+where
+    R: FnOnce(),
+{
+    match run_in_subprocess_wait(func, timeout)? {
+        Waited::Timeout => Ok(RawStatus::Timeout),
+        Waited::Status(Ok(Exited(_, code))) => Ok(RawStatus::Exited(code)),
+        Waited::Status(Ok(Signaled(_, signal, _))) => {
+            Ok(RawStatus::Signaled(signal.as_str().to_string()))
+        }
+        Waited::Status(status) => Err(ForkError {
+            reason: format!("failed to retrieve process status: {status:?}"),
+        }),
+    }
+}
+
+enum Waited {
+    Status(Result<WaitStatus, Errno>),
+    Timeout,
+}
+
+fn run_in_subprocess_wait<R>(
+    func: R,
+    timeout: impl Into<Option<Duration>>,
+) -> Result<Waited, ForkError>
 where
     R: FnOnce(),
 {
@@ -358,24 +414,26 @@ where
         }
     }
 
-    fn collect_child(child_pid: impl Into<Pid>) -> Result<ExecutionStatus, ForkError> {
+    fn collect_child(child_pid: impl Into<Pid>) -> Result<WaitStatus, ForkError> {
         let pid = child_pid.into();
-        waitpid(pid, Some(WaitPidFlag::WNOHANG))
-            .try_into()
-            .or_else(|e| {
+        match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+            Ok(status @ (Exited(..) | Signaled(..))) => Ok(status),
+            other => {
                 // NOTE Child process has not terminated yet. We kill it.
                 if let Err(errno @ (Errno::EINVAL | Errno::EPERM)) = kill(pid, Signal::SIGKILL) {
                     log::error!("kill({pid}, SIGKILL) failed: {errno}");
-                    return Err(e);
+                    return Err(ForkError {
+                        reason: format!("failed to retrieve process status: {other:?}"),
+                    });
                 }
 
-                waitpid(pid, Some(WaitPidFlag::empty())).try_into()
-            })
+                waitpid(pid, Some(WaitPidFlag::empty())).map_err(ForkError::from)
+            }
+        }
     }
 
-    let executor_pid = do_fork(func)?;
-
-    let mut watchdog = WatchDog::new();
+    // the handlers first: a child that ends at once must not have its SIGCHLD delivered before
+    // anyone listens (the wait would last until the timeout, or for ever without one)
     let mut signals = signal_hook::iterator::SignalsInfo::<
         signal_hook::iterator::exfiltrator::WithOrigin,
     >::new([signal_hook::consts::SIGUSR1, signal_hook::consts::SIGCHLD])
@@ -383,18 +441,25 @@ where
         reason: format!("failed to register signal handlers: {e}"),
     })?;
 
+    let executor_pid = do_fork(func)?;
+
+    let mut watchdog = WatchDog::new();
     watchdog.start(timeout.into());
 
-    let mut result = ExecutionStatus::Timeout;
+    let mut result = Waited::Timeout;
     for info in &mut signals {
         let source = info.process.map(|p| p.pid);
         result = match info.signal {
-            signal_hook::consts::SIGUSR1 if source == Some(std::process::id() as i32) => {
+            // the timeout of this execution's watchdog: a SIGUSR1 of an earlier execution's
+            // watchdog, delivered late, is not
+            signal_hook::consts::SIGUSR1
+                if source == Some(std::process::id() as i32) && watchdog.fired() =>
+            {
                 collect_child(executor_pid).ok();
-                ExecutionStatus::Timeout
+                Waited::Timeout
             }
             signal_hook::consts::SIGCHLD if source == Some(executor_pid.as_raw()) => {
-                collect_child(executor_pid)?
+                Waited::Status(Ok(collect_child(executor_pid)?))
             }
             _ => {
                 continue;
@@ -408,11 +473,21 @@ where
 
 struct WatchDog {
     channel: Option<mpsc::Sender<()>>,
+    /// Set when this watchdog's timeout expires, before its first SIGUSR1
+    fired: Arc<AtomicBool>,
 }
 
 impl WatchDog {
-    pub const fn new() -> Self {
-        Self { channel: None }
+    pub fn new() -> Self {
+        Self {
+            channel: None,
+            fired: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Whether this watchdog's timeout expired.
+    pub fn fired(&self) -> bool {
+        self.fired.load(Ordering::SeqCst)
     }
 
     pub fn start(&mut self, timeout: Option<Duration>) {
@@ -424,13 +499,28 @@ impl WatchDog {
 
         let (send, recv) = mpsc::channel::<()>();
         self.channel = Some(send);
+        let fired = self.fired.clone();
 
         std::thread::spawn(move || {
-            std::thread::sleep(duration);
+            // NOTE wait on the channel, not with a sleep: when the execution ends first, the
+            // watchdog is dropped with its sender and the thread leaves without
+            // signaling. A sleeping watchdog sent its SIGUSR1 anyway, which the next
+            // execution of the process took for its own timeout.
+            if let Err(mpsc::RecvTimeoutError::Disconnected) | Ok(()) = recv.recv_timeout(duration)
+            {
+                return;
+            }
+            fired.store(true, Ordering::SeqCst);
+            // signal the execution, again every 200 ms until it ends (its wait drops the watchdog)
             loop {
-                kill(nix::unistd::Pid::this(), Signal::SIGUSR1).unwrap();
-                if recv.recv_timeout(Duration::from_millis(200)).is_err() {
+                // a signal to this process cannot fail; if it ever did, the thread stops (no panic)
+                if let Err(e) = kill(nix::unistd::Pid::this(), Signal::SIGUSR1) {
+                    log::error!("watchdog: cannot signal the timeout: {e}");
                     break;
+                }
+                match recv.recv_timeout(Duration::from_millis(200)) {
+                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                    Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
         });
@@ -464,5 +554,84 @@ impl TryFrom<Result<WaitStatus, Errno>> for ExecutionStatus {
                 reason: format!("failed to retrieve process status: {e:?}"),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forked_children_report_exit_codes_signals_and_timeouts() {
+        assert_eq!(
+            run_in_subprocess_raw(|| std::process::exit(10), None).unwrap(),
+            RawStatus::Exited(10)
+        );
+        assert_eq!(
+            run_in_subprocess_raw(|| std::process::abort(), None).unwrap(),
+            RawStatus::Signaled("SIGABRT".into())
+        );
+        assert_eq!(
+            run_in_subprocess_raw(
+                || std::thread::sleep(Duration::from_secs(20)),
+                Duration::from_millis(200)
+            )
+            .unwrap(),
+            RawStatus::Timeout
+        );
+        // a finished execution's watchdog does not time out the next one
+        assert_eq!(
+            run_in_subprocess_raw(|| std::process::exit(0), Duration::from_millis(300)).unwrap(),
+            RawStatus::Exited(0)
+        );
+        assert_eq!(
+            run_in_subprocess_raw(
+                || std::thread::sleep(Duration::from_millis(800)),
+                Duration::from_secs(5)
+            )
+            .unwrap(),
+            RawStatus::Exited(0)
+        );
+
+        // a SIGUSR1 that is not this execution's watchdog's (one of an earlier execution, delivered
+        // late) does not time it out
+        let stale = std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_millis(200));
+            kill(Pid::this(), Signal::SIGUSR1).unwrap();
+        });
+        assert_eq!(
+            run_in_subprocess_raw(
+                || std::thread::sleep(Duration::from_millis(800)),
+                Duration::from_secs(5)
+            )
+            .unwrap(),
+            RawStatus::Exited(0)
+        );
+        stale.join().unwrap();
+
+        // children that end at once, many times: each SIGCHLD is heard (the handlers are registered
+        // before the fork), no wait lasts until its timeout
+        let start = std::time::Instant::now();
+        for _ in 0..50 {
+            assert_eq!(
+                run_in_subprocess_raw(|| std::process::exit(3), Duration::from_secs(5)).unwrap(),
+                RawStatus::Exited(3)
+            );
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            start.elapsed()
+        );
+
+        // the statuses of the existing runner are unchanged
+        assert_eq!(
+            run_in_subprocess(|| std::process::exit(1), None).unwrap(),
+            ExecutionStatus::Failure(1)
+        );
+        assert_eq!(
+            run_in_subprocess(|| std::process::abort(), None).unwrap(),
+            ExecutionStatus::Crashed
+        );
     }
 }

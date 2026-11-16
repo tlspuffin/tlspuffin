@@ -92,7 +92,23 @@ where
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
-                .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
+                .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing"))
+                .arg(arg!(--outcome <file> "Write the outcome of each execution (JSON: objective kind, signal, ASan report, claim violation) to <file>"))
+                .arg(arg!(--timeout <seconds> "With --outcome: the time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
+            Command::new("witness")
+                .about("Runs the witness traces of a vulnerability catalogue entry on the PUT and reports their outcomes")
+                .arg(arg!(<id> "Id of the catalogue entry (e.g. CVE-2022-39173)"))
+                .arg(arg!(--runs <n> "Executions of each witness").value_parser(value_parser!(usize)))
+                .arg(arg!(--outcome <file> "Write the outcomes (JSON) to <file>"))
+                .arg(arg!(--timeout <seconds> "The time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
+            Command::new("catalogue")
+                .about("The vulnerability catalogue in this binary: the state of every known vulnerability in each PUT, and the witnesses")
+                .arg(arg!(--json "Output JSON"))
+                .subcommand(
+                    Command::new("check")
+                        .about("Runs every witness on every PUT and checks the outcomes against the catalogue (the catalogue test)")
+                        .arg(arg!(--report <file> "Write the report (JSON) to <file>")),
+                ),
             Command::new("display-execute")
                 .about("Executes a trace stored in a file and display information")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -402,9 +418,22 @@ where
         if !with_bit_level {
             log::info!("Execution without payload evaluations...");
         }
+        let outcome_file: Option<&String> = matches.get_one("outcome");
+        let timeout = timeout_of(matches);
+        let mut outcomes = vec![];
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path, config_trace);
+            if outcome_file.is_some() {
+                outcomes.push(execute_outcome(&runner, path, config_trace, timeout));
+            } else {
+                execute(&runner, path, config_trace);
+            }
+        }
+        if let Some(file) = outcome_file {
+            if let Err(e) = fs::write(file, serde_json::to_string_pretty(&outcomes).unwrap()) {
+                log::error!("cannot write the outcomes to {file}: {e}");
+                return ExitCode::FAILURE;
+            }
         }
 
         if !lookup_paths.is_empty() {
@@ -425,6 +454,21 @@ where
         } else {
             return ExitCode::FAILURE;
         }
+    } else if let Some(matches) = matches.subcommand_matches("witness") {
+        let id: &String = matches.get_one("id").unwrap();
+        let runs: usize = *matches.get_one("runs").unwrap_or(&1);
+        return witness_cmd(
+            &put_registry,
+            id,
+            runs,
+            matches.get_one::<String>("outcome"),
+            timeout_of(matches),
+        );
+    } else if let Some(matches) = matches.subcommand_matches("catalogue") {
+        if let Some(check) = matches.subcommand_matches("check") {
+            return catalogue_check_cmd(&put_registry, check.get_one::<String>("report"));
+        }
+        return catalogue_cmd(&put_registry, matches.get_flag("json"));
     } else if let Some(matches) = matches.subcommand_matches("display-execute") {
         let input: &String = matches.get_one("input").unwrap();
         let max_step: Option<&usize> = matches.get_one("max_step");
@@ -883,6 +927,249 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
         Err(reason) => panic!("failed to execute trace: {reason}"),
+    }
+}
+
+/// The outcome of one trace file (`execute --outcome`).
+#[derive(serde::Serialize)]
+struct TraceOutcome {
+    trace: String,
+    outcome: crate::outcome::Outcome,
+}
+
+/// The timeout of `--timeout <seconds>`: the catalogue test's by default, none for 0.
+fn timeout_of(matches: &clap::ArgMatches) -> Option<std::time::Duration> {
+    match matches.get_one::<u64>("timeout") {
+        Some(0) => None,
+        Some(seconds) => Some(std::time::Duration::from_secs(*seconds)),
+        None => Some(crate::catalogue::TIMEOUT),
+    }
+}
+
+fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
+    runner: &Runner<PB>,
+    input: P,
+    config_trace: ConfigTrace,
+    timeout: Option<std::time::Duration>,
+) -> TraceOutcome {
+    use crate::outcome::Outcome;
+
+    let trace_name = input.as_ref().display().to_string();
+    let Ok(trace) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) else {
+        log::error!("Invalid trace file {}", input.as_ref().display());
+        return TraceOutcome {
+            trace: trace_name,
+            outcome: Outcome::setup_error("invalid trace file"),
+        };
+    };
+
+    let outcome = match runner.execute_outcome(trace, config_trace, timeout) {
+        Ok(report) => {
+            // the child's stderr (ASan report, panic) where it always went
+            eprint!("{}", report.stderr);
+            report.outcome
+        }
+        Err(e) => Outcome::setup_error(e.to_string()),
+    };
+    log::info!("execution finished with outcome: {outcome}");
+    TraceOutcome {
+        trace: trace_name,
+        outcome,
+    }
+}
+
+/// The outcome of one witness (`witness`).
+#[derive(serde::Serialize)]
+struct WitnessOutcome {
+    entry: String,
+    witness: String,
+    put: String,
+    outcomes: Vec<crate::outcome::Outcome>,
+    /// whether an outcome matches the entry's oracle
+    matches_oracle: bool,
+}
+
+fn witness_cmd<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    id: &str,
+    runs: usize,
+    outcome_file: Option<&String>,
+    timeout: Option<std::time::Duration>,
+) -> ExitCode
+where
+    PB::ProtocolTypes: 'static,
+{
+    use crate::catalogue::{witnesses, Catalogue};
+    use crate::outcome::{execute_outcome, matches};
+
+    let witnesses: Vec<_> = witnesses::<PB::ProtocolTypes>()
+        .into_iter()
+        .filter(|w| w.entry == id)
+        .collect();
+    if witnesses.is_empty() {
+        log::error!("no witness of '{id}' in this binary");
+        return ExitCode::FAILURE;
+    }
+
+    let put = put_registry.default_put_name().to_string();
+    let put_catalogue = put_registry.default().catalogue();
+    let vendor = put_catalogue
+        .as_ref()
+        .and_then(|c| c.state.as_ref().ok())
+        .map(|s| s.vendor.clone());
+    let entry = vendor
+        .as_deref()
+        .and_then(|v| Catalogue::load(v).ok())
+        .and_then(|c| c.entry(id).cloned());
+    let Some(entry) = entry else {
+        log::error!(
+            "'{id}' is not an entry of the catalogue of PUT {put}{}",
+            vendor.map(|v| format!(" ({v})")).unwrap_or_default()
+        );
+        return ExitCode::FAILURE;
+    };
+    let asan = put_catalogue
+        .as_ref()
+        .is_some_and(super::catalogue::PutCatalogue::has_asan);
+
+    let mut registry = put_registry.clone();
+    let mut options = registry.default_put_options().clone();
+    for (key, value) in &entry.put_options {
+        if options.get_option(key).is_none() {
+            options.add_option(key, value);
+        }
+    }
+    registry.set_default_options(options);
+    let runner = Runner::new(registry.clone(), Spawner::new(registry));
+
+    let mut results = vec![];
+    for witness in &witnesses {
+        let executions = witness.run().executions();
+        let outcomes: Vec<_> = (0..runs)
+            .map(|_| match execute_outcome(&runner, &executions, timeout) {
+                Ok(report) => {
+                    eprint!("{}", report.stderr);
+                    report.outcome
+                }
+                Err(e) => crate::outcome::Outcome::setup_error(e.to_string()),
+            })
+            .collect();
+        let matches_oracle = outcomes.iter().any(|o| {
+            o.signature().is_some_and(|s| {
+                entry
+                    .oracle
+                    .as_ref()
+                    .is_some_and(|oracle| matches(oracle, &s, asan))
+            })
+        });
+        for outcome in &outcomes {
+            println!("{id} {} on {put}: {outcome}", witness.name);
+        }
+        results.push(WitnessOutcome {
+            entry: id.into(),
+            witness: witness.name.into(),
+            put: put.clone(),
+            outcomes,
+            matches_oracle,
+        });
+    }
+
+    if let Some(file) = outcome_file {
+        if let Err(e) = fs::write(file, serde_json::to_string_pretty(&results).unwrap()) {
+            log::error!("cannot write the outcomes to {file}: {e}");
+            return ExitCode::FAILURE;
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+fn catalogue_cmd<PB: ProtocolBehavior>(put_registry: &PutRegistry<PB>, json: bool) -> ExitCode
+where
+    PB::ProtocolTypes: 'static,
+{
+    let (puts, witnesses) = crate::catalogue::listing(put_registry);
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &serde_json::json!({ "puts": puts, "witnesses": witnesses })
+            )
+            .unwrap()
+        );
+        return ExitCode::SUCCESS;
+    }
+    for put in &puts {
+        match &put.state {
+            Some(state) => {
+                println!(
+                    "{} ({} {}, {})",
+                    put.put,
+                    state.vendor,
+                    state.version,
+                    put.instrumentation.join(", ")
+                );
+                for (id, entry) in &state.entries {
+                    println!("  {id:<16} {}", entry.state);
+                }
+            }
+            None => println!(
+                "{}: {}",
+                put.put,
+                put.error.as_deref().unwrap_or("no catalogue state")
+            ),
+        }
+    }
+    println!("witnesses:");
+    for w in &witnesses {
+        println!("  {:<16} {}::{}", w.entry, w.module, w.name);
+    }
+    ExitCode::SUCCESS
+}
+
+fn catalogue_check_cmd<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    report_file: Option<&String>,
+) -> ExitCode
+where
+    PB::ProtocolTypes: 'static,
+{
+    let vendors = crate::catalogue::bundled_vendors(put_registry);
+    let vendors: Vec<&str> = vendors.iter().map(String::as_str).collect();
+    let report = match crate::catalogue::check(put_registry, &vendors) {
+        Ok(report) => report,
+        Err(e) => {
+            log::error!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    for problem in &report.problems {
+        println!("problem: {problem}");
+    }
+    for result in &report.results {
+        println!("{}: {result}", result.verdict);
+    }
+    for (case, reason) in &report.skipped {
+        println!(
+            "skipped: {} {} on {}: {reason}",
+            case.entry, case.witness, case.put
+        );
+    }
+    println!("\n{}", report.matrix());
+
+    if let Some(file) = report_file {
+        let written = serde_json::to_string_pretty(&report)
+            .map_err(|e| e.to_string())
+            .and_then(|json| fs::write(file, json).map_err(|e| e.to_string()));
+        if let Err(e) = written {
+            log::error!("cannot write the report to {file}: {e}");
+            return ExitCode::FAILURE;
+        }
+    }
+    if report.problems.is_empty() && report.failures().next().is_none() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 

@@ -59,6 +59,10 @@ chrono = { workspace = true }
 cfg-if = { workspace = true }
 itertools = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
+linkme = "0.3"
+libtest-mimic = "0.8"
+puffin-macros = { path = "../puffin-macros" }
 nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
 comparable = { workspace = true, features = ["derive"] }

@@ -163,4 +163,11 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn rng_reseed(&self) {
         log::warn!("[RNG] reseed failed ({}): not supported", self.name());
     }
+
+    /// What the PUT knows about the vulnerability catalogue: the state of every entry in its
+    /// library and the library's instrumentation (`None` for PUTs outside the catalogue, e.g.
+    /// TCP).
+    fn catalogue(&self) -> Option<crate::catalogue::PutCatalogue> {
+        None
+    }
 }
