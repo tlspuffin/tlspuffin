@@ -798,6 +798,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
         vec![
             ("default", crate::tls::seeds::create_corpus),
+            ("extra", crate::tls::seeds::create_extra_corpus),
             (
                 "differential_rfc",
                 crate::tls::differential_rfc_violations::create_corpus,
@@ -814,5 +815,88 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         try_read_bytes(bitstring, ty)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The files whose public functions returning a trace are seeds, by module.
+    const SEED_FILES: [(&str, &str); 3] = [
+        ("seeds", include_str!("tls/seeds.rs")),
+        ("vulnerabilities", include_str!("tls/vulnerabilities.rs")),
+        (
+            "differential_rfc_violations",
+            include_str!("tls/differential_rfc_violations.rs"),
+        ),
+    ];
+
+    /// The `pub fn` items of `source` that are code, not comments (as `// pub fn seed_heartbleed`):
+    /// name, signature (up to the body) and offset.
+    fn public_functions(source: &str) -> Vec<(&str, &str, usize)> {
+        let mut functions = vec![];
+        let (mut offset, mut in_block_comment) = (0, false);
+        for line in source.split_inclusive('\n') {
+            let code = line.trim_start();
+            if in_block_comment {
+                in_block_comment = !line.contains("*/");
+            } else if !code.starts_with("//") && code.contains("/*") {
+                in_block_comment = !code[code.find("/*").unwrap()..].contains("*/");
+            } else if code.starts_with("pub fn ") {
+                let at = offset + line.len() - code.len();
+                let rest = &source[at + "pub fn ".len()..];
+                let name_end = rest.find(|c: char| !(c.is_alphanumeric() || c == '_'));
+                if let (Some(name_end), Some(body)) = (name_end, rest.find('{')) {
+                    functions.push((&rest[..name_end], &rest[..body], at));
+                }
+            }
+            offset += line.len();
+        }
+        functions
+    }
+
+    /// `seed -c all` and `experiment -c all` bring every corpus of `corpus_registry`: every seed
+    /// that tlspuffin defines (a public function of the seed files returning a TLS trace) must be
+    /// in the `corpus!` list of a registered builder, or no campaign can start from it.
+    #[test]
+    fn test_every_seed_is_in_a_registered_corpus() {
+        let registry = include_str!("protocol.rs");
+        let registry = &registry[registry.find("fn corpus_registry()").unwrap()..];
+        let registry = &registry[..registry.find("\n    }\n").unwrap()];
+        let mut missing = vec![];
+        for (module, source) in SEED_FILES {
+            let functions = public_functions(source);
+            let mut listed = std::collections::HashSet::new();
+            for (at, _) in source.match_indices("puffin::corpus!(") {
+                let builder = functions
+                    .iter()
+                    .rev()
+                    .find(|(_, _, start)| *start < at)
+                    .map(|(name, _, _)| *name)
+                    .unwrap();
+                if !registry.contains(&format!("crate::tls::{module}::{builder}")) {
+                    continue;
+                }
+                let block = &source[at + "puffin::corpus!(".len()..];
+                for line in block[..block.find("\n    )").unwrap()].lines() {
+                    let line = line.trim();
+                    if line.starts_with("//") {
+                        continue;
+                    }
+                    if let Some((name, _)) = line.split_once(':') {
+                        listed.insert(name.trim());
+                    }
+                }
+            }
+            for (name, signature, _) in &functions {
+                if signature.contains("-> Trace<TLSProtocolTypes>") && !listed.contains(name) {
+                    missing.push(format!("{module}::{name}"));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "seeds in no registered corpus, so not in `-c all`: {}",
+            missing.join(", ")
+        );
     }
 }
