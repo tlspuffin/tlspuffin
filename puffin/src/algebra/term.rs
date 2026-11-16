@@ -93,7 +93,8 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                         EVAL_ERR_FN_UNKNOWN.increment();
                     }
                     Error::Fn(FnError::Codec(_fne)) => {
-                        log::warn!("[evaluate_config_wrap]  FnError::Codec Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        // frequent during fuzzing (e.g. mutated key shares that do not parse)
+                        log::debug!("[evaluate_config_wrap]  FnError::Codec Error on\n{}\n[==>] Causes: {:?}", &self, &e);
                         EVAL_ERR_FN_CODEC.increment();
                     }
                     Error::Term(te) => {
