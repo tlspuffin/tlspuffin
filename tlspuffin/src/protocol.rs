@@ -346,6 +346,14 @@ pub struct TLSDescriptorConfig {
     /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
     /// If `None`, use the default PUT signature algorithms.
     pub sigalgs: Option<String>,
+    /// If agent is a server: use the X9.146 dual-algorithm certificate `ALICE_DUAL_ALG_CERT`
+    /// (same key as the default certificate, plus an ML-DSA-44 alternative key) and load its
+    /// alternative private key. Needs a PUT with `dual_alg_certs_support`; servers only handle the
+    /// CKS extension with an alternative key.
+    /// If agent is a client: not supported.
+    ///
+    /// Default: false
+    pub dual_alg_cert: bool,
 }
 
 impl TLSDescriptorConfig {
@@ -632,6 +640,7 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
             sigalgs: None,
+            dual_alg_cert: false,
         }
     }
 }

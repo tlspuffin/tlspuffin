@@ -631,6 +631,12 @@ static SSL_CTX *configure_common(const TLS_AGENT_DESCRIPTOR *descriptor)
 
 AGENT boringssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
+    if (descriptor->alt_pkey != NULL)
+    {
+        _log(PUFFIN.error, "alternative private keys (dual-algorithm certificates) are not supported");
+        return NULL;
+    }
+
     if (descriptor->role == CLIENT)
     {
         return boringssl_create_client(descriptor);

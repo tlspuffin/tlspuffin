@@ -6,6 +6,9 @@
 #                             an ML-DSA-44 public key in the subjectAltPublicKeyInfo extension
 #                             (2.5.29.72). No alternative signature extensions (2.5.29.73/74), so
 #                             wolfSSL does not check an alternative signature on it.
+#   alice-dual-alg-alt-key.der  the matching ML-DSA-44 private key (alternative key of the
+#                             certificate): wolfSSL's certs/mldsa/mldsa44_seed-priv.der, a format
+#                             wolfSSL 5.8.2 to 5.9.x all load.
 #
 # Usage: generate-dual-alg.sh <wolfSSL vendor dir built with dual_alg_certs (ML-DSA)>
 #   e.g. generate-dual-alg.sh ../../vendor/wolfssl590-asan-dualalg
@@ -22,6 +25,8 @@ trap 'rm -rf "$T"' EXIT
 clang -fsanitize=address -I"$V/include" gen/mldsa_export.c "$V/lib/libwolfssl.a" -lm -lpthread -o "$T/mldsa_export"
 ASAN_OPTIONS=detect_leaks=0 "$T/mldsa_export" "$V/src/vendor/certs/mldsa/mldsa44_seed-priv.der" \
     "$T/mldsa44-spki.der" "$T/mldsa44-priv.der"
+
+cp "$V/src/vendor/certs/mldsa/mldsa44_seed-priv.der" alice-dual-alg-alt-key.der
 
 # 2. Certificate: alice-key.pem issued by alice.pem, with the ML-DSA-44 key as alternative key.
 #    Fixed serial and dates (same validity start as alice.pem) so the output is reproducible.

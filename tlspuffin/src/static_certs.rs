@@ -70,3 +70,8 @@ pub const ALICE_DUAL_ALG_CERT: PEMDER = (
     include_str!("../assets/alice-dual-alg.pem"),
     include_bytes!("../assets/alice-dual-alg.der"),
 );
+
+/// ML-DSA-44 private key (DER) matching the alternative public key of [`ALICE_DUAL_ALG_CERT`]
+/// (wolfSSL's `certs/mldsa/mldsa44_seed-priv.der`). Copied by `assets/generate-dual-alg.sh`.
+pub const ALICE_DUAL_ALG_ALT_PRIVATE_KEY_DER: &[u8] =
+    include_bytes!("../assets/alice-dual-alg-alt-key.der");

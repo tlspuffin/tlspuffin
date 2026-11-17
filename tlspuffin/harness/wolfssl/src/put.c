@@ -1459,6 +1459,31 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             snprintf(error_msg, 128, "wolfssl use private key failed: %d", int_retval);
             goto ERROR__wolfssl_create_agent;
         }
+
+        if (descriptor->alt_pkey != NULL)
+        {
+#ifdef WOLFSSL_DUAL_ALG_CERTS
+            // Alternative private key of an X9.146 dual-algorithm certificate. Among others, a
+            // server only handles the CKS extension when it has one.
+            int_retval = wolfSSL_CTX_use_AltPrivateKey_buffer(agent->ctx,
+                                                              descriptor->alt_pkey->bytes,
+                                                              descriptor->alt_pkey->length,
+                                                              SSL_FILETYPE_ASN1);
+            if (int_retval != WOLFSSL_SUCCESS)
+            {
+                snprintf(error_msg, 128, "wolfssl use alternative private key failed: %d", int_retval);
+                goto ERROR__wolfssl_create_agent;
+            }
+#else
+            snprintf(error_msg, 128, "alternative private keys need wolfSSL with dual-alg certs");
+            goto ERROR__wolfssl_create_agent;
+#endif
+        }
+    }
+    else if (descriptor->alt_pkey != NULL)
+    {
+        snprintf(error_msg, 128, "alternative private key given to an agent without certificate");
+        goto ERROR__wolfssl_create_agent;
     }
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05000000

@@ -45,6 +45,11 @@ extern "C"
 
         const PEM *cert;
         const PEM *pkey;
+        /*
+         * Alternative private key (DER) for an X9.146 dual-algorithm <cert>, or NULL. PUTs without
+         * dual-algorithm certificate support must refuse to create an agent when it is set.
+         */
+        const PEM *alt_pkey;
 
         const PEM *const *const store;
         const size_t store_length;

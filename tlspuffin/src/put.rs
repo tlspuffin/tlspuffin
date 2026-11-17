@@ -23,7 +23,10 @@ use crate::protocol::{
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_DUAL_ALG_ALT_PRIVATE_KEY_DER, ALICE_DUAL_ALG_CERT, ALICE_PRIVATE_KEY, BOB_CERT,
+    BOB_PRIVATE_KEY, EVE_CERT,
+};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 
 /// Static configuration for creating a new agent state for the PUT
@@ -176,8 +179,22 @@ macro_rules! r_ccall {
 
 impl CAgent {
     fn new(put: &CPut, config: TlsPutConfig) -> Result<Self, Error> {
-        let server_cert = pem!(ALICE_CERT);
+        let dual_alg_cert = config.descriptor.protocol_config.dual_alg_cert;
+        if dual_alg_cert && config.descriptor.protocol_config.typ == AgentType::Client {
+            return Err(Error::Put(
+                "dual_alg_cert is only supported for servers".to_owned(),
+            ));
+        }
+        let server_cert = if dual_alg_cert {
+            pem!(ALICE_DUAL_ALG_CERT)
+        } else {
+            pem!(ALICE_CERT)
+        };
         let server_pkey = pem!(ALICE_PRIVATE_KEY);
+        let server_alt_pkey = PEM {
+            bytes: ALICE_DUAL_ALG_ALT_PRIVATE_KEY_DER.as_ptr(),
+            length: ALICE_DUAL_ALG_ALT_PRIVATE_KEY_DER.len(),
+        };
         let client_cert = pem!(BOB_CERT);
         let client_pkey = pem!(BOB_PRIVATE_KEY);
         let other_cert = pem!(EVE_CERT);
@@ -208,6 +225,11 @@ impl CAgent {
                 &config,
                 &server_cert,
                 &server_pkey,
+                if dual_alg_cert {
+                    &server_alt_pkey
+                } else {
+                    std::ptr::null()
+                },
                 &server_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
@@ -219,6 +241,7 @@ impl CAgent {
                 &config,
                 &client_cert,
                 &client_pkey,
+                std::ptr::null(),
                 &client_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
@@ -391,6 +414,7 @@ fn make_descriptor(
     config: &TlsPutConfig,
     cert: *const PEM,
     pkey: *const PEM,
+    alt_pkey: *const PEM,
     store: &[*const PEM],
     ciphers_tls13: &CString,
     ciphers_tls12: &CString,
@@ -433,6 +457,7 @@ fn make_descriptor(
 
         cert,
         pkey,
+        alt_pkey,
 
         store: store.as_ptr(),
         store_length: store.len() as libc::size_t,
