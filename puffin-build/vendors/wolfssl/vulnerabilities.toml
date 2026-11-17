@@ -199,3 +199,28 @@ by_puffin = false
 versions = ">= 4.4.0, < 4.7.0"
 files = ["patches/fix-CVE-2021-3336.patch"]
 upstream = "fad1e67677bf7797b6bd6e1f21a513c289d963a7"
+
+# No CVE: wolfSSL acknowledged the bug (ticket #22010), fixed it in 5.9.4 (pull request #10755) and assigned none, as no
+# trust boundary is crossed inside wolfSSL itself: the impact is in its OpenSSL compatibility API and in the applications
+# that identify a peer by its certificate's DER or digest (e.g. a ban by certificate fingerprint, evaded). The harness
+# claims the peer certificate from wolfSSL_i2d_X509, so the security oracle sees an identity other than the honest one:
+# "Authentication bypass". Found by tlspuffin with bit-level mutations (--with-bit).
+[WOLFSSL-PR10755]
+alias = "CERTTAIL"
+summary = "a certificate followed by bytes after its DER SEQUENCE is accepted, and the OpenSSL compatibility API (wolfSSL_i2d_X509, wolfSSL_X509_get_der, wolfSSL_X509_digest) returns or hashes them with it: one key and certificate give unlimited certificate identities of an authenticated peer"
+category = "auth-bypass"
+cwe = "CWE-295"
+no_cvss = "no CVE: wolfSSL assigned none (ticket #22010), so neither NVD nor a CNA scores it"
+affected = "< 5.9.4"
+capabilities = ["tls13", "client_authentication_transcript_extraction"]
+oracle = { kind = "claim", violation = "Authentication bypass" }
+references = ["https://github.com/wolfSSL/wolfssl/pull/10755"]
+
+[WOLFSSL-PR10755.find]
+by_puffin = true
+flags = ["--with-bit"]
+
+[[WOLFSSL-PR10755.patches]]
+versions = ">= 5.8.4, < 5.9.4"
+files = ["patches/fix-WOLFSSL-PR10755.patch"]
+upstream = "https://github.com/wolfSSL/wolfssl/pull/10755"

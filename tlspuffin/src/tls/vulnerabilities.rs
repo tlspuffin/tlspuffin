@@ -2,7 +2,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
-use puffin::algebra::Term;
+use puffin::algebra::{DYTerm, Term};
 use puffin::catalogue::WitnessRun;
 use puffin::outcome::Execution;
 use puffin::put_registry::Factory;
@@ -1911,6 +1911,53 @@ pub fn seed_cve_2023_6936(server: AgentName) -> Trace<TLSProtocolTypes> {
         }],
         ..Default::default()
     }
+}
+
+/// The first sub-term of `term` (depth first) that applies the function named `name`
+fn find_application_mut<'a>(
+    term: &'a mut Term<TLSProtocolTypes>,
+    name: &str,
+) -> Option<&'a mut Term<TLSProtocolTypes>> {
+    let found = matches!(&term.term, DYTerm::Application(func, _) if func.name() == name);
+    if found {
+        return Some(term);
+    }
+    match &mut term.term {
+        DYTerm::Application(_, subterms) => subterms
+            .iter_mut()
+            .find_map(|subterm| find_application_mut(subterm, name)),
+        DYTerm::Variable(_) => None,
+    }
+}
+
+/// wolfSSL before 5.9.4 accepts a certificate followed by bytes after its DER SEQUENCE, and its
+/// X.509 API returns them with it (`wolfSSL_i2d_X509`, from which the harness claims the peer
+/// certificate): one key and certificate give unlimited certificate identities. No CVE, see
+/// <https://github.com/wolfSSL/wolfssl/pull/10755>.
+///
+/// The honest client of [`seed_client_attacker_auth`] as the bit-level mutations make it:
+/// `MakeMessage` on its certificate (`fn_bob_cert`), `BytesLargeExpandMutator` at the end of that
+/// payload (2^5 bytes, its smallest expansion: zeros at the end) and `ReadMessage` on the
+/// certificate, which reads the payload back as the certificate. Its CertificateEntry then carries
+/// bob's certificate and 32 bytes after it, signed for by bob's key.
+#[puffin::witness("WOLFSSL-PR10755")]
+pub fn witness_wolfssl_pr10755(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let mut trace = seed_client_attacker_auth(server);
+    let symbol = term! { fn_bob_cert };
+    let DYTerm::Application(bob_cert, _) = &symbol.term else {
+        unreachable!("a function symbol");
+    };
+    let payload = [fn_bob_cert().expect("bob's certificate"), vec![0; 1 << 5]].concat();
+    let certificate = trace
+        .steps
+        .iter_mut()
+        .find_map(|step| match &mut step.action {
+            Action::Input(input) => find_application_mut(&mut input.recipe, bob_cert.name()),
+            Action::Output(_) => None,
+        })
+        .expect("the certificate of seed_client_attacker_auth");
+    certificate.add_payload_readable(payload);
+    trace
 }
 
 #[cfg(test)]
