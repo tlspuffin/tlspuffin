@@ -28,6 +28,8 @@ pub fn create_corpus(
         seed_cve_2022_25638: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_cve_2022_25640: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_cve_2022_25640_simple: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        // The same client authentication, the certificate followed by bytes (a payload, as bit-level mutations make it).
+        witness_wolfssl_pr10755: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
 
         // TLS 1.2 only, no resumption, no client authentication.
         seed_cve_2021_3449: put.supports("tls12"),
