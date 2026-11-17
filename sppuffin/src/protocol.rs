@@ -10,7 +10,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::algebra::AnyMatcher;
 use puffin::define_signature;
 use puffin::error::Error as PuffinError;
-use puffin::protocol::ProtocolTypes;
+use puffin::protocol::{CorpusBuilder, ProtocolTypes};
 use puffin::trace::Knowledge;
 use puffin::trace::Source;
 use puffin::trace::Trace;
@@ -329,14 +329,6 @@ impl puffin::claims::SecurityViolationPolicy for SwissSecurityViolationPolicy {
     }
 }
 
-fn create_swiss_corpus(
-    _factory: &dyn puffin::put_registry::Factory<SwissProtocolBehavior>,
-) -> Vec<(Trace<SwissProtocolTypes>, &'static str)> {
-    println!("Creating corpus for SwissProtocolBehavior");
-    let trace = seed_simple_three_terms();
-    vec![(trace, "initial-seed")]
-}
-
 impl puffin::protocol::ProtocolBehavior for SwissProtocolBehavior {
     type Claim = SwissClaim;
     type OpaqueProtocolMessage = SwissOpaqueMessage;
@@ -346,10 +338,12 @@ impl puffin::protocol::ProtocolBehavior for SwissProtocolBehavior {
     type ProtocolTypes = SwissProtocolTypes;
     type SecurityViolationPolicy = SwissSecurityViolationPolicy;
 
-    fn corpus_registry() -> Vec<(&'static str, puffin::protocol::CorpusBuilder<Self>)> {
-        vec![("default", create_swiss_corpus)]
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        vec![(
+            "default",
+            (|_| vec![(seed_simple_three_terms(), "initial-seed")]) as CorpusBuilder<Self>,
+        )]
     }
-
 
     fn try_read_bytes(
         _bitstring: &[u8],
