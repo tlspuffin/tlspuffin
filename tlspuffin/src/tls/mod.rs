@@ -193,6 +193,7 @@ define_signature!(
     fn_transport_parameters_draft_extension
     fn_transport_parameters_draft_server_extension
     fn_cks_both_server_extension
+    fn_cks_both_client_extension
     fn_unknown_client_extension
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension

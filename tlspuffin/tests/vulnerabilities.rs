@@ -704,6 +704,45 @@ fn test_seed_cve_2025_11933_fixed(put: &str) {
     }
 }
 
+// Server side of CVE-2025-11933 (the path named by the CVE): malicious ClientHello, server with a
+// dual-algorithm certificate and its alternative key.
+#[apply(test_puts,
+    filter = all(
+        CVE_2025_11933,
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2025_11933_server(put: &str) {
+    let report = tlspuffin::test_utils::trace_leak_report(
+        &seed_cve_2025_11933_server.build_trace(),
+        &default_runner_for(put),
+    )
+    .expect("expected the trace to leak memory");
+    assert!(
+        report.contains("TLSX_CKS_Parse"),
+        "the leak does not come from TLSX_CKS_Parse:\n{report}"
+    );
+}
+
+#[apply(test_puts,
+    filter = all(
+        not(CVE_2025_11933),
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_cve_2025_11933_server_fixed(put: &str) {
+    if let Some(report) = tlspuffin::test_utils::trace_leak_report(
+        &seed_cve_2025_11933_server.build_trace(),
+        &default_runner_for(put),
+    ) {
+        panic!("trace leaked on a PUT where CVE-2025-11933 is fixed:\n{report}");
+    }
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {

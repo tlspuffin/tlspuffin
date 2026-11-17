@@ -47,6 +47,8 @@ pub fn create_corpus(
         seed_cve_2026_5393: put.supports("tls13") && put.supports("dual_alg_certs_support"),
         // Malicious server: duplicate CKS extensions (needs PUT support).
         seed_cve_2025_11933: put.supports("tls13") && put.supports("dual_alg_certs_support"),
+        // Malicious client: duplicate CKS extensions, server with a dual-algorithm certificate.
+        seed_cve_2025_11933_server: put.supports("tls13") && put.supports("dual_alg_certs_support"),
     )
 }
 
@@ -1855,6 +1857,91 @@ pub fn seed_cve_2025_11933(client: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
+    }
+}
+
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2025-11933>, server side: the path named by the CVE.
+///
+/// Same bug as [`seed_cve_2025_11933`] (each duplicate CKS extension leaks the previous copy of
+/// `ssl->peerSigSpec` in `TLSX_CKS_Parse`), triggered by a malicious client: a ClientHello with two
+/// CKS extensions ([`fn_cks_both_client_extension`]).
+///
+/// Reachability: a server only copies the CKS extension when it has an alternative private key,
+/// so the server uses the dual-algorithm certificate and its ML-DSA-44 alternative key
+/// (`dual_alg_cert` in its descriptor). It has no CKS preference of its own, so it adopts the
+/// first extension; the second one matches it and the first copy is lost when the server is freed.
+/// The leak happens while the ClientHello is parsed: nothing else from the client is needed.
+pub fn seed_cve_2025_11933_server(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
+                            )),
+                            (fn_key_share_extension_make(
+                                (fn_key_share_extension_append(
+                                    fn_key_share_extension_new,
+                                    (fn_key_share_deterministic(fn_named_group_secp384r1))
+                                ))
+                            ))
+                        )),
+                        fn_supported_versions13_extension
+                    )),
+                    // The same CKS extension twice
+                    fn_cks_both_client_extension
+                )),
+                fn_cks_both_client_extension
+            ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                dual_alg_cert: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![Step {
+            agent: server,
+            action: Action::Input(input_action! { client_hello }),
+        }],
         ..Default::default()
     }
 }

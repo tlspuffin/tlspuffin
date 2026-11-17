@@ -699,6 +699,16 @@ pub fn fn_cks_both_server_extension() -> Result<ServerExtension, FnError> {
     }))
 }
 
+/// CKS ("Certificate Key Selection", X9.146) client extension (0xff92, sent in ClientHello)
+/// asking for both the native and the alternative signatures (sigSpec 0x03). The body is the raw
+/// list of sigSpec values, as in [`fn_cks_both_server_extension`].
+pub fn fn_cks_both_client_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFF92),
+        payload: Payload::new([0x03]),
+    }))
+}
+
 // Unknown extensions
 
 pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {
