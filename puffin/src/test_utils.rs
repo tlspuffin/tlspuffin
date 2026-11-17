@@ -127,6 +127,7 @@ macro_rules! test_puts {
         #[expand_cfg($putstr, $filter)]
         #[test_log::test]
         $( #[$attr] )*
+        #[allow(non_snake_case)]
         fn $put() {
             $func($putstr);
         }

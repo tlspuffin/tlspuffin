@@ -2,6 +2,7 @@ mod error;
 
 pub use error::{Error, Result};
 
+pub mod catalogue;
 pub mod harness;
 pub mod library;
 pub mod vendor_dir;
