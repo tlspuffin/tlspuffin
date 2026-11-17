@@ -1564,10 +1564,10 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
 /// position against the signature field length. A crafted first length makes the second 2-byte
 /// read land up to ~64 KiB past the message.
 ///
-/// Versions: the CVE lists all versions < 5.9.1, but before 5.9.0 the vulnerable code is
-/// unreachable: every CertificateVerify first had to use a signature algorithm from the receiver's
-/// own list, which never contains the hybrid codes required for "both". 5.9.0 skips that check
-/// for "both".
+/// Versions: the CVE lists all versions < 5.9.1, but in 5.8.4 the vulnerable code is unreachable:
+/// every CertificateVerify first had to use a signature algorithm from the receiver's own list,
+/// which never contains the hybrid codes required for "both". That check is absent before 5.8.4
+/// (the trace also crashes 5.8.2), and 5.9.0 skips it for "both".
 ///
 /// Reachability (malicious server, default client except for the build flags and a classical
 /// group list, see the descriptor below):

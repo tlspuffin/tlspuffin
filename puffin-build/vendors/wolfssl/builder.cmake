@@ -30,10 +30,12 @@ endif()
 
 # Only reachable when dual-algorithm certificates are compiled in (the vulnerable code in
 # DoTls13CertificateVerify is behind WOLFSSL_DUAL_ALG_CERTS, off by default in wolfSSL).
-# The code is present before 5.9.0 too, but unreachable there: every CertificateVerify first had to
-# use a signature algorithm from the receiver's own list, which never contains the hybrid
-# (dual-algorithm) codes. 5.9.0 skips that check for "both" signatures; 5.9.1 adds the bounds checks.
-if(dual_alg_certs AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.9.0" AND VENDOR_VERSION VERSION_LESS "5.9.1")
+# 5.8.4 made it unreachable: every CertificateVerify first had to use a signature algorithm from the
+# receiver's own list, which never contains the hybrid (dual-algorithm) codes. That check was not
+# there before 5.8.4 (5.8.3 was never released); 5.9.0 skips it for "both" signatures; 5.9.1 adds
+# the bounds checks.
+if(dual_alg_certs AND (VENDOR_VERSION VERSION_LESS "5.8.4"
+    OR (VENDOR_VERSION VERSION_GREATER_EQUAL "5.9.0" AND VENDOR_VERSION VERSION_LESS "5.9.1")))
   declare_vulnerability("CVE-2026-5393")
 endif()
 
