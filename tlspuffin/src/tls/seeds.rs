@@ -1465,6 +1465,128 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// Happy flow against a server with an X9.146 dual-algorithm certificate: like
+/// [`seed_client_attacker`], with a server using `dual_alg_cert` (certificate with an ML-DSA-44
+/// alternative key, and that key loaded) and a ClientHello asking for both signatures, as a
+/// dual-algorithm client would: one CKS extension ([`fn_cks_both_client_extension`]) and the hybrid
+/// scheme RSA-PSS + ML-DSA-44 in `signature_algorithms`. The server answers with a CKS extension
+/// and signs its CertificateVerify with both keys.
+///
+/// Mutations never change agent descriptors, so this seed is what gives campaigns a server that
+/// handles the CKS extension at all.
+pub fn seed_client_attacker_dual_alg(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        fn_supported_signature_schemes_extension_new,
+                                        fn_sig_scheme_rsa_pkcs1_sha256
+                                    )),
+                                    fn_sig_scheme_rsa_pss_sha256
+                                )),
+                                fn_sig_scheme_hybrid_rsa_pss_mldsa44
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
+                )),
+                fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                fn_cks_both_client_extension
+            ))
+        )))
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                dual_alg_cert: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
+
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker12(server).0
 }
@@ -2779,6 +2901,7 @@ pub fn create_corpus(
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: put.supports("tls12"),
+        seed_client_attacker_dual_alg: put.supports("tls13") && put.supports("dual_alg_certs_support"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
@@ -2831,6 +2954,28 @@ pub mod tests {
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, dual_alg_certs_support))]
+    fn test_seed_client_attacker_dual_alg(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_client_attacker_dual_alg.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    /// The dual-algorithm happy flow has a single CKS extension: it must not leak, even where
+    /// CVE-2025-11933 (duplicate CKS extensions) is present.
+    #[apply(test_puts, filter = all(tls13, dual_alg_certs_support, asan))]
+    fn test_seed_client_attacker_dual_alg_no_leak(put: &str) {
+        if let Some(report) = crate::test_utils::trace_leak_report(
+            &seed_client_attacker_dual_alg.build_trace(),
+            &default_runner_for(put),
+        ) {
+            panic!("the dual-algorithm happy flow leaked:\n{report}");
+        }
     }
 
     #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction))]
