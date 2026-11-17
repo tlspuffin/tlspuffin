@@ -1,4 +1,5 @@
 pub mod asan;
+pub mod lsan;
 
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov"))]
 compile_error!("`sancov_pcguard_log` and `sancov` features are mutually exclusive.");

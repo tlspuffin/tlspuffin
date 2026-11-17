@@ -91,17 +91,17 @@ pub fn expect_trace_crash(
 /// Environment variable marking the child process started by [`trace_leak_report`].
 const LEAK_CHECK_CHILD_ENV: &str = "TLSPUFFIN_LEAK_CHECK_CHILD";
 
-/// LeakSanitizer exit code (ASan/LSan default `exitcode`) when a leak is found at exit.
-const LSAN_EXIT_CODE: i32 = 23;
+/// Exit code of the child process started by [`trace_leak_report`] when the trace leaked.
+const LEAKED_EXIT_CODE: i32 = 23;
 
-/// Executes `trace` with LeakSanitizer enabled and returns its leak report, or `None` if the trace
-/// leaked nothing.
+/// Executes `trace` with the fuzzer's leak detection (`--detect-leaks`, see
+/// [`puffin::fuzzer::sanitizer::lsan`]) and returns the LeakSanitizer report, or `None` if the
+/// trace leaked nothing.
 ///
-/// tlspuffin runs with `detect_leaks=0` (see `.cargo/config.toml`), and ASan only reads its options
-/// at process start. So this function re-runs the calling test in a child copy of the test binary
-/// with `detect_leaks=1`: in the child, the same call executes the trace, frees it, and exits,
-/// which makes LeakSanitizer check for unreachable allocations. Only the trace's own allocations
-/// can be reported, everything else is still reachable when the child exits.
+/// tlspuffin tests run with `detect_leaks=0` (see `.cargo/config.toml`), and ASan only reads its
+/// options at process start. So this function re-runs the calling test in a child copy of the test
+/// binary with the leak detection ASan options; in the child, the same call executes the trace
+/// with [`check_leaks`](puffin::fuzzer::sanitizer::lsan::check_leaks), as the fuzzer harness does.
 ///
 /// Must be called from a test running in its own thread (the default for `cargo test`), since the
 /// test name is taken from the thread name. Requires a PUT built with ASan.
@@ -109,13 +109,18 @@ pub fn trace_leak_report(
     trace: &Trace<TLSProtocolTypes>,
     runner: &Runner<TLSProtocolBehavior>,
 ) -> Option<String> {
+    use puffin::fuzzer::sanitizer::lsan;
+
     if std::env::var_os(LEAK_CHECK_CHILD_ENV).is_some() {
+        lsan::enable_leak_detection(&std::env::var("ASAN_OPTIONS").unwrap_or_default())
+            .expect("failed to enable leak detection");
         // A trace error does not matter here: what the trace leaked until then is still reported.
-        match runner.execute(trace, &mut 0) {
+        let ((), leaked) = lsan::check_leaks(|| match runner.execute(trace, &mut 0) {
             Ok(ctx) => drop(ctx),
             Err(e) => log::info!("trace execution error: {e}"),
-        }
-        std::process::exit(0);
+        });
+        // LeakSanitizer printed its report to stderr
+        std::process::exit(if leaked { LEAKED_EXIT_CODE } else { 0 });
     }
 
     let test_name = std::thread::current()
@@ -124,18 +129,8 @@ pub fn trace_leak_report(
         .expect("trace_leak_report must run in a test thread named after the test")
         .to_owned();
 
-    let asan_options = std::env::var("ASAN_OPTIONS")
-        .unwrap_or_default()
-        .split(':')
-        .filter(|opt| {
-            !opt.is_empty()
-                && !["detect_leaks=", "abort_on_error=", "exitcode="]
-                    .iter()
-                    .any(|key| opt.starts_with(key))
-        })
-        // Exit with LSAN_EXIT_CODE on a leak instead of aborting, to tell leaks from crashes.
-        .chain(["detect_leaks=1", "abort_on_error=0", "exitcode=23"])
-        .join(":");
+    let asan_options =
+        lsan::leak_detection_asan_options(&std::env::var("ASAN_OPTIONS").unwrap_or_default());
 
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args([&test_name, "--exact", "--include-ignored", "--nocapture"])
@@ -146,7 +141,7 @@ pub fn trace_leak_report(
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     match output.status.code() {
-        Some(LSAN_EXIT_CODE) => Some(stderr),
+        Some(LEAKED_EXIT_CODE) => Some(stderr),
         Some(0) => None,
         status => panic!("leak-check child process failed ({status:?}):\n{stderr}"),
     }

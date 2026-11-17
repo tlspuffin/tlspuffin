@@ -17,6 +17,9 @@ use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::config::{FuzzerConfig, FuzzingTarget};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
+use crate::fuzzer::sanitizer::lsan::{
+    asan_options_detect_leaks, enable_leak_detection, leak_detection_asan_options,
+};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
@@ -52,6 +55,7 @@ where
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
+        .arg(arg!(--"detect-leaks" "Detect memory leaks in each trace execution with LeakSanitizer (needs ASan) and report them as objectives"))
         .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between writes per client (core) for stats.json and broker logs [default: 250]")
             .value_parser(value_parser!(u64).range(1..=3_600_000)))
         .subcommands(vec![
@@ -147,6 +151,23 @@ where
     // Parsing CLI arguments
     let matches = create_app(title).get_matches();
 
+    // LeakSanitizer reads its options once at process start (and the fuzzer forks its clients):
+    // restart the process with leak detection turned on if needed.
+    let startup_asan_options = env::var("ASAN_OPTIONS").unwrap_or_default();
+    let detect_leaks = matches.get_flag("detect-leaks");
+    if detect_leaks && !asan_options_detect_leaks(&startup_asan_options) {
+        use std::os::unix::process::CommandExt;
+
+        let asan_options = leak_detection_asan_options(&startup_asan_options);
+        eprintln!("--detect-leaks: restarting with ASAN_OPTIONS={asan_options}");
+        let err = std::process::Command::new(env::current_exe().unwrap())
+            .args(env::args_os().skip(1))
+            .env("ASAN_OPTIONS", asan_options)
+            .exec();
+        eprintln!("error: failed to restart with leak detection: {err}");
+        return ExitCode::FAILURE;
+    }
+
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
@@ -195,6 +216,14 @@ where
 
     asan_info();
     setup_asan_env();
+
+    if detect_leaks {
+        if let Err(err) = enable_leak_detection(&startup_asan_options) {
+            log::error!("--detect-leaks: {err}");
+            return ExitCode::FAILURE;
+        }
+        log::info!("Leak detection enabled: leaking traces are reported as objectives");
+    }
 
     // Set up config
     let mut config = FuzzerConfig {

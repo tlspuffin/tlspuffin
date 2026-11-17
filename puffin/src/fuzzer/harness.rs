@@ -6,6 +6,7 @@ use rand::Rng;
 use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
+use crate::fuzzer::sanitizer::lsan::{abort_on_leak, check_leaks};
 use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
@@ -54,7 +55,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         ),
     );
     let mut fail_at_step = 0;
-    match runner.execute(input, &mut fail_at_step) {
+    // The trace context (and its agents) is dropped inside the closure, before looking for leaks
+    let ((), leaked) = check_leaks(|| match runner.execute(input, &mut fail_at_step) {
         Ok(ctx) => {
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
@@ -66,6 +68,9 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             OBJECTIVE_TRIGGERED.set(true);
         }
         Err(_) => {}
+    });
+    if leaked {
+        abort_on_leak();
     }
 
     // Update FAIL_AT_STEP

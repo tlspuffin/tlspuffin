@@ -9,6 +9,7 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
+use crate::fuzzer::sanitizer::lsan::{abort_on_leak, check_leaks};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
@@ -130,13 +131,18 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
 
         run_in_subprocess(
             || {
-                let ret = match runner.execute_config(trace, config_trace, executed_until) {
-                    Ok(_) => 0,
-                    Err(e) => {
-                        log::info!("{}", e);
-                        1
+                let (ret, leaked) = check_leaks(|| {
+                    match runner.execute_config(trace, config_trace, executed_until) {
+                        Ok(_) => 0,
+                        Err(e) => {
+                            log::info!("{}", e);
+                            1
+                        }
                     }
-                };
+                });
+                if leaked {
+                    abort_on_leak();
+                }
 
                 std::process::exit(ret);
             },

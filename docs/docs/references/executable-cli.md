@@ -66,6 +66,7 @@ You can precede any command with `RUST_LOG=<info|debug|trace>` to get more logs.
 | `--tui`                | Display the fuzzing logs using the interactive terminal UI.                                                                    |
 | `--no-launcher`        | Do not use the convenient launcher.                                                                                            |
 | `--put-use-clear`      | Use the clearing functionality instead of recreating PUTs.                                                                     |
+| `--detect-leaks`       | Detect memory leaks in each trace execution with LeakSanitizer and save leaking traces as objectives. Needs a PUT built with ASan; restarts the process with `detect_leaks=1:leak_check_at_exit=0` added to `ASAN_OPTIONS`. Also applies to `execute`. |
 | `--stats-interval <n>` | Minimum milliseconds between writes per client (core) for `stats.json` and broker logs (default: `250`, range: `1..=3600000`). |
 | `-v, --verbosity <l>`  | Verbosity level for (quick) experiments (default: `Info`).                                                                     |
 
