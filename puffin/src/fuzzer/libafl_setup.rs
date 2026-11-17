@@ -20,7 +20,7 @@ use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
-use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
+use crate::log::{client_log_size, load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -560,6 +560,13 @@ where
     log::info!("Running on cores: {}", &core_definition);
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
+    // One client per core: each one logs to its own folder and rolls its own files
+    let clients = if *no_launcher {
+        1
+    } else {
+        Cores::from_cmdline(core_definition).map_or(1, |cores| launched_clients(&cores))
+    };
+
     let mut run_client = |state: Option<StdState<_, Trace<PB::ProtocolTypes>, _, _>>,
                           event_manager: LlmpRestartingEventManager<
         _,
@@ -568,12 +575,14 @@ where
         _,
         StdShMemProvider,
     >,
-                          _client_description: ClientDescription|
+                          client_description: ClientDescription|
      -> Result<(), Error> {
         if *is_experiment {
-            log_handle
-                .clone()
-                .set_config(set_experiment_fuzzing_client(log_folder, *verbosity));
+            log_handle.clone().set_config(set_experiment_fuzzing_client(
+                &log_folder.join(format!("client-{}", client_description.id())),
+                *verbosity,
+                client_log_size(clients),
+            ));
         } else {
             log_handle.clone().set_config(load_fuzzing_client());
         }
@@ -737,5 +746,27 @@ where
                 .build()
                 .launch()
         }
+    }
+}
+
+/// The clients the launcher spawns for `cores`: one per core of the machine they name (a core named
+/// twice, or one the machine lacks, spawns none more)
+fn launched_clients(cores: &Cores) -> usize {
+    get_core_ids().map_or(cores.ids.len(), |ids| {
+        ids.iter().filter(|id| cores.ids.contains(id)).count()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// As many clients as the launcher spawns: a core named twice counts once
+    #[test]
+    fn launched_clients_one_per_core() {
+        let clients = |spec: &str| launched_clients(&Cores::from_cmdline(spec).unwrap());
+        assert_eq!(clients("0"), 1);
+        assert_eq!(clients("0,0"), 1);
+        assert_eq!(clients("0-1"), get_core_ids().unwrap().len().min(2));
     }
 }
