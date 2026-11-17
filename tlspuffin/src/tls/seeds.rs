@@ -1467,11 +1467,11 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
 
 /// Happy flow against a server with an X9.146 dual-algorithm certificate: like
 /// [`seed_client_attacker`], with a server using `dual_alg_cert` (certificate with an ML-DSA-44
-/// alternative key, and that key loaded) and a ClientHello asking for both signatures, as a
-/// dual-algorithm client would: one CKS extension ([`fn_cks_both_client_extension`]) and the hybrid
-/// scheme RSA-PSS + ML-DSA-44 in `signature_algorithms`. The server answers with a CKS extension
-/// and signs its CertificateVerify with both keys.
+/// alternative key, and that key loaded) and the hybrid scheme RSA-PSS + ML-DSA-44 offered in
+/// `signature_algorithms`, as a dual-algorithm client would.
 ///
+/// The ClientHello has no CKS extension: the server's CKS handling (where e.g. CVE-2025-11933
+/// lies) is left for mutations to reach, with [`fn_cks_both_client_extension`] in the signature.
 /// Mutations never change agent descriptors, so this seed is what gives campaigns a server that
 /// handles the CKS extension at all.
 pub fn seed_client_attacker_dual_alg(server: AgentName) -> Trace<TLSProtocolTypes> {
@@ -1488,7 +1488,6 @@ pub fn seed_client_attacker_dual_alg(server: AgentName) -> Trace<TLSProtocolType
             fn_compressions,
             (fn_client_extensions_make(
             (fn_client_extensions_append(
-                (fn_client_extensions_append(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1524,8 +1523,6 @@ pub fn seed_client_attacker_dual_alg(server: AgentName) -> Trace<TLSProtocolType
                 fn_supported_versions13_extension
                 )),
                 fn_psk_exchange_mode_dhe_ke_extension
-                )),
-                fn_cks_both_client_extension
             ))
         )))
     };
@@ -2966,8 +2963,8 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    /// The dual-algorithm happy flow has a single CKS extension: it must not leak, even where
-    /// CVE-2025-11933 (duplicate CKS extensions) is present.
+    /// The dual-algorithm happy flow must not leak, even where CVE-2025-11933 (duplicate CKS
+    /// extensions) is present.
     #[apply(test_puts, filter = all(tls13, dual_alg_certs_support, asan))]
     fn test_seed_client_attacker_dual_alg_no_leak(put: &str) {
         if let Some(report) = crate::test_utils::trace_leak_report(
