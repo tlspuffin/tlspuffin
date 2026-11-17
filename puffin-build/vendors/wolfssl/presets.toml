@@ -37,6 +37,23 @@ sancov = true
 asan = true
 fix = ["AllowClaim"]
 
+[wolfssl582-asan-dualalg]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.2-stable", version = "5.8.2" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+dual_alg_certs = true
+fix = ["AllowClaim"]
+
+# Negative control for wolfssl582-asan-dualalg: CVE-2025-11933 is fixed upstream in 5.8.4
+[wolfssl584-asan-dualalg]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+dual_alg_certs = true
+fix = ["AllowClaim"]
+
 [wolfssl590-asan-dualalg]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.0-stable", version = "5.9.0" }
 builder = { type = "builtin", name = "wolfssl" }

@@ -37,6 +37,12 @@ if(dual_alg_certs AND VENDOR_VERSION VERSION_GREATER_EQUAL "5.9.0" AND VENDOR_VE
   declare_vulnerability("CVE-2026-5393")
 endif()
 
+# Duplicate CKS extensions were not rejected, and each one leaks the previous peer CKS buffer
+# (TLSX_CKS_Parse). The CKS extension only exists when dual-algorithm certificates are compiled in.
+if(dual_alg_certs AND VENDOR_VERSION VERSION_LESS "5.8.4")
+  declare_vulnerability("CVE-2025-11933")
+endif()
+
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
@@ -103,7 +109,9 @@ autotools_builder(
     # off (later flags take precedence).
     $<$<BOOL:${dual_alg_certs}>:--enable-experimental>
     $<$<BOOL:${dual_alg_certs}>:--enable-dual-alg-certs>
-    $<$<BOOL:${dual_alg_certs}>:--enable-mldsa>
+    # ML-DSA is called "dilithium" in configure before 5.8.4 (no --enable-mldsa there).
+    $<$<AND:$<BOOL:${dual_alg_certs}>,$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.8.4>>:--enable-mldsa>
+    $<$<AND:$<BOOL:${dual_alg_certs}>,$<VERSION_LESS:${VENDOR_VERSION},5.8.4>>:--enable-dilithium>
     $<$<BOOL:${dual_alg_certs}>:--enable-sha3>
     $<$<BOOL:${dual_alg_certs}>:--enable-shake128>
     $<$<BOOL:${dual_alg_certs}>:--enable-shake256>
