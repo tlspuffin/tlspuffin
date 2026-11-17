@@ -71,6 +71,14 @@ asan = true
 dual_alg_certs = true
 fix = ["AllowClaim"]
 
+[wolfssl594-asan-dualalg]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.9.4-stable", version = "5.9.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+dual_alg_certs = true
+fix = ["AllowClaim"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }
