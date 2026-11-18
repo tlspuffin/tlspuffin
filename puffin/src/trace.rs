@@ -51,6 +51,17 @@ pub struct Query<M> {
     pub source: Option<Source>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
+    /// When set, the query resolves to the CONCATENATION of *all* matching
+    /// knowledges (by source/type/matcher, in insertion order) rather than the
+    /// single `counter`-th one. The concatenation is generic: each match is
+    /// encoded and the bytes are re-read into the queried type via
+    /// `ProtocolBehavior::try_read_bytes`. This lets a protocol whose agent emits
+    /// its output across several per-step drains recover the whole stream as one
+    /// value (e.g. SSH's full server transcript), independent of how many drains
+    /// there happen to be. `#[serde(default)]` keeps pre-existing traces (without
+    /// the field) loadable — they deserialize to `false`.
+    #[serde(default)]
+    pub concatenate_all: bool,
 }
 
 impl<M: Matcher> fmt::Display for Query<M> {
@@ -552,6 +563,39 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             query
         );
         self.knowledge_store.find_variable(query_type_shape, query)
+    }
+
+    /// Resolve a `concatenate_all` query: gather every knowledge matching the
+    /// query's source / type / matcher (in insertion order), encode each, and
+    /// re-read the concatenated bytes into the queried type. Generic — no protocol
+    /// knowledge here: the merge is byte-level `encode` + `try_read_bytes`, so it
+    /// works for any type whose codec round-trips concatenation (e.g. an SSH
+    /// `RawSshMessageFlight`, whose deframer re-frames the joined drains back into
+    /// the same message list). Returns an OWNED value (the concatenation does not
+    /// exist as a stored knowledge to borrow).
+    pub fn find_variable_concat(
+        &self,
+        query_type_shape: TypeShape<PB::ProtocolTypes>,
+        query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
+    ) -> Option<Box<dyn EvaluatedTerm<PB::ProtocolTypes>>> {
+        let type_id: TypeId = query_type_shape.into();
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut found = false;
+        for knowledge in self
+            .knowledge_store
+            .knowledges()
+            .iter()
+            .filter(|raw| query.source.is_none() || query.source.as_ref().unwrap() == &raw.source)
+            .flatten()
+            .filter(|k| type_id == k.data.type_id() && k.matcher.matches(&query.matcher))
+        {
+            bytes.extend_from_slice(&PB::any_get_encoding(knowledge.data));
+            found = true;
+        }
+        if !found {
+            return None;
+        }
+        PB::try_read_bytes(&bytes, type_id).ok()
     }
 
     pub fn spawn(
