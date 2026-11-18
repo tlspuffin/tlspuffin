@@ -15,13 +15,11 @@ categories.workspace = true
 [features]
 default = ["sancov"]
 
-# Instrumentation: `sancov` is libafl's coverage feedback (puffin/sancov), `gcov` and `llvm_cov`
-# add their link flags. Each also sets that option of the vendors build.rs builds when the vendor
-# directory has none. There is no `asan` feature, as in tlspuffin: a PUT has ASan when its vendor
-# build does, and puffin-build then links the ASan runtime.
+# libafl's coverage feedback (puffin/sancov). Without it, the vendors build.rs builds when the vendor
+# directory has none are built without sancov. There are no `asan`, `gcov` or `llvm_cov` features,
+# as in tlspuffin: a PUT has the instrumentation of its vendor build, and puffin-build adds the link
+# flags it needs.
 sancov  = ["puffin/sancov"]
-gcov    = []
-llvm_cov = []
 
 [dependencies]
 puffin       = { path = "../puffin" }

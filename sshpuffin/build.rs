@@ -5,8 +5,11 @@
 //! 2. Finds every libssh and wolfSSH instance in the vendor directory and compiles the C harness
 //!    (`sshpuffin/harness/{libssh,wolfssh}/`) against each, bundling them via puffin-build
 //!    (`harness::bundle`).
-//! 3. Emits coverage linker flags when the corresponding features are active. A PUT has ASan when
-//!    its vendor build does; puffin-build then links the ASan runtime (as for tlspuffin).
+//! 3. Links the `atexit` shim of the profile runtime when a PUT's library has gcov or llvm_cov.
+//!
+//! A PUT has the instrumentation of its vendor build (ASan, gcov, llvm_cov), and puffin-build adds
+//! the link flags it needs, as for tlspuffin. The vendors this script builds when the vendor
+//! directory has none follow the vendors present (`fallback`).
 
 use std::path::PathBuf;
 
@@ -104,19 +107,18 @@ fn main() {
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=pthread");
 
-    // ── 3. Coverage linker flags ──────────────────────────────────────────
+    // ── 3. The atexit shim of the profile runtime ─────────────────────────
     //
-    // No ASan flags here: `bundle.print_cargo_metadata()` above links the ASan runtime when a
-    // PUT's library is ASan-instrumented.
-
-    if cfg!(feature = "gcov") {
-        println!("cargo:rustc-link-arg=-ftest-coverage");
-        println!("cargo:rustc-link-arg=-fprofile-arcs");
-        // The gcov/profile runtime references atexit, which glibc keeps in
-        // libc_nonshared.a — suppressed by rust's -nodefaultlibs. Compile a shim
-        // that provides atexit (via __cxa_atexit in libc.so) and link it, so the
-        // gcov build resolves instead of failing with "undefined reference to
-        // atexit".
+    // `bundle.print_cargo_metadata()` above adds the ASan and coverage link flags of each PUT's
+    // library. The profile runtime of gcov and llvm_cov (libclang_rt.profile) also references
+    // atexit, which glibc keeps in libc_nonshared.a — suppressed by rust's -nodefaultlibs. When a
+    // PUT's library has either, compile a shim that provides atexit (via __cxa_atexit in libc.so)
+    // and link it, so the build resolves instead of failing with "undefined reference to atexit".
+    if libssh_vendors
+        .iter()
+        .chain(wolfssh_vendors.iter())
+        .any(|lib| has_instrumentation(lib, "gcov") || has_instrumentation(lib, "llvm_cov"))
+    {
         let shim_src = project_dir.join("sshpuffin/harness/gcov_atexit_shim.c");
         let shim_obj = PathBuf::from(&out_dir).join("gcov_atexit_shim.o");
         let status = std::process::Command::new("clang")
@@ -128,11 +130,6 @@ fn main() {
         assert!(status.success(), "gcov atexit shim compile failed");
         println!("cargo:rustc-link-arg={}", shim_obj.display());
     }
-
-    if cfg!(feature = "llvm_cov") {
-        println!("cargo:rustc-link-arg=-fprofile-instr-generate");
-        println!("cargo:rustc-link-arg=-fcoverage-mapping");
-    }
 }
 
 const WOLFSSH_PRESET: &str = "wolfssh150";
@@ -143,13 +140,13 @@ const WOLFSSH_PRESET: &str = "wolfssh150";
 /// `wolfssh150` (version-carrying, like `libssh0114`); the vendor identity stays
 /// `wolfssh` (the `vendors/wolfssh/` dir and `metadata().vendor` below).
 ///
-/// The fallback has ASan (`wolfssh150-asan`) when one of the libssh vendors found (`libssh`) has
-/// it: the vendors present decide, as there is no `asan` feature.
+/// The fallback has the ASan and coverage instrumentation of the libssh vendors found (`libssh`):
+/// `wolfssh150-asan` next to `libssh0114-asan`, for instance (see `fallback`).
 fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> {
     // Explicit single-vendor selection for reproducible campaign builds. When
     // `SSHPUFFIN_ONLY_VENDOR=libssh`, omit the wolfSSH PUT entirely. This is
     // AUTHORITATIVE and checked before anything else: it is robust where moving
-    // vendor dirs is not, because `library::Config::preset("wolfssh")` resolves
+    // vendor dirs is not, because the fallback build (`fallback`) resolves
     // the preset from a compiled-in source and would otherwise REBUILD wolfSSH
     // into vendor/ even with both the cache dir and the preset dir moved away.
     // (The Rust PUT registry is bundle-driven, so a build with no wolfSSH simply
@@ -181,20 +178,13 @@ fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> 
         return existing;
     }
 
-    let mut config = match library::Config::preset("wolfssh", WOLFSSH_PRESET) {
-        Some(c) => c,
-        None => {
+    let (config, name) = match fallback("wolfssh", WOLFSSH_PRESET, libssh) {
+        Ok(build) => build,
+        Err(e) => {
             // No preset and no pre-built vendor: nothing to build (optional PUT).
+            println!("cargo:warning=no wolfSSH vendor and no build of {WOLFSSH_PRESET}: {e}");
             return vec![];
         }
-    };
-    let asan = libssh.iter().any(has_asan);
-    apply_instrumentation_options(&mut config, asan);
-
-    let name = if asan {
-        format!("{WOLFSSH_PRESET}-asan")
-    } else {
-        WOLFSSH_PRESET.to_string()
     };
 
     if let Some(Ok(_)) = vendor
@@ -278,12 +268,9 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
         return vec![];
     }
 
-    // No SSH vendor is present, so none has ASan: the fallback is the plain preset.
-    let mut config = library::Config::preset("libssh", LIBSSH_PRESET)
-        .unwrap_or_else(|| panic!("missing preset libssh:{LIBSSH_PRESET}"));
-    apply_instrumentation_options(&mut config, false);
-
-    let name = LIBSSH_PRESET.to_string();
+    // No SSH vendor is present, so the fallback has no instrumentation to follow.
+    let (config, name) = fallback("libssh", LIBSSH_PRESET, &[])
+        .unwrap_or_else(|e| panic!("no build of libssh:{LIBSSH_PRESET}: {e}"));
 
     vendor
         .library_dir(&name)
@@ -300,15 +287,31 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
         .collect()
 }
 
-fn has_asan(lib: &library::Library) -> bool {
-    lib.metadata().instrumentation.iter().any(|i| i == "asan")
+fn has_instrumentation(lib: &library::Library, kind: &str) -> bool {
+    lib.metadata().instrumentation.iter().any(|i| i == kind)
 }
 
-fn apply_instrumentation_options(config: &mut library::Config, asan: bool) {
-    config.option("sancov", cfg!(feature = "sancov"));
-    config.option("asan", asan);
-    config.option("gcov", cfg!(feature = "gcov"));
-    config.option("llvm_cov", cfg!(feature = "llvm_cov"));
+/// The build of `preset` that this script makes when the vendor directory has no `vendor` library,
+/// and its name: the preset with the ASan and coverage instrumentation of the SSH vendors present,
+/// `present`, and without sancov when the `sancov` feature is off. The name says it, as `mk_vendor
+/// make <vendor>:<name>` names it (`wolfssh150-asan`; `wolfssh150-no-sancov-gcov`: a gcov build has
+/// no sancov).
+fn fallback(
+    vendor: &str,
+    preset: &str,
+    present: &[library::Library],
+) -> Result<(library::Config, String), String> {
+    let mut name = preset.to_string();
+    if !cfg!(feature = "sancov") {
+        name.push_str("-no-sancov");
+    }
+    for kind in ["asan", "gcov", "llvm_cov"] {
+        if present.iter().any(|lib| has_instrumentation(lib, kind)) {
+            name.push('-');
+            name.push_str(kind);
+        }
+    }
+    library::Config::resolve_named(vendor, &name)
 }
 
 fn build_harness(lib: library::Library, out_bundle: &std::path::Path) -> Option<harness::Put> {
