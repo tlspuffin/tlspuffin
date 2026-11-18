@@ -4,6 +4,7 @@ SEQ=0
 
 
 export LIBAFL_EDGES_MAP_SIZE=262144
+[ -e evaluation_ddyf ] || ln -s evaluation-ddyf evaluation_ddyf  # importable package name (see README)
 
 echo 'Cleaning previous data'
 cargo clean
@@ -48,7 +49,7 @@ do
     rm $PIPENAME
 
     echo "Triaging objectives in $OBJECTIVES"
-    python -m evaluation-ddyf.find_known_cves $OBJECTIVES
+    python -m evaluation_ddyf.tls.find_known_cves $OBJECTIVES
 
     # removing traces that are not interesting to save disk space
     rm -rf $OBJECTIVES/trash
