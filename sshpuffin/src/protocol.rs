@@ -231,9 +231,49 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_terms_to_eval(
-        _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
     ) -> Vec<puffin::algebra::Term<Self>> {
-        vec![]
+        // For every libssh server agent, emit recipes that decrypt its
+        // post-NewKeys encrypted output into structured SshMessages so the two
+        // PUTs' encrypted record-layer responses can be compared. Recipes whose
+        // queries / sequence numbers don't match a given PUT's run evaluate to
+        // an error and are silently skipped by the differential engine.
+        let mut terms = vec![];
+        for agent in agents {
+            if agent.protocol_config.typ == AgentType::Server {
+                // AES-GCM is the ONLY cipher negotiated in the differential:
+                // `differential_fuzzing_uniformise_put_config` pins both PUTs to
+                // `aes256-gcm,aes128-gcm`, and chacha20-poly1305 is not even
+                // offered. The AES-GCM recipe is framing-INDEPENDENT — it folds
+                // the whole s2c stream via `((server, *)/RawSshMessageFlight)` +
+                // `fn_fold_s2c_transcript`, which re-accumulates the wire bytes and
+                // re-deframes, so libssh's and wolfSSH's different packetisation
+                // (1 vs 2 on-wire chunks) yields the SAME transcript.
+                //
+                // The legacy ChaCha20 recipe (`server_decryption_recipes`, now
+                // commented out in seeds.rs) is
+                // deliberately NOT emitted: it decrypts POSITIONALLY-indexed
+                // `(server, N)/OnWireData` chunks, a fragile pattern that binds to
+                // one PUT's chunk layout and misaligns against the other's — pure
+                // noise now that chacha is never negotiated. To restore chacha
+                // support (e.g. if the cipher set is ever widened), add a
+                // `fn_fold_s2c_transcript_chacha` and emit it the same
+                // framing-independent way, rather than reviving the indexed recipe.
+                terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(
+                    agent.name,
+                ));
+            } else if agent.protocol_config.typ == AgentType::Client {
+                // Client PUT (attacker plays the server): decrypt the client's c2s
+                // stream the same framing-independent way. Only fires on traces
+                // with a client PUT agent (server-attacker / two-party seeds); the
+                // client-attacker differential corpus has server PUTs only, so its
+                // comparisons are unchanged.
+                terms.extend(crate::ssh::seeds::client_decryption_recipes_aesgcm(
+                    agent.name,
+                ));
+            }
+        }
+        terms
     }
 
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
@@ -460,11 +500,17 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
+    /// `default`: the differential corpus, every seed 0-diff on the evaluated PUT pair (libssh
+    /// 0.11.4, wolfSSH 1.5.0). `with-divergent`: the same plus the seeds that diverge across
+    /// vendors (single-PUT fuzzing; see [`crate::ssh::seeds::create_with_divergent_corpus`]).
     fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
-        // No SSH seeds yet; register an empty `default` corpus so that `seed`
-        // succeeds (producing an empty ./seeds) like the other protocols.
-        // TODO: add real SSH seeds.
-        vec![("default", (|_| vec![]) as CorpusBuilder<Self>)]
+        vec![
+            ("default", crate::ssh::seeds::create_corpus),
+            (
+                "with-divergent",
+                crate::ssh::seeds::create_with_divergent_corpus,
+            ),
+        ]
     }
 
     fn try_read_bytes(
