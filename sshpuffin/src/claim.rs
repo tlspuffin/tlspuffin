@@ -9,11 +9,15 @@ use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledg
 
 use crate::protocol::SshProtocolTypes;
 
-/// The server's entity-authentication belief at handshake completion — the SSH
-/// analogue of TLS's FINISHED claim. Emitted once per agent when the harness'
-/// auth callback has APPROVED an authorized credential (put.c `emit_handshake_claim`),
-/// so its mere presence means "this stack believes it authenticated a peer", and
-/// its fields say WHOM.
+/// A PUT's entity-authentication belief — the SSH analogue of TLS's FINISHED
+/// claim — and its session id. The harnesses (put.c) emit up to two per agent,
+/// both with the session id: a post-KEX claim when the peer's NEWKEYS completes
+/// the key exchange, with empty auth fields, then the completion claim
+/// (`emit_handshake_claim`). A server emits that one when its auth callback has
+/// APPROVED an authorized credential, with the auth fields: a non-empty
+/// `auth_method` means "this stack believes it authenticated a peer", and the
+/// fields say WHOM. A client emits it when its handshake completes, with the auth
+/// fields empty.
 ///
 /// This is what the wire cannot tell us: `USERAUTH_SUCCESS` is identity-less, so
 /// the decrypted transcript proves *that* a peer was authenticated but not *which*
@@ -27,9 +31,7 @@ use crate::protocol::SshProtocolTypes;
 /// comparing it would manufacture benign differences. It is decoded solely so the
 /// s2c decryption recipe can source each PUT's own H — via
 /// `fn_claim_exchange_hash` — instead of reconstructing
-/// it from a hard-coded (and mutation-stale) client KEXINIT. The C harness also
-/// builds channel digests / packet counts; those stay undecoded (matching-
-/// conversation / Terrapin substrate, a separate concern).
+/// it from a hard-coded (and mutation-stale) client KEXINIT.
 #[derive(Debug, Clone, Comparable, PartialEq, Default)]
 pub struct SshClaimInner {
     /// Method the server believes succeeded: "publickey" / "password" / "".
