@@ -4,6 +4,11 @@ use puffin_build::harness::{Harness, Put};
 use puffin_build::{harness, library, vendor_dir};
 
 fn main() {
+    // See the note in `sshpuffin/build.rs`: cargo only re-runs a build script when a declared
+    // input changes, so without this a change to `VENDOR_DIR` is invisible and cargo replays the
+    // previous run's link directives — silently linking the vendor tree from the last build.
+    println!("cargo:rerun-if-env-changed=VENDOR_DIR");
+
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
