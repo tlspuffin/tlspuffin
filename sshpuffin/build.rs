@@ -5,7 +5,8 @@
 //! 2. Finds every libssh and wolfSSH instance in the vendor directory and compiles the C harness
 //!    (`sshpuffin/harness/{libssh,wolfssh}/`) against each, bundling them via puffin-build
 //!    (`harness::bundle`).
-//! 3. Emits ASAN / coverage linker flags when the corresponding features are active.
+//! 3. Emits coverage linker flags when the corresponding features are active. A PUT has ASan when
+//!    its vendor build does; puffin-build then links the ASan runtime (as for tlspuffin).
 
 use std::path::PathBuf;
 
@@ -84,8 +85,8 @@ fn main() {
 
     let libssh_vendors = ensure_libssh_vendors();
 
-    // wolfSSH vendors are discovered from vendor/ (pre-built); no preset build.
-    let wolfssh_vendors = ensure_wolfssh_vendors();
+    // wolfSSH vendors are discovered from vendor/ (pre-built), or built from the preset.
+    let wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
 
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
@@ -103,20 +104,10 @@ fn main() {
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=pthread");
 
-    // ── 3. Sanitizer / coverage linker flags ──────────────────────────────
-
-    if cfg!(feature = "asan") {
-        let runtime_dir = puffin_build::utils::clang::runtime_dir();
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{runtime_dir}");
-        println!("cargo:rustc-link-arg=-fsanitize=address");
-
-        if cfg!(target_os = "macos") {
-            println!("cargo:rustc-link-search=native={runtime_dir}");
-            println!("cargo:rustc-link-lib=dylib=clang_rt.asan_osx_dynamic");
-        } else {
-            println!("cargo:rustc-link-arg=-shared-libasan");
-        }
-    }
+    // ── 3. Coverage linker flags ──────────────────────────────────────────
+    //
+    // No ASan flags here: `bundle.print_cargo_metadata()` above links the ASan runtime when a
+    // PUT's library is ASan-instrumented.
 
     if cfg!(feature = "gcov") {
         println!("cargo:rustc-link-arg=-ftest-coverage");
@@ -151,7 +142,10 @@ const WOLFSSH_PRESET: &str = "wolfssh150";
 /// wolfSSH) if none is present. Mirrors `ensure_libssh_vendors`. The PUT name is
 /// `wolfssh150` (version-carrying, like `libssh0114`); the vendor identity stays
 /// `wolfssh` (the `vendors/wolfssh/` dir and `metadata().vendor` below).
-fn ensure_wolfssh_vendors() -> Vec<library::Library> {
+///
+/// The fallback has ASan (`wolfssh150-asan`) when one of the libssh vendors found (`libssh`) has
+/// it: the vendors present decide, as there is no `asan` feature.
+fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> {
     // Explicit single-vendor selection for reproducible campaign builds. When
     // `SSHPUFFIN_ONLY_VENDOR=libssh`, omit the wolfSSH PUT entirely. This is
     // AUTHORITATIVE and checked before anything else: it is robust where moving
@@ -194,9 +188,10 @@ fn ensure_wolfssh_vendors() -> Vec<library::Library> {
             return vec![];
         }
     };
-    apply_instrumentation_options(&mut config);
+    let asan = libssh.iter().any(has_asan);
+    apply_instrumentation_options(&mut config, asan);
 
-    let name = if cfg!(feature = "asan") {
+    let name = if asan {
         format!("{WOLFSSH_PRESET}-asan")
     } else {
         WOLFSSH_PRESET.to_string()
@@ -283,15 +278,12 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
         return vec![];
     }
 
+    // No SSH vendor is present, so none has ASan: the fallback is the plain preset.
     let mut config = library::Config::preset("libssh", LIBSSH_PRESET)
         .unwrap_or_else(|| panic!("missing preset libssh:{LIBSSH_PRESET}"));
-    apply_instrumentation_options(&mut config);
+    apply_instrumentation_options(&mut config, false);
 
-    let name = if cfg!(feature = "asan") {
-        format!("{LIBSSH_PRESET}-asan")
-    } else {
-        LIBSSH_PRESET.to_string()
-    };
+    let name = LIBSSH_PRESET.to_string();
 
     vendor
         .library_dir(&name)
@@ -308,9 +300,13 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
         .collect()
 }
 
-fn apply_instrumentation_options(config: &mut library::Config) {
+fn has_asan(lib: &library::Library) -> bool {
+    lib.metadata().instrumentation.iter().any(|i| i == "asan")
+}
+
+fn apply_instrumentation_options(config: &mut library::Config, asan: bool) {
     config.option("sancov", cfg!(feature = "sancov"));
-    config.option("asan", cfg!(feature = "asan"));
+    config.option("asan", asan);
     config.option("gcov", cfg!(feature = "gcov"));
     config.option("llvm_cov", cfg!(feature = "llvm_cov"));
 }
