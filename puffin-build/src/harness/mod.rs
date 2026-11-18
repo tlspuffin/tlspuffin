@@ -22,6 +22,7 @@ pub fn bundle(puts: Vec<Put>) -> BundleBuilder {
 pub struct Harness {
     library: Library,
     path: PathBuf,
+    protocol: String,
 }
 
 impl Harness {
@@ -36,6 +37,7 @@ impl Harness {
         harness_dir.exists().then_some(Harness {
             library,
             path: harness_dir,
+            protocol: protocol.as_ref().to_string(),
         })
     }
 
@@ -67,6 +69,10 @@ impl Harness {
         cmake_conf
             .cfg_args
             .push(format!("-DHARNESS={}", self.path.display()));
+
+        cmake_conf
+            .cfg_args
+            .push(format!("-DPROTOCOL={}", self.protocol));
 
         cmake_conf.cfg_args.push(format!(
             "-DINCLUDE_DIRS={}",
