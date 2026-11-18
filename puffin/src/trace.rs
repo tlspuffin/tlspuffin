@@ -1107,7 +1107,38 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
+    /// Whole-trace preprocessing funnel (see [`ProtocolTypes::preprocess_trace`]). EVERY
+    /// execution passes through here — the fuzz loop and its introspection stage
+    /// (`crate::fuzzer::libafl_setup`), prior-trace sub-executions (the loop in the inner body
+    /// re-enters this method per prior trace), and every CLI / unit-test replay — so a trace
+    /// reproduces the SAME way however it is reached.
+    ///
+    /// Default is a no-op for every protocol (returns `None` => `effective` borrows `self`, no
+    /// clone), keeping the hot path allocation-free. A protocol returning `Some(rewritten)` runs
+    /// that throwaway copy for this call while the stored testcase stays pristine. The rewrite
+    /// preserves the step count, so `stop_at_step` (an index into the same step list) stays valid,
+    /// and it is idempotent (a second pass finds nothing to rewrite and returns `None`).
     pub fn execute_until_step_wrap<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        stop_at_step: usize,
+        trace_number: &mut usize,
+        check_security_violation: bool,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        let preprocessed = PT::preprocess_trace(self);
+        let effective = preprocessed.as_ref().unwrap_or(self);
+        effective.execute_until_step_wrap_inner(
+            ctx,
+            stop_at_step,
+            trace_number,
+            check_security_violation,
+        )
+    }
+
+    fn execute_until_step_wrap_inner<PB>(
         &self,
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
@@ -1162,6 +1193,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_EXEC.increment();
+
+        // `execute_until_step_wrap` applies the whole-trace preprocessing hook
+        // (`ProtocolTypes::preprocess_trace`) itself, so prior-trace sub-executions and the
+        // fuzzer's introspection stage get the SAME rewrite as this top-level call (previously
+        // they bypassed it). This method keeps only the ALL_EXEC accounting around that call.
         let res =
             self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
 
