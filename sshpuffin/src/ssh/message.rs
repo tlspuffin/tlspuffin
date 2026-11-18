@@ -1,10 +1,10 @@
 use comparable::Comparable;
 use extractable_macro::Extractable;
+use puffin::atom_extract_knowledge;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
-use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 
@@ -22,15 +22,41 @@ impl Codec for OnWireData {
     }
 }
 
-#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
-#[extractable(SshProtocolTypes)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub enum RawSshMessage {
-    // (the macro reads its attributes on fields: on a variant, they were ignored, and the fields
-    // of a packet, its payload, padding and MAC, came first among the knowledge of its
-    // sender)
-    Banner(#[extractable_no_recursion] String),
-    Packet(#[extractable_no_recursion] BinaryPacket),
-    OnWire(#[extractable_no_recursion] OnWireData),
+    Banner(String),
+    Packet(BinaryPacket),
+    OnWire(OnWireData),
+}
+
+// Manual `Extractable` (instead of the derive) so each raw message is tagged with
+// a `SshQueryMatcher` describing its identity — the banner, a cleartext packet's
+// SSH message number, or an opaque encrypted chunk. This lets seeds/recipes select
+// a handshake message by what it IS (e.g. NEWKEYS) rather than by a fragile
+// positional counter. No recursion into the inner payload (mirrors the former
+// `#[extractable_no_recursion]`).
+impl Extractable<SshProtocolTypes> for RawSshMessage {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        _matcher: Option<crate::query::SshQueryMatcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        use crate::query::SshQueryMatcher;
+        let matcher = match self {
+            RawSshMessage::Banner(_) => SshQueryMatcher::Banner,
+            RawSshMessage::Packet(bp) => {
+                SshQueryMatcher::MsgType(bp.payload().first().copied().unwrap_or(0))
+            }
+            RawSshMessage::OnWire(_) => SshQueryMatcher::OnWire,
+        };
+        knowledges.push(Knowledge {
+            source,
+            matcher: Some(matcher),
+            data: self,
+        });
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
@@ -39,6 +65,13 @@ pub struct BinaryPacket {
     payload: Vec<u8>,
     random_padding: Vec<u8>,
     mac: Vec<u8>,
+}
+
+impl BinaryPacket {
+    /// Returns the payload bytes (type byte + message fields, without framing or padding).
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
 }
 
 impl Codec for BinaryPacket {
@@ -56,7 +89,12 @@ impl Codec for BinaryPacket {
     fn read(reader: &mut Reader) -> Option<Self> {
         let packet_length = u32::read(reader)?;
         let padding_length = u8::read(reader)?;
-        let payload_length = packet_length as usize - padding_length as usize - 1;
+        // Guard against underflow: on encrypted (e.g. AES-GCM) packets the bytes
+        // we read as `padding_length` are really ciphertext and can exceed
+        // `packet_length`. Treat such frames as unparseable rather than panicking.
+        let payload_length = (packet_length as usize)
+            .checked_sub(padding_length as usize)
+            .and_then(|v| v.checked_sub(1))?;
         let payload = Vec::from(reader.take(payload_length)?);
         let random_padding = Vec::from(reader.take(padding_length as usize)?);
         let mac = Vec::from(reader.take(0_usize)?); // TODO: parse non-zero
@@ -71,33 +109,365 @@ impl Codec for BinaryPacket {
 
 #[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct NameList {
-    names: Vec<String>,
+    // SSH name-lists encode *preference order* (RFC 4251 §5), which is
+    // implementation-defined: libssh and wolfSSH advertise the same algorithms
+    // in a different order. For differential comparison we care about the SET
+    // (a genuinely different set is real signal), not the order — so compare a
+    // sorted copy and ignore the raw ordering. Encoding is unaffected (this only
+    // changes the Comparable view, not Codec), so on-wire order is preserved.
+    //
+    // The list is stored as its raw comma-separated bytes, exactly as on the wire,
+    // so the encoding of a list built from names contains each name's bytes and a
+    // list built from arbitrary bytes (`fn_namelist_from_bytes`) keeps them verbatim.
+    #[comparable_synthetic {
+        let comparable_names = |x: &Self| -> Vec<String> {
+            // Compare name-lists as an order-insensitive SET: preference ORDER is
+            // implementation-defined (RFC 4251 §5), so only a different SET of
+            // algorithms is real signal (e.g. a downgrade). Sorting makes this
+            // robust regardless of how each stack orders its offer.
+            //
+            // We exclude exactly two SIGNALING pseudo-algorithms that stacks
+            // auto-append to the kex-algorithms list and that are NOT negotiable
+            // algorithms: `kex-strict-{c,s}-v00@openssh.com` and `ext-info-{c,s}`.
+            // This exclusion is DOCUMENTED, not silent: it corresponds to a known,
+            // verified, benign-in-this-config capability difference between the two
+            // stacks, asserted by the test
+            // `strict_kex_ext_info_asymmetry_is_a_known_benign_finding` below.
+            //
+            //   * `kex-strict-*` = the Terrapin strict-KEX countermeasure.
+            //   * `ext-info-*`   = RFC 8308 extension negotiation (SSH_MSG_EXT_INFO).
+            //
+            // They are DISTINCT mechanisms, NOT interchangeable. Measured 2026-09-01
+            // on the uniformised handshake, the two stacks' kex-algorithms sets
+            // differ in EXACTLY one slot: libssh advertises
+            // `kex-strict-s-v00@openssh.com`, wolfSSH advertises `ext-info-s` (i.e.
+            // libssh does Terrapin strict-KEX, wolfSSH does not; wolfSSH does
+            // EXT_INFO). Real, but benign here because the negotiated suite is
+            // AES-GCM (no ChaCha20/EtM), so wolfSSH's missing strict-KEX is not
+            // Terrapin-exploitable. It is a STATIC property of the two stacks, so
+            // surfacing it per-trace would flood essentially every handshake with
+            // one understood difference; instead it is recorded once as a finding
+            // and excluded here. Every NEGOTIABLE algorithm is still compared, so a
+            // genuine downgrade still surfaces.
+            let mut names: Vec<String> = x
+                .names()
+                .into_iter()
+                .filter(|n| !n.starts_with("kex-strict-") && !n.starts_with("ext-info-"))
+                .collect();
+            names.sort();
+            names
+        };
+    }]
+    #[comparable_ignore]
+    raw: Vec<u8>,
 }
 
 impl NameList {
     pub fn empty() -> NameList {
-        Self { names: vec![] }
+        Self { raw: vec![] }
+    }
+
+    pub fn from_strs(names: &[&str]) -> NameList {
+        Self {
+            raw: names.join(",").into_bytes(),
+        }
+    }
+
+    /// A list from its raw wire bytes (the names joined by commas), kept verbatim.
+    pub fn from_raw(raw: Vec<u8>) -> NameList {
+        Self { raw }
+    }
+
+    /// The names joined by commas, as on the wire (without the length).
+    pub fn raw(&self) -> &[u8] {
+        &self.raw
+    }
+
+    /// The names, split at the commas (non-UTF-8 bytes replaced).
+    pub fn names(&self) -> Vec<String> {
+        if self.raw.is_empty() {
+            return vec![];
+        }
+        String::from_utf8_lossy(&self.raw)
+            .split(',')
+            .map(str::to_string)
+            .collect()
     }
 }
 
+impl NameList {
+    /// The wire field (RFC 4251 §5): a uint32 length, then the names.
+    pub fn encode_field(&self, bytes: &mut Vec<u8>) {
+        (self.raw.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&self.raw);
+    }
+
+    pub fn read_field(reader: &mut Reader) -> Option<Self> {
+        let length = u32::read(reader)?;
+        Self::from_names_bytes(reader.take(length as usize)?)
+    }
+
+    fn from_names_bytes(raw: &[u8]) -> Option<Self> {
+        // RFC 4251 §5: names are US-ASCII; reject anything that is not UTF-8.
+        std::str::from_utf8(raw).ok()?;
+        Some(NameList { raw: raw.to_vec() })
+    }
+}
+
+/// A name-list term encodes as its names only, like the list types of tlspuffin: the
+/// uint32 length is written by the message field that holds it (`encode_field`), so a
+/// list's encoding is found inside the one `fn_namelist_append` builds from it.
 impl Codec for NameList {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let names = self.names.join(",");
-        let names_bytes = names.as_bytes(); // ASCII is valid UTF-8
-        (names_bytes.len() as u32).encode(bytes);
-        bytes.extend_from_slice(names_bytes);
+        bytes.extend_from_slice(&self.raw);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Self::from_names_bytes(reader.rest())
+    }
+}
+
+// ── SshBytes: u32-length-prefixed byte blob ──────────────────────────────────
+//
+// This is the standard SSH wire format for strings and opaque byte fields
+// (RFC 4251 §5).  Using a named type rather than Vec<u8> lets the DY fuzzer
+// extract SshBytes atoms from observed traffic and substitute them into any
+// position expecting the same type, enabling cross-field and cross-session
+// value reuse.
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshBytes(#[extractable_no_recursion] pub Vec<u8>);
+
+impl SshBytes {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+
+    pub fn empty() -> Self {
+        Self(vec![])
+    }
+}
+
+impl From<Vec<u8>> for SshBytes {
+    fn from(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
+impl From<&[u8]> for SshBytes {
+    fn from(s: &[u8]) -> Self {
+        Self(s.to_vec())
+    }
+}
+
+impl Codec for SshBytes {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (self.0.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&self.0);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         let length = u32::read(reader)?;
-        let names = if length > 0 {
-            let names = std::str::from_utf8(reader.take(length as usize)?).ok()?;
-            names.split(',').map(str::to_string).collect()
-        } else {
-            Vec::new()
-        };
-        Some(NameList { names })
+        Some(SshBytes(Vec::from(reader.take(length as usize)?)))
     }
+}
+
+// ── Role-typed byte atoms ────────────────────────────────────────────────────
+//
+// Many SSH quantities used to be plain `SshBytes`, so the term algebra could not
+// tell (say) a shared secret from an exchange hash from a user name — the DY
+// mutator's `ReplaceMatchMutator` could substitute any byte blob into any of them.
+// Giving each ROLE its own type makes substitution type-directed: a value can only
+// be swapped for another value of the same role, which is exactly the mutation
+// class the interesting attacks live in. `declare_typed_atom!` is the reusable
+// helper for this: each atom is a transparent u32-length-prefixed byte blob
+// (identical wire form to `SshBytes`), so wrapping/unwrapping changes no derived
+// byte; the builders that feed an `SshBytes` struct field copy `.0` across.
+//
+// Current role atoms (declared below):
+//   * KEX / crypto — `SharedSecret` (ECDH K), `ExchangeHash` (per-KEX H), `SessionId` (the FIRST H,
+//     pinned for the connection, RFC 4253 §7.2 — byte-equal to H on the first KEX but semantically
+//     distinct: after a rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
+//     session-id slot as one well-typed mutation, the Terrapin / session-id-confusion class),
+//     `SshSecretKey` (the client's ECDH private key).
+//   * identity / negotiation — `VersionString` (V_C/V_S), `SshPublicKeyBlob` (publickey-auth blob:
+//     identity confusion), `AlgoName` (negotiation / downgrade), `Username` and `ServiceName`
+//     (credential / bad-service confusion).
+// `AlgoName` (a bare token, not length-prefixed) and `ChannelId` (a bare u32) are
+// hand-written below, since this macro only makes length-prefixed blobs. All are registered in
+// `try_read_bytes` so payloads under `[opaque]` parents can be re-typed (see that function).
+macro_rules! declare_typed_atom (
+    ($name:ident) => {
+        #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+        #[extractable(SshProtocolTypes)]
+        pub struct $name(#[extractable_no_recursion] pub Vec<u8>);
+
+        impl $name {
+            pub fn new(data: impl Into<Vec<u8>>) -> Self {
+                Self(data.into())
+            }
+        }
+
+        impl Codec for $name {
+            fn encode(&self, bytes: &mut Vec<u8>) {
+                (self.0.len() as u32).encode(bytes);
+                bytes.extend_from_slice(&self.0);
+            }
+
+            fn read(reader: &mut Reader) -> Option<Self> {
+                let length = u32::read(reader)?;
+                Some($name(Vec::from(reader.take(length as usize)?)))
+            }
+        }
+    }
+);
+
+declare_typed_atom!(SharedSecret);
+declare_typed_atom!(ExchangeHash);
+declare_typed_atom!(SessionId);
+// The SSH identification strings V_C / V_S (banner minus CR-LF), hashed into the
+// exchange hash H (RFC 4253 §8). Its own type — NOT `SshBytes` — so the DY mutator
+// (in particular `ReplaceMatchMutator`, which picks any signature function of a
+// matching return type) can only substitute a version string into a V_C/V_S slot,
+// never into the ~46 other `SshBytes` fields (pubkeys, signatures, namelists,
+// payloads, K_S, Q_C …). Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(VersionString);
+// The publickey-auth public-key blob K carried in a publickey USERAUTH_REQUEST
+// (RFC 4252 §7) and hashed to the fingerprint the server checks against its
+// allow-list. Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` can only
+// substitute one client identity's blob for another (the A/B/C credential- and
+// impersonation-confusion class: authorized-vs-unauthorized key), never an
+// arbitrary byte blob. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(SshPublicKeyBlob);
+// An SSH algorithm-name token (a `fn_algo_*` atom): a kex/cipher/MAC/host-key
+// scheme name, or a pseudo-algorithm negotiation marker (kex-strict, ext-info-c).
+// Its own type — NOT `SshBytes` — so `ReplaceMatchMutator` substitutes an
+// algorithm name only into algorithm-name slots: the `fn_namelist_*` entries that
+// build the KEXINIT negotiation lists, and the `algorithm` field of a public key /
+// signature. This targets the negotiation/downgrade/algorithm-confusion surface
+// instead of letting an algo name land in any of the ~46 other `SshBytes` fields.
+// Unlike the other role atoms, its wire form is the bare name, NOT length-prefixed:
+// inside a name-list the names are joined by commas without prefixes, and in a
+// public key / signature the name is the content of the `algorithm` string. So
+// every builder that takes an `AlgoName` contains its bytes verbatim.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct AlgoName(#[extractable_no_recursion] pub Vec<u8>);
+
+impl AlgoName {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+}
+
+impl Codec for AlgoName {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(AlgoName(reader.rest().to_vec()))
+    }
+}
+// The USERAUTH_REQUEST user name (RFC 4252 §5). Its own type — NOT `SshBytes` — so
+// `ReplaceMatchMutator` substitutes a user name only into the user slot (the
+// authorized/unauthorized-identity and empty/oversized-name class), never into an
+// unrelated byte field. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(Username);
+// An SSH service name (RFC 4253 §10): "ssh-userauth" / "ssh-connection", carried by
+// SERVICE_REQUEST/ACCEPT and the USERAUTH_REQUEST service field. Its own type — NOT
+// `SshBytes` — so `ReplaceMatchMutator` substitutes a service name only into a
+// service slot: this is exactly the fuzzer-found bad-service class (a
+// USERAUTH_REQUEST whose service != "ssh-connection", which wolfSSH accepts and
+// libssh rejects). Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(ServiceName);
+// The client's ephemeral X25519 private key (the ECDH secret scalar). Its own type
+// — NOT `SshBytes` — so `ReplaceMatchMutator` can neither splice the private key
+// into a wire-message byte field nor feed an arbitrary byte blob into the ECDH
+// secret slot of `fn_ecdh_shared_secret`. Same length-prefixed wire form as `SshBytes`.
+declare_typed_atom!(SshSecretKey);
+
+// An SSH channel identifier (the u32 `recipient_channel` / `sender_channel` of the
+// connection-protocol messages, RFC 4254). Its own type — NOT a bare `u32` — so
+// `ReplaceMatchMutator` substitutes a channel number only into a channel-id slot,
+// never into the many other u32 fields (sequence/packet counters, window sizes,
+// reason/data-type codes, exit statuses). The interesting mutation this enables is
+// re-addressing channel traffic to a DIFFERENT channel id (the per-PUT
+// channel-number divergence surfaced by `fn_s2c_confirmation_sender_channel`), as a
+// single well-typed swap. Wire form is a bare big-endian u32, identical to the
+// struct field it feeds, so wrapping changes no derived bytes.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelId(#[extractable_no_recursion] pub u32);
+
+impl ChannelId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl Codec for ChannelId {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(ChannelId(u32::read(reader)?))
+    }
+}
+
+// `SshMsgNumber` types an SSH message number (RFC 4250 §4.1.2) where a term SELECTS a
+// message, e.g. `fn_decrypted_message` picking the server's rekey KEX_ECDH_REPLY out
+// of a decrypted flight. Typed so type-directed mutation swaps it only for another
+// message number (reading a different reply), never into a window size or channel.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgNumber(#[extractable_no_recursion] pub u8);
+
+impl SshMsgNumber {
+    pub fn new(n: u8) -> Self {
+        Self(n)
+    }
+}
+
+impl Codec for SshMsgNumber {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgNumber(u8::read(reader)?))
+    }
+}
+
+// `SshMsgOrdinal` types which occurrence of a message number a term selects, e.g.
+// the SECOND KEXINIT of a flight (the rekey one) in `fn_decrypted_message`. Typed so
+// type-directed mutation swaps it only for another ordinal.
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshMsgOrdinal(#[extractable_no_recursion] pub u32);
+
+impl Codec for SshMsgOrdinal {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.0.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(SshMsgOrdinal(u32::read(reader)?))
+    }
+}
+
+// Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
+// that are NOT length-prefixed.
+fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {
+    (bytes_value.len() as u32).encode(bytes);
+    bytes.extend_from_slice(bytes_value);
+}
+
+fn read_ssh_bytes(reader: &mut Reader) -> Option<Vec<u8>> {
+    let length = u32::read(reader)?;
+    Some(Vec::from(reader.take(length as usize)?))
 }
 
 macro_rules! declare_name_list (
@@ -107,11 +477,11 @@ macro_rules! declare_name_list (
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
-        NameList::encode(&self.0, bytes);
+        self.0.encode_field(bytes);
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(NameList::read(r)?))
+        Some($name(NameList::read_field(r)?))
       }
     }
   }
@@ -120,10 +490,239 @@ macro_rules! declare_name_list (
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub enum SshMessage {
+    Disconnect(DisconnectMessage),
+    Ignore(IgnoreMessage),
+    ExtInfo(ExtInfoMessage),
+    Unimplemented(UnimplementedMessage),
+    Debug(DebugMessage),
+    ServiceRequest(ServiceRequestMessage),
+    ServiceAccept(ServiceAcceptMessage),
     KexInit(KexInitMessage),
     KexEcdhInit(KexEcdhInitMessage),
     KexEcdhReply(KexEcdhReplyMessage),
     NewKeys,
+    UserAuthRequest(UserAuthRequestMessage),
+    UserAuthFailure(UserAuthFailureMessage),
+    UserAuthSuccess,
+    UserAuthBanner(UserAuthBannerMessage),
+    GlobalRequest(GlobalRequestMessage),
+    RequestSuccess(RequestSuccessMessage),
+    RequestFailure,
+    ChannelOpen(ChannelOpenMessage),
+    ChannelOpenConfirmation(ChannelOpenConfirmationMessage),
+    ChannelOpenFailure(ChannelOpenFailureMessage),
+    ChannelWindowAdjust(ChannelWindowAdjustMessage),
+    ChannelData(ChannelDataMessage),
+    ChannelExtendedData(ChannelExtendedDataMessage),
+    ChannelEof(ChannelEofMessage),
+    ChannelClose(ChannelCloseMessage),
+    ChannelRequest(ChannelRequestMessage),
+    ChannelSuccess(ChannelSuccessMessage),
+    ChannelFailure(ChannelFailureMessage),
+    /// Escape hatch for an ARBITRARY / high-numbered SSH message: encodes as its
+    /// `number` byte followed by `body` verbatim. Lets a seed inject a message with
+    /// an unrecognised type code (RFC 4253 §11.4 — the peer MUST reply
+    /// SSH_MSG_UNIMPLEMENTED), so the DY mutator can probe how each stack handles
+    /// an unknown message (issue #1047 item 7: wolfSSH bare-closes where a strict
+    /// stack replies UNIMPLEMENTED/DISCONNECT). Only ever CONSTRUCTED (client→server
+    /// injection); the server-output decode path never yields it, so it needs no
+    /// `read` arm.
+    Raw(RawMessage),
+}
+
+/// Body of [`SshMessage::Raw`]. `number` is the SSH message-type byte; `body` is
+/// the remainder written verbatim (NOT length-prefixed).
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct RawMessage {
+    pub number: u8,
+    pub body: SshBytes,
+}
+
+impl Codec for RawMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.number.encode(bytes);
+        bytes.extend_from_slice(&self.body.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let number = u8::read(reader)?;
+        Some(Self {
+            number,
+            body: SshBytes(reader.rest().to_vec()),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct DisconnectMessage {
+    pub reason_code: u32,
+    pub description: SshBytes,
+    pub language_tag: SshBytes,
+}
+
+impl Codec for DisconnectMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.reason_code.encode(bytes);
+        self.description.encode(bytes);
+        self.language_tag.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            reason_code: u32::read(reader)?,
+            description: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct IgnoreMessage {
+    pub data: SshBytes,
+}
+
+impl Codec for IgnoreMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.data.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            data: SshBytes::read(reader)?,
+        })
+    }
+}
+
+// ── SSH_MSG_EXT_INFO (RFC 8308 §2.3): byte 7, uint32 nr-extensions, then
+//    repeat [string extension-name, string extension-value]. ─────────────────
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ExtInfoExtension {
+    pub name: SshBytes,
+    pub value: SshBytes,
+}
+
+impl puffin::codec::VecCodecWoSize for ExtInfoExtension {}
+
+impl Codec for ExtInfoExtension {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.name.encode(bytes);
+        self.value.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            name: SshBytes::read(reader)?,
+            value: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ExtInfoMessage {
+    pub extensions: Vec<ExtInfoExtension>,
+}
+
+impl Codec for ExtInfoMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (self.extensions.len() as u32).encode(bytes);
+        for ext in &self.extensions {
+            ext.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let n = u32::read(reader)?;
+        let mut extensions = Vec::new();
+        // `?` bails on the first short read, so a bogus huge `n` can't over-allocate.
+        for _ in 0..n {
+            extensions.push(ExtInfoExtension::read(reader)?);
+        }
+        Some(Self { extensions })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct UnimplementedMessage {
+    pub packet_sequence_number: u32,
+}
+
+impl Codec for UnimplementedMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.packet_sequence_number.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            packet_sequence_number: u32::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct DebugMessage {
+    pub always_display: bool,
+    pub message: SshBytes,
+    pub language_tag: SshBytes,
+}
+
+impl Codec for DebugMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (self.always_display as u8).encode(bytes);
+        self.message.encode(bytes);
+        self.language_tag.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            always_display: u8::read(reader)? != 0,
+            message: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ServiceRequestMessage {
+    pub service_name: SshBytes,
+}
+
+impl Codec for ServiceRequestMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.service_name.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            service_name: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ServiceAcceptMessage {
+    pub service_name: SshBytes,
+}
+
+impl Codec for ServiceAcceptMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.service_name.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            service_name: SshBytes::read(reader)?,
+        })
+    }
 }
 
 declare_name_list!(KexAlgorithms);
@@ -135,6 +734,9 @@ declare_name_list!(CompressionAlgorithms);
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexInitMessage {
+    // The cookie is 16 random bytes; it differs on every run and between
+    // implementations, so it must not contribute to differential comparison.
+    #[comparable_ignore]
     pub cookie: [u8; 16],
     pub kex_algorithms: KexAlgorithms,
     pub server_host_key_algorithms: SignatureSchemes,
@@ -142,7 +744,14 @@ pub struct KexInitMessage {
     pub encryption_algorithms_client_to_server: EncryptionAlgorithms,
     pub mac_algorithms_client_to_server: MacAlgorithms,
     pub mac_algorithms_server_to_client: MacAlgorithms,
+    // Advertised compression is static per-implementation capability (libssh
+    // offers zlib@openssh.com, wolfSSH does not) and cannot be uniformised via
+    // the PUT config (no compression-restriction API in either harness). The
+    // negotiated compression is always "none" here (the client offers only
+    // "none"), so the advertised list is noise — exclude it from comparison.
+    #[comparable_ignore]
     pub compression_algorithms_client_to_server: CompressionAlgorithms,
+    #[comparable_ignore]
     pub compression_algorithms_server_to_client: CompressionAlgorithms,
     pub languages_client_to_server: NameList,
     pub languages_server_to_client: NameList,
@@ -161,8 +770,8 @@ impl Codec for KexInitMessage {
         self.mac_algorithms_server_to_client.encode(bytes);
         self.compression_algorithms_client_to_server.encode(bytes);
         self.compression_algorithms_server_to_client.encode(bytes);
-        self.languages_client_to_server.encode(bytes);
-        self.languages_server_to_client.encode(bytes);
+        self.languages_client_to_server.encode_field(bytes);
+        self.languages_server_to_client.encode_field(bytes);
 
         (self.first_kex_packet_follows as u8).encode(bytes);
         0u32.encode(bytes);
@@ -181,8 +790,8 @@ impl Codec for KexInitMessage {
             mac_algorithms_server_to_client: MacAlgorithms::read(reader)?,
             compression_algorithms_client_to_server: CompressionAlgorithms::read(reader)?,
             compression_algorithms_server_to_client: CompressionAlgorithms::read(reader)?,
-            languages_client_to_server: NameList::read(reader)?,
-            languages_server_to_client: NameList::read(reader)?,
+            languages_client_to_server: NameList::read_field(reader)?,
+            languages_server_to_client: NameList::read_field(reader)?,
             first_kex_packet_follows: u8::read(reader)? != 0,
         };
 
@@ -194,21 +803,100 @@ impl Codec for KexInitMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhInitMessage {
-    #[extractable_no_recursion]
-    pub ephemeral_public_key: Vec<u8>,
+    // Client ephemeral X25519 key: fresh random per run → ignore in DDYF.
+    #[comparable_ignore]
+    pub ephemeral_public_key: SshBytes,
 }
 
 impl Codec for KexEcdhInitMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.ephemeral_public_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.ephemeral_public_key);
+        self.ephemeral_public_key.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let length = u32::read(reader)?;
-        let ephemeral_public_key = Vec::from(reader.take(length as usize)?);
         Some(KexEcdhInitMessage {
-            ephemeral_public_key,
+            ephemeral_public_key: SshBytes::read(reader)?,
+        })
+    }
+}
+
+// ── SshPublicKey / SshSignature ───────────────────────────────────────────────
+//
+// The KEX ECDH reply carries two outer SSH strings that each contain an inner
+// structured blob: <algo-name-string><key-or-sig-bytes-string>.  Giving these
+// their own types lets the DY fuzzer extract, substitute and compose the
+// algorithm name and the raw material independently.
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshPublicKey {
+    pub algorithm: SshBytes,
+    pub key_data: SshBytes,
+}
+
+impl Codec for SshPublicKey {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut inner = Vec::new();
+        self.algorithm.encode(&mut inner);
+        // For RSA ("ssh-rsa") and other multi-field key types, key_data
+        // contains the raw remaining inner bytes ([mpint e][mpint n] for RSA),
+        // NOT wrapped in an additional SSH string.  We detect this by checking
+        // if the key_data starts with what looks like an mpint (i.e., the field
+        // does NOT look like a nested SSH string holding the entire remaining
+        // blob).  The heuristic: if algorithm is "ssh-rsa", write key_data raw.
+        if self.algorithm.0 == b"ssh-rsa" {
+            inner.extend_from_slice(&self.key_data.0);
+        } else {
+            self.key_data.encode(&mut inner);
+        }
+        (inner.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&inner);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let len = u32::read(reader)? as usize;
+        let inner = reader.take(len)?;
+        let mut r = Reader::init(inner);
+        let algorithm = SshBytes::read(&mut r)?;
+        // For RSA ("ssh-rsa"): the remaining bytes are raw mpints [e][n], not
+        // wrapped in a single SSH string. We store them as-is.
+        // For all other key types (ed25519, ecdsa, etc.): the next field is
+        // a single SSH string which we read normally.
+        let key_data = if algorithm.0 == b"ssh-rsa" {
+            SshBytes::new(r.rest().to_vec())
+        } else {
+            SshBytes::read(&mut r)?
+        };
+        Some(SshPublicKey {
+            algorithm,
+            key_data,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshSignature {
+    pub algorithm: SshBytes,
+    pub signature_data: SshBytes,
+}
+
+impl Codec for SshSignature {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut inner = Vec::new();
+        self.algorithm.encode(&mut inner);
+        self.signature_data.encode(&mut inner);
+        (inner.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&inner);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let len = u32::read(reader)? as usize;
+        let inner = reader.take(len)?;
+        let mut r = Reader::init(inner);
+        Some(SshSignature {
+            algorithm: SshBytes::read(&mut r)?,
+            signature_data: SshBytes::read(&mut r)?,
         })
     }
 }
@@ -216,35 +904,430 @@ impl Codec for KexEcdhInitMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhReplyMessage {
-    #[extractable_no_recursion]
-    pub public_host_key: Vec<u8>,
-    #[extractable_no_recursion]
-    pub ephemeral_public_key: Vec<u8>,
-    #[extractable_no_recursion]
-    pub signature: Vec<u8>,
+    // Persistent host key: deterministic (same embedded key across PUTs), so a
+    // difference here would be a genuine finding — keep it in the comparison.
+    pub public_host_key: SshPublicKey,
+    // Server ephemeral X25519 key: fresh random per run → ignore in DDYF.
+    #[comparable_ignore]
+    pub ephemeral_public_key: SshBytes,
+    // Signature over the exchange hash (which includes the random ephemeral
+    // key) → differs every run → ignore in DDYF.
+    #[comparable_ignore]
+    pub signature: SshSignature,
 }
 
 impl Codec for KexEcdhReplyMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.public_host_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.public_host_key);
-        (self.ephemeral_public_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.ephemeral_public_key);
-        (self.signature.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.signature);
+        self.public_host_key.encode(bytes);
+        self.ephemeral_public_key.encode(bytes);
+        self.signature.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let length = u32::read(reader)?;
-        let public_host_key = Vec::from(reader.take(length as usize)?);
-        let length = u32::read(reader)?;
-        let ephemeral_public_key = Vec::from(reader.take(length as usize)?);
-        let length = u32::read(reader)?;
-        let signature = Vec::from(reader.take(length as usize)?);
         Some(KexEcdhReplyMessage {
-            public_host_key,
-            ephemeral_public_key,
-            signature,
+            public_host_key: SshPublicKey::read(reader)?,
+            ephemeral_public_key: SshBytes::read(reader)?,
+            signature: SshSignature::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct UserAuthRequestMessage {
+    pub user_name: SshBytes,
+    pub service_name: SshBytes,
+    pub method_name: SshBytes,
+    // method_data is NOT a standard ssh-string: it is the raw remainder of the
+    // packet whose format depends on the auth method (RFC 4252).
+    #[extractable_no_recursion]
+    pub method_data: Vec<u8>,
+}
+
+impl Codec for UserAuthRequestMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.user_name.encode(bytes);
+        self.service_name.encode(bytes);
+        self.method_name.encode(bytes);
+        bytes.extend_from_slice(&self.method_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            user_name: SshBytes::read(reader)?,
+            service_name: SshBytes::read(reader)?,
+            method_name: SshBytes::read(reader)?,
+            method_data: Vec::from(reader.rest()),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct UserAuthFailureMessage {
+    pub authentications_that_can_continue: NameList,
+    pub partial_success: bool,
+}
+
+impl Codec for UserAuthFailureMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.authentications_that_can_continue.encode_field(bytes);
+        (self.partial_success as u8).encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            authentications_that_can_continue: NameList::read_field(reader)?,
+            partial_success: u8::read(reader)? != 0,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct UserAuthBannerMessage {
+    pub message: SshBytes,
+    pub language_tag: SshBytes,
+}
+
+impl Codec for UserAuthBannerMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.message.encode(bytes);
+        self.language_tag.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            message: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct GlobalRequestMessage {
+    pub request_name: SshBytes,
+    pub want_reply: bool,
+    #[extractable_no_recursion]
+    pub request_data: Vec<u8>,
+}
+
+impl Codec for GlobalRequestMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.request_name.encode(bytes);
+        (self.want_reply as u8).encode(bytes);
+        bytes.extend_from_slice(&self.request_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            request_name: SshBytes::read(reader)?,
+            want_reply: u8::read(reader)? != 0,
+            request_data: Vec::from(reader.rest()),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct RequestSuccessMessage {
+    #[extractable_no_recursion]
+    pub response_data: Vec<u8>,
+}
+
+impl Codec for RequestSuccessMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.response_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let response_data = Vec::from(reader.rest());
+        Some(Self { response_data })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelOpenMessage {
+    pub channel_type: SshBytes,
+    // The opener's own channel id and flow-control parameters — implementation-
+    // defined (RFC 4254 §5.1), exactly like the confirmer's fields in
+    // `ChannelOpenConfirmationMessage`: libssh numbers channels from 43
+    // (FIRST_CHANNEL + 1) with a 2 MiB window, wolfSSH from 0 with 128 KiB. They
+    // only became comparable once the c2s recipe decrypted a PUT *client*'s
+    // CHANNEL_OPEN, and must not be compared (same class as the KEX cookie).
+    #[comparable_ignore]
+    pub sender_channel: u32,
+    #[comparable_ignore]
+    pub initial_window_size: u32,
+    #[comparable_ignore]
+    pub maximum_packet_size: u32,
+    #[extractable_no_recursion]
+    pub channel_data: Vec<u8>,
+}
+
+impl Codec for ChannelOpenMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.channel_type.encode(bytes);
+        self.sender_channel.encode(bytes);
+        self.initial_window_size.encode(bytes);
+        self.maximum_packet_size.encode(bytes);
+        bytes.extend_from_slice(&self.channel_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            channel_type: SshBytes::read(reader)?,
+            sender_channel: u32::read(reader)?,
+            initial_window_size: u32::read(reader)?,
+            maximum_packet_size: u32::read(reader)?,
+            channel_data: Vec::from(reader.rest()),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelOpenConfirmationMessage {
+    // The client's channel number, echoed back — both servers must return what
+    // the client sent, so this is a meaningful cross-vendor comparison.
+    pub recipient_channel: u32,
+    // Server-chosen channel id and flow-control parameters. These are
+    // implementation-defined (RFC 4254 §5.1): libssh and wolfSSH pick different
+    // sender_channel ids and different default window / max-packet sizes, so
+    // they legitimately differ cross-vendor and must not be compared (same class
+    // as the KEX cookie / ephemeral key).
+    #[comparable_ignore]
+    pub sender_channel: u32,
+    #[comparable_ignore]
+    pub initial_window_size: u32,
+    #[comparable_ignore]
+    pub maximum_packet_size: u32,
+    #[extractable_no_recursion]
+    pub channel_data: Vec<u8>,
+}
+
+impl Codec for ChannelOpenConfirmationMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.sender_channel.encode(bytes);
+        self.initial_window_size.encode(bytes);
+        self.maximum_packet_size.encode(bytes);
+        bytes.extend_from_slice(&self.channel_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let recipient_channel = u32::read(reader)?;
+        let sender_channel = u32::read(reader)?;
+        let initial_window_size = u32::read(reader)?;
+        let maximum_packet_size = u32::read(reader)?;
+        let channel_data = Vec::from(reader.rest());
+        Some(Self {
+            recipient_channel,
+            sender_channel,
+            initial_window_size,
+            maximum_packet_size,
+            channel_data,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelOpenFailureMessage {
+    pub recipient_channel: u32,
+    pub reason_code: u32,
+    pub description: SshBytes,
+    pub language_tag: SshBytes,
+}
+
+impl Codec for ChannelOpenFailureMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.reason_code.encode(bytes);
+        self.description.encode(bytes);
+        self.language_tag.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+            reason_code: u32::read(reader)?,
+            description: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelWindowAdjustMessage {
+    pub recipient_channel: u32,
+    /// Window-credit the server grants (RFC 4254 §5.2). NOT compared across PUTs:
+    /// it is implementation-specific flow-control bookkeeping — libssh grants a
+    /// large window, wolfSSH grants exactly the bytes it just consumed — a benign
+    /// policy difference, not a parser/state divergence. Presence + channel are
+    /// still compared (so a dropped/mis-channelled WINDOW_ADJUST is still caught).
+    #[comparable_ignore]
+    pub bytes_to_add: u32,
+}
+
+impl Codec for ChannelWindowAdjustMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.bytes_to_add.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+            bytes_to_add: u32::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelDataMessage {
+    pub recipient_channel: u32,
+    pub data: SshBytes,
+}
+
+impl Codec for ChannelDataMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.data.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+            data: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelExtendedDataMessage {
+    pub recipient_channel: u32,
+    pub data_type_code: u32,
+    pub data: SshBytes,
+}
+
+impl Codec for ChannelExtendedDataMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.data_type_code.encode(bytes);
+        self.data.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+            data_type_code: u32::read(reader)?,
+            data: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelEofMessage {
+    pub recipient_channel: u32,
+}
+
+impl Codec for ChannelEofMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelCloseMessage {
+    pub recipient_channel: u32,
+}
+
+impl Codec for ChannelCloseMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelRequestMessage {
+    pub recipient_channel: u32,
+    pub request_type: SshBytes,
+    pub want_reply: bool,
+    #[extractable_no_recursion]
+    pub request_data: Vec<u8>,
+}
+
+impl Codec for ChannelRequestMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+        self.request_type.encode(bytes);
+        (self.want_reply as u8).encode(bytes);
+        bytes.extend_from_slice(&self.request_data);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+            request_type: SshBytes::read(reader)?,
+            want_reply: u8::read(reader)? != 0,
+            request_data: Vec::from(reader.rest()),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelSuccessMessage {
+    pub recipient_channel: u32,
+}
+
+impl Codec for ChannelSuccessMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ChannelFailureMessage {
+    pub recipient_channel: u32,
+}
+
+impl Codec for ChannelFailureMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.recipient_channel.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            recipient_channel: u32::read(reader)?,
         })
     }
 }
@@ -252,6 +1335,34 @@ impl Codec for KexEcdhReplyMessage {
 impl Codec for SshMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
+            SshMessage::Disconnect(inner) => {
+                1u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::Ignore(inner) => {
+                2u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ExtInfo(inner) => {
+                7u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::Unimplemented(inner) => {
+                3u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::Debug(inner) => {
+                4u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ServiceRequest(inner) => {
+                5u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ServiceAccept(inner) => {
+                6u8.encode(bytes);
+                inner.encode(bytes);
+            }
             SshMessage::KexInit(inner) => {
                 20u8.encode(bytes);
                 inner.encode(bytes);
@@ -267,6 +1378,81 @@ impl Codec for SshMessage {
                 31u8.encode(bytes);
                 inner.encode(bytes);
             }
+            SshMessage::UserAuthRequest(inner) => {
+                50u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::UserAuthFailure(inner) => {
+                51u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::UserAuthSuccess => {
+                52u8.encode(bytes);
+            }
+            SshMessage::UserAuthBanner(inner) => {
+                53u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::GlobalRequest(inner) => {
+                80u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::RequestSuccess(inner) => {
+                81u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::RequestFailure => {
+                82u8.encode(bytes);
+            }
+            SshMessage::ChannelOpen(inner) => {
+                90u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelOpenConfirmation(inner) => {
+                91u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelOpenFailure(inner) => {
+                92u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelWindowAdjust(inner) => {
+                93u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelData(inner) => {
+                94u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelExtendedData(inner) => {
+                95u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelEof(inner) => {
+                96u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelClose(inner) => {
+                97u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelRequest(inner) => {
+                98u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelSuccess(inner) => {
+                99u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            SshMessage::ChannelFailure(inner) => {
+                100u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            // Verbatim: `number` byte then `body` (RawMessage::encode writes the
+            // type code itself, so no extra tag here).
+            SshMessage::Raw(inner) => {
+                inner.encode(bytes);
+            }
         }
     }
 
@@ -274,10 +1460,73 @@ impl Codec for SshMessage {
         let typ = u8::read(reader)?;
 
         match typ {
+            1u8 => Some(SshMessage::Disconnect(DisconnectMessage::read(reader)?)),
+            2u8 => Some(SshMessage::Ignore(IgnoreMessage::read(reader)?)),
+            7u8 => Some(SshMessage::ExtInfo(ExtInfoMessage::read(reader)?)),
+            3u8 => Some(SshMessage::Unimplemented(UnimplementedMessage::read(
+                reader,
+            )?)),
+            4u8 => Some(SshMessage::Debug(DebugMessage::read(reader)?)),
+            5u8 => Some(SshMessage::ServiceRequest(ServiceRequestMessage::read(
+                reader,
+            )?)),
+            6u8 => Some(SshMessage::ServiceAccept(ServiceAcceptMessage::read(
+                reader,
+            )?)),
             20u8 => Some(SshMessage::KexInit(KexInitMessage::read(reader)?)),
             21u8 => Some(SshMessage::NewKeys),
             30u8 => Some(SshMessage::KexEcdhInit(KexEcdhInitMessage::read(reader)?)),
             31u8 => Some(SshMessage::KexEcdhReply(KexEcdhReplyMessage::read(reader)?)),
+            50u8 => Some(SshMessage::UserAuthRequest(UserAuthRequestMessage::read(
+                reader,
+            )?)),
+            51u8 => Some(SshMessage::UserAuthFailure(UserAuthFailureMessage::read(
+                reader,
+            )?)),
+            52u8 => Some(SshMessage::UserAuthSuccess),
+            53u8 => Some(SshMessage::UserAuthBanner(UserAuthBannerMessage::read(
+                reader,
+            )?)),
+            80u8 => Some(SshMessage::GlobalRequest(GlobalRequestMessage::read(
+                reader,
+            )?)),
+            81u8 => Some(SshMessage::RequestSuccess(RequestSuccessMessage::read(
+                reader,
+            )?)),
+            82u8 => Some(SshMessage::RequestFailure),
+            90u8 => Some(SshMessage::ChannelOpen(ChannelOpenMessage::read(reader)?)),
+            91u8 => Some(SshMessage::ChannelOpenConfirmation(
+                ChannelOpenConfirmationMessage::read(reader)?,
+            )),
+            92u8 => Some(SshMessage::ChannelOpenFailure(
+                ChannelOpenFailureMessage::read(reader)?,
+            )),
+            93u8 => Some(SshMessage::ChannelWindowAdjust(
+                ChannelWindowAdjustMessage::read(reader)?,
+            )),
+            94u8 => Some(SshMessage::ChannelData(ChannelDataMessage::read(reader)?)),
+            95u8 => Some(SshMessage::ChannelExtendedData(
+                ChannelExtendedDataMessage::read(reader)?,
+            )),
+            96u8 => Some(SshMessage::ChannelEof(ChannelEofMessage::read(reader)?)),
+            97u8 => Some(SshMessage::ChannelClose(ChannelCloseMessage::read(reader)?)),
+            98u8 => Some(SshMessage::ChannelRequest(ChannelRequestMessage::read(
+                reader,
+            )?)),
+            99u8 => Some(SshMessage::ChannelSuccess(ChannelSuccessMessage::read(
+                reader,
+            )?)),
+            100u8 => Some(SshMessage::ChannelFailure(ChannelFailureMessage::read(
+                reader,
+            )?)),
+            // 60 is context-dependent (RFC 4252 §7 USERAUTH_PK_OK, §8
+            // PASSWD_CHANGEREQ, RFC 4256 INFO_REQUEST): keep it as the raw body so it
+            // still appears in decrypted transcripts (and can be read back, e.g. by
+            // `fn_pk_ok_blob`) instead of aborting the decode.
+            60u8 => Some(SshMessage::Raw(RawMessage {
+                number: 60,
+                body: SshBytes(reader.rest().to_vec()),
+            })),
             _ => None,
         }
     }
@@ -297,7 +1546,16 @@ impl ProtocolMessage<SshProtocolTypes, RawSshMessage> for SshMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
 
-        let random_padding = Vec::from([0; 7]); // todo: calc proper padding
+        // RFC 4253 §6: at least 4 bytes of padding, and the packet with its uint32
+        // length field a multiple of the cipher block size, 8 before encryption.
+        // (A fixed 7-byte padding was tolerated by libssh and wolfSSH 1.5.0, but
+        // wolfSSH 1.6.0 rejects misaligned packets.) Zero bytes keep it deterministic.
+        let unpadded = 4 + 1 + payload.len();
+        let mut padding_length = 8 - unpadded % 8;
+        if padding_length < 4 {
+            padding_length += 8;
+        }
+        let random_padding = vec![0; padding_length];
 
         RawSshMessage::Packet(BinaryPacket {
             payload,
@@ -345,27 +1603,364 @@ impl Codec for RawSshMessage {
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let banner = "SSH-2.0-libssh_0.10.4\r\n"; // FIXME: hardcoded version of libssh
-        let banner_bytes = banner.as_bytes();
+        // Detect any SSH version banner: starts with "SSH-" and ends with "\n"
+        // We peek up to 256 bytes to find the newline, but handle shorter buffers too.
+        const MAX_BANNER: usize = 256;
+        let peek_len = MAX_BANNER.min(reader.left());
+        if peek_len < 4 {
+            // Not enough data to determine banner vs packet
+            return Some(RawSshMessage::Packet(BinaryPacket::read(reader)?));
+        }
+        let buf = reader.peek(peek_len)?;
 
-        let is_banner = if let Some(received) = reader.peek(banner_bytes.len()) {
-            received == banner_bytes
+        // Check if data starts with "SSH-"
+        if &buf[..4] != b"SSH-" {
+            return Some(RawSshMessage::Packet(BinaryPacket::read(reader)?));
+        }
+
+        // Find the \n that terminates the banner
+        let banner_end = buf.iter().position(|&b| b == b'\n').map(|i| i + 1);
+
+        if let Some(end) = banner_end {
+            let banner_bytes = reader.take(end)?;
+            let banner = String::from_utf8_lossy(banner_bytes).into_owned();
+            Some(RawSshMessage::Banner(banner))
         } else {
-            false
+            // Banner line not complete yet (no newline found in the buffer)
+            // Treat as partial — return None so the deframer waits for more data.
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use puffin::codec::Codec;
+
+    use super::*;
+
+    /// The `(agent, *)` concatenate-all query (`Query::concatenate_all` /
+    /// `TraceContext::find_variable_concat`) recovers a fragmented stream by
+    /// concatenating every matching knowledge's ENCODING and re-reading the whole
+    /// buffer as one value. This locks in the property that resolution relies on
+    /// for SSH: several per-drain `RawSshMessageFlight` encodings, joined and
+    /// re-read via `try_read_bytes`, reconstruct one flight carrying every message
+    /// in emission order (the deframer re-frames across the joined drain
+    /// boundaries). If this regressed, the s2c decryption differential would
+    /// desync at the (PUT-dependent) drain boundaries and manufacture false
+    /// positives. PUT-free.
+    #[test]
+    fn concatenated_flights_reread_as_one_stream() {
+        use std::any::TypeId;
+
+        use puffin::codec::Reader;
+        use puffin::protocol::ProtocolMessage;
+
+        use crate::protocol::RawSshMessageFlight;
+
+        // Three "drains", split at arbitrary boundaries (as puffin's per-step
+        // output drains would capture them, and as the two PUTs batch
+        // differently). Pre-NEWKEYS plaintext packets only: a NEWKEYS (msg 21)
+        // would flip the deframer into encrypted mode and legitimately re-frame
+        // everything after it as opaque ciphertext, which is a different regime.
+        let sa = |n: &[u8]| {
+            SshMessage::ServiceAccept(ServiceAcceptMessage {
+                service_name: SshBytes::new(n),
+            })
+        };
+        let eof = |c: u32| {
+            SshMessage::ChannelEof(ChannelEofMessage {
+                recipient_channel: c,
+            })
+        };
+        let d1 = vec![sa(b"ssh-userauth")];
+        let d2 = vec![eof(7)];
+        let d3 = vec![sa(b"ssh-connection"), eof(9)];
+        let to_flight = |msgs: &[SshMessage]| RawSshMessageFlight {
+            messages: msgs.iter().map(|m| m.create_opaque()).collect(),
         };
 
-        if is_banner {
-            reader.take(banner_bytes.len())?;
-            Some(RawSshMessage::Banner(banner.to_string()))
-        } else {
-            Some(RawSshMessage::Packet(BinaryPacket::read(reader)?))
+        // What `find_variable_concat` feeds to `try_read_bytes`: the drains' wire
+        // encodings joined in insertion order.
+        let mut joined = Vec::new();
+        for d in [&d1, &d2, &d3] {
+            to_flight(d).encode(&mut joined);
+        }
+
+        // (a) message COUNT: every message across all drains is recovered as one
+        // flight (nothing dropped or merged away at a boundary).
+        let flight = RawSshMessageFlight::read(&mut Reader::init(&joined))
+            .expect("joined drains must re-deframe into a flight");
+        assert_eq!(
+            flight.messages.len(),
+            d1.len() + d2.len() + d3.len(),
+            "all messages across the drains must be recovered in one flight"
+        );
+
+        // (b) BYTES: the `try_read_bytes` path (the one the query resolver calls)
+        // reconstructs the exact joined stream — deframe then re-encode is identity.
+        let merged = try_read_bytes(&joined, TypeId::of::<RawSshMessageFlight>())
+            .expect("concat of flight encodings must re-read as a RawSshMessageFlight");
+        let mut merged_enc = Vec::new();
+        merged.encode(&mut merged_enc);
+        assert_eq!(
+            merged_enc, joined,
+            "re-reading the concatenated drains must reconstruct the exact stream"
+        );
+    }
+
+    fn nl(items: &[&str]) -> NameList {
+        NameList::from_strs(items)
+    }
+
+    /// Documents + locks in the strict-kex / ext-info asymmetry as a KNOWN, BENIGN
+    /// finding rather than a silent strip.
+    ///
+    /// Verified 2026-09-01 on the uniformised handshake: the two stacks'
+    /// kex-algorithms sets differ in exactly one slot — libssh advertises
+    /// `kex-strict-s-v00@openssh.com` (Terrapin strict-KEX), wolfSSH advertises
+    /// `ext-info-s` (RFC 8308 EXT_INFO). These are DISTINCT mechanisms, so they are
+    /// NOT equated; both signaling markers are excluded from the set comparison, so
+    /// the asymmetry does not flood every KEXINIT — but a genuine downgrade in the
+    /// NEGOTIABLE algorithms is still caught. (Benign here only because the suite is
+    /// AES-GCM, so wolfSSH's missing strict-KEX is not Terrapin-exploitable.)
+    #[test]
+    fn strict_kex_ext_info_asymmetry_is_a_known_benign_finding() {
+        use comparable::{Changed, Comparable};
+
+        // The exact measured asymmetry: excluded -> the two lists compare EQUAL.
+        let libssh = nl(&[
+            "curve25519-sha256",
+            "ecdh-sha2-nistp256",
+            "kex-strict-s-v00@openssh.com",
+        ]);
+        let wolfssh = nl(&["curve25519-sha256", "ecdh-sha2-nistp256", "ext-info-s"]);
+        assert_eq!(
+            libssh.comparison(&wolfssh),
+            Changed::Unchanged,
+            "the strict-kex/ext-info signaling asymmetry is a documented benign \
+             finding and must be excluded from the set comparison"
+        );
+
+        // A genuine NEGOTIABLE-algorithm difference (a downgrade) MUST still surface.
+        let strong = nl(&["curve25519-sha256", "ecdh-sha2-nistp256"]);
+        let downgraded = nl(&["curve25519-sha256"]);
+        assert!(
+            matches!(strong.comparison(&downgraded), Changed::Changed(_)),
+            "a real algorithm-set difference (downgrade) must NOT be masked by the \
+             marker exclusion"
+        );
+
+        // Order is irrelevant (set comparison): same algorithms, different order.
+        let a = nl(&["ecdh-sha2-nistp256", "curve25519-sha256"]);
+        let b = nl(&["curve25519-sha256", "ecdh-sha2-nistp256"]);
+        assert_eq!(
+            a.comparison(&b),
+            Changed::Unchanged,
+            "order must not matter"
+        );
+    }
+
+    /// Verify `try_read_bytes` reconstructs each type from its encoded bytes
+    /// and that the dynamically-read value re-encodes to the same bytes.
+    /// This is the property bit-level mutations (`--with-bit`) rely on.
+    #[test]
+    fn test_try_read_bytes_roundtrip() {
+        // (encoded bytes, TypeId of the source type)
+        let cases: Vec<(Vec<u8>, std::any::TypeId)> = vec![
+            {
+                let v = SshBytes::new(b"hello");
+                (v.get_encoding(), std::any::TypeId::of::<SshBytes>())
+            },
+            {
+                let v: u32 = 0xdead_beef;
+                (v.get_encoding(), std::any::TypeId::of::<u32>())
+            },
+            {
+                let v: u8 = 42;
+                (v.get_encoding(), std::any::TypeId::of::<u8>())
+            },
+            {
+                let v: Vec<u8> = vec![1, 2, 3, 4];
+                (v.get_encoding(), std::any::TypeId::of::<Vec<u8>>())
+            },
+            {
+                let v = SshMessage::NewKeys;
+                (v.get_encoding(), std::any::TypeId::of::<SshMessage>())
+            },
+            {
+                let v = ChannelEofMessage {
+                    recipient_channel: 7,
+                };
+                (
+                    v.get_encoding(),
+                    std::any::TypeId::of::<ChannelEofMessage>(),
+                )
+            },
+            {
+                let v = KexAlgorithms(nl(&["curve25519-sha256"]));
+                (v.get_encoding(), std::any::TypeId::of::<KexAlgorithms>())
+            },
+        ];
+
+        for (bytes, ty) in cases {
+            let read = try_read_bytes(&bytes, ty)
+                .unwrap_or_else(|e| panic!("try_read_bytes failed for {ty:?}: {e}"));
+            // Re-encode the dynamically read value and confirm it matches.
+            let mut reencoded = Vec::new();
+            read.encode(&mut reencoded);
+            assert_eq!(reencoded, bytes, "re-encode mismatch for {ty:?}");
+        }
+    }
+
+    #[test]
+    fn test_all_message_codecs_roundtrip() {
+        let samples = vec![
+            SshMessage::Disconnect(DisconnectMessage {
+                reason_code: 1,
+                description: SshBytes::new(b"closed"),
+                language_tag: SshBytes::new(b"en"),
+            }),
+            SshMessage::Ignore(IgnoreMessage {
+                data: SshBytes::new(b"noop"),
+            }),
+            SshMessage::Unimplemented(UnimplementedMessage {
+                packet_sequence_number: 42,
+            }),
+            SshMessage::Debug(DebugMessage {
+                always_display: true,
+                message: SshBytes::new(b"dbg"),
+                language_tag: SshBytes::new(b"en"),
+            }),
+            SshMessage::ServiceRequest(ServiceRequestMessage {
+                service_name: SshBytes::new(b"ssh-userauth"),
+            }),
+            SshMessage::ServiceAccept(ServiceAcceptMessage {
+                service_name: SshBytes::new(b"ssh-userauth"),
+            }),
+            SshMessage::KexInit(KexInitMessage {
+                cookie: [7u8; 16],
+                kex_algorithms: KexAlgorithms(nl(&["curve25519-sha256"])),
+                server_host_key_algorithms: SignatureSchemes(nl(&["ssh-ed25519"])),
+                encryption_algorithms_server_to_client: EncryptionAlgorithms(nl(&[
+                    "chacha20-poly1305@openssh.com",
+                ])),
+                encryption_algorithms_client_to_server: EncryptionAlgorithms(nl(&[
+                    "chacha20-poly1305@openssh.com",
+                ])),
+                mac_algorithms_client_to_server: MacAlgorithms(nl(&["hmac-sha2-256"])),
+                mac_algorithms_server_to_client: MacAlgorithms(nl(&["hmac-sha2-256"])),
+                compression_algorithms_client_to_server: CompressionAlgorithms(nl(&["none"])),
+                compression_algorithms_server_to_client: CompressionAlgorithms(nl(&["none"])),
+                languages_client_to_server: nl(&[]),
+                languages_server_to_client: nl(&[]),
+                first_kex_packet_follows: false,
+            }),
+            SshMessage::NewKeys,
+            SshMessage::KexEcdhInit(KexEcdhInitMessage {
+                ephemeral_public_key: SshBytes::new(vec![1, 2, 3]),
+            }),
+            SshMessage::KexEcdhReply(KexEcdhReplyMessage {
+                public_host_key: SshPublicKey {
+                    algorithm: SshBytes::new(b"ssh-ed25519".as_ref()),
+                    key_data: SshBytes::new(vec![1u8; 32]),
+                },
+                ephemeral_public_key: SshBytes::new(vec![2u8; 32]),
+                signature: SshSignature {
+                    algorithm: SshBytes::new(b"ssh-ed25519".as_ref()),
+                    signature_data: SshBytes::new(vec![3u8; 64]),
+                },
+            }),
+            SshMessage::UserAuthRequest(UserAuthRequestMessage {
+                user_name: SshBytes::new(b"fuzzer".as_ref()),
+                service_name: SshBytes::new(b"ssh-connection".as_ref()),
+                method_name: SshBytes::new(b"password".as_ref()),
+                method_data: vec![0, 0, 0],
+            }),
+            SshMessage::UserAuthFailure(UserAuthFailureMessage {
+                authentications_that_can_continue: nl(&["password"]),
+                partial_success: false,
+            }),
+            SshMessage::UserAuthSuccess,
+            SshMessage::UserAuthBanner(UserAuthBannerMessage {
+                message: SshBytes::new(b"banner".as_ref()),
+                language_tag: SshBytes::new(b"en".as_ref()),
+            }),
+            SshMessage::GlobalRequest(GlobalRequestMessage {
+                request_name: SshBytes::new(b"tcpip-forward".as_ref()),
+                want_reply: true,
+                request_data: vec![9, 9],
+            }),
+            SshMessage::RequestSuccess(RequestSuccessMessage {
+                response_data: vec![8, 8],
+            }),
+            SshMessage::RequestFailure,
+            SshMessage::ChannelOpen(ChannelOpenMessage {
+                channel_type: SshBytes::new(b"session".as_ref()),
+                sender_channel: 1,
+                initial_window_size: 1024,
+                maximum_packet_size: 32768,
+                channel_data: vec![],
+            }),
+            SshMessage::ChannelOpenConfirmation(ChannelOpenConfirmationMessage {
+                recipient_channel: 1,
+                sender_channel: 2,
+                initial_window_size: 1024,
+                maximum_packet_size: 32768,
+                channel_data: vec![],
+            }),
+            SshMessage::ChannelOpenFailure(ChannelOpenFailureMessage {
+                recipient_channel: 1,
+                reason_code: 2,
+                description: SshBytes::new(b"failed".as_ref()),
+                language_tag: SshBytes::new(b"en".as_ref()),
+            }),
+            SshMessage::ChannelWindowAdjust(ChannelWindowAdjustMessage {
+                recipient_channel: 1,
+                bytes_to_add: 128,
+            }),
+            SshMessage::ChannelData(ChannelDataMessage {
+                recipient_channel: 1,
+                data: SshBytes::new(b"payload".as_ref()),
+            }),
+            SshMessage::ChannelExtendedData(ChannelExtendedDataMessage {
+                recipient_channel: 1,
+                data_type_code: 1,
+                data: SshBytes::new(b"stderr".as_ref()),
+            }),
+            SshMessage::ChannelEof(ChannelEofMessage {
+                recipient_channel: 1,
+            }),
+            SshMessage::ChannelClose(ChannelCloseMessage {
+                recipient_channel: 1,
+            }),
+            SshMessage::ChannelRequest(ChannelRequestMessage {
+                recipient_channel: 1,
+                request_type: SshBytes::new(b"exec".as_ref()),
+                want_reply: true,
+                request_data: b"id".to_vec(),
+            }),
+            SshMessage::ChannelSuccess(ChannelSuccessMessage {
+                recipient_channel: 1,
+            }),
+            SshMessage::ChannelFailure(ChannelFailureMessage {
+                recipient_channel: 1,
+            }),
+        ];
+
+        for sample in samples {
+            let encoded = sample.get_encoding();
+            let decoded = SshMessage::read_bytes(&encoded).expect("decode sample");
+            assert_eq!(decoded, sample);
         }
     }
 }
 
 atom_extract_knowledge!(SshProtocolTypes, String);
 atom_extract_knowledge!(SshProtocolTypes, OnWireData);
+// SshBytes derives Extractable directly — no atom_extract_knowledge! needed.
 atom_extract_knowledge!(SshProtocolTypes, u8);
+atom_extract_knowledge!(SshProtocolTypes, u32);
 atom_extract_knowledge!(SshProtocolTypes, u64);
 atom_extract_knowledge!(SshProtocolTypes, NameList);
 atom_extract_knowledge!(SshProtocolTypes, CompressionAlgorithms);
@@ -374,4 +1969,167 @@ atom_extract_knowledge!(SshProtocolTypes, KexAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, [u8; 16]);
 atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
-dummy_extract_knowledge!(SshProtocolTypes, bool);
+// `bool` (want_reply, and the boolean flag in channel_request / global_request)
+// is a scalar leaf with no attacker-reusable knowledge, so its knowledge
+// extraction is intentionally a NO-OP. This is the same behaviour as
+// `dummy_extract_knowledge!` but SILENT: that macro logs at `warn` level, and
+// bool sub-terms (fn_true / fn_false) hit the extraction walk on nearly every
+// trace, flooding campaign logs with "Trying to extract a dummy type: bool".
+// Behaviour is identical (nothing pushed into the knowledge store — deliberately
+// NOT `atom_extract_knowledge!`, which would change fuzzing by making bool a
+// reusable DY atom); only the spurious warning is removed.
+impl Extractable<SshProtocolTypes> for bool {
+    fn extract_knowledge<'a>(
+        &'a self,
+        _knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        _matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
+        _source: &'a Source,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+// ── try_read_bytes: read a bitstring back into a typed EvaluatedTerm ──────────
+//
+// Required for bit-level mutations (`--with-bit`): the bit-level mutator
+// evaluates a sub-term to bytes, mutates those bytes, then must re-read them as
+// the sub-term's original type.  Since the target type is only known at runtime
+// (via `TypeId`), we dispatch over every type that can appear as a term in the
+// SSH signature.  Mirrors tlspuffin's `try_read_bytes`.
+
+use std::any::TypeId;
+
+use puffin::protocol::EvaluatedTerm;
+
+use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
+
+/// Like `Codec::read_bytes`, but requires the WHOLE bitstring to be consumed.
+///
+/// Used only by `try_read_bytes` (the bit-level-mutation re-read path). The shared
+/// `Codec::read_bytes` intentionally reads one value off the *front* of a buffer and
+/// tolerates trailing bytes (TLS and other callers rely on that prefix behaviour). For
+/// the fuzzer re-read, tolerating trailing bytes is harmful: a mutation that appends
+/// bytes would decode to the same valid prefix as the unmutated term, silently
+/// collapsing distinct mutated inputs into equivalent ones and wasting the mutation.
+/// Requiring full consumption makes such a mutation fail to re-read (and be rejected)
+/// instead of masquerading as a no-op.
+fn read_bytes_exact<T: Codec>(bytes: &[u8]) -> Option<T> {
+    let mut rd = Reader::init(bytes);
+    let v = T::read(&mut rd)?;
+    if rd.left() != 0 {
+        return None;
+    }
+    Some(v)
+}
+
+macro_rules! try_read {
+    ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {{
+        if $ti == TypeId::of::<$T>() {
+            read_bytes_exact::<$T>($bitstring)
+                .ok_or_else(|| Error::Term(format!(
+                    "[try_read_bytes] Failed to read type {:?} from bitstring {:?}",
+                    core::any::type_name::<$T>(), $bitstring
+                )))
+                .map(|v| Box::new(v) as Box<dyn EvaluatedTerm<SshProtocolTypes>>)
+        } else {
+            try_read!($bitstring, $ti, $($Ts),+)
+        }
+    }};
+    ($bitstring:expr, $ti:expr, $T:ty) => {{
+        if $ti == TypeId::of::<$T>() {
+            read_bytes_exact::<$T>($bitstring)
+                .ok_or_else(|| Error::Term(format!(
+                    "[try_read_bytes] Failed to read type {:?} from bitstring {:?}",
+                    core::any::type_name::<$T>(), $bitstring
+                )))
+                .map(|v| Box::new(v) as Box<dyn EvaluatedTerm<SshProtocolTypes>>)
+        } else {
+            Err(Error::TermBug(format!(
+                "[try_read_bytes] No SSH type matches TypeId {:?} for bitstring {:?}",
+                $ti, $bitstring
+            )))
+        }
+    }};
+}
+
+/// Read a `bitstring` into the `EvaluatedTerm` whose runtime type matches `ty`.
+pub fn try_read_bytes(
+    bitstring: &[u8],
+    ty: TypeId,
+) -> Result<Box<dyn EvaluatedTerm<SshProtocolTypes>>, Error> {
+    try_read!(
+        bitstring,
+        ty,
+        // Top-level messages / flights
+        SshMessage,
+        RawSshMessage,
+        BinaryPacket,
+        OnWireData,
+        SshMessageFlight,
+        RawSshMessageFlight,
+        // Structured byte / key types
+        SshBytes,
+        SshPublicKey,
+        SshSignature,
+        // Role-typed atoms. Registered so that a payload placed under an `[opaque]`
+        // parent (KDF / hash / DH / cipher / namelist builder) can be re-typed and the
+        // opaque function re-applied (puffin `eval_until_opaque`) — without this the
+        // payload cannot take effect. Their codecs are exact inverses (checked by
+        // `tests/term_zoo.rs::test_term_read_encode`).
+        SharedSecret,
+        ExchangeHash,
+        SessionId,
+        VersionString,
+        SshPublicKeyBlob,
+        AlgoName,
+        Username,
+        ServiceName,
+        SshSecretKey,
+        ChannelId,
+        SshMsgNumber,
+        SshMsgOrdinal,
+        // Name lists
+        NameList,
+        KexAlgorithms,
+        SignatureSchemes,
+        EncryptionAlgorithms,
+        MacAlgorithms,
+        CompressionAlgorithms,
+        // Per-message payloads
+        DisconnectMessage,
+        IgnoreMessage,
+        ExtInfoExtension,
+        ExtInfoMessage,
+        UnimplementedMessage,
+        DebugMessage,
+        ServiceRequestMessage,
+        ServiceAcceptMessage,
+        KexInitMessage,
+        KexEcdhInitMessage,
+        KexEcdhReplyMessage,
+        UserAuthRequestMessage,
+        UserAuthFailureMessage,
+        UserAuthBannerMessage,
+        GlobalRequestMessage,
+        RequestSuccessMessage,
+        ChannelOpenMessage,
+        ChannelOpenConfirmationMessage,
+        ChannelOpenFailureMessage,
+        ChannelWindowAdjustMessage,
+        ChannelDataMessage,
+        ChannelExtendedDataMessage,
+        ChannelEofMessage,
+        ChannelCloseMessage,
+        ChannelRequestMessage,
+        ChannelSuccessMessage,
+        ChannelFailureMessage,
+        // Atoms
+        String,
+        Vec<u8>,
+        u64,
+        u32,
+        u8,
+        [u8; 16],
+        bool
+    )
+}

@@ -17,21 +17,26 @@ categories.workspace = true
 claims = []
 
 [dependencies]
-libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }
-puffin = { path = "../puffin" }
+puffin       = { path = "../puffin" }
 puffin-build = { path = "../puffin-build" }
 extractable-macro = { path = "../extractable-macro" }
-log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-comparable = { workspace = true, features = ["derive"] }
+log          = { workspace = true }
+serde        = { workspace = true, features = ["derive"] }
+comparable   = { workspace = true, features = ["derive"] }
 
-# libssh
-foreign-types = { workspace = true }
+# Crypto primitives for SSH key exchange, derivation, and packet encryption
+x25519-dalek  = { version = "2", features = ["static_secrets"] }
+sha2          = "0.10"
+chacha20      = "0.9"
+poly1305      = "0.8"
+aes-gcm       = "0.10"
+aes           = "0.8"
+ctr           = "0.9"
+hmac          = "0.12"
+signature     = "2"
+rsa           = { version = "0.9", features = ["sha2"] }
+ssh-key       = { version = "0.6", features = ["rsa", "std"] }
 
 [dev-dependencies]
 env_logger = { workspace = true }
-test-log = { workspace = true }
-
-[build-dependencies]
-cmake = { workspace = true }
-bindgen = { workspace = true }
+test-log   = { workspace = true }
