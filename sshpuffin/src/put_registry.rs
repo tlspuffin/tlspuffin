@@ -1,13 +1,10 @@
 use puffin::put::{PutDescriptor, PutOptions};
-use puffin::put_registry::PutRegistry;
+use puffin::put_registry::{Factory, PutRegistry};
 
 use crate::protocol::SshProtocolBehavior;
 
-pub const LIBSSH_RUST_PUT: &str = "rust-put-libssh";
-
+/// The PUTs of sshpuffin: none yet. The C harnesses of the SSH libraries register theirs here.
 pub fn ssh_registry() -> PutRegistry<SshProtocolBehavior> {
-    PutRegistry::new(
-        [(LIBSSH_RUST_PUT, crate::libssh::new_libssh_factory())],
-        PutDescriptor::new(LIBSSH_RUST_PUT, PutOptions::empty()),
-    )
+    let puts: Vec<(String, Box<dyn Factory<SshProtocolBehavior>>)> = vec![];
+    PutRegistry::new(puts, PutDescriptor::new("none", PutOptions::empty()))
 }

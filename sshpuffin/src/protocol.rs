@@ -159,6 +159,26 @@ pub struct SshDescriptorConfig {
     pub typ: AgentType,
     /// Whether we want to try to reuse a previous agent.
     pub try_reuse: bool,
+    /// Uniformised algorithm lists (comma-separated SSH wire names). `None`
+    /// leaves the PUT default; `differential_fuzzing_uniformise_put_config` sets
+    /// these to a common subset so both PUTs advertise the same KEXINIT and their
+    /// static per-implementation capability no longer shows up as a diff.
+    /// `#[serde(default)]` keeps older serialized traces (without these fields)
+    /// loadable — they deserialize to `None` and are set at execution time.
+    #[serde(default)]
+    pub kex: Option<String>,
+    #[serde(default)]
+    pub ciphers: Option<String>,
+    #[serde(default)]
+    pub macs: Option<String>,
+    #[serde(default)]
+    pub hostkey_algos: Option<String>,
+    /// Public-key algorithms the server accepts for user auth, advertised in the
+    /// EXT_INFO `server-sig-algs` extension (RFC 8308 §3.1) — distinct from
+    /// `hostkey_algos` (KEXINIT host keys). Uniformised so the two PUTs' decrypted
+    /// EXT_INFO no longer diverges on static per-implementation capability.
+    #[serde(default)]
+    pub server_sig_algs: Option<String>,
 }
 
 impl ProtocolDescriptorConfig for SshDescriptorConfig {
@@ -172,6 +192,11 @@ impl Default for SshDescriptorConfig {
         Self {
             typ: AgentType::Server,
             try_reuse: false,
+            kex: None,
+            ciphers: None,
+            macs: None,
+            hostkey_algos: None,
+            server_sig_algs: None,
         }
     }
 }
@@ -235,24 +260,9 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn try_read_bytes(
-        _bitstring: &[u8],
-        _ty: TypeId,
+        bitstring: &[u8],
+        ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
-        todo!()
-    }
-
-    /// An SSH message goes on the wire as the binary packet of its payload (`create_opaque`: its
-    /// length and padding), a flight of them as their packets: the codec of an [`SshMessage`]
-    /// is its payload only, from which `create_opaque` builds the packet. puffin encodes an
-    /// input by the codec of its value (`any_get_encoding`), so without this an SSH message was
-    /// sent without its packet.
-    fn any_get_encoding(message: &dyn EvaluatedTerm<Self::ProtocolTypes>) -> Vec<u8> {
-        if let Some(message) = message.as_any().downcast_ref::<SshMessage>() {
-            return codec::CodecP::get_encoding(&message.create_opaque());
-        }
-        if let Some(flight) = message.as_any().downcast_ref::<SshMessageFlight>() {
-            return codec::CodecP::get_encoding(&RawSshMessageFlight::from(flight.clone()));
-        }
-        codec::CodecP::get_encoding(message)
+        crate::ssh::message::try_read_bytes(bitstring, ty)
     }
 }
