@@ -23,6 +23,7 @@ graph TD;
     puffin-->LibAFL;
 
     tlspuffin-- "C interface TLS_PUT_INTERFACE" -->bundle;
+    sshpuffin-- "C interface SSH_PUT_INTERFACE" -->bundle;
 
     subgraph bundle ["libputs-bundle.a: one target per vendor library in VENDOR_DIR (built by puffin-build)"]
         P1["e.g. openssl340 = harness/openssl + OpenSSL 3.4.0"];
