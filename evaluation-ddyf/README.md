@@ -1,5 +1,26 @@
 # DDYF
 
+> **Protocol-agnostic artifact — TLS is the worked example.** This README (and most of the
+> reproduction scripts it lists) are written for the **TLS** experiments in the DDYF paper [A]
+> (OpenSSL / LibreSSL / … driven by `tlspuffin`). The DDYF workflow is identical for any
+> protocol; for another protocol substitute the names in the table below. For the **SSH**
+> instantiation specifically (libssh vs wolfSSH, driven by `sshpuffin`), the authoritative
+> entry point is [`SSH_EVALUATION.md`](SSH_EVALUATION.md), with the SSH triaging
+> tooling under [`ssh/`](ssh/) and the (shared, protocol-agnostic) LLM-triaging prompt suite
+> under [`prompts-triaging/`](prompts-triaging/) (see its `START_HERE.md` § Protocol
+> configuration for the full placeholder map).
+>
+> | this README says … | means (placeholder) | TLS (here) | SSH |
+> |---|---|---|---|
+> | `tlspuffin` | `<puffin>` fuzzer binary | `tlspuffin` | `sshpuffin` |
+> | `openssl340` / `libressl421` | `<put1>` / `<put2>` | OpenSSL / LibreSSL / wolfSSL | `libssh0114` / `wolfssh150` |
+> | `sort_objectives_ossl_*.py` | `<triaging_script>` | `tls/sort_objectives_ossl_*.py` | `ssh/sort_objectives_libssh_wolfssh.py` |
+> | TLS RFCs | security spec | TLS 1.2 / 1.3 | RFC 4251–4254, 8308, 8332 |
+>
+> Layout: `diff_analyzer.py` (shared bucket engine), `phase0_produce_metadata.sh` (parametric
+> Phase-0 producer) and `prompts-triaging/` are protocol-independent; `tls/` and `ssh/` hold
+> the per-protocol triaging scripts and TLS reference tooling.
+
 This is the companion artifact for the DDYF paper [A]. We provide in this artifact:
  - the code of Dpuffin: our implementation of DDYF, a differential fuzzer for cryptographic protocols, which is based on the DY fuzzer puffin
  - various scripts to reproduce the experiments presented in Section 5
