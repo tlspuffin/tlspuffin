@@ -234,6 +234,8 @@ define_signature!(
     fn_new_opaque_flight [list]
     fn_coalesced_flight
     fn_split_handshake_flight [opaque]
+    fn_handshake_prefix [opaque]
+    fn_handshake_suffix [opaque]
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]

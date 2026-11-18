@@ -111,6 +111,59 @@ pub fn fn_split_handshake_flight(msg: &Message) -> Result<OpaqueMessageFlight, F
     })
 }
 
+/// The handshake bytes of a message a fragment can be cut from: a handshake message (its 4-byte
+/// header and body), or a fragment of one (raw handshake bytes, as `fn_handshake_prefix` and
+/// `fn_handshake_suffix` give)
+fn handshake_bytes(msg: &Message) -> Result<Vec<u8>, FnError> {
+    match &msg.payload {
+        MessagePayload::Handshake(_) | MessagePayload::TLS12EncryptedHandshake(_) => {
+            let mut bytes = Vec::new();
+            msg.payload.encode(&mut bytes);
+            Ok(bytes)
+        }
+        _ => Err(FnError::Malformed(
+            "Only a handshake message can be fragmented".into(),
+        )),
+    }
+}
+
+/// The cut of a fragmentation at `n` bytes: both pieces non-empty (RFC 8446 forbids zero-length
+/// handshake fragments)
+fn handshake_cut(bytes: &[u8], n: u64) -> Result<usize, FnError> {
+    let n = usize::try_from(n).unwrap_or(usize::MAX);
+    if n == 0 || n >= bytes.len() {
+        return Err(FnError::Malformed(format!(
+            "Cannot cut a handshake message of {} bytes at {n}",
+            bytes.len()
+        )));
+    }
+    Ok(n)
+}
+
+/// The record layer's fragmentation of a handshake message (RFC 8446, 5.1: a handshake message may
+/// be fragmented across several records): the record carrying the first `n` bytes of its handshake
+/// encoding (its 4-byte header and body). Sent with `fn_handshake_suffix(msg, n)` as the next
+/// record, the peer reassembles `msg`. The fragment is a handshake record of raw bytes
+/// (`MessagePayload::TLS12EncryptedHandshake`); a fragment can be fragmented again.
+pub fn fn_handshake_prefix(msg: &Message, n: &u64) -> Result<Message, FnError> {
+    let bytes = handshake_bytes(msg)?;
+    let n = handshake_cut(&bytes, *n)?;
+    Ok(Message {
+        version: msg.version,
+        payload: MessagePayload::TLS12EncryptedHandshake(Payload(bytes[..n].to_vec())),
+    })
+}
+
+/// The record carrying the handshake bytes of `msg` after its first `n` (see `fn_handshake_prefix`)
+pub fn fn_handshake_suffix(msg: &Message, n: &u64) -> Result<Message, FnError> {
+    let bytes = handshake_bytes(msg)?;
+    let n = handshake_cut(&bytes, *n)?;
+    Ok(Message {
+        version: msg.version,
+        payload: MessagePayload::TLS12EncryptedHandshake(Payload(bytes[n..].to_vec())),
+    })
+}
+
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }
@@ -928,4 +981,84 @@ pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {
 
 pub fn fn_u32_to_u16(input: &u32) -> Result<u16, FnError> {
     Ok(*input as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use puffin::algebra::error::FnError;
+
+    use super::{fn_handshake_prefix, fn_handshake_suffix};
+    use crate::tls::rustls::msgs::base::Payload;
+    use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+    use crate::tls::rustls::msgs::enums::{ContentType, HandshakeType, ProtocolVersion};
+    use crate::tls::rustls::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
+    use crate::tls::rustls::msgs::message::{Message, MessagePayload};
+
+    /// A Finished message: its handshake encoding is a 4-byte header and 32 bytes
+    fn finished() -> Message {
+        Message {
+            version: ProtocolVersion::TLSv1_3,
+            payload: MessagePayload::Handshake(HandshakeMessagePayload {
+                typ: HandshakeType::Finished,
+                payload: HandshakePayload::Finished(Payload((0..32).collect())),
+            }),
+        }
+    }
+
+    fn handshake_bytes(msg: &Message) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        msg.payload.encode(&mut bytes);
+        bytes
+    }
+
+    #[test]
+    fn a_prefix_and_its_suffix_are_the_message_fragmented() {
+        let msg = finished();
+        let whole = handshake_bytes(&msg);
+        assert_eq!(whole.len(), 36);
+        for n in [1u64, 2, 4, 10, 35] {
+            let (prefix, suffix) = (
+                fn_handshake_prefix(&msg, &n).unwrap(),
+                fn_handshake_suffix(&msg, &n).unwrap(),
+            );
+            let (a, b) = (handshake_bytes(&prefix), handshake_bytes(&suffix));
+            assert_eq!(a.len(), n as usize);
+            assert_eq!([a, b].concat(), whole, "cut at {n}");
+            // each a handshake record of its bytes
+            assert_eq!(prefix.payload.content_type(), ContentType::Handshake);
+            assert_eq!(suffix.version, msg.version);
+        }
+    }
+
+    #[test]
+    fn a_fragment_can_be_fragmented_again() {
+        let msg = finished();
+        let whole = handshake_bytes(&msg);
+        let rest = fn_handshake_suffix(&msg, &4).unwrap();
+        let middle = fn_handshake_prefix(&rest, &6).unwrap();
+        assert_eq!(handshake_bytes(&middle), whole[4..10].to_vec());
+    }
+
+    #[test]
+    fn a_cut_leaves_two_non_empty_pieces_of_a_handshake_message() {
+        let msg = finished();
+        for n in [0u64, 36, 37, u64::MAX] {
+            assert!(
+                matches!(fn_handshake_prefix(&msg, &n), Err(FnError::Malformed(_))),
+                "prefix at {n}"
+            );
+            assert!(
+                matches!(fn_handshake_suffix(&msg, &n), Err(FnError::Malformed(_))),
+                "suffix at {n}"
+            );
+        }
+        let ccs = Message {
+            version: ProtocolVersion::TLSv1_2,
+            payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
+        };
+        assert!(matches!(
+            fn_handshake_prefix(&ccs, &1),
+            Err(FnError::Malformed(_))
+        ));
+    }
 }
