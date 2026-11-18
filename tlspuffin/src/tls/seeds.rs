@@ -18,6 +18,49 @@ use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, P
 use crate::tls::rustls::msgs::handshake::{Random, ServerExtensions, SessionID};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
+pub fn create_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        // Full Handshakes
+        seed_successful: put.supports("tls13"),
+        seed_successful_with_ccs: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
+        // Client Attackers
+        seed_client_attacker: put.supports("tls13"),
+        seed_client_attacker_full: put.supports("tls13"),
+        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
+        seed_client_attacker12: put.supports("tls12"),
+        // Session resumption
+        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
+        // Server Attackers
+        seed_server_attacker_full: put.supports("tls13"),
+        seed_server_attacker_full_coalesced: put.supports("tls13"),
+        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
+        seed_server_attacker12: put.supports("tls12"),
+    )
+}
+
+/// The seeds of this file that the `default` corpus leaves out, apart so that the default corpus
+/// (the one benchmarks start from) stays as it is: `-c all` or `-c extra` brings them.
+pub fn create_extra_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        // A TLS 1.2 handshake whose agents' flights are forwarded as they are (tickets or not).
+        seed_successful12_forward: put.supports("tls12"),
+        seed_successful_client_auth: put.supports("tls13"),
+        // A MITM changing the cipher suite: the handshake fails.
+        seed_successful_mitm: put.supports("tls13"),
+        seed_client_attacker_full_precomputation: put.supports("tls13"),
+        // Two handshakes, the second resuming the first (witness of CVE-2022-38152); large.
+        seed_session_resumption_dhe_full: put.supports("tls13") && put.supports("tls13_session_resumption"),
+    )
+}
+
 pub fn seed_successful_client_auth(
     client: AgentName,
     server: AgentName,
@@ -2769,49 +2812,6 @@ fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
     }
 }
 
-pub fn create_corpus(
-    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
-) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
-    puffin::corpus!(
-        // Full Handshakes
-        seed_successful: put.supports("tls13"),
-        seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
-        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
-        // Client Attackers
-        seed_client_attacker: put.supports("tls13"),
-        seed_client_attacker_full: put.supports("tls13"),
-        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
-        seed_client_attacker12: put.supports("tls12"),
-        // Session resumption
-        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
-        // Server Attackers
-        seed_server_attacker_full: put.supports("tls13"),
-        seed_server_attacker_full_coalesced: put.supports("tls13"),
-        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
-        seed_server_attacker12: put.supports("tls12"),
-    )
-}
-
-/// The seeds of this file that the `default` corpus leaves out, apart so that the default corpus
-/// (the one benchmarks start from) stays as it is: `-c all` or `-c extra` brings them.
-pub fn create_extra_corpus(
-    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
-) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
-    puffin::corpus!(
-        // A TLS 1.2 handshake whose agents' flights are forwarded as they are (tickets or not).
-        seed_successful12_forward: put.supports("tls12"),
-        seed_successful_client_auth: put.supports("tls13"),
-        // A MITM changing the cipher suite: the handshake fails.
-        seed_successful_mitm: put.supports("tls13"),
-        seed_client_attacker_full_precomputation: put.supports("tls13"),
-        // Two handshakes, the second resuming the first (witness of CVE-2022-38152); large.
-        seed_session_resumption_dhe_full: put.supports("tls13") && put.supports("tls13_session_resumption"),
-    )
-}
-
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -3585,6 +3585,7 @@ pub mod tests {
                 source: None,
                 matcher: Some(TlsQueryMatcher::Alert),
                 counter: 0,
+                concatenate_all: false,
             },
         );
 
