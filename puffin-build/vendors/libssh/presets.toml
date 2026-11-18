@@ -9,12 +9,13 @@ format = 2
 repo = "https://gitlab.com/libssh/libssh-mirror.git"
 builder = "libssh"
 ref = "libssh-{version}"
-latest = "0.11.4" # the newest release (a vendor's versions need not sort by their names)
+latest = "0.12.2" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
 "0.8.3" = {}
 "0.10.4" = {}
 "0.11.4" = {}
+"0.12.2" = {}
 
 [modifiers]
 asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }
