@@ -1,5 +1,5 @@
 //! SSH support for puffin: the protocol types and term signature, the seeds, the
-//! C harness of the SSH PUT (libssh) and the differential hooks.
+//! C harnesses of the SSH PUTs (libssh, wolfSSH) and the differential hooks.
 //! The `sshpuffin` binary (`main.rs`) is the fuzzer's command line on top of it.
 
 pub mod claim;
