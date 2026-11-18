@@ -1,14 +1,6 @@
-mod claim;
-mod libssh;
-mod protocol;
-mod put_registry;
-mod query;
-mod ssh;
-mod violation;
-
 use std::process::ExitCode;
 
-use crate::put_registry::ssh_registry;
+use sshpuffin::put_registry::ssh_registry;
 
 pub fn main() -> ExitCode {
     puffin::cli::main(

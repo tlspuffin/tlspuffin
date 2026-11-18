@@ -12,11 +12,6 @@ members = [
     "extractable-macro",
 ]
 
-exclude = [
-    "crates/libssh-sys",
-]
-
-
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
@@ -74,7 +69,6 @@ trybuild = "< 1.0.91"
 comparable = "0.5.7"
 
 [patch.crates-io]
-libssh-sys = { path = "crates/libssh-sys" }
 security-claims = { path = "tlspuffin-claims" }
 
 [profile.release]
