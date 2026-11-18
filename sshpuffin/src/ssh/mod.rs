@@ -11,6 +11,7 @@
 
 use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
+pub(crate) mod differential;
 pub mod message;
 pub mod transcript;
 #[path = "."]
