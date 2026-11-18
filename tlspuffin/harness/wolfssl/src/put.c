@@ -1298,7 +1298,11 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
 #endif
 
 #if defined(USE_CUSTOM_PRNG) && LIBWOLFSSL_VERSION_HEX >= 0x04004000
-    // Register a device to provide seed (for determinism)
+    // Register a device to provide seed (for determinism). The registration is global to the
+    // process and outlives the agent: unregister the one of a previous agent first, since wolfSSL
+    // >= 5.9.4 rejects registering an already registered device ID (ALREADY_E) where earlier
+    // versions replaced it.
+    wc_CryptoCb_UnRegisterDevice(1);
     int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, agent->ctx);
     if (int_retval != 0)
     {
