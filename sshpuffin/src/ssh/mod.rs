@@ -13,6 +13,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub(crate) mod differential;
 pub mod message;
+pub mod seeds;
 pub mod transcript;
 #[path = "."]
 pub mod fn_impl {
