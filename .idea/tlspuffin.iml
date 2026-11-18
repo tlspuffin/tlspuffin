@@ -13,7 +13,6 @@
       <sourceFolder url="file://$MODULE_DIR$/tlspuffin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/puffin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/sshpuffin/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/libssh-sys/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tools/tlspuffin-analyzer" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/extractable-macro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/extractable-macro/tests" isTestSource="true" />
