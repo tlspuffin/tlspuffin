@@ -90,7 +90,26 @@ fn log_level() -> LevelFilter {
         .unwrap_or(LevelFilter::Info)
 }
 
-pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelFilter) -> Config {
+/// Size at which the log files of a fuzzing run are rolled, for all its clients together
+pub const RUN_LOG_SIZE: u64 = 10 * 1024 * 1024; // 10 MB
+
+/// Size at which each client of a run with `clients` clients rolls its own log files: together, as
+/// much as one client's files before
+pub fn client_log_size(clients: usize) -> u64 {
+    RUN_LOG_SIZE / clients.max(1) as u64
+}
+
+/// Log configuration of a fuzzing client of an experiment
+///
+/// `base_directory` is the client's own folder (`log/client-<id>/`, the id the launcher gives it,
+/// from 1, as in the stats): each client writes and rolls its own files. When the clients shared
+/// the files, each one rolled them on its own and kept writing to a file another client had rolled
+/// away: those lines were lost.
+pub fn set_experiment_fuzzing_client(
+    base_directory: &Path,
+    level_filter: LevelFilter,
+    max_log_size: u64,
+) -> Config {
     // Common encoder
     let encoder = Box::new(PatternEncoder::new("{d}\t{l}\t{m}{n}"));
 
@@ -98,16 +117,12 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
     let stdout = ConsoleAppender::builder().build();
 
     // Helper to build a rolling file appender
-    let max_log_size = 10 * 1024 * 1024; // 10 MB
     let build_rolling_appender = |path: &str, pattern: &str, filter: Option<LevelFilter>| {
         let trigger = Box::new(SizeTrigger::new(max_log_size));
         let roller = Box::new(
             FixedWindowRoller::builder()
                 .base(1)
-                .build(
-                    &format!("{}{}", base_directory.to_str().unwrap(), pattern),
-                    20,
-                )
+                .build(base_directory.join(pattern).to_str().unwrap(), 20)
                 .unwrap(),
         );
 
@@ -188,4 +203,52 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
                 .build(log_level()),
         )
         .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use log::{Level, Record};
+
+    use super::*;
+
+    #[test]
+    fn client_log_size_shares_the_run_size() {
+        assert_eq!(client_log_size(1), RUN_LOG_SIZE);
+        assert_eq!(client_log_size(8), RUN_LOG_SIZE / 8);
+        assert_eq!(client_log_size(0), RUN_LOG_SIZE);
+    }
+
+    /// Each client writes and rolls its log files in its own folder
+    #[test]
+    fn client_logs_roll_in_their_folder() {
+        let log_folder =
+            std::env::temp_dir().join(format!("puffin-client-logs-{}", std::process::id()));
+        let client_folder = log_folder.join("client-3");
+        let config = set_experiment_fuzzing_client(&client_folder, LevelFilter::Info, 1024);
+        let error_log = config
+            .appenders()
+            .iter()
+            .find(|appender| appender.name() == "error.log")
+            .unwrap();
+        let line = "x".repeat(100);
+        // 32 lines roll the file several times; the one after them opens a new live file (a roll
+        // removes it until the next line)
+        for _ in 0..33 {
+            error_log
+                .appender()
+                .append(
+                    &Record::builder()
+                        .args(format_args!("{line}"))
+                        .level(Level::Error)
+                        .build(),
+                )
+                .unwrap();
+        }
+
+        assert!(client_folder.join("error.log").exists());
+        assert!(client_folder.join("error.1.gz").exists());
+        assert!(!log_folder.join("error.log").exists());
+        assert!(!log_folder.join("error.1.gz").exists());
+        std::fs::remove_dir_all(&log_folder).unwrap();
+    }
 }
