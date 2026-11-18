@@ -14,14 +14,11 @@ categories.workspace = true
 
 [features]
 default = ["sancov"]
-# Current put supports claims
-claims = []
 
-# Sanitizer / instrumentation flags forwarded to the C harness build.
-# NOTE (asan): NOT redundant with picking an `-asan` vendor — build.rs keys on
-# cfg!(feature="asan") both to auto-select the `<preset>-asan` vendor AND to emit the
-# harness link flags (-fsanitize=address, rpath, -shared-libasan). Parity with tlspuffin.
-asan    = ["puffin/asan"]
+# Instrumentation: `sancov` is libafl's coverage feedback (puffin/sancov), `gcov` and `llvm_cov`
+# add their link flags. Each also sets that option of the vendors build.rs builds when the vendor
+# directory has none. There is no `asan` feature, as in tlspuffin: a PUT has ASan when its vendor
+# build does, and puffin-build then links the ASan runtime.
 sancov  = ["puffin/sancov"]
 gcov    = []
 llvm_cov = []
