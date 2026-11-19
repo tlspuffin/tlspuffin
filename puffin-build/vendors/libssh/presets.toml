@@ -1,15 +1,21 @@
 # The builds of libssh: one per version below, and the aliases. Any other build is named with
 # modifiers (libssh:0.10.4,asan, libssh0104-asan: `mk_vendor modifiers libssh`, puffin-build/README.md).
+# sshpuffin's default libssh PUT is libssh0114 (the evaluated version). For source-level coverage of
+# a corpus, build libssh:0.11.4,gcov (named libssh0114-no-sancov-gcov) and replay the corpus on it
+# with `sshpuffin -T libssh0114-no-sancov-gcov execute <corpus_dir>`.
 format = 2
 
 [library]
 repo = "https://gitlab.com/libssh/libssh-mirror.git"
 builder = "libssh"
 ref = "libssh-{version}"
-latest = "0.10.4" # the newest release (a vendor's versions need not sort by their names)
+latest = "0.12.2" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
+"0.8.3" = {}
 "0.10.4" = {}
+"0.11.4" = {}
+"0.12.2" = {}
 
 [modifiers]
 asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }

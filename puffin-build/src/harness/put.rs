@@ -129,6 +129,10 @@ impl Put {
             make_rust_identifier(&lib.vendor),
             self.name()
         );
+        // Declare `has_put` as a known cfg (arbitrary PUT-name values) so consumers
+        // gating tests/code on `#[cfg(has_put = "...")]` don't trip the
+        // `unexpected_cfgs` lint.
+        println!("cargo:rustc-check-cfg=cfg(has_put, values(any()))");
         println!("cargo:rustc-cfg=has_put=\"{}\"", self.name());
 
         // One cfg per PUT, named after its preset without the `-asan` suffix: a test filter can
