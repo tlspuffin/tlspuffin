@@ -41,6 +41,10 @@
 #ifdef HAS_CLAIMS
 extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsigned int *len)
     __attribute__((weak));
+/* CVE-2025-14942: 1 iff the client reached SERVER_USERAUTH_ACCEPT_DONE while still
+ * keying (out-of-order auth accept during KEX). Defined by the claims instrument
+ * (puffin-build/vendors/wolfssh/instrument_claims.cmake). */
+extern int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -66,9 +70,10 @@ struct AGENT_TYPE
     PutState state;
     char state_desc[256];
 
-    const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
-    bool claim_emitted;        /* guard so the completion claim fires once */
-    bool kex_claim_emitted;    /* guard so the post-KEX (session-id) claim fires once */
+    const CLAIMER_CB *claimer;      /* registered claim callback, or NULL */
+    bool claim_emitted;             /* guard so the completion claim fires once */
+    bool kex_claim_emitted;         /* guard so the post-KEX (session-id) claim fires once */
+    bool auth_while_keying_emitted; /* guard so the CVE-2025-14942 claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -527,6 +532,41 @@ static void emit_kex_claim(AGENT agent)
 #endif /* HAS_CLAIMS */
 }
 
+/*
+ * CVE-2025-14942: emit the one-shot client-side violation claim. The client has
+ * reached the server-userauth-accepted state while still in the initial key
+ * exchange (puffin_wolfssh_authed_while_keying) -- an out-of-order auth accept the
+ * fixed wolfSSH client rejects. Carries the session id when available (so it also
+ * feeds the decryption recipe) and the auth_while_keying flag the oracle reads.
+ */
+static void emit_auth_while_keying_claim(AGENT agent)
+{
+#ifdef HAS_CLAIMS
+    if (agent->claimer == NULL || agent->auth_while_keying_emitted)
+        return;
+
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim.auth_while_keying = 1;
+    if (puffin_wolfssh_get_session_id != NULL)
+    {
+        const unsigned char *sid = NULL;
+        unsigned int sid_len = 0;
+        if (puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+        {
+            if (sid_len > sizeof(claim.session_id))
+                sid_len = sizeof(claim.session_id);
+            memcpy(claim.session_id, sid, sid_len);
+            claim.session_id_len = (uint8_t)sid_len;
+        }
+    }
+    agent->claimer->notify(agent->claimer->context, &claim);
+    agent->auth_while_keying_emitted = true;
+#else
+    (void)agent;
+#endif /* HAS_CLAIMS */
+}
+
 static RESULT wolfssh_progress(AGENT agent)
 {
     if (agent->state == PUT_STATE_ERROR)
@@ -550,6 +590,19 @@ static RESULT wolfssh_progress(AGENT agent)
     {
         int rc = (agent->descriptor.role == SSH_SERVER) ? wolfSSH_accept(agent->ssh)
                                                         : wolfSSH_connect(agent->ssh);
+#ifdef HAS_CLAIMS
+        /* CVE-2025-14942 (client only): did this connect() step accept a userauth
+           message out of order, during the initial KEX? Checked right after the
+           call so the one-shot claim fires even on the WOULD_BLOCK the vulnerable
+           client returns while it keeps keying. */
+        if (agent->descriptor.role != SSH_SERVER
+            && puffin_wolfssh_authed_while_keying != NULL
+            && !agent->auth_while_keying_emitted
+            && puffin_wolfssh_authed_while_keying(agent->ssh))
+        {
+            emit_auth_while_keying_claim(agent);
+        }
+#endif /* HAS_CLAIMS */
         if (rc == WS_SUCCESS)
         {
             agent->state = PUT_STATE_DONE;

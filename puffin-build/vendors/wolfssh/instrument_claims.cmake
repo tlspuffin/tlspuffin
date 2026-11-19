@@ -41,6 +41,28 @@ int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsig
     *len = ssh->sessionIdSz;
     return 0;
 }
+
+/* CVE-2025-14942 oracle (client side). Returns 1 iff the client believes the
+ * server accepted user authentication (serverState >= SERVER_USERAUTH_ACCEPT_DONE)
+ * while its OWN handshake is still in the initial key exchange (isKeying != 0 and
+ * connectState < CONNECT_KEYED, i.e. it has not even finished the first NEWKEYS).
+ * That is the out-of-order auth accept the vulnerable client permits and the fixed
+ * client rejects (message not allowed). It cannot occur honestly: serverState only
+ * reaches ACCEPT_DONE after the client sends userauth, which is past CONNECT_KEYED
+ * -- so a legitimate \"none\" authentication and a legitimate post-auth rekey (where
+ * connectState == CONNECT_DONE) are both excluded. Pure observation of
+ * ssh->isKeying / ssh->serverState / ssh->connectState; never alters behaviour. */
+__attribute__((visibility(\"default\")))
+int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh)
+{
+    if (ssh == NULL) {
+        return 0;
+    }
+    return (ssh->isKeying != 0
+            && ssh->serverState >= SERVER_USERAUTH_ACCEPT_DONE
+            && ssh->connectState < CONNECT_KEYED)
+        ? 1 : 0;
+}
 ")
 
 file(APPEND "${FILE}" "${accessor}")

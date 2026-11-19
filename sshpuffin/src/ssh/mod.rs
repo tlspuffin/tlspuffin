@@ -15,6 +15,7 @@ pub(crate) mod differential;
 pub mod message;
 pub mod seeds;
 pub mod transcript;
+pub mod vulnerabilities;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;

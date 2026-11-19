@@ -68,7 +68,10 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     // differential compares position-wise, and `find_claim` always resolves to a
     // session-id-bearing claim for the decryption recipe. session_id itself is
     // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
-    if c.session_id_len == 0 {
+    // Keep claims that carry a session id (H) — the symmetric post-KEX / completion
+    // sequence the differential compares — OR that raise the CVE-2025-14942 safety
+    // flag (a violation claim that may fire before/without a completed KEX).
+    if c.session_id_len == 0 && c.auth_while_keying == 0 {
         return;
     }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
@@ -78,6 +81,7 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         auth_user: c_str_field_to_string(&c.auth_user),
         auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
         session_id: c.session_id[..sid_len].to_vec(),
+        auth_while_keying: c.auth_while_keying != 0,
     };
     ctx.claims
         .deref_borrow_mut()
@@ -143,6 +147,18 @@ impl Factory<SshProtocolBehavior> for CPut {
 
     fn supports(&self, capability: &str) -> bool {
         self.capabilities.contains(capability)
+    }
+
+    fn catalogue(&self) -> Option<puffin::catalogue::PutCatalogue> {
+        // The per-PUT catalogue state (which entries are active/fixed/unaffected in
+        // THIS build) is embedded by the harness bundle at build time; the catalogue
+        // test reads it via this factory. Mirrors tlspuffin's CPut::catalogue.
+        crate::put_registry::catalogue_states()
+            .into_iter()
+            .find(|(name, _, _)| *name == self.name)
+            .map(|(_, state, instrumentation)| {
+                puffin::catalogue::PutCatalogue::from_bundle(state, instrumentation)
+            })
     }
 
     fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {

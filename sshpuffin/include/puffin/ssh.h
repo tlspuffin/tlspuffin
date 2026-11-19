@@ -86,6 +86,16 @@ extern "C"
          */
         uint32_t rx_count;
         uint32_t tx_count;
+        /*
+         * CVE-2025-14942 safety flag (client side): set when the client reached the
+         * server-userauth-accepted state (serverState >= SERVER_USERAUTH_ACCEPT_DONE)
+         * while the transport was STILL keying (isKeying != 0) — i.e. it accepted a
+         * user-authentication-protocol message out of order, during key exchange,
+         * which the fixed wolfSSH client rejects (message not allowed). An honest
+         * handshake only reaches that state after NEWKEYS, so this is 0 on every
+         * legitimate trace. Read by the security oracle (sshpuffin/src/violation.rs).
+         */
+        uint8_t auth_while_keying;
     };
 
     typedef struct

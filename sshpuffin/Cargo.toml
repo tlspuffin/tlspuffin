@@ -52,3 +52,7 @@ test-log   = { workspace = true }
 puffin-build = { path = "../puffin-build" }
 bindgen      = { workspace = true }
 
+# the catalogue test generates its tests at run time (one per witness and PUT)
+[[test]]
+name = "catalogue"
+harness = false

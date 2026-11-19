@@ -1,3 +1,27 @@
-# Known vulnerabilities of wolfSSH: none yet.
+# Known vulnerabilities of wolfSSH.
 #
-# Format: puffin-build/README.md, section "Vulnerability catalogue".
+# Format: puffin-build/README.md, section "Vulnerability catalogue". Each entry has a witness
+# (`#[puffin::witness("<ID>")]`, sshpuffin/src/ssh/vulnerabilities.rs) or a `no_witness` reason; the
+# catalogue test (`cargo test -p sshpuffin --test catalogue`) checks each witness against its oracle
+# with and without the fix. find.by_puffin: first found by puffin ("Novel" in the README's CVE table).
+
+[CVE-2025-14942]
+summary = "wolfSSH client key-exchange state machine accepts user-authentication-protocol messages out of order, during KEX: a malicious server can skip the client's user authentication, make it leak its password in the clear, or trick it into a premature (bogus) signature"
+category = "auth-bypass"
+cwe = "CWE-287"
+cvss = { version = "3.1", score = 9.8, vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", source = "nvd" }
+affected = "< 1.4.22"
+oracle = { kind = "claim", violation = "Authentication bypass" }
+references = [
+    "https://nvd.nist.gov/vuln/detail/CVE-2025-14942",
+    "https://github.com/wolfSSL/wolfssh/pull/855",
+    "https://www.wolfssl.com/wolfssh-v1-4-22-release/",
+]
+
+[CVE-2025-14942.find]
+by_puffin = false
+
+[[CVE-2025-14942.patches]]
+versions = ">= 1.4.21, < 1.4.22"
+files = ["patches/fix-CVE-2025-14942.patch"]
+upstream = "https://github.com/wolfSSL/wolfssh/pull/855"

@@ -42,6 +42,17 @@ pub struct SshClaimInner {
     /// material only — NOT compared (differs per-stack by construction).
     #[comparable_ignore]
     pub session_id: Vec<u8>,
+    /// CVE-2025-14942 oracle flag (the C `Claim.auth_while_keying`): the client
+    /// reached the server-userauth-accepted state (`serverState >=
+    /// SERVER_USERAUTH_ACCEPT_DONE`) while the transport was still keying
+    /// (`isKeying != 0`) — i.e. it accepted a user-authentication-protocol message
+    /// out of order, during key exchange, which the fixed wolfSSH client rejects.
+    /// `SshSecurityViolationPolicy::check_violation` keys on this. NOT compared
+    /// across PUTs (an honest handshake never sets it, so it is identically false
+    /// on both stacks for every 0-diff trace): it is a one-sided safety signal, not
+    /// a conversation-matching field.
+    #[comparable_ignore]
+    pub auth_while_keying: bool,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
@@ -66,6 +77,11 @@ impl SshClaim {
             inner: Box::new(inner),
             step: None,
         }
+    }
+
+    /// The decoded auth-belief fields (used by the security oracle).
+    pub fn inner_ref(&self) -> &SshClaimInner {
+        &self.inner
     }
 }
 
