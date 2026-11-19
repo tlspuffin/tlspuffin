@@ -72,6 +72,21 @@ pub mod registration {
 
 pub use registration::{catalogue_states, for_puts};
 
+/// The names of the PUTs of `vendor` (`"libssh"`, `"wolfssh"`) in this binary, in registration
+/// order (the preference order of `sort_by_preference` in `build.rs`): the PUTs whose library
+/// version, `"<vendor> <version>"`, is of that vendor.
+pub fn put_names(vendor: &str) -> Vec<String> {
+    registration::all()
+        .into_iter()
+        .filter(|put| {
+            put.versions().iter().any(|(component, version)| {
+                component == "library" && version.split(' ').next() == Some(vendor)
+            })
+        })
+        .map(|put| put.name())
+        .collect()
+}
+
 pub fn ssh_registry() -> PutRegistry<SshProtocolBehavior> {
     let puts: Vec<_> = registration::all()
         .into_iter()

@@ -100,6 +100,17 @@ fn main() {
     let mut wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
     sort_by_preference("wolfssh", &mut wolfssh_vendors);
 
+    // `has_libssh` / `has_wolfssh`: the binary has a PUT of that vendor, whatever its version and
+    // instrumentation (`has_put` names one build, `libssh0114`, and not `libssh0122-asan`). The PUT
+    // tests are gated on these and run on every PUT of the vendor (`put_registry::put_names`).
+    println!("cargo:rustc-check-cfg=cfg(has_libssh, has_wolfssh)");
+    if !libssh_vendors.is_empty() {
+        println!("cargo:rustc-cfg=has_libssh");
+    }
+    if !wolfssh_vendors.is_empty() {
+        println!("cargo:rustc-cfg=has_wolfssh");
+    }
+
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
         .chain(wolfssh_vendors.iter())

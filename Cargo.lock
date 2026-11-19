@@ -2991,6 +2991,7 @@ dependencies = [
  "puffin-build",
  "rsa",
  "serde",
+ "serde_json",
  "sha2",
  "signature",
  "ssh-key",

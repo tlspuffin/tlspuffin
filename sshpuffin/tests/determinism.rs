@@ -1,11 +1,11 @@
 //! PUT determinism, the precondition of differential fuzzing (TLS: `tests/determinism.rs`).
 
-#![cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
+#![cfg(any(has_libssh, has_wolfssh))]
 
 use puffin::agent::AgentName;
 use puffin::trace::Trace;
 use sshpuffin::protocol::SshProtocolTypes;
-use sshpuffin::put_registry::ssh_registry;
+use sshpuffin::put_registry::{put_names, ssh_registry};
 use sshpuffin::ssh::seeds::*;
 
 /// Serialises the tests that EXECUTE PUTs, which `cargo test` runs on parallel threads. The
@@ -31,7 +31,6 @@ fn put_exec_lock() -> std::sync::MutexGuard<'static, ()> {
 /// nondeterministic in-process; re-measured 2026-09-23 it is deterministic in both roles. The
 /// single-PUT vs differential mismatch seen in triage was a CONFIG difference, the missing
 /// uniformisation, not randomness; see `display-execute --uniformise`.)
-#[cfg(any(has_put = "wolfssh150", has_put = "libssh0114"))]
 fn assert_put_deterministic(put: &str, trace: Trace<SshProtocolTypes>) {
     use std::thread;
     use std::time::Duration;
@@ -59,18 +58,34 @@ fn assert_put_deterministic(put: &str, trace: Trace<SshProtocolTypes>) {
     }
 }
 
-#[cfg(has_put = "wolfssh150")]
+/// Every wolfSSH PUT of the binary, in both roles.
+#[cfg(has_wolfssh)]
 #[test]
 fn wolfssh_put_is_deterministic() {
     let a = AgentName::first();
-    assert_put_deterministic("wolfssh150", seed_client_attacker_full_aesgcm(a)); // server role
-    assert_put_deterministic("wolfssh150", seed_server_attacker_full_aesgcm(a)); // client role
+    let puts = put_names("wolfssh");
+    assert!(
+        !puts.is_empty(),
+        "has_wolfssh, but no wolfssh PUT is registered"
+    );
+    for put in puts {
+        assert_put_deterministic(&put, seed_client_attacker_full_aesgcm(a)); // server role
+        assert_put_deterministic(&put, seed_server_attacker_full_aesgcm(a)); // client role
+    }
 }
 
-#[cfg(has_put = "libssh0114")]
+/// Every libssh PUT of the binary, in both roles.
+#[cfg(has_libssh)]
 #[test]
 fn libssh_put_is_deterministic() {
     let a = AgentName::first();
-    assert_put_deterministic("libssh0114", seed_client_attacker_full_aesgcm(a)); // server role
-    assert_put_deterministic("libssh0114", seed_server_attacker_full_aesgcm(a)); // client role
+    let puts = put_names("libssh");
+    assert!(
+        !puts.is_empty(),
+        "has_libssh, but no libssh PUT is registered"
+    );
+    for put in puts {
+        assert_put_deterministic(&put, seed_client_attacker_full_aesgcm(a)); // server role
+        assert_put_deterministic(&put, seed_server_attacker_full_aesgcm(a)); // client role
+    }
 }

@@ -3,7 +3,7 @@
 //! signature flags: `[no_gen]` (`test_term_eval`), `[opaque]` / `[get]` / `[list]`
 //! (`test_term_payloads_eval`, `unflagged_symbols_contain_their_arguments`), and the codec
 //! (`test_term_read_encode`). PUT-gated because the evaluation context needs a linked registry.
-#![cfg(any(has_put = "libssh0114", has_put = "wolfssh150"))]
+#![cfg(any(has_libssh, has_wolfssh))]
 
 use std::collections::HashSet;
 

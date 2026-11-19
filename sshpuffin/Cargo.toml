@@ -46,6 +46,7 @@ ssh-key       = { version = "0.6", features = ["rsa", "std"] }
 
 [dev-dependencies]
 env_logger = { workspace = true }
+serde_json = { workspace = true }
 test-log   = { workspace = true }
 
 [build-dependencies]
