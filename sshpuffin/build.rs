@@ -85,7 +85,11 @@ fn main() {
 
     let out_bundle = PathBuf::from(&out_dir).join("harness_bundle");
 
-    let libssh_vendors = ensure_libssh_vendors();
+    // In name order: the registry's default PUT is the first one, and the vendor directory lists
+    // its libraries in no particular order (`libssh0114` before `libssh0122`, libssh before
+    // wolfSSH).
+    let mut libssh_vendors = ensure_libssh_vendors();
+    libssh_vendors.sort_by_key(|lib| lib.name());
 
     // The `puffin_*` crypto-FFI helpers (e.g. the `ssh_pki_import_privkey_base64` wrapper)
     // live in the harness `put.c` and are carried by `harness::bundle` below — there is no
@@ -94,7 +98,8 @@ fn main() {
     // the embedded host key via libssh's C crypto API; TLS decrypts in Rust and needs none.
 
     // wolfSSH vendors are discovered from vendor/ (pre-built), or built from the preset.
-    let wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
+    let mut wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
+    wolfssh_vendors.sort_by_key(|lib| lib.name());
 
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
