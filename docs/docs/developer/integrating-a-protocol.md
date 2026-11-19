@@ -206,8 +206,11 @@ The crate's `build.rs` (`sshpuffin/build.rs`):
 2. discovers every vendor instance in the vendor dir, compiles the C harness against
    each, and bundles them via `puffin-build`'s `harness::bundle` (which also emits the
    `has_put="<name>"` cfg per PUT); when the vendor dir has none, it builds a default
-   preset, which must be the one your PUT tests are gated on (sshpuffin:
-   `LIBSSH_PRESET = "libssh0114"`), or those tests silently compile out;
+   preset (sshpuffin: `LIBSSH_PRESET = "libssh0114"`). Gate the PUT tests on the vendor,
+   not on one build's `has_put`, or they silently compile out for every other version
+   and instrumentation: sshpuffin's `build.rs` emits `has_libssh` / `has_wolfssh` when it
+   found a PUT of the vendor, and its tests run on each of them
+   (`put_registry::put_names`);
 3. links the `atexit` shim of the profile runtime when a PUT's library has gcov or
    llvm_cov. The instrumentation of a PUT is that of its vendor build: `harness::bundle`
    adds the ASan and coverage link flags each library needs, so the crate has no
