@@ -23,6 +23,7 @@
 #include <wolfssh/error.h>
 #include <wolfssh/ssh.h>
 #include <wolfssh/version.h>
+#include <wolfssl/wolfcrypt/hash.h> /* wc_Sha256Hash */
 #include <wolfssl/wolfcrypt/sha256.h>
 
 #include "bindings.h"
@@ -183,7 +184,10 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
     if (authType == WOLFSSH_USERAUTH_PUBLICKEY)
     {
         uint8_t fp[32];
-        wc_Sha256Hash(authData->sf.publicKey.publicKey, authData->sf.publicKey.publicKeySz, fp);
+        if (wc_Sha256Hash(authData->sf.publicKey.publicKey,
+                          authData->sf.publicKey.publicKeySz,
+                          fp) != 0)
+            return WOLFSSH_USERAUTH_FAILURE; /* no fingerprint: authorize nothing */
         if (!ssh_creds_key_authorized(user, fp, sizeof(fp)))
             return WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
 
