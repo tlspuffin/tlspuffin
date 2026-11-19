@@ -149,13 +149,47 @@ jobs:
           set -o pipefail
           just test sshpuffin x86_64-unknown-linux-gnu "" "" 2>&1 | tee sshpuffin-tests.log
           # These tests (sshpuffin/tests/{determinism,traces}.rs) only compile when
-          # their PUTs (libssh0114, wolfssh150) are built; a missing vendor would
-          # silently drop them and still pass.
-          for t in libssh_put_is_deterministic wolfssh_put_is_deterministic \
-                   two_party_seeds_reach_their_verdict server_session_clients_reach_done; do
-            grep -q "^test $t \.\.\. ok" sshpuffin-tests.log \
-              || { echo "::error::sshpuffin test $t did not run (PUT not built?)"; exit 1; }
-          done
+          # a PUT of their vendor is built (here libssh0114 and wolfssh150); a missing
+          # vendor would silently drop them and still pass.
+          .github/scripts/check_sshpuffin_put_tests.sh sshpuffin-tests.log
+
+  # sshpuffin's PUT tests on the latest releases of its vendors (presets.toml `latest`), for
+  # single-PUT fuzzing of them. The unit-tests job runs them on the evaluated pair, libssh0114 and
+  # wolfssh150, the vendors build.rs builds when the vendor directory has none.
+  unit-tests-sshpuffin-latest:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'unit') }}
+    name: unit tests (sshpuffin, latest libssh and wolfSSH)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build libssh0122 vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "libssh"
+          preset: "libssh0122"
+          name: "libssh0122"
+      - name: build wolfssh160 vendor
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "wolfssh"
+          preset: "wolfssh160"
+          name: "wolfssh160"
+      - name: unit test `sshpuffin`
+        run: |
+          set -o pipefail
+          just test sshpuffin x86_64-unknown-linux-gnu "" "" 2>&1 | tee sshpuffin-tests.log
+          # The PUTs the tests ran on: exactly the latest releases, not a fallback build.
+          puts=$(grep -h 'rustc-cfg=has_put=' target/x86_64-unknown-linux-gnu/debug/build/sshpuffin-*/output \
+                   | sed 's/.*has_put="\(.*\)"/\1/' | sort -u | tr '\n' ' ')
+          [[ "$puts" == "libssh0122 wolfssh160 " ]] \
+            || { echo "::error::sshpuffin tests ran on '$puts', not libssh0122 and wolfssh160"; exit 1; }
+          .github/scripts/check_sshpuffin_put_tests.sh sshpuffin-tests.log
 
   cli-tlspuffin:
     needs: [configure]
