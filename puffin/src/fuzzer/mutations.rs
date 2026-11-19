@@ -705,7 +705,7 @@ where
         // Build the fully-formed replacement, of the same type as the chosen term.
         let new_term = match &to_mutate.term {
             DYTerm::Variable(variable) => {
-                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                let Some((shape, dynamic_fn)) = self.signature.generatable().choose_filtered(
                     |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
                     rand,
                 ) else {
@@ -718,7 +718,7 @@ where
                 ))
             }
             DYTerm::Application(func, _) => {
-                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                let Some((shape, dynamic_fn)) = self.signature.generatable().choose_filtered(
                     |(shape, _)| {
                         func.shape() != shape
                             && func.shape().return_type == shape.return_type
