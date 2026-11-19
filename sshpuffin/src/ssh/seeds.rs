@@ -276,10 +276,12 @@ fn divergent_seeds() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         // fresh-build TCP reproducer outside the fuzzer.
         // DELIBERATELY kept out of the differential corpus: it diverges BY
         // DESIGN on the strict-kex / rekey-discipline difference (libssh
-        // withholds userauth while the injected rekey is pending; wolfSSH
+        // withholds userauth while the injected rekey is pending; wolfSSH 1.5.0
         // proceeds) — a NIL-impact conformance difference, fixed upstream in
         // wolfSSL/wolfssh#1200 (wolfSSH's lack of the Terrapin-affected
-        // ciphers neutralises any exploitability). Including it differentially
+        // ciphers neutralises any exploitability). wolfSSH 1.6.0 ends the
+        // connection at the SERVICE_REQUEST sent during the pending rekey
+        // (message ID not allowed, -1094). Including it differentially
         // would just re-report this closed finding on every run; legitimate
         // (0-diff) rekey coverage is already provided by the `rekey` seed.
         (
@@ -1434,9 +1436,14 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
 /// Item-6 positive control (issue #1047): a password-CHANGE USERAUTH_REQUEST
 /// (RFC 4252 §8: boolean TRUE + old-password + new-password) presenting the
 /// CORRECT current password, over the same aes256-gcm handshake as
-/// `seed_client_attacker_full_aesgcm`. Measured 0-diff: BOTH stacks parse and
-/// accept the change-request as ordinary password auth (neither routes it to a
-/// distinct password-change handler / SSH_MSG_USERAUTH_PASSWD_CHANGEREQ path).
+/// `seed_client_attacker_full_aesgcm`. Measured 0-diff on the evaluated pair
+/// (libssh0114, wolfssh150): BOTH stacks parse and accept the change-request as
+/// ordinary password auth (neither routes it to a distinct password-change
+/// handler / SSH_MSG_USERAUTH_PASSWD_CHANGEREQ path). libssh still does (it
+/// skips the flag and never reads the new password). wolfSSH 1.6.0 does not:
+/// password changes are unsupported, so it rejects the request (USERAUTH_FAILURE,
+/// without calling the auth callback, hence no authentication claim), and the
+/// seed differs between libssh and wolfSSH 1.6.0.
 ///
 /// REGISTERED in the differential (0-diff) corpus as the LEGIT positive control
 /// for the password-change message format: it proves the constructor reaches both
@@ -3533,9 +3540,10 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
 ///
 /// Outcome (locked by `tests::two_party_seeds_reach_their_verdict`): libssh's
 /// strict-kex server rejects the IGNORE during KEX ("unexpected packets in
-/// strict KEX mode") — the Terrapin mitigation. wolfSSH (no strict-kex) accepts
-/// the IGNORE, but the truncation cannot be completed in the c2s direction: the
-/// dropped SERVICE_REQUEST is mandatory and the client sends nothing else until
+/// strict KEX mode") — the Terrapin mitigation — and so does wolfSSH from 1.6.0,
+/// where strict KEX is on by default (`WS_MSGID_NOT_ALLOWED_E`, -1094). wolfSSH
+/// 1.5.0 (no strict-kex) accepts the IGNORE, but the truncation cannot be completed in the c2s
+/// direction: the dropped SERVICE_REQUEST is mandatory and the client sends nothing else until
 /// it is answered, so there is no later packet to realign on and the session
 /// stalls (neither side reaches DONE). The viable direction is s2c
 /// ([`seed_terrapin_s2c`]).
@@ -3566,9 +3574,9 @@ pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshP
 /// the client's first encrypted packet (SERVICE_REQUEST) by never forwarding it,
 /// while still forwarding the server's first encrypted chunk (EXT_INFO).
 ///
-/// Same outcome as the flight variant: libssh's strict-kex rejects the IGNORE;
-/// wolfSSH accepts it but stalls, because c2s has no later packet to realign on
-/// (the client waits for SERVICE_ACCEPT). Kept as the minimal c2s counter-example.
+/// Same outcome as the flight variant: strict KEX (libssh, wolfSSH from 1.6.0)
+/// rejects the IGNORE; wolfSSH 1.5.0 accepts it but stalls, because c2s has no later packet to
+/// realign on (the client waits for SERVICE_ACCEPT). Kept as the minimal c2s counter-example.
 pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
     use SshQueryMatcher::MsgType;
     let mut steps = relay_kex_messages(client, server);
@@ -3597,7 +3605,8 @@ pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshPr
 ///
 /// Outcome here (locked by `tests::two_party_seeds_reach_their_verdict`): not
 /// exploitable on either stack. libssh's strict-kex client rejects the IGNORE
-/// during KEX. wolfSSH (no strict-kex) accepts it, but the pinned cipher is
+/// during KEX, and so does wolfSSH from 1.6.0 (strict KEX on by default).
+/// wolfSSH 1.5.0 (no strict-kex) accepts it, but the pinned cipher is
 /// AES-GCM, whose nonce is an invocation counter independent of the sequence
 /// number, so the next forwarded chunk fails its tag and the session never
 /// completes — consistent with wolfSSH lacking the Terrapin-affected ciphers.
