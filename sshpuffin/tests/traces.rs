@@ -32,9 +32,9 @@ fn put_exec_lock() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// Every PUT of the binary that can run the seeds, libssh then wolfSSH: those of each vendor the
-/// build found (`has_libssh`, `has_wolfssh`), so that a test cannot pass on no PUT. The seeds all
-/// encrypt with AES-GCM, which libssh only has from 0.9.0 on: an older libssh (`libssh083`) stops
-/// at their key exchange and is skipped, and a binary whose only libssh is one fails here.
+/// build found (`has_libssh`, `has_wolfssh`), so that a test cannot pass on no PUT. The attacker
+/// seeds encrypt with AES-GCM, which libssh only has from 0.9.0 on: an older libssh (`libssh083`)
+/// stops at their key exchange and is skipped, and a binary whose only libssh is one fails here.
 fn all_puts() -> Vec<String> {
     let (libssh, without_aes_gcm): (Vec<_>, Vec<_>) = put_names("libssh")
         .into_iter()
@@ -73,12 +73,14 @@ fn execute_on(
 }
 
 /// Whether `put` runs strict KEX (the Terrapin countermeasure, `kex-strict-*-v00@openssh.com`):
-/// every libssh, and wolfSSH from 1.6.0 on, where it is on by default (wolfSSH PR 1271).
+/// libssh from 0.10.6 on (0.9.8 in the 0.9 series, CVE-2023-48795), and wolfSSH from 1.6.0 on,
+/// where it is on by default (wolfSSH PR 1271).
 fn has_strict_kex(put: &str) -> bool {
+    let version = library_version(put);
     if put_names("libssh").iter().any(|p| p == put) {
-        return true;
+        return version >= vec![0, 10, 6] || (vec![0, 9, 8]..vec![0, 10]).contains(&version);
     }
-    library_version(put) >= vec![1, 6]
+    version >= vec![1, 6]
 }
 
 /// The version of the library of `put`, e.g. `[1, 6, 0]` for wolfSSH 1.6.0.
@@ -107,13 +109,17 @@ fn library_version(put: &str) -> Vec<u32> {
 /// Every two-party / Terrapin relay seed must reach ITS verdict on each built
 /// PUT — not die on an unresolvable relay query first (they all used to):
 ///   * the honest relays (flight and packet granularity) complete, both agents DONE;
-///   * on a PUT with strict KEX (every libssh, wolfSSH from 1.6.0), every Terrapin variant is
+///   * on a PUT with strict KEX (libssh from 0.10.6, wolfSSH from 1.6.0), every Terrapin variant is
 ///     stopped by it: the IGNORE injected during the initial KEX is rejected (libssh: "strict KEX";
 ///     wolfSSH: `WS_MSGID_NOT_ALLOWED_E` = -1094);
 ///   * on wolfSSH 1.5.0 (no strict KEX), the c2s variants run to the end but stall (no later c2s
 ///     packet to realign on), and the s2c variant fails the client's AES-GCM tag check
 ///     (`AES_GCM_AUTH_E` = -180: GCM nonces do not follow the sequence number, so the truncation
-///     cannot be hidden).
+///     cannot be hidden);
+///   * on libssh without strict KEX (0.10.4), the c2s variants stall too, but the s2c variant
+///     SUCCEEDS, which is Terrapin (CVE-2023-48795): the two libssh peers negotiate
+///     chacha20-poly1305, keyed by the sequence number, so the injected IGNORE and the dropped
+///     EXT_INFO cancel out and the client completes without having seen EXT_INFO.
 #[test]
 fn two_party_seeds_reach_their_verdict() {
     #[derive(Debug)]
@@ -128,12 +134,19 @@ fn two_party_seeds_reach_their_verdict() {
     let client = AgentName::first();
     let server = client.next();
     type Seed = fn(AgentName, AgentName) -> Trace<SshProtocolTypes>;
-    // (seed, verdict with strict KEX, verdict without)
-    let cases: [(&str, Seed, Verdict, Verdict); 5] = [
-        ("two_party", seed_handshake_two_party, BothDone, BothDone),
+    // (seed, verdict with strict KEX, without it on wolfSSH, without it on libssh)
+    let cases: [(&str, Seed, Verdict, Verdict, Verdict); 5] = [
+        (
+            "two_party",
+            seed_handshake_two_party,
+            BothDone,
+            BothDone,
+            BothDone,
+        ),
         (
             "two_party_packet_complete",
             seed_handshake_two_party_packet_complete,
+            BothDone,
             BothDone,
             BothDone,
         ),
@@ -142,11 +155,13 @@ fn two_party_seeds_reach_their_verdict() {
             seed_terrapin_attempt,
             StrictKexReject,
             Stall,
+            Stall,
         ),
         (
             "terrapin_packet",
             seed_terrapin_packet,
             StrictKexReject,
+            Stall,
             Stall,
         ),
         (
@@ -154,14 +169,20 @@ fn two_party_seeds_reach_their_verdict() {
             seed_terrapin_s2c,
             StrictKexReject,
             GcmTagFailure,
+            BothDone,
         ),
     ];
     let _exec = put_exec_lock();
     let mut failures = Vec::new();
     for put in all_puts() {
         let strict = has_strict_kex(&put);
-        for (name, seed, with_strict, without_strict) in &cases {
-            let want = if strict { with_strict } else { without_strict };
+        let libssh = put_names("libssh").contains(&put);
+        for (name, seed, with_strict, wolfssh_without, libssh_without) in &cases {
+            let want = match (strict, libssh) {
+                (true, _) => with_strict,
+                (false, true) => libssh_without,
+                (false, false) => wolfssh_without,
+            };
             let (res, ctx) = execute_on(&put, &[client, server], &seed(client, server));
             let states = format!(
                 "{:?} / {:?}",
