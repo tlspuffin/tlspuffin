@@ -80,6 +80,13 @@ struct AGENT_TYPE
     char auth_user[SSH_CLAIM_STR_LEN];
     uint8_t auth_key_fp[32];
     uint8_t auth_key_fp_len;
+    /* Entity-authentication oracle observations (sshpuffin/src/violation.rs).
+       P1 (server): the library had verified a publickey signature for the login.
+       P2 (client): the client's host-key check fired (a server host key was
+       presented and KEX proceeded) — pure observation, the callback still accepts
+       any key. */
+    bool had_signature;
+    bool host_authenticated;
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -183,6 +190,11 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 
     if (authType == WOLFSSH_USERAUTH_PUBLICKEY)
     {
+        /* P1: record whether the library verified a signature for this login
+           (wolfSSH sets hasSignature only after it cryptographically verified the
+           publickey signature). A server that reaches authenticated via publickey
+           with had_signature == false accepted a login that proved no key. */
+        agent->had_signature = authData->sf.publicKey.hasSignature;
         if (!authData->sf.publicKey.hasSignature)
             return WOLFSSH_USERAUTH_SUCCESS; /* probe: let the client send the sig */
 
@@ -229,7 +241,14 @@ static int public_key_check_callback(const uint8_t *publicKey, uint32_t publicKe
 {
     (void)publicKey;
     (void)publicKeySz;
-    (void)ctx;
+    /* P2 (pure observation): the client received the server's host key and KEX is
+       proceeding — i.e. the server authenticated itself (wolfSSH verifies the
+       host-key signature over H before accepting the key). We still accept any key
+       (unchanged behaviour); the ORACLE enforces that a client which reaches
+       user-auth-accepted must have gotten here first. ctx is the AGENT. */
+    AGENT agent = (AGENT)ctx;
+    if (agent != NULL)
+        agent->host_authenticated = true;
     return 0; /* 0 = accept */
 }
 
@@ -407,6 +426,9 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     /* Hand the agent to the userauth callback so it can record the server's
      * authentication belief (method / user / verified-key fingerprint). */
     wolfSSH_SetUserAuthCtx(ssh, agent);
+    /* P2: hand the agent to the client's host-key-check callback so it can record
+     * that the server authenticated itself (host key presented, KEX proceeding). */
+    wolfSSH_SetPublicKeyCheckCtx(ssh, agent);
     return agent;
 }
 
@@ -450,6 +472,16 @@ static void claim_get_text(AGENT agent, WS_Text id, char *dst)
     (void)wolfSSH_GetText(agent->ssh, id, dst, SSH_CLAIM_STR_LEN);
 }
 
+/* Entity-authentication oracle fields common to every claim this agent emits
+   (sshpuffin/src/violation.rs): its role, and the P1/P2 observations. */
+static void claim_set_entity_fields(AGENT agent, Claim *claim)
+{
+    claim->role = (agent->descriptor.role == SSH_SERVER) ? 1 : 0;
+    claim->had_signature = agent->had_signature ? 1 : 0;
+    claim->host_authenticated = agent->host_authenticated ? 1 : 0;
+    claim->entity_auth_checked = 1; /* this harness populates the fields above */
+}
+
 /*
  * Build a HandshakeComplete claim from the session's negotiated parameters and
  * hand it to the registered callback. Fires at most once per agent.
@@ -461,6 +493,7 @@ static void emit_handshake_claim(AGENT agent)
 
     Claim claim;
     memset(&claim, 0, sizeof(claim));
+    claim_set_entity_fields(agent, &claim);
     claim_get_text(agent, WOLFSSH_TEXT_KEX_ALGO, claim.kex);
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_CIPHER, claim.cipher_in);
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_CIPHER, claim.cipher_out);
@@ -518,6 +551,7 @@ static void emit_kex_claim(AGENT agent)
         {
             Claim claim;
             memset(&claim, 0, sizeof(claim));
+            claim_set_entity_fields(agent, &claim);
             if (sid_len > sizeof(claim.session_id))
                 sid_len = sizeof(claim.session_id);
             memcpy(claim.session_id, sid, sid_len);
@@ -547,6 +581,7 @@ static void emit_auth_while_keying_claim(AGENT agent)
 
     Claim claim;
     memset(&claim, 0, sizeof(claim));
+    claim_set_entity_fields(agent, &claim);
     claim.auth_while_keying = 1;
     if (puffin_wolfssh_get_session_id != NULL)
     {

@@ -82,6 +82,11 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
         session_id: c.session_id[..sid_len].to_vec(),
         auth_while_keying: c.auth_while_keying != 0,
+        phase: c.phase,
+        role: c.role,
+        had_signature: c.had_signature != 0,
+        host_authenticated: c.host_authenticated != 0,
+        entity_auth_checked: c.entity_auth_checked != 0,
     };
     ctx.claims
         .deref_borrow_mut()

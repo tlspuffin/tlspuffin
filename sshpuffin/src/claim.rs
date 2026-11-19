@@ -53,6 +53,35 @@ pub struct SshClaimInner {
     /// a conversation-matching field.
     #[comparable_ignore]
     pub auth_while_keying: bool,
+    /// Coarse protocol phase (C `Claim.phase`): 2 = post-KEX, 3 = handshake complete.
+    /// The entity-auth oracle targets the completion claim (phase 3). NOT compared.
+    #[comparable_ignore]
+    pub phase: u8,
+    /// Entity-authentication oracle fields (`SshSecurityViolationPolicy`).
+    /// This agent's role (C `Claim.role`): 0 = client, 1 = server. Lets the oracle
+    /// pick the client vs the server claim (host auth is client-only; user-auth
+    /// authorization is server-only; the two-party matching-conversation check pairs
+    /// one of each). NOT compared across PUTs.
+    #[comparable_ignore]
+    pub role: u8,
+    /// P1 (server side, user authentication): the library had cryptographically
+    /// verified a publickey signature by the time it decided this login (wolfSSH
+    /// `hasSignature`). A server that reached authenticated with `had_signature ==
+    /// false` accepted a login that proved no key. NOT compared across PUTs.
+    #[comparable_ignore]
+    pub had_signature: bool,
+    /// P2 (client side, host authentication): the client verified a server host-key
+    /// signature over H during key exchange (its public-key-check callback fired and
+    /// the handshake proceeded). A client that reached user-auth-accepted with
+    /// `host_authenticated == false` accepted a session from a server that proved no
+    /// host key. NOT compared across PUTs.
+    #[comparable_ignore]
+    pub host_authenticated: bool,
+    /// Opt-in: the emitting harness populates `role`/`had_signature`/`host_authenticated`.
+    /// The oracle applies the P1/P2/P3 checks only to claims with this set, so an
+    /// un-instrumented harness (fields default to false) is never read as a bypass.
+    #[comparable_ignore]
+    pub entity_auth_checked: bool,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 

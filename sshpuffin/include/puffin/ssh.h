@@ -96,6 +96,39 @@ extern "C"
          * legitimate trace. Read by the security oracle (sshpuffin/src/violation.rs).
          */
         uint8_t auth_while_keying;
+        /*
+         * Entity-authentication oracle fields (sshpuffin/src/violation.rs).
+         *
+         * <role>: this agent's role, 0 = client, 1 = server. Lets the oracle pick
+         * the client vs the server claim (host auth is client-only; user-auth
+         * authorization is server-only; the two-party matching-conversation check
+         * pairs one of each).
+         *
+         * <had_signature> (server side, P1 — user authentication): the library had
+         * cryptographically verified a publickey signature by the time it decided
+         * this login (wolfSSH `hasSignature`, libssh: a publickey request carrying a
+         * signature). A server that reaches authenticated with had_signature == 0
+         * accepted a login that proved no key.
+         *
+         * <host_authenticated> (client side, P2 — host authentication): the client
+         * verified the server's host-key signature over H against the PINNED host
+         * identity (the embedded server host key == authorized identity A). Pure
+         * observation: the client still accepts any host key; the oracle enforces the
+         * pin. A client that reaches user-auth-accepted with host_authenticated == 0
+         * accepted a session from a server that proved no / the wrong host key.
+         */
+        uint8_t role;
+        uint8_t had_signature;
+        uint8_t host_authenticated;
+        /*
+         * Opt-in flag: 1 iff this harness populates the entity-authentication fields
+         * above (role / had_signature / host_authenticated). The oracle applies the
+         * P1/P2/P3 checks ONLY to claims with this set, so a harness that has not yet
+         * been instrumented (its fields default to 0) is never mistaken for a
+         * host-auth bypass. The wolfSSH harness sets it; others leave it 0 until
+         * instrumented.
+         */
+        uint8_t entity_auth_checked;
     };
 
     typedef struct
