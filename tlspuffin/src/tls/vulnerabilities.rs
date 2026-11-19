@@ -2,6 +2,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::Term;
 use puffin::put_registry::Factory;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
@@ -49,6 +50,9 @@ pub fn create_corpus(
         seed_cve_2025_11933: put.supports("tls13") && put.supports("dual_alg_certs_support"),
         // Malicious client: duplicate CKS extensions, server with a dual-algorithm certificate.
         seed_cve_2025_11933_server: put.supports("tls13") && put.supports("dual_alg_certs_support"),
+        // Benign client: one CKS extension in each ClientHello of a HelloRetryRequest handshake,
+        // server with a dual-algorithm certificate (wolfSSL bug without CVE, fixed after 5.9.4).
+        seed_wolfssl_cks_hrr_leak: put.supports("tls13") && put.supports("dual_alg_certs_support"),
     )
 }
 
@@ -1946,6 +1950,108 @@ pub fn seed_cve_2025_11933_server(server: AgentName) -> Trace<TLSProtocolTypes> 
     }
 }
 
+/// wolfSSL memory leak in `TLSX_CKS_Parse` through a HelloRetryRequest: no CVE (wolfSSL treats it
+/// as a bug, given its severity and that it needs `--enable-experimental --enable-dual-alg-certs`).
+/// It affects every release up to 5.9.4 built with dual-algorithm certificates, and is fixed after
+/// 5.9.4 by commit 7512272c (<https://github.com/wolfSSL/wolfssl/pull/11549>).
+///
+/// Same root cause as [`seed_cve_2025_11933_server`]: each CKS extension parsed allocates a copy in
+/// `ssl->peerSigSpec` without freeing the previous one. The 5.8.4 fix for CVE-2025-11933 only
+/// rejects duplicate CKS extensions within one ClientHello. After a HelloRetryRequest the server
+/// parses a second ClientHello, and a CKS extension in each one is not a duplicate: the first copy
+/// leaks when the server is freed. The client is not malicious: a wolfSSL client that calls
+/// `wolfSSL_UseCKS` and whose key share the server does not accept sends exactly that. Up to 5.9.2
+/// the leak has the size of the client's CKS list; 5.9.4 caps the list at 3 bytes.
+///
+/// Reachability: a server only copies the CKS extension when it has an alternative private key
+/// (`dual_alg_cert` in its descriptor). The first ClientHello has an empty key_share extension, so
+/// the server answers with a HelloRetryRequest for P-384; the second one has a P-384 key share.
+pub fn seed_wolfssl_cks_hrr_leak(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = |key_share: Term<TLSProtocolTypes>| {
+        term! {
+              fn_client_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                fn_new_session_id,
+                (fn_cipher_suites_make(
+                      (fn_append_cipher_suite(
+                      (fn_new_cipher_suites()),
+                      fn_cipher_suite13_aes_128_gcm_sha256
+                )))),
+                fn_compressions,
+                (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
+                                )),
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
+                            )),
+                            (@key_share)
+                        )),
+                        fn_supported_versions13_extension
+                    )),
+                    // A single CKS extension in each ClientHello
+                    fn_cks_both_client_extension
+                ))
+            )))
+        }
+    };
+
+    // No key share: the server asks for one in a HelloRetryRequest
+    let client_hello1 = client_hello(term! {
+        fn_key_share_extension_make(fn_key_share_extension_new)
+    });
+    let client_hello2 = client_hello(term! {
+        fn_key_share_extension_make(
+            (fn_key_share_extension_append(
+                fn_key_share_extension_new,
+                (fn_key_share_deterministic(fn_named_group_secp384r1))
+            ))
+        )
+    });
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                dual_alg_cert: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { client_hello1 }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { client_hello2 }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
@@ -1968,6 +2074,7 @@ pub mod tests {
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
             seed_cve_2026_5393.build_named_trace(),
+            seed_wolfssl_cks_hrr_leak.build_named_trace(),
             // TODO: 685 seed_cve_2022_39173.build_named_trace(),
             // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
             // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),

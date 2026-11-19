@@ -45,6 +45,13 @@ if(dual_alg_certs AND VENDOR_VERSION VERSION_LESS "5.8.4")
   declare_vulnerability("CVE-2025-11933")
 endif()
 
+# Same leak through a HelloRetryRequest: a CKS extension in each ClientHello is not a duplicate, so
+# the CVE-2025-11933 fix does not catch it. No CVE; fixed after 5.9.4 by commit 7512272c (PR #11549).
+# Master snapshots built after 5.9.4 are versioned 5.9.4+git.<hash> and have the fix.
+if(dual_alg_certs AND VENDOR_VERSION VERSION_LESS_EQUAL "5.9.4" AND NOT VENDOR_VERSION MATCHES "\\+git")
+  declare_vulnerability("WOLFSSL-CKS-HRR-LEAK")
+endif()
+
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
 elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")

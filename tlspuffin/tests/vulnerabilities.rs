@@ -743,6 +743,47 @@ fn test_seed_cve_2025_11933_server_fixed(put: &str) {
     }
 }
 
+// Same leak as CVE-2025-11933 through a HelloRetryRequest (wolfSSL bug without CVE, fixed after
+// 5.9.4): one CKS extension in each ClientHello, server with a dual-algorithm certificate.
+#[apply(test_puts,
+    filter = all(
+        WOLFSSL_CKS_HRR_LEAK,
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_wolfssl_cks_hrr_leak(put: &str) {
+    let report = tlspuffin::test_utils::trace_leak_report(
+        &seed_wolfssl_cks_hrr_leak.build_trace(),
+        &default_runner_for(put),
+    )
+    .expect("expected the trace to leak memory");
+    assert!(
+        report.contains("TLSX_CKS_Parse"),
+        "the leak does not come from TLSX_CKS_Parse:\n{report}"
+    );
+}
+
+// Negative control: on PUTs with dual-algorithm certificate support where the leak is fixed
+// (wolfSSL master after 5.9.4), the same trace must not leak.
+#[apply(test_puts,
+    filter = all(
+        not(WOLFSSL_CKS_HRR_LEAK),
+        tls13,
+        dual_alg_certs_support,
+        asan,
+    )
+)]
+fn test_seed_wolfssl_cks_hrr_leak_fixed(put: &str) {
+    if let Some(report) = tlspuffin::test_utils::trace_leak_report(
+        &seed_wolfssl_cks_hrr_leak.build_trace(),
+        &default_runner_for(put),
+    ) {
+        panic!("trace leaked on a PUT where the CKS HelloRetryRequest leak is fixed:\n{report}");
+    }
+}
+
 #[test_log::test]
 #[ignore] // wolfssl example server and client are not available in CI
 fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {
