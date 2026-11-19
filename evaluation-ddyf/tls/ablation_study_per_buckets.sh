@@ -7,6 +7,7 @@ if [ "$#" -eq 1 ]; then
 fi
 
 export LIBAFL_EDGES_MAP_SIZE=262144
+[ -e evaluation_ddyf ] || ln -s evaluation-ddyf evaluation_ddyf  # importable package name (see README)
 
 ./tools/mk_vendor make openssl:openssl340
 ./tools/mk_vendor make wolfssl:wolfssl580
@@ -20,7 +21,7 @@ function clear_and_sort() {
             echo "Cleaning buckets from $d"
             ./evaluation-ddyf/empty_buckets.sh $d
             echo "Sorting"
-            python -m evaluation-ddyf.ablation_study_sort $d
+            python -m evaluation_ddyf.tls.ablation_study_sort $d
             echo "Listing bucket contents"
             echo "$d: $(./evaluation-ddyf/list_buckets.sh $d)" >> $2
         fi;
