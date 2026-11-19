@@ -63,6 +63,27 @@ int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh)
             && ssh->connectState < CONNECT_KEYED)
         ? 1 : 0;
 }
+
+/* CVE-2025-11625 oracle (client side). Returns 1 iff the client has finished its
+ * initial key exchange (connectState >= CONNECT_KEYED, i.e. it processed a NEWKEYS
+ * and left the `while (ssh->isKeying)` connect loop). The harness combines this
+ * with its own record of whether the client's host-key-check callback ever fired
+ * (set only inside DoKexDhReply): a client that is KEYED but never verified a host
+ * key accepted a NEWKEYS before any KEX_ECDH_REPLY -- the host-authentication
+ * bypass the vulnerable client permits (it then sends userauth in the clear, since
+ * it never ran SendNewKeys) and the fixed client rejects (NEWKEYS while still
+ * self-keying -> WS_INVALID_STATE_E). An honest client reaches CONNECT_KEYED only
+ * after DoKexDhReply, where the host-key signature over H is verified and the
+ * callback fires, so KEYED-without-host-key cannot occur honestly. Pure
+ * observation of ssh->connectState; never alters behaviour. */
+__attribute__((visibility(\"default\")))
+int puffin_wolfssh_client_keyed(WOLFSSH *ssh)
+{
+    if (ssh == NULL) {
+        return 0;
+    }
+    return (ssh->connectState >= CONNECT_KEYED) ? 1 : 0;
+}
 ")
 
 file(APPEND "${FILE}" "${accessor}")

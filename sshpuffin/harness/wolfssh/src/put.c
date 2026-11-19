@@ -45,6 +45,11 @@ extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out
  * keying (out-of-order auth accept during KEX). Defined by the claims instrument
  * (puffin-build/vendors/wolfssh/instrument_claims.cmake). */
 extern int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh) __attribute__((weak));
+/* CVE-2025-11625: 1 iff the client finished its initial key exchange
+ * (connectState >= CONNECT_KEYED). Combined in the harness with host_authenticated
+ * to detect a client that is KEYED but never verified a host key (NEWKEYS accepted
+ * before KEX_ECDH_REPLY). Defined by the claims instrument. */
+extern int puffin_wolfssh_client_keyed(WOLFSSH *ssh) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -74,6 +79,7 @@ struct AGENT_TYPE
     bool claim_emitted;             /* guard so the completion claim fires once */
     bool kex_claim_emitted;         /* guard so the post-KEX (session-id) claim fires once */
     bool auth_while_keying_emitted; /* guard so the CVE-2025-14942 claim fires once */
+    bool host_auth_bypass_emitted;  /* guard so the CVE-2025-11625 claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -602,6 +608,35 @@ static void emit_auth_while_keying_claim(AGENT agent)
 #endif /* HAS_CLAIMS */
 }
 
+/*
+ * CVE-2025-11625: emit the one-shot client-side host-authentication-bypass claim.
+ * The client finished its initial key exchange (connectState >= CONNECT_KEYED) yet
+ * its host-key-check callback never fired, so it accepted a NEWKEYS before any
+ * KEX_ECDH_REPLY and never verified a server host key. This is modelled as the
+ * entity-auth completion (phase 3) claim with host_authenticated == 0, which the
+ * reusable P2 host-authentication oracle (sshpuffin/src/violation.rs) reports as
+ * "Host authentication bypass". It is emitted ONLY on the bypass (host_authenticated
+ * is true on every honest trace, where the callback fires in DoKexDhReply before
+ * CONNECT_KEYED), so it never perturbs honest / differential traces. Carries the
+ * session id if one exists (it does not here -- H is never computed).
+ */
+static void emit_host_auth_bypass_claim(AGENT agent)
+{
+#ifdef HAS_CLAIMS
+    if (agent->claimer == NULL || agent->host_auth_bypass_emitted)
+        return;
+
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_set_entity_fields(agent, &claim); /* role=client, host_authenticated=0 */
+    claim.phase = 3;                        /* PHASE_DONE: client reached its keyed belief */
+    agent->claimer->notify(agent->claimer->context, &claim);
+    agent->host_auth_bypass_emitted = true;
+#else
+    (void)agent;
+#endif /* HAS_CLAIMS */
+}
+
 static RESULT wolfssh_progress(AGENT agent)
 {
     if (agent->state == PUT_STATE_ERROR)
@@ -630,12 +665,21 @@ static RESULT wolfssh_progress(AGENT agent)
            message out of order, during the initial KEX? Checked right after the
            call so the one-shot claim fires even on the WOULD_BLOCK the vulnerable
            client returns while it keeps keying. */
-        if (agent->descriptor.role != SSH_SERVER
-            && puffin_wolfssh_authed_while_keying != NULL
-            && !agent->auth_while_keying_emitted
-            && puffin_wolfssh_authed_while_keying(agent->ssh))
+        if (agent->descriptor.role != SSH_SERVER && puffin_wolfssh_authed_while_keying != NULL &&
+            !agent->auth_while_keying_emitted && puffin_wolfssh_authed_while_keying(agent->ssh))
         {
             emit_auth_while_keying_claim(agent);
+        }
+        /* CVE-2025-11625 (client only): did this connect() step leave the client
+           KEYED (initial KEX done) without ever having verified a server host key?
+           Then it accepted a NEWKEYS before any KEX_ECDH_REPLY -- a host-auth
+           bypass. Checked right after the call so the one-shot claim fires on the
+           WOULD_BLOCK the client returns while it stalls in cleartext userauth. */
+        if (agent->descriptor.role != SSH_SERVER && puffin_wolfssh_client_keyed != NULL &&
+            !agent->host_auth_bypass_emitted && !agent->host_authenticated &&
+            puffin_wolfssh_client_keyed(agent->ssh))
+        {
+            emit_host_auth_bypass_claim(agent);
         }
 #endif /* HAS_CLAIMS */
         if (rc == WS_SUCCESS)

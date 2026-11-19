@@ -18,6 +18,7 @@ ref = "v{version}-stable"
 latest = "1.6.0" # the newest release (a vendor's versions need not sort by their names)
 
 [versions]
+"1.4.20" = {} # CVE-2025-11625: last release with the client host-auth bypass (NEWKEYS accepted before KEXDH_REPLY; fixed in 1.4.21 by PR #840)
 "1.4.21" = {} # CVE-2025-14942: last release with the vulnerable client KEX state machine (fixed in 1.4.22)
 "1.5.0" = {}
 "1.6.0" = {}

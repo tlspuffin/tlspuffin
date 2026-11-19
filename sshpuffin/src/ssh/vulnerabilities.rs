@@ -66,3 +66,61 @@ pub fn witness_cve_2025_14942(client: AgentName) -> Trace<SshProtocolTypes> {
         ..Default::default()
     }
 }
+
+/// CVE-2025-11625 — wolfSSH client host-authentication bypass (CWE-287, wolfSSH
+/// <= 1.4.20; fixed in 1.4.21 by wolfSSL/wolfssh#840). The client's key-exchange
+/// state machine accepts a NEWKEYS message before any KEX_ECDH_REPLY: the
+/// vulnerable `DoNewKeys` clears the keying flag unconditionally, so the client
+/// leaves its `while (ssh->isKeying)` connect loop and reaches CONNECT_KEYED
+/// WITHOUT ever running `DoKexDhReply` — where the server host-key signature over H
+/// is verified and the public-key-check callback fires. It then proceeds to user
+/// authentication over an unencrypted transport (it never ran `SendNewKeys`, so its
+/// own `encryptId` stays ID_NONE), leaking its credentials in the clear. The fix
+/// splits the single keying flag into SELF/PEER bits and rejects a NEWKEYS received
+/// while the client is still self-keying (WS_INVALID_STATE_E).
+///
+/// Reachability: wire-reachable. The attacker plays the server; the real wolfSSH
+/// CLIENT PUT is driven to send KEX_ECDH_INIT (it begins keying), then fed a single
+/// cleartext NEWKEYS instead of a KEX_ECDH_REPLY. The vulnerable client processes
+/// it and reaches CONNECT_KEYED with no host key verified — the harness raises the
+/// host-authentication-bypass claim (client role, phase-3 completion belief,
+/// host_authenticated == false) and the P2 host-authentication oracle reports "Host
+/// authentication bypass" (sshpuffin/src/violation.rs). The fixed client rejects the
+/// out-of-order NEWKEYS, never reaches CONNECT_KEYED, and the witness yields no
+/// objective.
+///
+/// Minimal: the smallest trace that reaches the vulnerable state — banner + KEXINIT
+/// so the client sends KEX_ECDH_INIT and starts keying, then the one out-of-order
+/// NEWKEYS. No KEX_ECDH_REPLY, no derived keys, no channel and no default-list
+/// narrowing are needed (default `SshDescriptorConfig`).
+#[puffin::witness("CVE-2025-11625")]
+pub fn witness_cve_2025_11625(client: AgentName) -> Trace<SshProtocolTypes> {
+    // Fixed server KEXINIT (aes256-gcm, rsa-sha2-256 host key) — the algorithms the
+    // wolfSSH client accepts, so it answers with KEX_ECDH_INIT and begins keying.
+    let server_kexinit = term! { fn_server_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client), // client banner
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // client KEXINIT
+            InputAction::new_step(client, term! { fn_packet((@server_kexinit)) }),
+            OutputAction::new_step(client), // client KEX_ECDH_INIT -> now keying
+            // Out-of-order, cleartext NEWKEYS before any KEX_ECDH_REPLY: the host
+            // key is never presented, so the client never verifies it.
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), /* vulnerable client keys without host auth ->
+                                             * violation */
+        ],
+        ..Default::default()
+    }
+}

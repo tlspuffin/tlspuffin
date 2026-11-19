@@ -69,9 +69,15 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     // session-id-bearing claim for the decryption recipe. session_id itself is
     // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
     // Keep claims that carry a session id (H) — the symmetric post-KEX / completion
-    // sequence the differential compares — OR that raise the CVE-2025-14942 safety
-    // flag (a violation claim that may fire before/without a completed KEX).
-    if c.session_id_len == 0 && c.auth_while_keying == 0 {
+    // sequence the differential compares — OR that raise a one-sided safety signal
+    // that may fire before/without a completed KEX: the CVE-2025-14942
+    // out-of-order-auth flag, or the CVE-2025-11625 host-authentication-bypass
+    // completion claim (a client that reached its keyed belief with NO host key
+    // verified never computed H, so its session id is necessarily empty — dropping
+    // it on `session_id_len == 0` would hide the bypass from the P2 oracle).
+    let host_auth_bypass =
+        c.entity_auth_checked != 0 && c.role == 0 && c.phase == 3 && c.host_authenticated == 0;
+    if c.session_id_len == 0 && c.auth_while_keying == 0 && !host_auth_bypass {
         return;
     }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
