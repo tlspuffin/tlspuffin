@@ -127,6 +127,10 @@ impl<PT: ProtocolTypes> Function<PT> {
         self.fn_container.attrs.no_gen
     }
 
+    pub fn no_mutate(&self) -> bool {
+        self.fn_container.attrs.no_mutate
+    }
+
     pub fn no_bit(&self) -> bool {
         self.fn_container.attrs.no_bit
     }

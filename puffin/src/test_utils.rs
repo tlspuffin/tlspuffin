@@ -136,7 +136,10 @@ impl<'a, PB: ProtocolBehavior> ZooTest<'a, PB> {
         // on seeds unrelated to the change.
         let mut test_map_rand = RomuDuoJrRand::with_seed(rand.next());
 
-        let all_functions_shape = self.signature.functions.to_owned();
+        // Iterate the GENERATABLE symbols only: `no_mutate` symbols are never introduced by the
+        // fuzzer, so the zoo test must neither generate nor expect them (otherwise a `no_mutate`
+        // symbol yields 0 terms and is then wrongly reported as an unsuccessful function).
+        let all_functions_shape = self.signature.generatable().to_owned();
         let number_functions = all_functions_shape.len();
         let mut number_terms = 0;
         let mut number_success = 0;

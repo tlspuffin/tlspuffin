@@ -67,7 +67,7 @@ where
                     Command::new("signature")
                         .about("Show all function symbols with their type signatures (parameter types and output type)"),
                     Command::new("buildable")
-                        .about("Show, per function symbol, the cost of the cheapest closed term rooted at it, and whether one exists at all"),
+                        .about("Show, per function symbol, the cost of the cheapest closed term the term zoo can build rooted at it. None exists for `[no_mutate]` symbols and symbols with an unbuildable argument type"),
                 ]),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
@@ -1322,9 +1322,10 @@ fn mapper_cmd<PT: ProtocolTypes>(sub_matches: &clap::ArgMatches) -> ExitCode {
             );
         }
     } else if sub_matches.subcommand_matches("buildable").is_some() {
-        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols no closed term is
-        // rooted at, at any budget (see [`crate::algebra::signature::Signature::min_gen_depth`]):
-        // some argument type has no closed term either. The term zoo never generates for those.
+        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols the term zoo can
+        // build no closed term for, at any budget (see
+        // [`crate::algebra::signature::Signature::min_gen_depth`]): `[no_mutate]` symbols, and
+        // symbols with an argument type the zoo cannot build. The zoo never generates them.
         let rows: Vec<_> = functions
             .iter()
             .map(|(shape, _)| {

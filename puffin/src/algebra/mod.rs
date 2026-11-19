@@ -199,6 +199,12 @@ pub mod test_signature {
         Ok(Random)
     }
 
+    /// A probe-only atom, tagged `[no_mutate]` in `TEST_SIGNATURE`: the fuzzer must never introduce
+    /// it (root, sub-term, or ReplaceMatch), yet it stays in `functions_by_name` (F-03 regression).
+    pub fn fn_probe_only_random() -> Result<Random, FnError> {
+        Ok(Random)
+    }
+
     pub fn fn_client_extensions_append(
         _extensions: &ClientExtensions,
         _extension: &ClientExtension,
@@ -355,6 +361,7 @@ pub mod test_signature {
         fn_protocol_version12
         fn_new_session_id
         fn_new_random
+        fn_probe_only_random [no_mutate]
         fn_client_extensions_append
         fn_client_extensions_new
         fn_support_group_extension
@@ -690,6 +697,87 @@ mod tests {
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
+
+    /// F-03 regression: a `[no_mutate]` symbol is excluded from the generatable pool (which backs
+    /// root generation and `ReplaceMatchMutator`) and from sub-term generation, yet remains in
+    /// `functions_by_name` so hand-authored seeds using it still (de)serialize and execute.
+    #[test]
+    fn no_mutate_symbol_excluded_from_generation_kept_for_lookup() {
+        let probe = fn_probe_only_random.name();
+        let normal = fn_new_random.name();
+        assert!(
+            TEST_SIGNATURE.functions_by_name.contains_key(probe),
+            "a [no_mutate] symbol must stay in functions_by_name"
+        );
+        assert!(
+            !TEST_SIGNATURE
+                .generatable()
+                .iter()
+                .any(|(s, _)| s.name == probe),
+            "a [no_mutate] symbol must not be in generatable() (root gen + ReplaceMatch draw here)"
+        );
+        assert!(
+            TEST_SIGNATURE
+                .generatable()
+                .iter()
+                .any(|(s, _)| s.name == normal),
+            "a normal symbol must remain generatable"
+        );
+        // `compute_min_costs` must also drop the `no_mutate` symbol (N-01): otherwise it would
+        // record a build cost for it and let sub-term generation treat its return type as buildable
+        // through a symbol the zoo can never pick, wasting the whole try budget. A normal symbol
+        // keeps its cost.
+        assert!(
+            TEST_SIGNATURE.min_gen_depth(probe).is_none(),
+            "a [no_mutate] symbol must not appear in the min-cost table"
+        );
+        assert!(
+            TEST_SIGNATURE.min_gen_depth(normal).is_some(),
+            "a normal symbol must have a min-generation cost"
+        );
+    }
+
+    /// A type that only `[no_mutate]` symbols return has no closed term the zoo can build, so no
+    /// symbol needing that type as an argument has one either: `compute_min_costs` must record no
+    /// cost for the type nor for that symbol, or sub-term generation would pick the argument type
+    /// and spend its whole try budget on it. The same two symbols without the flag get a cost.
+    #[test]
+    fn no_mutate_only_return_type_has_no_min_cost() {
+        use crate::algebra::dynamic_function::{make_dynamic, FunctionAttributes};
+        use crate::algebra::error::FnError;
+
+        fn fn_session_id_from_random(_random: &Random) -> Result<SessionID, FnError> {
+            Ok(SessionID)
+        }
+        // `fn_probe_only_random` is the only symbol returning a `Random`.
+        let signature = |no_mutate: bool| {
+            Signature::<TestProtocolTypes>::new(vec![
+                (
+                    make_dynamic(&fn_probe_only_random),
+                    FunctionAttributes {
+                        no_mutate,
+                        ..FunctionAttributes::default()
+                    },
+                ),
+                (
+                    make_dynamic(&fn_session_id_from_random),
+                    FunctionAttributes::default(),
+                ),
+            ])
+        };
+        let random = TypeShape::<TestProtocolTypes>::of::<Random>();
+        let consumer = fn_session_id_from_random.name();
+
+        let flagged = signature(true);
+        assert_eq!(flagged.min_gen_depth_of_type(&random), None);
+        assert_eq!(flagged.min_gen_depth(consumer), None);
+        assert_eq!(flagged.min_gen_size(consumer), None);
+
+        let unflagged = signature(false);
+        assert_eq!(unflagged.min_gen_depth_of_type(&random), Some(1));
+        assert_eq!(unflagged.min_gen_depth(consumer), Some(2));
+        assert_eq!(unflagged.min_gen_size(consumer), Some(2));
+    }
 
     #[allow(dead_code)]
     fn test_compilation() {
