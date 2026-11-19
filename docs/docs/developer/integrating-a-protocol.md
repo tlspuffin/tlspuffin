@@ -216,7 +216,10 @@ The crate's `build.rs` (`sshpuffin/build.rs`):
    `has_put="<name>"` cfg per PUT); when the vendor dir has none, it builds a default
    preset, which must be the one your PUT tests are gated on (sshpuffin:
    `LIBSSH_PRESET = "libssh0114"`), or those tests silently compile out;
-3. emits ASAN / coverage link flags when the corresponding features are active.
+3. links the `atexit` shim of the profile runtime when a PUT's library has gcov or
+   llvm_cov. The instrumentation of a PUT is that of its vendor build: `harness::bundle`
+   adds the ASan and coverage link flags each library needs, so the crate has no
+   instrumentation features (as tlspuffin).
 
 ### 10. Vendor presets and builder
 
