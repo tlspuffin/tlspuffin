@@ -93,6 +93,27 @@ lost while extracting an archive of this artifact, restore them with:
 chmod +x ./evaluation-ddyf/*sh
 ```
 
+### Running with Docker
+
+The [Dockerfile](../Dockerfile) builds an image holding this repository in `/ddyf`, the Nix
+shell of [shell.nix](../shell.nix) and the pinned Rust toolchain; every command run in the
+container goes through that shell. The image holds neither the PUTs nor the fuzzer: build them
+in the container, as §0 does. From the top level of the repository:
+
+```bash
+docker build -t ddyf .
+docker run -it --name ddyf-ssh -v "$PWD/experiments:/ddyf/experiments" ddyf
+# then, inside the container (§0):
+just mk_vendor libssh  libssh0114
+just mk_vendor wolfssh wolfssh150
+cargo build -p sshpuffin --release
+target/release/sshpuffin seed
+```
+
+The campaigns of §2b write under `experiments/`, the mounted folder, so they survive the
+container. The container keeps the PUTs and the fuzzer it built: reopen it with
+`docker start -ai ddyf-ssh`.
+
 ---
 
 ## 0. Setup
