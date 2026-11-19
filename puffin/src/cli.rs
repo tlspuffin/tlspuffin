@@ -93,6 +93,7 @@ where
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing"))
+                .arg(arg!(-u --uniformise "Apply the differential PUT-config uniformisation to each trace first, as differential-execute does (use when batch-triaging differential objectives on one PUT)"))
                 .arg(arg!(--outcome <file> "Write the outcome of each execution (JSON: objective kind, signal, ASan report, claim violation) to <file>"))
                 .arg(arg!(--timeout <seconds> "With --outcome: the time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
             Command::new("witness")
@@ -421,13 +422,24 @@ where
         }
         let outcome_file: Option<&String> = matches.get_one("outcome");
         let timeout = timeout_of(matches);
+        // A differential objective was produced under the uniformised config (pinned
+        // algorithms etc.), so re-executing it on one PUT without that pinning can take a
+        // different path; batch triage of differential objectives should pass --uniformise,
+        // exactly as display-execute's -u / differential-execute do.
+        let uniformise = matches.get_flag("uniformise");
         let mut outcomes = vec![];
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
             if outcome_file.is_some() {
-                outcomes.push(execute_outcome(&runner, path, config_trace, timeout));
+                outcomes.push(execute_outcome(
+                    &runner,
+                    path,
+                    config_trace,
+                    timeout,
+                    uniformise,
+                ));
             } else {
-                execute(&runner, path, config_trace);
+                execute(&runner, path, config_trace, uniformise);
             }
         }
         if let Some(file) = outcome_file {
@@ -921,12 +933,18 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     runner: &Runner<PB>,
     input: P,
     config_trace: ConfigTrace,
+    uniformise: bool,
 ) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
         log::error!("Invalid trace file {}", input.as_ref().display());
         return;
+    };
+    let trace = if uniformise {
+        <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+    } else {
+        trace
     };
 
     log::debug!("Agents: {:?}", &trace.descriptors);
@@ -963,6 +981,7 @@ fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     config_trace: ConfigTrace,
     timeout: Option<std::time::Duration>,
+    uniformise: bool,
 ) -> TraceOutcome {
     use crate::outcome::Outcome;
 
@@ -973,6 +992,11 @@ fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
             trace: trace_name,
             outcome: Outcome::setup_error("invalid trace file"),
         };
+    };
+    let trace = if uniformise {
+        <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+    } else {
+        trace
     };
 
     let outcome = match runner.execute_outcome(trace, config_trace, timeout) {
