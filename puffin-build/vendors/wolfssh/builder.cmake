@@ -4,7 +4,8 @@
 # WOLFSSL_WOLFSSH and the crypto wolfSSH needs). puffin-build has no
 # cross-vendor dependency mechanism and fetches a single source (wolfSSH), so we
 # build wolfSSL ourselves as the first configure step, then build wolfSSH
-# against it. Both are static, with ASAN/sancov to match the other PUTs. The
+# against it. Both are static, with the instrumentation of the build (ASan, sancov, gcov,
+# llvm_cov), as the other vendors. The
 # wolfSSL archive + headers are copied into the install dir so the resulting
 # vendor is self-contained for the harness link.
 #
@@ -30,6 +31,12 @@ if(asan)
 endif()
 if(sancov)
   set(WS_CFLAGS "${WS_CFLAGS} -fsanitize-coverage=trace-pc-guard")
+endif()
+if(llvm_cov)
+  set(WS_CFLAGS "${WS_CFLAGS} -fprofile-instr-generate -fcoverage-mapping -O0")
+endif()
+if(gcov)
+  set(WS_CFLAGS "${WS_CFLAGS} -ftest-coverage -fprofile-arcs -O0")
 endif()
 
 # Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) to the
@@ -75,6 +82,12 @@ autotools_builder(
     $<$<BOOL:${asan}>:-fsanitize=address>
     $<$<BOOL:${asan}>:-static-libsan>
     $<$<BOOL:${sancov}>:-fsanitize-coverage=trace-pc-guard>
+    $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>
+    $<$<BOOL:${llvm_cov}>:-fcoverage-mapping>
+    $<$<BOOL:${llvm_cov}>:-O0>
+    $<$<BOOL:${gcov}>:-ftest-coverage>
+    $<$<BOOL:${gcov}>:-fprofile-arcs>
+    $<$<BOOL:${gcov}>:-O0>
 )
 
 # ── step 3: make the install self-contained (bundle wolfSSL) ─────────────────
