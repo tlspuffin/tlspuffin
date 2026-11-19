@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use puffin_build::{harness, library, vendor_dir};
+use puffin_build::{catalogue, harness, library, vendor_dir};
 
 /// libssh preset built when no libssh vendor is present (e.g. a fresh CI
 /// checkout): 0.11.4, the version the evaluation, the differential corpus and the
@@ -37,6 +37,11 @@ fn main() {
     // inside the copy.
     println!("cargo:rerun-if-env-changed=VENDOR_DIR");
     println!("cargo:rerun-if-env-changed=SSHPUFFIN_ONLY_VENDOR");
+    // `sort_by_preference` reads each vendor's `[library] latest`.
+    for vendor in ["libssh", "wolfssh"] {
+        let presets = catalogue::vendors_dir().join(vendor).join("presets.toml");
+        println!("cargo:rerun-if-changed={}", presets.display());
+    }
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let project_dir = puffin_build::puffin::project_dir();
@@ -86,10 +91,14 @@ fn main() {
 
     let out_bundle = PathBuf::from(&out_dir).join("harness_bundle");
 
-    let libssh_vendors = ensure_libssh_vendors();
+    // The registry's default PUT is the first one bundled, and the vendor directory lists its
+    // libraries in no particular order: sort each vendor's builds (libssh before wolfSSH).
+    let mut libssh_vendors = ensure_libssh_vendors();
+    sort_by_preference("libssh", &mut libssh_vendors);
 
     // wolfSSH vendors are discovered from vendor/ (pre-built), or built from the preset.
-    let wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
+    let mut wolfssh_vendors = ensure_wolfssh_vendors(&libssh_vendors);
+    sort_by_preference("wolfssh", &mut wolfssh_vendors);
 
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
@@ -201,6 +210,29 @@ fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> 
     }
 
     vendor.all().into_iter().filter(|l| is_wolfssh(l)).collect()
+}
+
+/// Sorts the builds of `vendor` by preference, the first one being the default PUT when it is
+/// the first vendor: the latest release (`[library] latest` in the vendor's presets.toml) first,
+/// then newer versions before older ones; for one version, the fuzzing build (no instrumentation
+/// besides `sancov` and the claims) before the `asan`, `gcov` and `llvm_cov` ones; then by name.
+fn sort_by_preference(vendor: &str, libs: &mut [library::Library]) {
+    let latest = library::presets::load(vendor)
+        .ok()
+        .and_then(|presets| presets.latest);
+    libs.sort_by_key(|lib| {
+        let metadata = lib.metadata();
+        let instrumented = metadata
+            .instrumentation
+            .iter()
+            .any(|i| !matches!(i.as_str(), "sancov" | "claimer"));
+        (
+            latest.as_deref() != Some(metadata.version.as_str()),
+            std::cmp::Reverse(metadata.version.parse::<catalogue::Version>().ok()),
+            instrumented,
+            lib.name(),
+        )
+    });
 }
 
 fn ensure_libssh_vendors() -> Vec<library::Library> {
