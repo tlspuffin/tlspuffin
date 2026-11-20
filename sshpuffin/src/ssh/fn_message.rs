@@ -579,6 +579,32 @@ pub fn fn_channel_failure(recipient_channel: &ChannelId) -> Result<SshMessage, F
     }))
 }
 
+/// Set a KEXINIT's `first_kex_packet_follows` flag (RFC 4253 §7.1, "algorithm guessing") to
+/// `follows`. A generic field setter, not an attack constant: the DY mutator picks the bool
+/// (`fn_true` / `fn_false`), so a rekey KEXINIT carrying `fn_true` — which crashes a libssh
+/// server <= 0.10.4 with a NULL kex-methods dereference (CVE-2023-1667) — is reached by
+/// flipping this one argument on any KEXINIT, rather than being hard-coded into the witness.
+/// `fn_kex_init` / the fixed builders stay reusable; this composes with them.
+///
+/// `[opaque]` in the signature (see `define_signature!`): the flag is a single wire byte
+/// sitting between KEXINIT's unmapped `languages` / `reserved` fields, so puffin's
+/// byte-payload matcher cannot uniquely locate it (its right-sibling encoding is not
+/// contiguous in the parent). Marking the transform opaque keeps that byte-level machinery
+/// off it; term-level mutation of the bool is unaffected, and `fn_kex_init` itself stays
+/// transparent so its algorithm name-lists still carry payloads.
+pub fn fn_with_first_kex_follows(msg: &SshMessage, follows: &bool) -> Result<SshMessage, FnError> {
+    match msg {
+        SshMessage::KexInit(k) => {
+            let mut k = k.clone();
+            k.first_kex_packet_follows = *follows;
+            Ok(SshMessage::KexInit(k))
+        }
+        _ => Err(FnError::Malformed(
+            "fn_with_first_kex_follows: not a KEXINIT".into(),
+        )),
+    }
+}
+
 pub fn fn_kex_init(
     cookie: &[u8; 16],
     kex_algorithms: &KexAlgorithms,

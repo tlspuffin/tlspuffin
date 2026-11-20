@@ -1,3 +1,25 @@
-# Known vulnerabilities of libssh: none yet.
+# Known vulnerabilities of libssh.
 #
-# Format: puffin-build/README.md, section "Vulnerability catalogue".
+# Format: puffin-build/README.md, section "Vulnerability catalogue". Each entry has a witness
+# (`#[puffin::witness("<ID>")]`, sshpuffin/src/ssh/vulnerabilities.rs) or a `no_witness` reason; the
+# catalogue test (`cargo test -p sshpuffin --test catalogue`) checks each witness against its oracle.
+
+[CVE-2023-1667]
+summary = "libssh server NULL-pointer dereference during rekeying with key-exchange algorithm guessing: an authenticated client that starts a rekey with a KEXINIT whose first_kex_packet_follows flag is set drives the server to dereference a NULL kex-methods pointer and crash (denial of service)"
+category = "dos"
+cwe = "CWE-476"
+cvss = { version = "3.1", score = 6.5, vector = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H", source = "nvd" }
+affected = ">= 0.10.0, < 0.10.5"
+oracle = { kind = "crash", asan = "SEGV" }
+references = [
+    "https://nvd.nist.gov/vuln/detail/CVE-2023-1667",
+    "https://www.libssh.org/security/advisories/CVE-2023-1667.txt",
+    "https://gitlab.com/libssh/libssh-mirror/-/commit/fc1a8bb4555624f85ba1370721ad2086a4feff8c",
+]
+[CVE-2023-1667.find]
+by_puffin = false
+
+[[CVE-2023-1667.patches]]
+versions = ">= 0.10.0, < 0.10.5"
+files = ["patches/fix-CVE-2023-1667.patch"]
+upstream = "https://gitlab.com/libssh/libssh-mirror/-/commit/fc1a8bb4555624f85ba1370721ad2086a4feff8c"

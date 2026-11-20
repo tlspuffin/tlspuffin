@@ -16,6 +16,7 @@ use puffin::trace::{InputAction, OutputAction, Trace};
 
 use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolTypes};
 use crate::ssh::fn_impl::*;
+use crate::ssh::seeds::seed_client_attacker_rekey_guess;
 
 /// CVE-2025-14942 — wolfSSH client KEX state machine accepts user-authentication
 /// messages out of order, during key exchange (CWE-287, wolfSSH <= 1.4.21; fixed in
@@ -65,4 +66,24 @@ pub fn witness_cve_2025_14942(client: AgentName) -> Trace<SshProtocolTypes> {
         ],
         ..Default::default()
     }
+}
+
+/// CVE-2023-1667 — libssh SERVER NULL-pointer dereference during rekeying with KEX
+/// "algorithm guessing" (CWE-476; libssh 0.9.1–0.9.6 and 0.10.0–0.10.4; fixed in 0.10.5 /
+/// 0.9.7, GHSL-2023-032). The state tracking a received KEXINIT was keyed only on the
+/// presence of the methods fields, and `first_kex_packet_follows` was handled only
+/// partially: a post-authentication, client-initiated rekey whose KEXINIT sets
+/// `first_kex_packet_follows = 1` (RFC 4253 §7.1) drives the server to dereference a NULL
+/// kex-methods pointer and crash (ASan SEGV). The fix adds a `methods[0] != NULL` guard in
+/// `server_set_kex` and tracks KEXINIT state with an explicit flag.
+///
+/// Reachability: wire-reachable, post-authentication. The attacker plays the client
+/// against a real libssh SERVER PUT: initial KEX + NEWKEYS, then publickey auth (key A) —
+/// libssh's packet filter only admits a rekey KEXINIT once the connection is established —
+/// then the rekey KEXINIT carrying the guessing flag. On an affected server ASan reports
+/// the NULL dereference (crash oracle); a fixed server survives and the witness yields no
+/// objective. The trace is `seed_client_attacker_rekey_guess` (seeds.rs).
+#[puffin::witness("CVE-2023-1667")]
+pub fn witness_cve_2023_1667(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_guess(server)
 }

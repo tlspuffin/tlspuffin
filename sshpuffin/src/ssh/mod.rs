@@ -201,6 +201,7 @@ define_signature!(
     fn_service_request
     fn_service_accept
     fn_kex_init
+    fn_with_first_kex_follows [opaque] // sets first_kex_packet_follows; flag byte unlocatable for payloads, see fn_impl
     fn_kex_ecdh_init
     // Classic modular-DH KEXDH_INIT (msg 30) + out-of-range exponent atoms
     // (RFC 4253 §8 range validation; issue #1047 item 1).
