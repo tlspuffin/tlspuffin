@@ -58,10 +58,15 @@ pub fn step_lock() -> Option<StepIndex> {
 ///
 /// | metric                         | TLS  | OPC UA | SSH  | rule for the cap                            |
 /// |--------------------------------|------|--------|------|---------------------------------------------|
-/// | max single-step recipe (nodes) | 324  | 137    | 285  | `max_term_size >= 2 * max_seed_term`        |
-/// | max #steps                     | 13   | 10     | 10   | `max_result_trace_length >= max_seed_steps + 2` |
+/// | max single-step recipe (nodes) | 324  | 137    | 49   | `max_term_size >= 2 * max_seed_term`        |
+/// | max #steps                     | 13   | 10     | 21   | `max_result_trace_length >= max_seed_steps + 2` |
 ///
-/// The current values sit **well above** these minima on purpose, to leave headroom for future
+/// SSH counts its `default` corpus. Its AES-GCM steps keep their key material in the step's
+/// precomputations, which are not part of the recipe. One seed of its `with-divergent` corpus is
+/// above the step rule: `seed_handshake_two_party_packet_complete`, 40 steps of one-node relays
+/// for single-PUT campaigns, which `RepeatMutator` therefore leaves as is.
+///
+/// The term-size values sit **well above** these minima on purpose, to leave headroom for future
 /// growth of the mappers (larger signatures / seed terms / longer attacks) without another cap
 /// bump:
 /// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
@@ -69,7 +74,7 @@ pub fn step_lock() -> Option<StepIndex> {
 ///   set to 800.
 /// - whole-trace growth is bounded by `MutationConfig::max_result_trace_length` (max #steps) times
 ///   the per-step `max_result_term_size` cap, so there is no separate whole-trace node cap.
-///   `max_result_trace_length` is set to 20 (largest seed today = 13 steps, rule wants ≥15).
+///   `max_result_trace_length` is set to 25 (largest seed today = 21 steps, SSH; rule wants ≥23).
 /// - `max_result_term_size` (whole step recipe after a replacement) is kept >= `max_term_size` so a
 ///   max-size replacement sub-term still fits; set to 1000.
 #[derive(Copy, Clone, Debug)]
@@ -270,6 +275,9 @@ where
 pub type StepIndex = usize;
 pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
+/// A sub-term of a precomputation: its step, its index among the precomputations of that step, and
+/// the path inside its recipe.
+pub type PrecomputationPath = (StepIndex, usize, TermPath);
 
 /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
 pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
@@ -660,6 +668,43 @@ pub fn find_all_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy
             Action::Output(_) => vec![],
         })
         .collect()
+}
+
+/// [`find_all_term_filtered`] over the recipes of the precomputations.
+pub fn find_all_precomputation_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &Trace<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+) -> Vec<PrecomputationPath> {
+    let mut result = Vec::new();
+    for (step_index, step) in trace.steps.iter().enumerate() {
+        let Action::Input(input) = &step.action else {
+            continue;
+        };
+        for (index, precomputation) in input.precomputations.iter().enumerate() {
+            result.extend(
+                find_all_sub_term_filtered(&precomputation.recipe, filter, constraints)
+                    .into_iter()
+                    .map(|term_path| (step_index, index, term_path)),
+            );
+        }
+    }
+    result
+}
+
+/// The sub-term of a precomputation at `path`, see [`PrecomputationPath`].
+pub fn find_precomputation_term_mut<'a, PT: ProtocolTypes>(
+    trace: &'a mut Trace<PT>,
+    path: &PrecomputationPath,
+) -> Option<&'a mut Term<PT>> {
+    let (step_index, index, term_path) = path;
+    let Action::Input(input) = &mut trace.steps.get_mut(*step_index)?.action else {
+        return None;
+    };
+    find_term_by_term_path_mut(
+        &mut input.precomputations.get_mut(*index)?.recipe,
+        term_path,
+    )
 }
 
 #[cfg(test)]

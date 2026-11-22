@@ -1548,7 +1548,11 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         }
     }
 
-    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    /// Evaluates the precomputations in order and stores each result as `Source::Label` knowledge
+    /// before evaluating the next, so later precomputations and the recipe can read the earlier
+    /// ones by label. Code that evaluates a term of this step's recipe outside `Self::execute`
+    /// (`MakeMessage`, `ReadMessage`) must run them first.
+    pub fn execute_precomputations<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -1561,6 +1565,14 @@ impl<PT: ProtocolTypes> InputAction<PT> {
                 Some(precomputation.recipe.clone()),
             );
         }
+        Ok(())
+    }
+
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.execute_precomputations(ctx)?;
 
         let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
