@@ -16,7 +16,7 @@ use puffin::trace::{InputAction, OutputAction, Trace};
 
 use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolTypes};
 use crate::ssh::fn_impl::*;
-use crate::ssh::seeds::seed_client_attacker_rekey_guess;
+use crate::ssh::seeds::{seed_client_attacker_rekey_dh_group16, seed_client_attacker_rekey_guess};
 
 /// CVE-2025-14942 — wolfSSH client KEX state machine accepts user-authentication
 /// messages out of order, during key exchange (CWE-287, wolfSSH <= 1.4.21; fixed in
@@ -86,4 +86,26 @@ pub fn witness_cve_2025_14942(client: AgentName) -> Trace<SshProtocolTypes> {
 #[puffin::witness("CVE-2023-1667")]
 pub fn witness_cve_2023_1667(server: AgentName) -> Trace<SshProtocolTypes> {
     seed_client_attacker_rekey_guess(server)
+}
+
+/// CVE-2021-3634 — libssh heap buffer over-read/over-write when a rekey changes the KEX to
+/// one with a different digest size (CWE-787; libssh 0.9.1–0.9.5, fixed in 0.9.6 by commit
+/// d3060bc8; OSS-Fuzz 35485). `session_id` and the secret hash shared one `digest_len`, so
+/// a re-exchange whose hash is larger than the first leaves the 32-byte `session_id` buffer
+/// accessed with the new, larger length in `ssh_packet_set_newkeys` (malloc/memcpy) and
+/// `crypto_free` (`explicit_bzero`). The fix splits out `session_id_len`.
+///
+/// Reachability: wire-reachable, post-authentication. The attacker plays the client against
+/// a real libssh SERVER PUT: a curve25519-sha256 first handshake (32-byte session id) + NEWKEYS,
+/// publickey auth (key A), then a rekey whose KEXINIT offers only `diffie-hellman-group16-sha512`
+/// (64-byte digest) and whose KEXDH_INIT carries an in-range `e`. The server completes the
+/// re-KEX (`digest_len = 64`) and, on the rekey NEWKEYS, reads/writes the carried-over 32-byte
+/// `session_id` with the 64-byte length — ASan reports the heap overflow on an affected server;
+/// a fixed server (>= 0.9.6) survives and the witness yields no objective. All rekey packets are
+/// encrypted under the FIRST keys, so no post-rekey secret is needed. The trace is
+/// `seed_client_attacker_rekey_dh_group16` (seeds.rs); its only new Mapper atom is the
+/// `fn_algo_dh_group16_sha512` KEX name (no existing term yields a >32-byte-digest KEX).
+#[puffin::witness("CVE-2021-3634")]
+pub fn witness_cve_2021_3634(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_dh_group16(server)
 }

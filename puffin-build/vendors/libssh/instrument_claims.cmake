@@ -43,6 +43,21 @@ if(content MATCHES "puffin_ssh_digest_rx")
   return()
 endif()
 
+# libssh < 0.9.6 (pre-CVE-2021-3634) has no separate `session_id_len`: the session
+# id and the secret hash share `digest_len` (crypto.h). On those versions the
+# session-id helper below must read `digest_len` or it fails to compile. The fix
+# (CVE-2021-3634) splits out `session_id_len`; prefer it wherever it exists. Detect
+# from the vendored crypto.h so the instrumentation compiles on every version.
+get_filename_component(_puffin_src_dir "${FILE}" DIRECTORY)
+get_filename_component(_puffin_root "${_puffin_src_dir}" DIRECTORY)
+set(_puffin_sid_len_field "session_id_len")
+if(EXISTS "${_puffin_root}/include/libssh/crypto.h")
+  file(READ "${_puffin_root}/include/libssh/crypto.h" _puffin_crypto_h)
+  if(NOT _puffin_crypto_h MATCHES "session_id_len")
+    set(_puffin_sid_len_field "digest_len")
+  endif()
+endif()
+
 set(helpers "/* ===== PUFFIN fuzzing instrumentation (matching-conversation oracle) ===== */
 /* The hook calls injected below are statements at function entry, before each
  * function's existing declarations. libssh 0.11.4 compiles with
@@ -155,7 +170,7 @@ int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, si
         return -1;
     }
     *out = session->current_crypto->session_id;
-    *len = session->current_crypto->session_id_len;
+    *len = session->current_crypto->${_puffin_sid_len_field};
     return 0;
 }
 

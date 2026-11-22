@@ -272,6 +272,18 @@ pub fn fn_algo_none() -> Result<AlgoName, FnError> {
 pub fn fn_algo_dh_group14_sha256() -> Result<AlgoName, FnError> {
     Ok(AlgoName::new(b"diffie-hellman-group14-sha256".to_vec()))
 }
+/// `diffie-hellman-group16-sha512`: a KEX whose exchange hash is SHA-512 (64 bytes,
+/// vs SHA-256's 32). It is the only >32-byte-digest KEX the mapper can drive a
+/// server through without a valid EC point, because it is classic MODP-DH: pair
+/// it with an in-range `fn_dh_exponent_*` (e.g. `fn_dh_exponent_huge`, which is
+/// < group16's 4096-bit prime) and `fn_kex_dh_init`. Used by the CVE-2021-3634
+/// witness to rekey a 32-byte curve25519-sha256 session to a 64-byte digest, so
+/// libssh's carried-over `session_id` buffer (sized for the first KEX) is read
+/// and freed with the new, larger `digest_len` (CWE-787). No existing term yields
+/// a KEX name whose negotiated digest differs in size from curve25519-sha256.
+pub fn fn_algo_dh_group16_sha512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"diffie-hellman-group16-sha512".to_vec()))
+}
 pub fn fn_algo_ssh_rsa() -> Result<AlgoName, FnError> {
     Ok(AlgoName::new(b"ssh-rsa".to_vec()))
 }

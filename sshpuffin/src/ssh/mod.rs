@@ -81,6 +81,7 @@ define_signature!(
     fn_algo_hmac_sha1
     fn_algo_none
     fn_algo_dh_group14_sha256
+    fn_algo_dh_group16_sha512
     fn_algo_ssh_rsa
     fn_algo_rsa_sha2_512
     fn_algo_kex_strict_c

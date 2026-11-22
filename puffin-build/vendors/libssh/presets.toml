@@ -13,6 +13,7 @@ latest = "0.12.2" # the newest release (a vendor's versions need not sort by the
 
 [versions]
 "0.8.3" = {}
+"0.9.5" = {} # last release affected by CVE-2021-3634 (fixed in 0.9.6)
 "0.10.4" = {}
 "0.11.4" = {}
 "0.12.2" = {}
