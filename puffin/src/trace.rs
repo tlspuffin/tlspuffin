@@ -178,6 +178,27 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         }
     }
 
+    /// Whether both stores hold the same knowledge in the same order: same source, step,
+    /// matcher, data (compared by its `Debug` form) and associated term. Terms are compared
+    /// with `Term`'s `PartialEq`, which ignores the `unique_id` of variables and of function
+    /// symbols: cloning a term draws new ones, so the recipe stored with a precomputation's
+    /// result differs in them on every execution, while it is the same term.
+    #[must_use]
+    pub fn same_knowledge(&self, other: &Self) -> bool {
+        self.raw_knowledge.len() == other.raw_knowledge.len()
+            && self
+                .raw_knowledge
+                .iter()
+                .zip(&other.raw_knowledge)
+                .all(|(a, b)| {
+                    a.source == b.source
+                        && a.step == b.step
+                        && a.matcher == b.matcher
+                        && a.associated_term == b.associated_term
+                        && format!("{:?}", a.data) == format!("{:?}", b.data)
+                })
+    }
+
     pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
         &mut self,
         data: T,
@@ -480,8 +501,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
             && self.spawner == other.spawner
-            && format!("{:?}", self.knowledge_store.raw_knowledge)
-                == format!("{:?}", other.knowledge_store.raw_knowledge)
+            && self.knowledge_store.same_knowledge(&other.knowledge_store)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
             && self.config_trace == other.config_trace
     }
@@ -1776,5 +1796,76 @@ mod tests {
         let all = query(true).to_string();
         assert!(all.contains(", *)"), "{all}");
         assert!(!all.contains('3'), "{all}");
+    }
+
+    /// Each execution stores a precomputation's result together with a fresh clone of its
+    /// recipe, and every clone draws new `unique_id`s for its variables and function symbols.
+    /// Two runs of the same trace must still compare equal (the SSH determinism test compares
+    /// whole contexts), while knowledge that differs in anything else must not.
+    #[test]
+    fn same_knowledge_ignores_the_ids_of_stored_recipes() {
+        use crate::algebra::test_signature::{
+            fn_client_extensions_new, Random, SessionID, TestProtocolTypes,
+        };
+        use crate::algebra::{AnyMatcher, DYTerm, Term};
+        use crate::trace::{KnowledgeStore, RawKnowledge, Source, StepNumber};
+
+        let recipe: Term<TestProtocolTypes> = term! { (!"a", 0)/Random };
+        let function: Term<TestProtocolTypes> = term! { fn_client_extensions_new };
+        let store = |label: &str| {
+            let mut store = KnowledgeStore::<TestProtocolTypes>::new();
+            store.add_raw_knowledge(
+                Random,
+                None,
+                Source::Label(Some(label.into())),
+                Some(recipe.clone()),
+            );
+            store
+        };
+
+        let (first, second) = (store("a"), store("a"));
+        assert_ne!(
+            format!("{first:?}"),
+            format!("{second:?}"),
+            "the two clones of the recipe have different variable ids"
+        );
+        assert!(first.same_knowledge(&second));
+        assert_ne!(
+            format!("{function:?}"),
+            format!("{:?}", function.clone()),
+            "the two clones of a function symbol have different ids"
+        );
+        let mut with_function = store("a");
+        with_function.raw_knowledge[0].associated_term = Some(function.clone());
+        let mut with_function_clone = store("a");
+        with_function_clone.raw_knowledge[0].associated_term = Some(function.clone());
+        assert!(with_function.same_knowledge(&with_function_clone));
+
+        assert!(!first.same_knowledge(&store("b")), "a different source");
+        assert!(
+            !first.same_knowledge(&KnowledgeStore::new()),
+            "a different length"
+        );
+        let with = |change: fn(&mut RawKnowledge<TestProtocolTypes>)| {
+            let mut changed = store("a");
+            change(&mut changed.raw_knowledge[0]);
+            changed
+        };
+        assert!(
+            !first.same_knowledge(&with(|k| k.step = Some(StepNumber { trace: 0, step: 1 }))),
+            "a different step"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.matcher = Some(AnyMatcher))),
+            "a different matcher"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.associated_term = None)),
+            "a different recipe"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.data = Box::new(SessionID))),
+            "different data"
+        );
     }
 }
