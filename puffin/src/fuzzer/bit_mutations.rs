@@ -256,12 +256,19 @@ impl<'a, PB> MakeMessage<'a, PB> {
 /// rewrites (e.g. an SSH auto counter) still evaluates to its placeholder. The preprocessing keeps
 /// the step count and the term paths, so `path` addresses the same term in both.
 ///
+/// The PUTs are reseeded first, as for a real execution: a payload can hold what a step derives
+/// from their messages (e.g. a packet sealed under the session keys), which must be what the
+/// execution the payload is meant for will derive.
+///
 /// [`InputAction::execute`]: crate::trace::InputAction
 fn execute_until_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     tr: &Trace<PT>,
     step_index: usize,
     ctx: &mut TraceContext<PB>,
 ) -> Result<Option<Trace<PT>>, crate::error::Error> {
+    if ctx.config_trace.with_reseed {
+        ctx.determinism_reseed();
+    }
     let preprocessed = PT::preprocess_trace(tr);
     let effective = preprocessed.as_ref().unwrap_or(tr);
     effective.execute_until_step(ctx, step_index, &mut 0, true)?;
@@ -1714,11 +1721,15 @@ impl BytesLargeExpandMutator {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
     use super::{make_message_term, read_message_term};
-    use crate::agent::AgentName;
+    use crate::agent::{AgentDescriptor, AgentName};
     use crate::algebra::test_signature::*;
+    use crate::claims::GlobalClaimList;
     use crate::error::Error;
-    use crate::put::{PutDescriptor, PutOptions};
+    use crate::put::{Put, PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Action, InputAction, Precomputation, Spawner, Step, Trace, TraceContext};
@@ -1766,6 +1777,62 @@ mod tests {
             unreachable!()
         };
         assert!(input.recipe.payloads.is_some(), "the term got its payload");
+    }
+
+    /// Both mutations reseed the PUTs before their partial execution, like a real execution.
+    #[test_log::test]
+    fn make_and_read_message_reseed_the_puts() {
+        #[derive(Clone)]
+        struct ReseedCounter(Arc<AtomicUsize>);
+
+        impl Factory<TestProtocolBehavior> for ReseedCounter {
+            fn create(
+                &self,
+                _descriptor: &AgentDescriptor<TestPUTConfig>,
+                _claims: &GlobalClaimList<TestClaim>,
+                _options: &PutOptions,
+            ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
+                panic!("this test spawns no agent");
+            }
+
+            fn name(&self) -> String {
+                "reseed_counter".into()
+            }
+
+            fn versions(&self) -> Vec<(String, String)> {
+                vec![]
+            }
+
+            fn supports(&self, _capability: &str) -> bool {
+                false
+            }
+
+            fn rng_reseed(&self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+
+            fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
+                Box::new(self.clone())
+            }
+        }
+
+        let reseeds = Arc::new(AtomicUsize::new(0));
+        let factory: Box<dyn Factory<TestProtocolBehavior>> =
+            Box::new(ReseedCounter(reseeds.clone()));
+        let registry = PutRegistry::new(
+            [("reseed_counter", factory)],
+            PutDescriptor::new("reseed_counter", PutOptions::empty()),
+        );
+
+        let mut trace = trace_reading_its_precomputation();
+        let mut ctx = TraceContext::new(Spawner::new(registry.clone()));
+        make_message_term(&mut trace, &(0, vec![]), &mut ctx).unwrap();
+        assert_eq!(reseeds.load(Ordering::SeqCst), 1, "MakeMessage");
+
+        let mut trace = trace_reading_its_precomputation();
+        let mut ctx = TraceContext::new(Spawner::new(registry));
+        let _ = read_message_term(&mut trace, &(0, vec![]), &mut ctx); // no reader: codec error
+        assert_eq!(reseeds.load(Ordering::SeqCst), 2, "ReadMessage");
     }
 
     /// Same for `ReadMessage`. The test protocol cannot read bytes back, so the mutation ends on
