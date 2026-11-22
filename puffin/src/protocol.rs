@@ -305,6 +305,8 @@ pub trait ProtocolTypes:
     ///
     /// The rewrite MUST preserve the step count (only rewrite recipe sub-terms),
     /// because `execute_until_step_wrap`'s `stop_at_step` indexes the same step list.
+    /// It MUST also keep the path of every sub-term: `MakeMessage` and `ReadMessage` pick
+    /// a path in the stored trace and evaluate the term at that path in the rewritten one.
     ///
     /// sshpuffin uses it to renumber AES-GCM packet counters: a seed authors its
     /// c2s `fn_encrypt_packet_aesgcm` calls with a sentinel counter atom, and this

@@ -23,7 +23,7 @@ use super::utils::{
 use crate::algebra::{Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, Spawner, Trace, TraceContext};
 
 /* List from: https://docs.rs/libafl/latest/src/libafl/mutators/havoc_mutations.rs.html#60
     BitFlipMutator,
@@ -247,16 +247,40 @@ impl<'a, PB> MakeMessage<'a, PB> {
     }
 }
 
-/// `MakeMessage` on the term at path `path` in `tr`.
-fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+/// Executes `tr` until step `step_index` (excluded), then the precomputations of that step, so
+/// that its terms can be evaluated in `ctx` as [`InputAction::execute`] would evaluate them.
+///
+/// The trace that runs is the one [`ProtocolTypes::preprocess_trace`] gives, as in
+/// [`Trace::execute_until_step_wrap`]. It is returned when it differs from `tr` (`None`: `tr`
+/// itself), and the terms of the step must be evaluated in it: in `tr`, a term the preprocessing
+/// rewrites (e.g. an SSH auto counter) still evaluates to its placeholder. The preprocessing keeps
+/// the step count and the term paths, so `path` addresses the same term in both.
+///
+/// [`InputAction::execute`]: crate::trace::InputAction
+fn execute_until_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &Trace<PT>,
+    step_index: usize,
+    ctx: &mut TraceContext<PB>,
+) -> Result<Option<Trace<PT>>, crate::error::Error> {
+    let preprocessed = PT::preprocess_trace(tr);
+    let effective = preprocessed.as_ref().unwrap_or(tr);
+    effective.execute_until_step(ctx, step_index, &mut 0, true)?;
+    if let Some(Action::Input(input)) = effective.steps.get(step_index).map(|s| &s.action) {
+        input.execute_precomputations(ctx)?;
+    }
+    Ok(preprocessed)
+}
+
+/// `MakeMessage` on the term at path `path` in `tr`: the term gets as payload its encoding in
+/// the trace as it runs (see `execute_until_term`).
+pub fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
 ) -> Result<(), crate::error::Error> {
     log::debug!("make_message_term: executing until path.0: {}", path.0);
-    // Only execute shorter trace: trace[0..step_index])
-    // execute the PUT on the first step_index steps and store the resulting trace context
-    tr.execute_until_step(ctx, path.0, &mut 0, true).map_err(|e| {
+    // Only execute shorter trace: trace[0..step_index], then the precomputations of step_index
+    let preprocessed = execute_until_term(tr, path.0, ctx).map_err(|e| {
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
         log::debug!("mutation::MakeMessage trace is not executable until step {},\
@@ -265,9 +289,12 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
         log::trace!("{}", &tr);
         e
     })?;
+    let effective = preprocessed.as_ref().unwrap_or(&*tr);
+    let t = find_term(effective, path).expect("make_message_term - Should never happen.");
+    let eval_0 = t.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
 
     let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
-    t.make_payload(ctx)?;
+    t.add_payload(eval_0);
     Ok(())
 }
 
@@ -461,24 +488,25 @@ impl<'a, PB> ReadMessage<'a, PB> {
     }
 }
 
-/// `ReadMessage` on the term at path `path` in `tr`.
-fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+/// `ReadMessage` on the term at path `path` in `tr`: the term is evaluated in the trace as it
+/// runs (see `execute_until_term`).
+pub fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
 ) -> Result<(), crate::error::Error> {
-    // Only execute shorter trace: trace[0..step_index])
-    // execute the PUT on the first step_index steps and store the resulting trace context
+    // Only execute shorter trace: trace[0..step_index], then the precomputations of step_index
     log::debug!("Try eval until path.0: {}", path.0);
-    tr.execute_until_step(ctx, path.0, &mut 0, true).map_err(|e| {
+    let preprocessed = execute_until_term(tr, path.0, ctx).map_err(|e| {
         log::debug!("mutation::ReadMessage trace is not executable until step {}, \
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace. Skipped ReadMessage\
             Error: {e}. Skipping ReadMessage...", path.0);
         log::trace!("{}", &tr);
         e
     })?;
+    let effective = preprocessed.as_ref().unwrap_or(&*tr);
 
-    let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
+    let t = find_term(effective, path).expect("read_message_term - Should never happen.");
     log::debug!(
         "[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}\n Trying read for type shape: {} and type id : {:?}",
         t, t.get_type_shape(), t.term.type_id()
@@ -501,6 +529,7 @@ fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
             t.get_type_shape(), t.term.type_id());
     }
 
+    let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
     t.add_payload_readable(eval_read);
     Ok(())
 }
@@ -1680,5 +1709,72 @@ impl BytesLargeExpandMutator {
     #[must_use]
     pub fn new() -> Self {
         Self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{make_message_term, read_message_term};
+    use crate::agent::AgentName;
+    use crate::algebra::test_signature::*;
+    use crate::error::Error;
+    use crate::put::{PutDescriptor, PutOptions};
+    use crate::put_registry::{Factory, PutRegistry};
+    use crate::term;
+    use crate::trace::{Action, InputAction, Precomputation, Spawner, Step, Trace, TraceContext};
+
+    fn context() -> TraceContext<TestProtocolBehavior> {
+        fn factory() -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory)
+        }
+        TraceContext::new(Spawner::new(PutRegistry::new(
+            [("teststub", factory())],
+            PutDescriptor::new("teststub", PutOptions::empty()),
+        )))
+    }
+
+    /// One step whose recipe reads, by label, a value that the step itself precomputes. No agent
+    /// is needed: the mutations execute the steps before the chosen one, and there are none.
+    fn trace_reading_its_precomputation() -> TestTrace {
+        let recipe: TestTerm = term! { fn_renegotiation_info_extension(((!"bytes", 0)/Vec<u8>)) };
+        Trace {
+            prior_traces: vec![],
+            descriptors: vec![],
+            steps: vec![Step {
+                agent: AgentName::first(),
+                action: Action::Input(InputAction {
+                    precomputations: vec![Precomputation {
+                        label: Some("bytes".into()),
+                        recipe: term! { fn_empty_bytes_vec },
+                    }],
+                    recipe,
+                }),
+            }],
+            ..Default::default()
+        }
+    }
+
+    /// `MakeMessage` evaluates a term of step `i` after executing the steps before `i`: the
+    /// precomputations of step `i` have to run in between, or a recipe reading them by label
+    /// cannot be evaluated and the mutation is lost.
+    #[test_log::test]
+    fn make_message_runs_the_precomputations_of_its_step() {
+        let mut trace = trace_reading_its_precomputation();
+        make_message_term(&mut trace, &(0, vec![]), &mut context())
+            .expect("the label is available once the step's precomputations ran");
+        let Action::Input(input) = &trace.steps[0].action else {
+            unreachable!()
+        };
+        assert!(input.recipe.payloads.is_some(), "the term got its payload");
+    }
+
+    /// Same for `ReadMessage`. The test protocol cannot read bytes back, so the mutation ends on
+    /// a codec error, which it only reaches once the term has been evaluated.
+    #[test_log::test]
+    fn read_message_runs_the_precomputations_of_its_step() {
+        let mut trace = trace_reading_its_precomputation();
+        let err = read_message_term(&mut trace, &(0, vec![]), &mut context())
+            .expect_err("the test protocol has no reader");
+        assert!(matches!(err, Error::Codec(_)), "unexpected error: {err}");
     }
 }
