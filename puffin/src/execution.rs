@@ -198,6 +198,11 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         );
 
         log::debug!("Executing second PUT");
+        if config_trace.with_reseed {
+            // The two PUTs can be one build, with one RNG: the second execution must not continue
+            // the stream the first one used.
+            self.registry.determinism_reseed_all_factories();
+        }
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         let second_trace_status = trace.as_ref().execute(
             &mut second_ctx,

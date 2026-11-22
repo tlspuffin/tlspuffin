@@ -394,6 +394,12 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
         }
     }
 
+    /// Reseeds the RNG of every PUT, as a [`Runner`](crate::execution::Runner) does before each
+    /// execution.
+    pub fn determinism_reseed(&self) {
+        self.registry.determinism_reseed_all_factories();
+    }
+
     #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
@@ -481,6 +487,13 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     phantom: PhantomData<PB>,
     /// The number of steps that have been successfully executed
     pub executed_until: usize,
+}
+
+impl<PB: ProtocolBehavior> TraceContext<PB> {
+    /// Reseeds the RNG of every PUT, see [`Spawner::determinism_reseed`].
+    pub fn determinism_reseed(&self) {
+        self.spawner.determinism_reseed();
+    }
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
