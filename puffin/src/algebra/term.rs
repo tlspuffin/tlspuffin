@@ -1,8 +1,11 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -85,6 +88,20 @@ impl<PT: ProtocolTypes> DYTerm<PT> {
 
         Ok(Self::List(typ, elements))
     }
+
+    /// Copies this node only: its sub-terms stay shared with the original (unlike [`Clone`], which
+    /// copies them too).
+    fn shallow_clone(&self) -> Self {
+        let share = |terms: &[Term<PT>]| terms.iter().map(Term::share).collect();
+        match self {
+            Self::Variable(variable) => Self::Variable(variable.clone()),
+            Self::Application(func, args) => Self::Application(func.clone(), share(args)),
+            Self::List(typ, elements) => Self::List(typ.clone(), share(elements)),
+            Self::Deconstructor(typ, inner, query) => {
+                Self::Deconstructor(typ.clone(), Box::new(inner.share()), query.clone())
+            }
+        }
+    }
 }
 
 /// The element type of the list type `list`, as registered by [`crate::define_list_types!`].
@@ -109,18 +126,36 @@ impl<PT: ProtocolTypes> Eq for DYTerm<PT> {}
 
 impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", display_term_at_depth(self, 0, false, false))
+        write!(f, "{}", display_term_at_depth(self, 0, false, false, None))
     }
 }
 
-/// Trait for data we can treat as terms (either `DYTerm` or Term)
-pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
-    fn resistant_id(&self) -> u32;
+pub trait TermDAG<PT: ProtocolTypes> {
     fn size(&self) -> usize;
+    /// Debug: check that the term is a DAG (no cycles)
+    fn assert_dag(&self) -> Result<(), Error>;
+    /// Whether `child` is a sub-term of `self`,
+    /// used to prevent creating cycles when mutating
+    fn is_child_of(&self, child: &Self) -> bool;
+    fn is_shared(&self) -> bool;
+    /// Unshare the term at the given path,
+    /// the term at the path is cloned and the parent is updated to point to the new term.
+    fn unshare(&mut self, path: &[usize]);
+}
+
+pub trait TermTree<PT: ProtocolTypes> {
+    fn size(&self) -> usize;
+}
+
+/// Trait for data we can treat as terms (either `DYTerm` or Term)
+pub trait TermType<PT: ProtocolTypes>:
+    fmt::Display + fmt::Debug + Clone + TermDAG<PT> + TermTree<PT>
+{
+    fn resistant_id(&self) -> u32;
     fn is_leaf(&self) -> bool;
     fn get_type_shape(&self) -> &TypeShape<PT>;
     fn name(&self) -> &str;
-    fn mutate(&mut self, other: Self);
+    fn mutate(&mut self, other: Self) -> Result<(), ()>;
     fn display_at_depth(&self, depth: usize) -> String;
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
@@ -293,17 +328,325 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }
 
-/// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
-/// symbolic terms.
+/// What a [`Term`] points to: a [`DYTerm`] together with its optional bit-level [`Payloads`].
+///
+/// The payloads are part of the node, so every occurrence of a shared node carries the same
+/// payloads.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
-pub struct Term<PT: ProtocolTypes> {
+pub struct TermNode<PT: ProtocolTypes> {
     pub term: DYTerm<PT>, // initial DY term
     pub payloads: Option<Payloads>, /* None until make_message mutation is used and fill this
                            * with term.evaluate() */
 }
 
+/// `Term`s are `DYTerm`s equipped with optional `Payloads` when they no longer are treated as
+/// symbolic terms.
+///
+/// Terms form a directed acyclic graph (DAG): a `Term` is a handle on a reference-counted
+/// [`TermNode`] (the [`DYTerm`] and its [`Payloads`]). [`Clone`]-ing a `Term` (or calling
+/// [`Term::share`]) does not copy anything but makes both handles point to the same node. A
+/// sub-term can thus appear in several places of a term, or of a trace, while being stored,
+/// serialized and evaluated only once:
+/// - The `DYTerm` and the `Payloads` of a node are shared by all its occurrences.
+/// - Evaluating a shared node more than once during the execution of a trace gives back the value
+///   of the first evaluation (see [`crate::trace::TraceContext`]).
+/// - Serialization preserves the sharing within a [`crate::trace::Trace`] (or within a `Term`
+///   serialized alone).
+///
+/// The fields of the node are readable directly (`term.term`, `term.payloads`) through [`Deref`].
+/// Nodes have value semantics: they are never mutated in place while shared. Every mutable access
+/// goes through [`Term::node_mut`] (or [`Term::dy_mut`], [`Term::payloads_mut`]), which is
+/// copy-on-write (see [`Rc::make_mut`]): the node is cloned only when it is shared, so that
+/// mutating one occurrence of a shared sub-term detaches it and leaves the other occurrences
+/// untouched. Only the node itself is copied, its sub-terms stay shared.
+#[derive(PartialEq, Eq, Hash)]
+pub struct Term<PT: ProtocolTypes> {
+    node: Rc<TermNode<PT>>,
+}
+
+impl<PT: ProtocolTypes> TermDAG<PT> for Term<PT> {
+    /// DAG size of a term, considering non-symbolic terms as atoms
+    fn size(&self) -> usize {
+        fn dag_size<PT: ProtocolTypes>(term: &Term<PT>, visited: &mut HashSet<usize>) -> usize {
+            if visited.contains(&term.node_id()) {
+                return 0;
+            } else {
+                visited.insert(term.node_id());
+            }
+            if term.is_leaf() {
+                SIZE_LEAF
+            } else {
+                match &term.term {
+                    DYTerm::Variable(_) => SIZE_LEAF,
+                    DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
+                        if !term.is_symbolic() {
+                            SIZE_LEAF
+                        } else {
+                            subterms.iter().map(|x| dag_size(x, visited)).sum::<usize>() + 1
+                        }
+                    }
+                    DYTerm::Deconstructor(_, ref inner, _) => {
+                        if !term.is_symbolic() {
+                            SIZE_LEAF
+                        } else {
+                            dag_size(inner, visited) + 1
+                        }
+                    }
+                }
+            }
+        }
+        return dag_size(self, &mut HashSet::new());
+    }
+
+    fn assert_dag(&self) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn is_child_of(&self, child: &Self) -> bool {
+        fn dag_is_child_of<PT: ProtocolTypes>(
+            term: &Term<PT>,
+            child: &Term<PT>,
+            visited: &mut HashSet<usize>,
+        ) -> bool {
+            if visited.contains(&term.node_id()) {
+                return false;
+            } else {
+                visited.insert(term.node_id());
+            }
+
+            if term.node_id() == child.node_id() {
+                return true;
+            }
+
+            match &term.term {
+                DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
+                    subterms.iter().any(|x| dag_is_child_of(x, child, visited))
+                }
+                DYTerm::Deconstructor(_, ref inner, _) => dag_is_child_of(inner, child, visited),
+                _ => false,
+            }
+        }
+        return dag_is_child_of(self, child, &mut HashSet::new());
+    }
+
+    /// Whether the [`TermNode`] of this term is referenced from more than one place.
+    fn is_shared(&self) -> bool {
+        Rc::strong_count(&self.node) > 1
+    }
+
+    fn unshare(&mut self, path: &[usize]) {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        match &self.term {
+            DYTerm::Variable(_) => {
+                return Err(Error::TermBug(format!(
+                    "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                )))
+            }
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if args.len() <= nb {
+                    return Err(Error::TermBug(format!(
+                        "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                    )))
+                }
+                args[nb].get(path)
+            }
+            DYTerm::Deconstructor(_, inner, _) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if nb != 0 {
+                    return Err(Error::TermBug(format!(
+                        "--> [get] Should never happen! deconstructor has a single sub-term. Term: {self}\n, path: {path:?}"
+                    )))
+                }
+                inner.get(path)
+            }
+        }
+    }
+}
+
+impl<PT: ProtocolTypes> TermTree<PT> for Term<PT> {
+    /// tree size of a term, considering non-symbolic terms as atoms
+    fn size(&self) -> usize {
+        if self.is_leaf() {
+            SIZE_LEAF
+        } else {
+            match &self.term {
+                DYTerm::Variable(_) => SIZE_LEAF,
+                DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
+                    if !self.is_symbolic() {
+                        SIZE_LEAF
+                    } else {
+                        subterms.iter().map(TermTree::size).sum::<usize>() + 1
+                    }
+                }
+                DYTerm::Deconstructor(_, ref inner, _) => {
+                    if !self.is_symbolic() {
+                        SIZE_LEAF
+                    } else {
+                        TermTree::size(&**inner) + 1
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<PT: ProtocolTypes> Clone for Term<PT> {
+    fn clone(&self) -> Self {
+        self.clone_detached()
+    }
+}
+
+impl<PT: ProtocolTypes> Deref for Term<PT> {
+    type Target = TermNode<PT>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.node
+    }
+}
+
+impl<PT: ProtocolTypes> Debug for Term<PT> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Term")
+            .field("term", &self.node.term)
+            .field("payloads", &self.node.payloads)
+            .finish()
+    }
+}
+
+impl<PT: ProtocolTypes> From<TermNode<PT>> for Term<PT> {
+    fn from(node: TermNode<PT>) -> Self {
+        Self {
+            node: Rc::new(node),
+        }
+    }
+}
+
 impl<PT: ProtocolTypes> Term<PT> {
+    /// A new (not shared yet) term out of a [`DYTerm`] and its optional payloads.
+    #[must_use]
+    pub fn new(term: DYTerm<PT>, payloads: Option<Payloads>) -> Self {
+        TermNode { term, payloads }.into()
+    }
+
+    /// Returns a new handle on the same underlying [`TermNode`], without copying it.
+    /// Must be used to share a term inside the same trace!
+    #[must_use]
+    pub fn share(&self) -> Self {
+        Self {
+            node: Rc::clone(&self.node),
+        }
+    }
+
+    /// Copies the term into fresh nodes that are shared with nothing else, keeping the sharing
+    /// of its internal structure: a node reachable from several places of `self` is copied once,
+    /// and the copy is reachable from the same places in the result.
+    #[must_use]
+    pub fn clone_detached(&self) -> Self {
+        self.clone_detached_with(&mut HashMap::new())
+    }
+
+    /// Same as [`Term::clone_detached`], where `copies` maps the id of the nodes already copied
+    /// to their copy. Using the same `copies` for several terms keeps the sharing between them
+    /// (this is what a [`crate::trace::Trace`] does for all its terms).
+    #[must_use]
+    pub fn clone_detached_with(&self, copies: &mut HashMap<usize, Self>) -> Self {
+        if let Some(copy) = copies.get(&self.node_id()) {
+            return copy.share();
+        }
+
+        let term = match &self.term {
+            DYTerm::Variable(variable) => DYTerm::Variable(variable.clone()),
+            DYTerm::Application(func, args) => DYTerm::Application(
+                func.clone(),
+                args.iter()
+                    .map(|arg| arg.clone_detached_with(copies))
+                    .collect(),
+            ),
+            DYTerm::List(typ, elements) => DYTerm::List(
+                typ.clone(),
+                elements
+                    .iter()
+                    .map(|element| element.clone_detached_with(copies))
+                    .collect(),
+            ),
+            DYTerm::Deconstructor(typ, inner, query) => DYTerm::Deconstructor(
+                typ.clone(),
+                Box::new(inner.clone_detached_with(copies)),
+                query.clone(),
+            ),
+        };
+        let copy = Self::new(term, self.payloads.clone());
+        // `self` is borrowed for the whole copy, so its address cannot be reused meanwhile.
+        copies.insert(self.node_id(), copy.share());
+        copy
+    }
+
+    /// Whether both terms point to the very same [`TermNode`] (i.e. the sub-term is shared, with
+    /// the same payloads).
+    #[must_use]
+    pub fn is_shared_with(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.node, &other.node)
+    }
+
+    /// Identity of the underlying [`TermNode`], equal for the occurrences of a shared node.
+    #[must_use]
+    pub fn node_id(&self) -> usize {
+        Rc::as_ptr(&self.node) as usize
+    }
+
+    pub(crate) fn node(&self) -> &Rc<TermNode<PT>> {
+        &self.node
+    }
+
+    pub(crate) fn from_rc(node: Rc<TermNode<PT>>) -> Self {
+        Self { node }
+    }
+
+    /// Mutable access to the [`TermNode`], cloning it first (copy-on-write) if it is shared so
+    /// that the other occurrences are left untouched.
+    pub fn node_mut(&mut self) -> &mut TermNode<PT> {
+        if Rc::strong_count(&self.node) > 1 {
+            // Not `Rc::make_mut`: it would use `Clone`, which copies the whole sub-tree.
+            self.node = Rc::new(TermNode {
+                term: self.node.term.shallow_clone(),
+                payloads: self.node.payloads.clone(),
+            });
+        }
+        Rc::get_mut(&mut self.node).expect("the node is not shared anymore")
+    }
+
+    /// Mutable access to the [`DYTerm`] of the node, see [`Term::node_mut`].
+    pub fn dy_mut(&mut self) -> &mut DYTerm<PT> {
+        &mut self.node_mut().term
+    }
+
+    /// Mutable access to the payloads of the node, see [`Term::node_mut`].
+    pub fn payloads_mut(&mut self) -> &mut Option<Payloads> {
+        &mut self.node_mut().payloads
+    }
+
+    /// Calls `f` on every strict sub-term (the elements, the arguments or the source).
+    fn for_each_child(&self, mut f: impl FnMut(&Self)) {
+        match &self.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, args) | DYTerm::List(_, args) => args.iter().for_each(&mut f),
+            DYTerm::Deconstructor(_, inner, _) => f(inner),
+        }
+    }
+
+    /// Whether a strict sub-term carries payloads.
+    fn has_payloads_below(&self) -> bool {
+        let mut found = false;
+        self.for_each_child(|t| found = found || t.payloads.is_some() || t.has_payloads_below());
+        found
+    }
+
     /// Height of term, considering non-symbolic terms as atoms
     pub fn height(&self) -> usize {
         match &self.term {
@@ -407,10 +750,15 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
-        if is_subterm {
-            self.payloads = None;
+        let erase_self = is_subterm && self.payloads.is_some();
+        if !erase_self && !self.has_payloads_below() {
+            return; // nothing to erase: do not un-share the node
         }
-        match &mut self.term {
+        let node = self.node_mut();
+        if is_subterm {
+            node.payloads = None;
+        }
+        match &mut node.term {
             DYTerm::Variable(_) => {}
             DYTerm::Application(_, args) | DYTerm::List(_, args) => {
                 // Not true anymore: if opaque, we keep payloads in strict sub-terms
@@ -432,7 +780,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         payload_new: Vec<u8>,
         with_metadata: Option<PayloadMetadata>,
     ) {
-        self.payloads = Option::from({
+        *self.payloads_mut() = Option::from({
             Payloads {
                 payload_0: payload_0.into(),
                 payload: payload_new.into(),
@@ -506,10 +854,18 @@ impl<PT: ProtocolTypes> Term<PT> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
         fn rec<'a, PT: ProtocolTypes>(term: &'a mut Term<PT>, acc: &mut Vec<&'a mut Payloads>) {
-            if let Some(p) = &mut term.payloads {
+            let below = term.has_payloads_below();
+            if term.payloads.is_none() && !below {
+                return; // do not un-share nodes without payloads
+            }
+            let node = term.node_mut();
+            if let Some(p) = &mut node.payloads {
                 acc.push(p);
             }
-            match &mut term.term {
+            if !below {
+                return;
+            }
+            match &mut node.term {
                 DYTerm::Variable(_) => {}
                 DYTerm::Application(_, sts) | DYTerm::List(_, sts) => {
                     for st in sts {
@@ -573,11 +929,14 @@ impl<PT: ProtocolTypes> Term<PT> {
     /// Inserts `element` at `index` in a [`DYTerm::List`], checking it has the list's element
     /// type. An `index` past the end appends.
     pub fn insert_element(&mut self, index: usize, element: Self) -> Result<(), Error> {
-        let DYTerm::List(typ, elements) = &mut self.term else {
+        if !matches!(&self.term, DYTerm::List(..)) {
             return Err(Error::Term(format!(
                 "[insert_element] {} is not a list",
                 self.get_type_shape().name
             )));
+        }
+        let DYTerm::List(typ, elements) = self.dy_mut() else {
+            unreachable!("checked above")
         };
 
         let element_type = PT::signature().list_element_type(typ).ok_or_else(|| {
@@ -636,16 +995,13 @@ impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
 }
 impl<PT: ProtocolTypes> From<DYTerm<PT>> for Term<PT> {
     fn from(term: DYTerm<PT>) -> Self {
-        Self {
-            term,
-            payloads: None,
-        }
+        Self::new(term, None)
     }
 }
 
 impl<PT: ProtocolTypes> From<Term<PT>> for DYTerm<PT> {
     fn from(term: Term<PT>) -> Self {
-        term.term
+        Rc::try_unwrap(term.node).map_or_else(|shared| shared.term.clone(), |node| node.term)
     }
 }
 
@@ -654,6 +1010,7 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     depth: usize,
     is_bitstring: bool,
     is_readable: bool,
+    is_shared: Option<usize>,
 ) -> String {
     let tabs = "\t".repeat(depth);
     let is_bitstring = if is_bitstring {
@@ -665,6 +1022,11 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     } else {
         ""
     };
+    let is_shared = if let Some(share_id) = is_shared {
+        &format!("SHARED({share_id})//")
+    } else {
+        ""
+    };
     match term {
         DYTerm::Variable(ref v) => {
             format!("{tabs}{is_bitstring}{v}")
@@ -673,7 +1035,7 @@ fn display_term_at_depth<PT: ProtocolTypes>(
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
             if args.is_empty() {
-                format!("{tabs}{is_bitstring}{op_str} -> {return_type}")
+                format!("{tabs}{is_bitstring}{is_shared}{op_str} -> {return_type}")
             } else {
                 let args_str = args
                     .iter()
@@ -683,10 +1045,15 @@ fn display_term_at_depth<PT: ProtocolTypes>(
                             depth + 1,
                             !arg.is_symbolic(),
                             arg.is_readable(),
+                            if arg.is_shared() {
+                                arg.node_id().into()
+                            } else {
+                                None
+                            },
                         )
                     })
                     .join(",\n");
-                format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
+                format!("{tabs}{is_bitstring}{is_shared}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
         }
         DYTerm::List(ref typ, ref elements) => {
@@ -702,6 +1069,11 @@ fn display_term_at_depth<PT: ProtocolTypes>(
                             depth + 1,
                             !element.is_symbolic(),
                             element.is_readable(),
+                            if element.is_shared() {
+                                element.node_id().into()
+                            } else {
+                                None
+                            },
                         )
                     })
                     .join(",\n");
@@ -715,6 +1087,11 @@ fn display_term_at_depth<PT: ProtocolTypes>(
                 depth + 1,
                 !inner.is_symbolic(),
                 inner.is_readable(),
+                if inner.is_shared() {
+                    inner.node_id().into()
+                } else {
+                    None
+                },
             );
             format!(
                 "{tabs}{is_bitstring}deconstruct[{query}](\n{inner_str}\n{tabs}) -> {return_type}"
@@ -749,6 +1126,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         with_payloads: bool,
     ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error> {
         log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
+        // The shared nodes are evaluated once while this guard lives
         let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
             &mut eval_tree,
@@ -803,31 +1181,6 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         }
     }
 
-    /// size of a term, considering non-symbolic terms as atoms
-    fn size(&self) -> usize {
-        if self.is_leaf() {
-            SIZE_LEAF
-        } else {
-            match &self.term {
-                DYTerm::Variable(_) => SIZE_LEAF,
-                DYTerm::Application(_, ref subterms) | DYTerm::List(_, ref subterms) => {
-                    if !self.is_symbolic() {
-                        SIZE_LEAF
-                    } else {
-                        subterms.iter().map(TermType::size).sum::<usize>() + 1
-                    }
-                }
-                DYTerm::Deconstructor(_, ref inner, _) => {
-                    if !self.is_symbolic() {
-                        SIZE_LEAF
-                    } else {
-                        inner.size() + 1
-                    }
-                }
-            }
-        }
-    }
-
     fn is_leaf(&self) -> bool {
         if self.is_symbolic() {
             match &self.term {
@@ -875,12 +1228,30 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         }
     }
 
-    fn mutate(&mut self, other: Self) {
+    fn mutate(&mut self, other: Self) -> Result<(), ()> {
+        // if other is shared, we must make sure that it is not a parent of self, otherwise we would
+        // create a cycle in the tree.
+        if other.is_shared() {
+            if other.is_child_of(self) {
+                return Err(());
+            }
+        }
         *self = other;
+        Ok(())
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
-        display_term_at_depth(&self.term, depth, !self.is_symbolic(), self.is_readable())
+        display_term_at_depth(
+            &self.term,
+            depth,
+            !self.is_symbolic(),
+            self.is_readable(),
+            if self.is_shared() {
+                self.node_id().into()
+            } else {
+                None
+            },
+        )
     }
 
     fn is_symbolic(&self) -> bool {

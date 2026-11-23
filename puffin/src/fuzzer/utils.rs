@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use libafl_bolts::rands::Rand;
 
-use crate::algebra::{DYTerm, Term, TermType};
+use crate::algebra::{DYTerm, Term, TermTree, TermType};
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
@@ -142,7 +142,7 @@ impl TermConstraints {
     /// Returns whether a term is not extremely large (in which case we don't even bother exploring
     /// it)
     pub fn satisfy_size_max_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
-        term.size() < self.max_term_size
+        TermTree::size(term) < self.max_term_size
     }
 
     /// Returns whether `term` satisfies the constraints, for a caller that already knows its size.
@@ -296,7 +296,7 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
                 if !constraints.satisfy_size_max_constraints(term) {
                     log::warn!(
                         "[reservoir_sample] Skipping term because it is too large: {}",
-                        term.size()
+                        TermTree::size(term)
                     );
                     continue; // the term is too large, we don't even bother
                 }
@@ -443,7 +443,7 @@ pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
     }
     let subterm_index = term_path[0];
 
-    match &mut term.term {
+    match term.dy_mut() {
         DYTerm::Variable(_) => None,
         DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
             if let Some(subterm) = subterms.get_mut(subterm_index) {
@@ -896,7 +896,7 @@ mod tests {
                 assert_eq!(new_size, ref_size, "folded size differs (seed {seed})");
                 assert_eq!(
                     new_size,
-                    term.size(),
+                    TermTree::size(term),
                     "folded size differs from TermType::size"
                 );
                 assert_eq!(

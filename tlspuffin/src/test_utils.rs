@@ -713,7 +713,7 @@ pub fn add_one_payload_randomly<
         let st = find_term_by_term_path_mut(t, &mut path).unwrap();
         if let Ok(()) = st.make_payload(ctx) {
             log::debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
-            if let Some(payloads) = &mut st.payloads {
+            if let Some(payloads) = st.payloads_mut() {
                 let mut a: Vec<u8> = payloads.payload.clone().into();
                 a.push(2); // TODO: make something random here! (I suggest mutate with bit-level mutations)
                 a.push(2);

@@ -44,6 +44,7 @@ pub mod error;
 pub mod list_types;
 pub mod macros;
 pub mod readable_types;
+pub mod sharing;
 pub mod signature;
 pub mod term;
 
@@ -210,6 +211,17 @@ pub mod test_signature {
 
     pub fn fn_new_random() -> Result<Random, FnError> {
         Ok(Random)
+    }
+
+    thread_local! {
+        /// Number of calls of [`fn_counted_extension`] on this thread.
+        pub static COUNTED_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// Counts its own evaluations, to check that a shared node is evaluated only once.
+    pub fn fn_counted_extension() -> Result<ClientExtension, FnError> {
+        COUNTED_CALLS.with(|calls| calls.set(calls.get() + 1));
+        Ok(ClientExtension)
     }
 
     pub fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
@@ -418,6 +430,7 @@ pub mod test_signature {
         fn_new_random
         fn_support_group_extension
         fn_signature_algorithm_extension
+        fn_counted_extension
         fn_ec_point_formats_extension
         fn_signed_certificate_timestamp_extension
         fn_renegotiation_info_extension
@@ -750,7 +763,7 @@ mod tests {
     use crate::algebra::dynamic_function::{DescribableFunction, TypeShape};
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
-    use crate::algebra::{AnyMatcher, DYTerm, Term};
+    use crate::algebra::{AnyMatcher, DYTerm, Term, TermDAG, TermTree};
     use crate::put::{PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
@@ -986,7 +999,10 @@ mod tests {
 
         assert_eq!(with_parens, without_parens);
         assert_eq!(with_parens, mixed);
-        assert_eq!(with_parens.size(), without_parens.size());
+        assert_eq!(
+            TermTree::size(&with_parens),
+            TermTree::size(&without_parens)
+        );
     }
 
     /// Nested applications without wrapping parentheses still work next to variable and constant
@@ -1135,7 +1151,7 @@ mod tests {
         );
 
         // The source term is a real subterm: size counts it and `get` reaches it.
-        assert_eq!(deconstructor.size(), 2);
+        assert_eq!(TermTree::size(&deconstructor), 2);
         assert_eq!(
             deconstructor.get(&[0]).unwrap().name(),
             fn_make_byte_container.name()
@@ -1263,7 +1279,7 @@ mod tests {
             &TypeShape::of::<Vec<ClientExtension>>()
         );
         // The elements are regular subterms: size counts them and `get` reaches them.
-        assert_eq!(list.size(), 3);
+        assert_eq!(TermTree::size(&list), 3);
         assert_eq!(
             list.get(&[1]).unwrap().name(),
             fn_ec_point_formats_extension.name()
@@ -1340,11 +1356,501 @@ mod tests {
         assert!(empty.is_list() && filled.is_list());
         assert!(!filled.is_opaque() && !filled.is_get());
         assert!(empty.is_leaf() && !filled.is_leaf());
-        assert_eq!(empty.size(), 1);
+        assert_eq!(TermTree::size(&empty), 1);
 
         // Iteration visits the elements and the list node itself.
         assert_eq!(filled.into_iter().count(), 2);
         assert!(empty.to_string().contains("[]"));
         assert!(filled.to_string().contains("signature_algorithm_extension"));
+    }
+
+    /// Cloning a term shares its node (DAG), and the same sub-term can appear several times in
+    /// a term without being copied.
+    #[test_log::test]
+    fn shared_subterm_in_several_places() {
+        let context = empty_context();
+        let extension: TestTerm = term! { fn_signature_algorithm_extension };
+        let shared_list: TestTerm = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                vec![extension.share(), extension.share(), extension.share()],
+            )
+            .unwrap(),
+        );
+        let unshared_list: TestTerm = term! {
+            [fn_signature_algorithm_extension, fn_signature_algorithm_extension,
+             fn_signature_algorithm_extension] / Vec<ClientExtension>
+        };
+
+        let elements = (0..3)
+            .map(|i| shared_list.get(&[i]).unwrap())
+            .collect::<Vec<_>>();
+        assert!(elements.iter().all(|e| e.is_shared_with(&extension)));
+        assert!(extension.is_shared());
+        assert!(!unshared_list
+            .get(&[0])
+            .unwrap()
+            .is_shared_with(unshared_list.get(&[1]).unwrap()));
+
+        // Sharing is only a representation: both terms denote the same value.
+        assert_eq!(shared_list, unshared_list);
+        assert_eq!(TermTree::size(&shared_list), TermTree::size(&unshared_list));
+        assert_eq!(
+            shared_list.evaluate_symbolic(&context).unwrap(),
+            unshared_list.evaluate_symbolic(&context).unwrap()
+        );
+    }
+
+    /// Mutating one occurrence of a shared node copies it (copy-on-write): the other occurrences
+    /// are left untouched, and the untouched sub-terms stay shared.
+    #[test_log::test]
+    fn mutating_a_shared_term_does_not_affect_other_occurrences() {
+        let original: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let mut copy = original.share();
+        assert!(copy.is_shared_with(&original));
+
+        let DYTerm::Application(_, args) = copy.dy_mut() else {
+            panic!("expected an application");
+        };
+        args[1] = term! { fn_seq_1 };
+
+        assert!(!copy.is_shared_with(&original));
+        assert_ne!(copy, original);
+        assert!(original.to_string().contains("seq_0"));
+        assert!(copy.to_string().contains("seq_1"));
+        // Only the modified node was copied.
+        assert!(copy
+            .get(&[0])
+            .unwrap()
+            .is_shared_with(original.get(&[0]).unwrap()));
+    }
+
+    /// The payload belongs to the shared node: every occurrence of a shared node has the same
+    /// payload. Changing the payload through one occurrence copies the node (copy-on-write), so
+    /// that the other occurrences keep theirs.
+    #[test_log::test]
+    fn payloads_are_shared_with_the_node() {
+        let mut extension: TestTerm = term! { fn_signature_algorithm_extension };
+        extension.add_payload(vec![1, 2, 3]);
+        assert!(!extension.is_symbolic());
+
+        let list: TestTerm = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                vec![extension.share(), extension.share()],
+            )
+            .unwrap(),
+        );
+        let (first, second) = (list.get(&[0]).unwrap(), list.get(&[1]).unwrap());
+        assert!(first.is_shared_with(second));
+        assert!(!first.is_symbolic() && !second.is_symbolic());
+        assert!(std::ptr::eq(
+            first.payloads.as_ref().unwrap(),
+            second.payloads.as_ref().unwrap()
+        ));
+        // Both occurrences are listed, though they hold a single payload.
+        assert_eq!(list.all_payloads().len(), 2);
+
+        // A copy of the term keeps sharing the payload too.
+        let copy = list.share();
+        assert!(copy.get(&[0]).unwrap().is_shared_with(first));
+
+        // Changing the payload of one occurrence does not change the others.
+        let mut copy = list.clone();
+        let DYTerm::List(_, elements) = copy.dy_mut() else {
+            panic!("expected a list");
+        };
+        elements[0].make_symbolic();
+        assert!(elements[0].is_symbolic());
+        assert!(!elements[1].is_symbolic());
+        assert!(!elements[0].is_shared_with(&elements[1]));
+        assert!(!first.is_symbolic());
+    }
+
+    /// Erasing payloads under a shared sub-term only copies what carries payloads.
+    #[test_log::test]
+    fn erasing_payloads_keeps_untouched_nodes_shared() {
+        let original: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let mut copy = original.share();
+        copy.make_symbolic();
+        assert!(copy.is_shared_with(&original));
+
+        let mut with_payload = original.share();
+        let DYTerm::Application(_, args) = with_payload.dy_mut() else {
+            panic!("expected an application");
+        };
+        args[1].add_payload(vec![0]);
+        assert_eq!(with_payload.all_payloads().len(), 1);
+        assert!(original.all_payloads().is_empty());
+
+        with_payload.make_symbolic();
+        assert!(with_payload.all_payloads().is_empty());
+        assert!(with_payload
+            .get(&[0])
+            .unwrap()
+            .is_shared_with(original.get(&[0]).unwrap()));
+    }
+
+    /// Serialization flattens the DAG, but the denoted term is preserved.
+    #[test_log::test]
+    fn shared_term_roundtrips_through_serde() {
+        let extension: TestTerm = term! { fn_signature_algorithm_extension };
+        let list: TestTerm = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                vec![extension.share(), extension],
+            )
+            .unwrap(),
+        );
+
+        let serialized = serde_json::to_string(&list).unwrap();
+        let deserialized: TestTerm = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(list, deserialized);
+    }
+
+    fn shared_extension_list(count: usize) -> (TestTerm, TestTerm) {
+        let extension: TestTerm = term! { fn_counted_extension };
+        let list = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                (0..count).map(|_| extension.share()).collect(),
+            )
+            .unwrap(),
+        );
+        (extension, list)
+    }
+
+    /// The sharing is kept by the serialization (the nodes are not duplicated), for a text and
+    /// for a binary format, and the nodes which were not shared stay separate.
+    #[test_log::test]
+    fn sharing_is_kept_through_serialization() {
+        fn check(list: &TestTerm) {
+            let (first, second, third) = (
+                list.get(&[0]).unwrap(),
+                list.get(&[1]).unwrap(),
+                list.get(&[2]).unwrap(),
+            );
+            assert!(first.is_shared_with(second));
+            assert!(!first.is_shared_with(third));
+        }
+
+        let (_, shared) = shared_extension_list(2);
+        let DYTerm::List(typ, elements) = &shared.term else {
+            panic!("expected a list");
+        };
+        let mut elements = elements.iter().map(Term::share).collect::<Vec<_>>();
+        elements.push(term! { fn_counted_extension });
+        let list: TestTerm = Term::from(DYTerm::list(typ.clone(), elements).unwrap());
+        check(&list);
+
+        let json: TestTerm = serde_json::from_str(&serde_json::to_string(&list).unwrap()).unwrap();
+        check(&json);
+        assert_eq!(json, list);
+
+        let bytes: TestTerm = postcard::from_bytes(&postcard::to_allocvec(&list).unwrap()).unwrap();
+        check(&bytes);
+        assert_eq!(bytes, list);
+
+        // A node which is shared is written once: the encoding is smaller than the unshared one.
+        let (_, shared_five) = shared_extension_list(5);
+        let unshared_five: TestTerm = term! {
+            [fn_counted_extension, fn_counted_extension, fn_counted_extension,
+             fn_counted_extension, fn_counted_extension] / Vec<ClientExtension>
+        };
+        assert!(
+            postcard::to_allocvec(&shared_five).unwrap().len()
+                < postcard::to_allocvec(&unshared_five).unwrap().len()
+        );
+    }
+
+    /// The sharing is also kept between the terms of a trace, including the prior traces.
+    #[test_log::test]
+    fn sharing_is_kept_through_trace_serialization() {
+        use crate::trace::{Action, InputAction, Step, Trace};
+
+        let agent = AgentName::first();
+        let shared: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let step = |recipe: TestTerm| Step {
+            agent,
+            action: Action::Input(InputAction {
+                precomputations: vec![],
+                recipe,
+            }),
+        };
+        let trace = Trace {
+            prior_traces: vec![Trace {
+                steps: vec![step(shared.share())],
+                ..Default::default()
+            }],
+            steps: vec![step(shared.share()), step(shared.share())],
+            ..Default::default()
+        };
+
+        fn recipes(trace: &TestTrace) -> Vec<&TestTerm> {
+            trace
+                .prior_traces
+                .iter()
+                .flat_map(|t| t.steps.iter())
+                .chain(trace.steps.iter())
+                .map(|step| match &step.action {
+                    Action::Input(input) => &input.recipe,
+                    Action::Output(_) => unreachable!(),
+                })
+                .collect()
+        }
+        let check = |trace: &TestTrace| {
+            let recipes = recipes(trace);
+            assert_eq!(recipes.len(), 3);
+            assert!(recipes.iter().all(|r| r.is_shared_with(recipes[0])));
+        };
+        check(&trace);
+
+        let json: TestTrace =
+            serde_json::from_str(&serde_json::to_string(&trace).unwrap()).unwrap();
+        check(&json);
+        let bytes: TestTrace =
+            postcard::from_bytes(&postcard::to_allocvec(&trace).unwrap()).unwrap();
+        check(&bytes);
+    }
+
+    /// A node can never be reached from its own descendants: mutating through `dy_mut` first
+    /// detaches the node if another handle exists, so "putting a term inside itself" builds a
+    /// new node over the old one instead of closing a loop.
+    #[test_log::test]
+    fn mutation_cannot_create_a_cycle() {
+        /// Panics if a node is met again below itself.
+        fn assert_acyclic(term: &TestTerm, path: &mut Vec<usize>) {
+            assert!(!path.contains(&term.node_id()), "cycle found");
+            path.push(term.node_id());
+            match &term.term {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
+                    subterms.iter().for_each(|t| assert_acyclic(t, path));
+                }
+                DYTerm::Deconstructor(_, inner, _) => assert_acyclic(inner, path),
+            }
+            path.pop();
+        }
+
+        let mut x: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let before = x.node_id();
+        let old = x.share(); // another handle on the node we are going to mutate
+        let old_copy = x.clone_detached();
+        assert!(x.is_shared());
+
+        // Try to put the term inside itself: the argument is a handle on the node being mutated.
+        let DYTerm::Application(_, args) = x.dy_mut() else {
+            panic!("expected an application");
+        };
+        args[0] = old.share();
+
+        // `x` was detached before the change: it is a new node, which only this place refers to...
+        assert_ne!(x.node_id(), before);
+        assert!(!x.is_shared());
+        // ...and the argument is the previous node, which is untouched and does not contain `x`.
+        assert!(x.get(&[0]).unwrap().is_shared_with(&old));
+        assert_eq!(old, old_copy);
+        assert_acyclic(&x, &mut vec![]);
+        assert_acyclic(&old, &mut vec![]);
+
+        // Same when the node is unshared: no other handle exists, so none can be put inside it.
+        let mut y: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let before = y.node_id();
+        assert!(!y.is_shared());
+        let DYTerm::Application(_, args) = y.dy_mut() else {
+            panic!("expected an application");
+        };
+        args[0] = term! { fn_seq_1 };
+        assert_eq!(y.node_id(), before, "an unshared node is mutated in place");
+        assert_acyclic(&y, &mut vec![]);
+    }
+
+    /// A shared node is evaluated once per evaluation, however many places refer to it.
+    #[test_log::test]
+    fn shared_node_is_evaluated_once() {
+        let context = empty_context();
+
+        COUNTED_CALLS.with(|calls| calls.set(0));
+        let (_, shared) = shared_extension_list(3);
+        shared.evaluate(&context).unwrap();
+        assert_eq!(COUNTED_CALLS.with(std::cell::Cell::get), 1);
+
+        // Not shared: evaluated at every place.
+        COUNTED_CALLS.with(|calls| calls.set(0));
+        let unshared: TestTerm = term! {
+            [fn_counted_extension, fn_counted_extension, fn_counted_extension]
+                / Vec<ClientExtension>
+        };
+        unshared.evaluate(&context).unwrap();
+        assert_eq!(COUNTED_CALLS.with(std::cell::Cell::get), 3);
+
+        // The cache lives as long as the context: the next evaluations get the same value.
+        COUNTED_CALLS.with(|calls| calls.set(0));
+        shared.evaluate(&context).unwrap();
+        shared.evaluate(&context).unwrap();
+        assert_eq!(COUNTED_CALLS.with(std::cell::Cell::get), 0);
+    }
+
+    /// A shared node is evaluated once for all the terms evaluated with the same context (what the
+    /// execution of a trace does).
+    #[test_log::test]
+    fn shared_node_is_evaluated_once_across_terms() {
+        let context = empty_context();
+        let (extension, _) = shared_extension_list(1);
+        let first: TestTerm = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                vec![extension.share()],
+            )
+            .unwrap(),
+        );
+        let second = first.share();
+        let other: TestTerm = Term::from(
+            DYTerm::list(
+                TypeShape::of::<Vec<ClientExtension>>(),
+                vec![extension.share(), extension.share()],
+            )
+            .unwrap(),
+        );
+
+        COUNTED_CALLS.with(|calls| calls.set(0));
+        first.evaluate(&context).unwrap();
+        second.evaluate(&context).unwrap();
+        other.evaluate(&context).unwrap();
+        assert_eq!(COUNTED_CALLS.with(std::cell::Cell::get), 1);
+    }
+
+    /// A trace is a unit of sharing: cloning it keeps its internal structure (including the
+    /// prior traces) but gives fresh nodes, shared with nothing in the original.
+    #[test_log::test]
+    fn cloning_a_trace_shares_nothing_with_the_original() {
+        use std::collections::HashSet;
+
+        use crate::trace::{Action, InputAction, Step, Trace};
+
+        fn collect_ids(term: &TestTerm, ids: &mut HashSet<usize>) {
+            ids.insert(term.node_id());
+            match &term.term {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, subterms) | DYTerm::List(_, subterms) => {
+                    subterms.iter().for_each(|t| collect_ids(t, ids));
+                }
+                DYTerm::Deconstructor(_, inner, _) => collect_ids(inner, ids),
+            }
+        }
+        fn recipes(trace: &TestTrace) -> Vec<&TestTerm> {
+            trace
+                .prior_traces
+                .iter()
+                .flat_map(|t| t.steps.iter())
+                .chain(trace.steps.iter())
+                .map(|step| match &step.action {
+                    Action::Input(input) => &input.recipe,
+                    Action::Output(_) => unreachable!(),
+                })
+                .collect()
+        }
+        fn ids(trace: &TestTrace) -> HashSet<usize> {
+            let mut ids = HashSet::new();
+            recipes(trace).iter().for_each(|r| collect_ids(r, &mut ids));
+            ids
+        }
+
+        let agent = AgentName::first();
+        let shared: TestTerm = term! { fn_encrypt12(fn_finished, fn_seq_0) };
+        let step = |recipe: TestTerm| Step {
+            agent,
+            action: Action::Input(InputAction {
+                precomputations: vec![],
+                recipe,
+            }),
+        };
+        let original = Trace {
+            prior_traces: vec![Trace {
+                steps: vec![step(shared.share())],
+                ..Default::default()
+            }],
+            steps: vec![step(shared.share()), step(term! { fn_seq_1 })],
+            ..Default::default()
+        };
+        let mut copy = original.clone();
+
+        // Same structure, and the sharing inside the trace is kept.
+        let (originals, copies) = (recipes(&original), recipes(&copy));
+        assert_eq!(originals.len(), copies.len());
+        for (a, b) in originals.iter().zip(&copies) {
+            assert_eq!(a, b);
+        }
+        assert!(copies[0].is_shared_with(copies[1]));
+        assert!(!copies[0].is_shared_with(copies[2]));
+
+        // Nothing is shared between the two traces.
+        assert!(ids(&original).is_disjoint(&ids(&copy)));
+        assert!(!shared.is_shared_with(copies[0]));
+
+        // So changing the copy leaves the original untouched.
+        let Action::Input(input) = &mut copy.steps[0].action else {
+            unreachable!()
+        };
+        let DYTerm::Application(_, args) = input.recipe.dy_mut() else {
+            panic!("expected an application");
+        };
+        args[1] = term! { fn_seq_1 };
+        assert_eq!(recipes(&original)[0], &shared);
+        assert_ne!(recipes(&copy)[1], &shared);
+    }
+
+    /// `clone_detached` keeps the sharing inside the term, but shares nothing with its source.
+    #[test_log::test]
+    fn clone_detached_keeps_internal_sharing_only() {
+        let (_, list) = shared_extension_list(3);
+        let copy = list.clone_detached();
+        assert_eq!(copy, list);
+
+        let (first, second) = (copy.get(&[0]).unwrap(), copy.get(&[1]).unwrap());
+        assert!(first.is_shared_with(second));
+        assert!(!copy.is_shared_with(&list));
+        assert!(!first.is_shared_with(list.get(&[0]).unwrap()));
+
+        // `share` is the same node, whereas `clone` copies it.
+        assert!(list.share().is_shared_with(&list));
+        assert!(!list.clone().is_shared_with(&list));
+    }
+
+    /// `Step::clone_detached` is what the repeat mutation uses: the repeated step is evaluated
+    /// again rather than sharing its nodes with the original step.
+    #[test_log::test]
+    fn step_clone_detached_shares_nothing_with_the_source() {
+        use crate::trace::{Action, InputAction, Step};
+
+        let step = Step {
+            agent: AgentName::first(),
+            action: Action::Input(InputAction {
+                precomputations: vec![],
+                recipe: term! { fn_encrypt12(fn_finished, fn_seq_0) },
+            }),
+        };
+        let (Action::Input(original), Action::Input(detached)) =
+            (&step.action, &step.clone_detached().action)
+        else {
+            unreachable!()
+        };
+        assert!(!detached.recipe.is_shared_with(&original.recipe));
+        assert_eq!(detached.recipe, original.recipe);
+    }
+
+    /// In `term!`, a `@variable` is the very same node at each place it is used, and the equal
+    /// `K`/`C` queries are one shared node.
+    #[test_log::test]
+    fn term_macro_shares_variables() {
+        let extension: TestTerm = term! { fn_signature_algorithm_extension };
+        let with_at: TestTerm = term! {
+            [(@extension), (@extension)] / Vec<ClientExtension>
+        };
+        assert!(with_at
+            .get(&[0])
+            .unwrap()
+            .is_shared_with(with_at.get(&[1]).unwrap()));
+        assert!(with_at.get(&[0]).unwrap().is_shared_with(&extension));
     }
 }

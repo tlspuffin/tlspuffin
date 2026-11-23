@@ -16,6 +16,7 @@
 
 use core::fmt;
 use std::any::TypeId;
+use std::cell::RefCell;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
@@ -26,12 +27,13 @@ use std::result::Result;
 use std::vec::IntoIter;
 
 use comparable::Comparable;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::{remove_prefix, Matcher, Term, TermType};
+use crate::algebra::sharing::{EvalCache, Session};
+use crate::algebra::{remove_prefix, Matcher, Term, TermTree, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::differential::TraceDifference;
 use crate::error::Error;
@@ -475,6 +477,10 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     phantom: PhantomData<PB>,
     /// The number of steps that have been successfully executed
     pub executed_until: usize,
+
+    /// The values of the nodes shared between several places of the terms of the trace: a shared
+    /// node is evaluated only once, the next evaluations get the same value.
+    eval_cache: RefCell<EvalCache<PB::ProtocolTypes>>,
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
@@ -521,7 +527,25 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             spawner,
             phantom: Default::default(),
             executed_until: 0,
+            eval_cache: RefCell::new(EvalCache::new()),
         }
+    }
+
+    /// The value of `term` if it is a shared node which was already evaluated.
+    pub(crate) fn cached_eval(
+        &self,
+        term: &Term<PB::ProtocolTypes>,
+    ) -> Option<Box<dyn EvaluatedTerm<PB::ProtocolTypes>>> {
+        self.eval_cache.borrow().get(term)
+    }
+
+    /// Remembers the value of `term`, if it is a shared node.
+    pub(crate) fn store_eval(
+        &self,
+        term: &Term<PB::ProtocolTypes>,
+        value: &dyn EvaluatedTerm<PB::ProtocolTypes>,
+    ) {
+        self.eval_cache.borrow_mut().insert(term, value);
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
@@ -693,8 +717,14 @@ pub struct MetadataTrace {
     path_focus: Option<TracePath>,
 }
 
-#[derive(Clone, Deserialize, Serialize, Hash)]
-#[serde(bound = "PT: ProtocolTypes")]
+/// A trace owns its term nodes: the nodes of its terms (and of the terms of its prior traces) may
+/// be shared between the terms of the trace, but never with another trace.
+///
+/// [`Clone`] upholds this: it copies every node once, keeping the sharing inside the trace, so
+/// that the clone and the original (a mutated testcase and its parent, for instance) have no node
+/// in common. To move a term from a trace to another one, use [`Term::clone_detached`] rather
+/// than [`Term::clone`].
+#[derive(Hash)]
 pub struct Trace<PT: ProtocolTypes> {
     pub descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
     pub steps: Vec<Step<PT>>,
@@ -702,7 +732,103 @@ pub struct Trace<PT: ProtocolTypes> {
     pub metadata_trace: MetadataTrace,
 }
 
+impl<PT: ProtocolTypes> Clone for Trace<PT> {
+    /// Clone the trace while keeping the internal sharing of its terms, but without sharing any
+    /// term with the original trace.
+    fn clone(&self) -> Self {
+        self.clone_detached_with(&mut HashMap::new())
+    }
+}
+
+/// Borrowed form of a [`Trace`] for its serialization.
+#[derive(Serialize)]
+#[serde(bound = "PT: ProtocolTypes", rename = "Trace")]
+struct TraceRef<'a, PT: ProtocolTypes> {
+    descriptors: &'a Vec<AgentDescriptor<PT::PUTConfig>>,
+    steps: &'a Vec<Step<PT>>,
+    prior_traces: &'a Vec<Trace<PT>>,
+    metadata_trace: &'a MetadataTrace,
+}
+
+/// Owned form of a [`Trace`] for its deserialization.
+#[derive(Deserialize)]
+#[serde(bound = "PT: ProtocolTypes", rename = "Trace")]
+struct TraceOwned<PT: ProtocolTypes> {
+    descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
+    steps: Vec<Step<PT>>,
+    prior_traces: Vec<Trace<PT>>,
+    metadata_trace: MetadataTrace,
+}
+
+/// The terms of a trace share their nodes: a whole trace is (de)serialized within a single session
+/// so that the sharing is kept, see [`crate::algebra::sharing`].
+impl<PT: ProtocolTypes> Serialize for Trace<PT> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let _session = Session::enter();
+        TraceRef {
+            descriptors: &self.descriptors,
+            steps: &self.steps,
+            prior_traces: &self.prior_traces,
+            metadata_trace: &self.metadata_trace,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de, PT: ProtocolTypes> Deserialize<'de> for Trace<PT> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let _session = Session::enter();
+        let TraceOwned {
+            descriptors,
+            steps,
+            prior_traces,
+            metadata_trace,
+        } = TraceOwned::deserialize(deserializer)?;
+        Ok(Self {
+            descriptors,
+            steps,
+            prior_traces,
+            metadata_trace,
+        })
+    }
+}
+
 impl<PT: ProtocolTypes> Trace<PT> {
+    /// Copies the trace, its prior traces included, into fresh term nodes. `copies` maps the nodes
+    /// already copied to their copy, so a node shared between several terms of the trace (or of
+    /// its prior traces) is copied once and stays shared in the copy.
+    fn clone_detached_with(&self, copies: &mut HashMap<usize, Term<PT>>) -> Self {
+        Self {
+            descriptors: self.descriptors.clone(),
+            steps: self
+                .steps
+                .iter()
+                .map(|step| step.clone_detached_with(copies))
+                .collect(),
+            prior_traces: self
+                .prior_traces
+                .iter()
+                .map(|trace| trace.clone_detached_with(copies))
+                .collect(),
+            metadata_trace: self.metadata_trace.clone(),
+        }
+    }
+
+    /// All the terms of the trace and of its prior traces.
+    pub fn terms(&self) -> Vec<&Term<PT>> {
+        let mut terms = vec![];
+        for trace in &self.prior_traces {
+            terms.extend(trace.terms());
+        }
+        for step in &self.steps {
+            if let Action::Input(input) = &step.action {
+                terms.extend(input.precomputations.iter().map(|p| &p.recipe));
+                terms.push(&input.recipe);
+            }
+        }
+        terms
+    }
+
     pub fn max_term_height(&self) -> usize {
         self.steps
             .iter()
@@ -1262,7 +1388,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
     /// Size of trace (summing all input sizes, counting one for output)
     pub fn size(&self) -> usize {
         self.steps.iter().fold(0, |acc, s| match &s.action {
-            Action::Input(inp) => acc + inp.recipe.size(),
+            Action::Input(inp) => acc + TermTree::size(&inp.recipe),
             Action::Output(_) => acc + 1,
         })
     }
@@ -1326,6 +1452,33 @@ pub struct Step<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> Step<PT> {
+    /// Copies the step into fresh term nodes, keeping its internal sharing but sharing nothing
+    /// with `self`. Unlike [`Step::clone`], which shares the term nodes, this is what must be
+    /// used to duplicate a step inside a trace (see [`Trace::clone`]).
+    pub fn clone_detached(&self) -> Self {
+        self.clone_detached_with(&mut HashMap::new())
+    }
+
+    fn clone_detached_with(&self, copies: &mut HashMap<usize, Term<PT>>) -> Self {
+        Self {
+            agent: self.agent,
+            action: match &self.action {
+                Action::Input(input) => Action::Input(InputAction {
+                    precomputations: input
+                        .precomputations
+                        .iter()
+                        .map(|precomputation| Precomputation {
+                            label: precomputation.label.clone(),
+                            recipe: precomputation.recipe.clone_detached_with(copies),
+                        })
+                        .collect(),
+                    recipe: input.recipe.clone_detached_with(copies),
+                }),
+                Action::Output(output) => Action::Output(output.clone()),
+            },
+        }
+    }
+
     pub fn execute<PB>(
         &self,
         step_number: StepNumber,

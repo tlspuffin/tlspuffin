@@ -1912,7 +1912,6 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
 
 #[cfg(test)]
 pub mod tests {
-    use puffin::algebra::TermType;
     use puffin::fuzzer::utils::TermConstraints;
 
     #[allow(unused_imports)]
@@ -1940,7 +1939,7 @@ pub mod tests {
                     Action::Input(input) => {
                         // a seed step recipe must fit the per-step result cap, else the
                         // corpus boundary is misconfigured (see max_result_term_size)
-                        let terms = input.recipe.size();
+                        let terms = puffin::algebra::TermTree::size(&input.recipe);
                         assert!(
                             terms < TermConstraints::default().max_result_term_size,
                             "{} has step with too large term size {}!",

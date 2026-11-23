@@ -3,7 +3,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use libafl::executors::ExitKind;
 use rand::Rng;
 
-use crate::algebra::{DYTerm, Term, TermType};
+use crate::algebra::{DYTerm, Term, TermTree};
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
@@ -78,7 +78,7 @@ fn record_trace_stats<PT: ProtocolTypes>(input: &Trace<PT>, fail_at_step: &usize
     for (idx, step) in input.steps.iter().enumerate() {
         match &step.action {
             Action::Input(input) => {
-                TERM_SIZE.update(input.recipe.size());
+                TERM_SIZE.update(TermTree::size(&input.recipe));
                 record_list_stats(&input.recipe, idx < *fail_at_step);
             }
             Action::Output(_) => {}

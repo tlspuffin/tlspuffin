@@ -175,7 +175,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     let mut path_to_search = path_to_search;
     let mut eval_tree = eval_tree;
     let mut term = whole_term;
-    let mut start_pos = 0; // Current byte position of `term` in the original root term (encoded evaluations thereof)
+    let mut start_pos = 0; // Current byte position of `term` in the original root term (encoded
+                           // evaluations thereof)
     let eval_to_search = eval_tree
         .get(path_to_search)?
         .encode
@@ -213,7 +214,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         let children = &eval_tree.args;
 
         // Updating the term, eval_tree, path_to_search to the child
-        eval_tree = eval_tree.get(&[child_arg_number])?; // we move to the next child for the future while iteration
+        eval_tree = eval_tree.get(&[child_arg_number])?; // we move to the next child for the future
+                                                         // while iteration
         let eval_child = eval_tree
             .encode
             .as_ref()
@@ -466,10 +468,14 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 ) -> Result<ConcreteMessage, Error> {
     log::trace!("[replace_payload] --------> START");
     let mut shift = 0_isize; // Number of bytes we need to shift on the right to operate the
-                             // replacement (i.e., apply the splicing, taking into account previous payloads replacements).
-                             // We assume the aforementioned invariant.
+                             // replacement (i.e., apply the splicing, taking into account previous
+                             // payloads replacements). We assume the
+                             // aforementioned invariant.
     let mut to_modify: Vec<u8> = eval_tree.encode.as_ref().unwrap().clone(); // unwrap: eval_until_opaque
-                                                                             // returned an error if it cannot compute the encoding of the root having payloads
+                                                                             // returned an error if
+                                                                             // it cannot compute
+                                                                             // the encoding of the
+                                                                             // root having payloads
     log::trace!("to_modify before: {to_modify:?}");
     for payload_context in &payloads {
         let path_payload = &payload_context.path;
@@ -509,7 +515,8 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         let old_bitstring_len = old_bitstring.len();
         let new_bitstring = payload_context.payloads.payload.mutator_bytes();
 
-        let start = (pos_start as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
+        let start = (pos_start as isize + shift) as usize; // taking previous replacements into
+                                                           // account, we need to shift the start
         let end = start + old_bitstring_len;
 
         if (pos_start as isize + shift) < 0 || start + old_bitstring_len > to_modify.len() {
@@ -613,8 +620,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                         }
                         e
                     })?; // This may fail for good or bad reasons, we don't distinguish for now
-                         // We must make sure that we read correctly and avoided cases where read and
-                         // encode are not inverse of each other.
+                         // We must make sure that we read correctly and avoided cases where read
+                         // and encode are not inverse of each other.
                          // Otherwise, later payload replacements will fail.
                 if &di.get_encoding()[..] != &bi[..] {
                     return Err(Error::Term(format!(
@@ -657,6 +664,25 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
 
         Ok((dynamic_args, all_payloads, eval_tree_args))
+    }
+
+    /// Returns the value of this node if it is shared and was already evaluated; otherwise
+    /// computes it with `compute` and remembers it if the node is shared.
+    fn eval_cached<PB, E>(
+        &self,
+        ctx: &TraceContext<PB>,
+        compute: impl FnOnce() -> Result<Box<dyn EvaluatedTerm<PT>>, E>,
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, E>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        if let Some(value) = ctx.cached_eval(self) {
+            println!("Using cached value for {:?}", &self);
+            return Ok(value);
+        }
+        let value = compute()?;
+        ctx.store_eval(self, value.as_ref());
+        Ok(value)
     }
 
     /// Evaluate a term without replacing the payloads (returning the payloads with the
@@ -748,35 +774,51 @@ impl<PT: ProtocolTypes> Term<PT> {
             }
         }
 
+        // A shared node which was already evaluated is not evaluated again. Its sub-terms are only
+        // visited when this is needed to locate payloads or to know the encodings of siblings, as
+        // the eval tree of the evaluation without payload to replace stays empty for applications
+        // and lists.
+        if matches!(self.term, DYTerm::Application(..) | DYTerm::List(..))
+            && (!with_payloads || (!sibling_has_payloads && !self.has_payload_to_replace()))
+        {
+            if let Some(value) = ctx.cached_eval(self) {
+                log::trace!("[eval_until_opaque] Already evaluated shared term: {self}");
+                return Ok((value, vec![]));
+            }
+        }
+
         match &self.term {
             DYTerm::Variable(variable) => {
                 VARIABLE_EVAL.increment();
-                let d = if variable.query.is_claim {
-                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                        ctx.find_claim(*agent_name, variable.typ.clone())
-                    } else {
-                        None
-                    }
-                    .ok_or_else(|| {
-                        VARIABLE_EVAL_FAIL.increment();
-                        Error::Term(format!("--> Unable to find claim {variable}!"))
-                    })?
-                } else {
-                    ctx.find_variable(variable.typ.clone(), &variable.query)
-                        .map(|data| data.boxed())
-                        .or_else(|| {
-                            if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                                ctx.find_claim(*agent_name, variable.typ.clone())
-                            } else {
-                                // Claims doesn't have precomputations as source
-                                None
-                            }
-                        })
+                let d = self.eval_cached(ctx, || {
+                    let d = if variable.query.is_claim {
+                        if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                            ctx.find_claim(*agent_name, variable.typ.clone())
+                        } else {
+                            None
+                        }
                         .ok_or_else(|| {
                             VARIABLE_EVAL_FAIL.increment();
-                            Error::Term(format!("--> Unable to find variable {variable}!"))
+                            Error::Term(format!("--> Unable to find claim {variable}!"))
                         })?
-                };
+                    } else {
+                        ctx.find_variable(variable.typ.clone(), &variable.query)
+                            .map(|data| data.boxed())
+                            .or_else(|| {
+                                if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                                    ctx.find_claim(*agent_name, variable.typ.clone())
+                                } else {
+                                    // Claims doesn't have precomputations as source
+                                    None
+                                }
+                            })
+                            .ok_or_else(|| {
+                                VARIABLE_EVAL_FAIL.increment();
+                                Error::Term(format!("--> Unable to find variable {variable}!"))
+                            })?
+                    };
+                    Ok::<_, Error>(d)
+                })?;
 
                 if with_payloads {
                     // TODO: we might want to relax this a bit and only do this for nodes that are
@@ -809,7 +851,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                     self.eval_args(args, eval_tree, ctx, with_payloads)?;
                 log::trace!("[eval_until_opaque] Now calling the function symbol {} implementation and then updating payloads...", func.name());
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Box<dyn EvaluatedTerm<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
+                let result: Box<dyn EvaluatedTerm<PT>> =
+                    self.eval_cached(ctx, || dynamic_fn(&dynamic_args))?; // evaluation of the
+                                                                          // function symbol
+                                                                          // implementation
 
                 if with_payloads && self.payloads.is_some() {
                     all_payloads.push(PayloadContext {
@@ -862,7 +907,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 let (values, mut all_payloads, eval_tree_args) =
                     self.eval_args(elements, eval_tree, ctx, with_payloads)?;
                 let result: Box<dyn EvaluatedTerm<PT>> =
-                    PT::signature().build_list(typ, &values)?;
+                    self.eval_cached(ctx, || PT::signature().build_list(typ, &values))?;
 
                 if with_payloads && self.payloads.is_some() {
                     all_payloads.push(PayloadContext {
@@ -893,6 +938,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // first builds a concretized term by evaluating its inner (source) term, then uses
                 // `query` to extract, out of the knowledge reachable from that concretized term, a
                 // sub-value whose type matches `target_type` (the deconstructor's result type).
+                let result = self.eval_cached(ctx, || {
                 let target_type_id: TypeId = target_type.clone().into();
                 let local_source = Source::Label(None);
 
@@ -965,6 +1011,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                             self
                         ))
                     })?;
+                Ok(result)
+                })?;
 
                 if with_payloads {
                     let eval = PB::any_get_encoding(result.as_ref());

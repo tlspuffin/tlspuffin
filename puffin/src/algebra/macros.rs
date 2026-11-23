@@ -283,10 +283,10 @@ macro_rules! term {
     // Allows to use variables which already contain a term by starting with a `@`
     //
     (@$e:ident $(>$req_type:expr)?) => {{
-        use $crate::algebra::{DYTerm,Term};
+        use $crate::algebra::Term;
 
         let subterm: &Term<_> = &$e;
-        Term::from(subterm.clone())
+        Term::from(subterm.share())
     }};
 }
 

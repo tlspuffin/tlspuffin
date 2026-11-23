@@ -12,7 +12,7 @@ use super::utils::{
 use crate::algebra::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::DynamicFunctionShape;
 use crate::algebra::signature::Signature;
-use crate::algebra::{DYTerm, Subterms, Term, TermType};
+use crate::algebra::{DYTerm, Subterms, Term, TermTree, TermType};
 use crate::fuzzer::observed_knowledge::with_observed_knowledge;
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -212,7 +212,7 @@ fn replacement_within_caps<PT: ProtocolTypes>(
     }
     for (step_index, count) in &per_step {
         let cur = match trace.steps.get(*step_index).map(|s| &s.action) {
-            Some(Action::Input(input)) => input.recipe.size(),
+            Some(Action::Input(input)) => TermTree::size(&input.recipe),
             _ => 0,
         };
         if cur + count * delta > constraints.max_result_term_size {
@@ -290,8 +290,8 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
     if !replacement_within_caps(
         trace,
         targets,
-        representative.size(),
-        new_term.size(),
+        TermTree::size(representative),
+        TermTree::size(new_term),
         constraints,
     ) {
         log::debug!("[Mutation] rejected: would exceed result-size caps");
@@ -328,8 +328,11 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
             continue;
         }
         if let Some(term_mut) = find_term_mut(trace, target) {
-            term_mut.mutate(new_term.clone());
-            mutated = true;
+            if term_mut.mutate(new_term.clone()).is_ok() {
+                mutated = true;
+            } else {
+                log::debug!("[Mutation] target skipped: would create a cycle at {target:?}");
+            }
         }
     }
 
@@ -684,7 +687,7 @@ where
             let Some(element) = self
                 .zoo(rand)
                 .choose_filtered(|term| *term.get_type_shape() == element_type, rand)
-                .cloned()
+                .map(Term::clone_detached)
             else {
                 log::debug!(
                     "       Skipped {}: the zoo holds no {} to insert",
@@ -703,7 +706,7 @@ where
         };
         log::debug!("[Mutation] Mutate ListMutator [{mutation:?}] on term\n{to_mutate}");
         let max_term_size = self.constraints.max_term_size;
-        let list_size = to_mutate.size();
+        let list_size = TermTree::size(&*to_mutate);
 
         // `insert_element` needs the whole term, so `Insert` runs before the elements are borrowed.
         if let Some(element) = element {
@@ -711,7 +714,10 @@ where
                 return Ok(MutationResult::Skipped);
             };
             let index = rand.between(0, elements.len());
-            let copies = power_of_two_run(room_for(list_size, element.size(), max_term_size), rand);
+            let copies = power_of_two_run(
+                room_for(list_size, TermTree::size(&element), max_term_size),
+                rand,
+            );
             for _ in 0..copies {
                 // Drawn by type, so this cannot reject; report rather than panic if that changes.
                 if let Err(e) = to_mutate.insert_element(index, element.clone()) {
@@ -726,7 +732,7 @@ where
             });
         }
 
-        let DYTerm::List(_, elements) = &mut to_mutate.term else {
+        let DYTerm::List(_, elements) = to_mutate.dy_mut() else {
             return Ok(MutationResult::Skipped);
         };
 
@@ -741,7 +747,7 @@ where
             ListMutation::Repeat => {
                 let index = rand.between(0, elements.len() - 1);
                 let element = elements[index].clone();
-                let room = room_for(list_size, element.size(), max_term_size);
+                let room = room_for(list_size, TermTree::size(&element), max_term_size);
                 let copies = power_of_two_run(room, rand);
                 if copies == 0 {
                     return Ok(MutationResult::Skipped);
@@ -820,16 +826,16 @@ where
                 rand,
             ) {
                 let step_a_size = match &trace.steps[trace_path_a.0].action {
-                    crate::trace::Action::Input(input) => input.recipe.size(),
+                    crate::trace::Action::Input(input) => TermTree::size(&input.recipe),
                     crate::trace::Action::Output(_) => 0,
                 };
                 let step_b_size = match &trace.steps[trace_path_b.0].action {
-                    crate::trace::Action::Input(input) => input.recipe.size(),
+                    crate::trace::Action::Input(input) => TermTree::size(&input.recipe),
                     crate::trace::Action::Output(_) => 0,
                 };
 
                 let term_a_cloned = term_a.clone();
-                let term_a_size = term_a.size();
+                let term_a_size = TermTree::size(term_a);
                 // Swapping must not install an invalid source under a deconstructor.
                 let term_b_is_deconstructible =
                     find_term(trace, &trace_path_b).is_some_and(is_deconstructible);
@@ -842,7 +848,7 @@ where
                 }
 
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
-                    let term_b_size = term_b_mut.size();
+                    let term_b_size = TermTree::size(&*term_b_mut);
 
                     // Post-mutation hard cap of 500 to prevent runaway growth while allowing
                     // natural overshoot (pre-PR 472 behavior).
@@ -855,9 +861,18 @@ where
                             term_b_mut
                         );
                         let term_b_cloned = term_b_mut.clone();
-                        term_b_mut.mutate(term_a_cloned);
+                        if term_b_mut.mutate(term_a_cloned).is_err() {
+                            log::debug!("[SwapMutator] Skipped: would create a cycle.");
+                            return Ok(MutationResult::Skipped);
+                        }
                         if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
-                            trace_a_mut.mutate(term_b_cloned);
+                            if trace_a_mut.mutate(term_b_cloned.clone()).is_err() {
+                                if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
+                                    let _ = term_b_mut.mutate(term_b_cloned);
+                                }
+                                log::debug!("[SwapMutator] Skipped: would create a cycle.");
+                                return Ok(MutationResult::Skipped);
+                            }
                         }
                         return Ok(MutationResult::Mutated);
                     } else {
@@ -954,7 +969,7 @@ where
                 "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
                 to_mutate
             );
-            match &mut to_mutate.term {
+            match to_mutate.dy_mut() {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {
                     log::debug!("       Skipped {}", self.name());
@@ -1118,17 +1133,21 @@ where
                 log::debug!(
                     "[Mutation] MakeDeconstructorMutator: wrap\n{to_wrap}\ninto a deconstructor of type {typ} over source\n{source}"
                 );
-                to_wrap.mutate(Term::from(DYTerm::Deconstructor(
-                    typ,
-                    Box::new(source),
-                    Query {
-                        source: None,
-                        matcher: None,
-                        counter,
-                        is_claim: false,
-                    },
-                )));
-                return Ok(MutationResult::Mutated);
+                if to_wrap
+                    .mutate(Term::from(DYTerm::Deconstructor(
+                        typ,
+                        Box::new(source),
+                        Query {
+                            source: None,
+                            matcher: None,
+                            counter,
+                            is_claim: false,
+                        },
+                    )))
+                    .is_ok()
+                {
+                    return Ok(MutationResult::Mutated);
+                }
             }
         }
         log::debug!("       Skipped {}", self.name());
@@ -1292,7 +1311,13 @@ where
         log::debug!(
             "[Mutation] MakeKnowledgeQueryMutator: replace\n{to_replace}\nwith the knowledge query {query}/{typ}"
         );
-        to_replace.mutate(Term::from(DYTerm::Variable(Variable::new(typ, query))));
+        if to_replace
+            .mutate(Term::from(DYTerm::Variable(Variable::new(typ, query))))
+            .is_err()
+        {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        }
         Ok(MutationResult::Mutated)
     }
 
@@ -1408,7 +1433,7 @@ where
                 };
                 // Only the function symbol changes, the sub-terms are kept.
                 let mut new_term = to_mutate.clone();
-                if let DYTerm::Application(new_func, _) = &mut new_term.term {
+                if let DYTerm::Application(new_func, _) = new_term.dy_mut() {
                     new_func.change_function(shape.clone(), dynamic_fn.clone());
                 }
                 new_term
@@ -1645,7 +1670,9 @@ where
         let Some(step) = state.rand_mut().choose(steps) else {
             return Ok(MutationResult::Skipped);
         };
-        let step = step.clone();
+        // The repeated step must not share its nodes with the original, otherwise both would
+        // be evaluated only once.
+        let step = step.clone_detached();
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
         trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
@@ -1759,8 +1786,9 @@ where
                         to_mutate,
                         new_term
                     );
-                    // clone so that the immutable borrow of `trace` ends here
-                    (to_mutate_path, to_mutate.clone(), new_term.clone())
+                    // clone so that the immutable borrow of `trace` ends here; the new term is
+                    // detached from the zoo, which outlives (and serves) many traces
+                    (to_mutate_path, to_mutate.clone(), new_term.clone_detached())
                 } else {
                     return Ok(MutationResult::Skipped);
                 }
@@ -2137,18 +2165,21 @@ mod tests {
     fn test_list_growth_is_bounded_by_the_term_size_budget() {
         // One-node elements, so the budget is spent one node per element.
         let element: TestTerm = term! { fn_signature_algorithm_extension };
-        assert_eq!(element.size(), 1);
+        assert_eq!(TermTree::size(&element), 1);
 
         let list: TestTerm = Term::from(DYTerm::List(
             TypeShape::of::<Vec<ClientExtension>>(),
             vec![element.clone(); 10],
         ));
         // The list node itself counts, so 11 nodes of a 300-node budget leaves room for 289.
-        assert_eq!(list.size(), 11);
-        assert_eq!(room_for(list.size(), element.size(), 300), 289);
+        assert_eq!(TermTree::size(&list), 11);
+        assert_eq!(
+            room_for(TermTree::size(&list), TermTree::size(&element), 300),
+            289
+        );
 
         // A fatter element buys fewer copies out of the same budget.
-        assert_eq!(room_for(list.size(), 17, 300), 17);
+        assert_eq!(room_for(TermTree::size(&list), 17, 300), 17);
         // A list already at the budget takes nothing more.
         assert_eq!(room_for(300, 1, 300), 0);
         assert_eq!(room_for(400, 1, 300), 0);
@@ -2396,7 +2427,7 @@ mod tests {
             .position(|s| matches!(s.action, Action::Input(_)))
             .expect("the fixture has at least one input step");
         let cur = match &trace.steps[step].action {
-            Action::Input(input) => input.recipe.size(),
+            Action::Input(input) => TermTree::size(&input.recipe),
             Action::Output(_) => unreachable!(),
         };
         let targets: Vec<TracePath> = vec![(step, vec![0])]; // one target in this step

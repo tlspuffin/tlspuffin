@@ -141,7 +141,8 @@ impl<PT: ProtocolTypes> Function<PT> {
             .attrs_by_name
             .get(shape.name)
             .copied()
-            .unwrap_or_default(); // Default to empty attributes, use Signature::new to provide attributes
+            .unwrap_or_default(); // Default to empty attributes, use Signature::new to provide
+                                  // attributes
         Self {
             unique_id: random(),
             resistant_id: random(),

@@ -1,5 +1,4 @@
-use crate::algebra::term::TermType;
-use crate::algebra::{DYTerm, Term};
+use crate::algebra::{DYTerm, Term, TermTree};
 use crate::execution::{ExecutionStatus, ForkError};
 use crate::graphviz::write_graphviz;
 use crate::protocol::ProtocolTypes;
@@ -25,7 +24,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
                 Action::Input(input) => Some(&input.recipe),
                 Action::Output(_) => None,
             })
-            .map(|term| term.size())
+            .map(|term| TermTree::size(term))
             .sum()
     }
 

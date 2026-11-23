@@ -4046,7 +4046,7 @@ pub mod tests {
                     Action::Input(input) => {
                         // a seed step recipe must fit the per-step result cap, else the
                         // corpus boundary is misconfigured (see max_result_term_size)
-                        let terms = input.recipe.size();
+                        let terms = puffin::algebra::TermTree::size(&input.recipe);
                         assert!(
                             terms < TermConstraints::default().max_result_term_size,
                             "{} has step with too large term size {}!",
@@ -4090,7 +4090,7 @@ pub mod tests {
                     Action::Input(input) => {
                         // a seed step recipe must fit the per-step result cap, else the
                         // corpus boundary is misconfigured (see max_result_term_size)
-                        let terms = input.recipe.size();
+                        let terms = puffin::algebra::TermTree::size(&input.recipe);
                         assert!(
                             terms < TermConstraints::default().max_result_term_size,
                             "{} has step with too large term size {}!",

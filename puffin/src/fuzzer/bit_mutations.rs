@@ -734,7 +734,7 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S, PT>
         ) {
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
-                if let Some(payloads) = &mut to_mutate.payloads {
+                if let Some(payloads) = to_mutate.payloads_mut() {
                     $mutation.mutate(state, &mut payloads.payload)
                               .and_then(|r| {
                                payloads.set_changed();
@@ -870,7 +870,7 @@ where
         ) {
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
-                if let Some(payloads) = &mut to_mutate.payloads {
+                if let Some(payloads) = to_mutate.payloads_mut() {
                     BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload).map(
                         |r| {
                             payloads.set_changed();
@@ -952,7 +952,7 @@ where
         ) {
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
-                if let Some(payloads) = &mut to_mutate.payloads {
+                if let Some(payloads) = to_mutate.payloads_mut() {
                     BytesInsertCopyMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
                         .map(|r| {
                             payloads.set_changed();
@@ -1061,7 +1061,7 @@ where
     match choose_term_with_payload_mut(trace, state, &config.term_constraints, config.with_focus) {
         Some(term) => {
             let payloads = term
-                .payloads
+                .payloads_mut()
                 .as_mut()
                 .expect("[choose_payload_mut] should never happen");
             let input = payloads.payload.as_mut();

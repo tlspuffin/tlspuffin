@@ -6,7 +6,7 @@ use libafl_bolts::rands::Rand;
 use crate::algebra::atoms::Function;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::signature::{FunctionDefinition, Signature};
-use crate::algebra::{DYTerm, Term, TermType};
+use crate::algebra::{DYTerm, Term, TermTree, TermType};
 use crate::fuzzer::utils::Choosable;
 use crate::protocol::ProtocolBehavior;
 use crate::trace::TraceContext;
@@ -241,7 +241,7 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
             else {
                 break;
             };
-            size_left -= element.size();
+            size_left -= TermTree::size(&element);
             elements.push(element);
         }
 
@@ -300,7 +300,7 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
             // attempts); with a depth budget of 1 it leaves exactly the constants.
             let subterm = Self::generate_of_type(signature, typ, budget, child_max_size, rand)?;
 
-            size_left -= subterm.size();
+            size_left -= TermTree::size(&subterm);
             subterms.push(subterm);
         }
 

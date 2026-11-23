@@ -28,7 +28,7 @@ fn test_one_replace(
         let e_sub_before = sub_before.evaluate_symbolic(ctx).expect("OUPS3"); // evaluate_symbolic:
                                                                               // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
         log::debug!("Subterm before: {sub_before}\nSubterm eval_symbolic before: {e_sub_before:?}");
-        if let Some(p) = &mut sub.payloads {
+        if let Some(p) = sub.payloads_mut() {
             p.payload = new_sub_vec.clone().into();
             log::debug!("Payload_0: {:?}", p.payload_0);
         } else {
