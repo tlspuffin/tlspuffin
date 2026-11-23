@@ -138,6 +138,8 @@ jobs:
         uses: ./.github/actions/setup
       - name: unit test `puffin`
         run: just test puffin x86_64-unknown-linux-gnu "" ""
+      - name: unit test `puffin-build`
+        run: just test puffin-build x86_64-unknown-linux-gnu "" ""
       - name: unit test `security-claims`
         run: just test security-claims x86_64-unknown-linux-gnu "" ""
       - name: unit test `tlspuffin`
