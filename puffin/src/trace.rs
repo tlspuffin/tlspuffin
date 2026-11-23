@@ -856,6 +856,10 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
         let trace_number = Self::count_prior_traces(trace) - 1;
 
+        // What the PUTs received: the execution runs the preprocessed trace.
+        let preprocessed = PT::preprocess_trace(trace);
+        let executed = preprocessed.as_ref().unwrap_or(trace);
+
         for (idx, step) in trace.steps.iter().enumerate() {
             let knowledges = if export_knowledges {
                 let mut step_knowledges = Vec::new();
@@ -899,7 +903,13 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
             steps.push(StepExecution {
                 step_number: idx,
-                action: ActionType::from(step.action.clone(), export_terms, export_raw, ctx),
+                action: ActionType::from(
+                    step.action.clone(),
+                    executed.steps.get(idx).map(|s| &s.action),
+                    export_terms,
+                    export_raw,
+                    ctx,
+                ),
                 agent: step.agent,
                 knowledges,
                 claims,
@@ -1005,40 +1015,52 @@ enum ActionType {
 }
 
 impl ActionType {
+    /// `value` is the action as the trace stores it, whose recipe `export_terms` shows.
+    /// `executed` is the same action after `ProtocolTypes::preprocess_trace`, whose bytes
+    /// `export_raw` shows: they are what the PUT received.
     fn from<PB: ProtocolBehavior>(
         value: Action<PB::ProtocolTypes>,
+        executed: Option<&Action<PB::ProtocolTypes>>,
         export_terms: bool,
         export_raw: bool,
         ctx: &TraceContext<PB>,
     ) -> Self {
         match value {
-            Input(input_action) => ActionType::Input {
-                recipe: match export_terms {
-                    true => Some(input_action.recipe.to_string()),
-                    false => None,
-                },
-                raw: match export_raw {
-                    true => match input_action.recipe.evaluate(ctx) {
-                        Ok(v) => Some(
-                            v.iter()
-                                .map(|b| format!("{:02x}", b).to_string())
-                                .collect::<String>(),
-                        ),
-                        Err(_) => None,
+            Input(input_action) => {
+                let sent = match executed {
+                    Some(Input(executed)) => &executed.recipe,
+                    _ => &input_action.recipe,
+                };
+                ActionType::Input {
+                    recipe: match export_terms {
+                        true => Some(input_action.recipe.to_string()),
+                        false => None,
                     },
-                    false => None,
-                },
-                precomputations: match export_terms {
-                    true => Some(
-                        input_action
-                            .precomputations
-                            .iter()
-                            .map(|p| (p.label.clone().unwrap_or("".into()), p.recipe.to_string()))
-                            .collect(),
-                    ),
-                    false => None,
-                },
-            },
+                    raw: match export_raw {
+                        true => match sent.evaluate(ctx) {
+                            Ok(v) => Some(
+                                v.iter()
+                                    .map(|b| format!("{:02x}", b).to_string())
+                                    .collect::<String>(),
+                            ),
+                            Err(_) => None,
+                        },
+                        false => None,
+                    },
+                    precomputations: match export_terms {
+                        true => Some(
+                            input_action
+                                .precomputations
+                                .iter()
+                                .map(|p| {
+                                    (p.label.clone().unwrap_or("".into()), p.recipe.to_string())
+                                })
+                                .collect(),
+                        ),
+                        false => None,
+                    },
+                }
+            }
             Action::Output(_) => ActionType::Output,
         }
     }
