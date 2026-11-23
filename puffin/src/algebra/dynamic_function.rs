@@ -292,6 +292,8 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 => R);
 
 pub fn make_dynamic<F: 'static + DescribableFunction<PT, Types>, PT: ProtocolTypes, Types>(
     f: &'static F,

@@ -779,6 +779,47 @@ mod tests {
         assert_eq!(unflagged.min_gen_size(consumer), Some(2));
     }
 
+    /// A function symbol can take up to 12 arguments (the `dynamic_fn!` instances).
+    #[test]
+    fn a_symbol_can_take_twelve_arguments() {
+        use crate::algebra::dynamic_function::make_dynamic;
+        use crate::algebra::error::FnError;
+        use crate::protocol::EvaluatedTerm;
+
+        #[allow(clippy::too_many_arguments)]
+        fn fn_twelve_arguments(
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            _: &Random,
+            last: &SessionID,
+        ) -> Result<SessionID, FnError> {
+            Ok(last.clone())
+        }
+
+        let (shape, function) = make_dynamic::<_, TestProtocolTypes, _>(&fn_twelve_arguments);
+        assert_eq!(shape.argument_types.len(), 12);
+        assert_eq!(
+            shape.argument_types[11],
+            TypeShape::<TestProtocolTypes>::of::<SessionID>()
+        );
+
+        let mut args: Vec<Box<dyn EvaluatedTerm<TestProtocolTypes>>> = vec![];
+        for _ in 0..11 {
+            args.push(Box::new(Random));
+        }
+        assert!(function(&args).is_err(), "the 12th argument is missing");
+        args.push(Box::new(SessionID));
+        assert!(function(&args).is_ok());
+    }
+
     #[allow(dead_code)]
     fn test_compilation() {
         // reminds me of Lisp, lol
