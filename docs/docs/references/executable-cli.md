@@ -211,10 +211,10 @@ Executes a trace and displays information about its execution.
 |----------------------------------------|------------------------------------------------------------------------------------|
 | `<input>`                              | The file which stores a trace.                                                     |
 | `-s, --max_step <n>`                   | The step at which to stop.                                                         |
-| `-t, --show_terms`                     | Show the terms computed at each input step.                                        |
+| `-t, --show_terms`                     | Show the term of each input step as the trace stores it, before the protocol's preprocessing. |
 | `-c, --show_claims`                    | Show the claims emitted at each input step.                                        |
 | `-k, --show_knowledges`                | Show the knowledge gathered at each output step.                                   |
-| `-r, --show_raw`                       | Show the computed terms as raw hex (e.g. for use with `netcat`).                   |
+| `-r, --show_raw`                       | Show the bytes each input step sent to the PUT, after the preprocessing, as raw hex (e.g. for use with `netcat`). |
 | `-p, --differential_post_computations` | Evaluate the post-execution terms used in differential fuzzing (e.g. decryptions). |
 | `-j, --json`                           | Export the trace execution as JSON.                                                |
 | `-C, --disable_security_oracle`        | Disable the protocol security oracle.                                              |
