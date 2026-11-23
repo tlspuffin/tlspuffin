@@ -127,9 +127,16 @@ impl Codec for RawSshMessageFlight {
         let mut deframer = SshMessageDeframer::new();
         let mut flight = Self::new();
 
-        let _ = deframer.read(&mut reader.rest());
-        while let Some(msg) = deframer.pop_frame() {
-            flight.push(msg);
+        // One deframer read takes at most its buffer, and a concatenated transcript can be longer.
+        let mut rest = reader.rest();
+        loop {
+            let read = deframer.read(&mut rest).unwrap_or(0);
+            while let Some(msg) = deframer.pop_frame() {
+                flight.push(msg);
+            }
+            if read == 0 || rest.is_empty() {
+                break;
+            }
         }
 
         Some(flight)
@@ -518,5 +525,48 @@ impl ProtocolBehavior for SshProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         crate::ssh::message::try_read_bytes(bitstring, ty)
+    }
+}
+
+#[cfg(test)]
+mod flight_tests {
+    use puffin::codec::{Codec, Reader};
+
+    use super::RawSshMessageFlight;
+
+    /// A flight longer than the deframer's buffer is read whole: cleartext packets up to the
+    /// NEWKEYS, then AES-GCM packets, as in a concatenated transcript of a long session.
+    #[test]
+    fn a_flight_longer_than_the_deframer_buffer_is_read_whole() {
+        let cleartext = |number: u8| {
+            let (payload, padding) = (vec![number; 91], [0u8; 4]);
+            let mut packet = ((payload.len() + padding.len() + 1) as u32)
+                .to_be_bytes()
+                .to_vec();
+            packet.push(padding.len() as u8);
+            packet.extend_from_slice(&payload);
+            packet.extend_from_slice(&padding);
+            packet
+        };
+        let encrypted = |byte: u8| {
+            let mut packet = 160u32.to_be_bytes().to_vec();
+            packet.extend_from_slice(&[byte; 160 + 16]);
+            packet
+        };
+        let mut wire = Vec::new();
+        for _ in 0..500 {
+            wire.extend(cleartext(2)); // IGNORE
+        }
+        wire.extend(cleartext(21)); // NEWKEYS
+        for i in 0..500 {
+            wire.extend(encrypted(i as u8));
+        }
+        assert!(wire.len() > 2 * 35_000);
+
+        let flight = RawSshMessageFlight::read(&mut Reader::init(&wire)).unwrap();
+        assert_eq!(flight.messages.len(), 1001);
+        let mut encoded = Vec::new();
+        flight.encode(&mut encoded);
+        assert_eq!(encoded, wire);
     }
 }
