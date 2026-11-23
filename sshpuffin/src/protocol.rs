@@ -194,8 +194,14 @@ pub struct SshDescriptorConfig {
 }
 
 impl ProtocolDescriptorConfig for SshDescriptorConfig {
+    /// An agent offers the algorithms it was created with, so its pins must match too.
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ
+            && self.kex == other.kex
+            && self.ciphers == other.ciphers
+            && self.macs == other.macs
+            && self.hostkey_algos == other.hostkey_algos
+            && self.server_sig_algs == other.server_sig_algs
     }
 }
 
@@ -525,6 +531,52 @@ impl ProtocolBehavior for SshProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         crate::ssh::message::try_read_bytes(bitstring, ty)
+    }
+}
+
+#[cfg(test)]
+mod descriptor_tests {
+    use puffin::agent::ProtocolDescriptorConfig;
+
+    use super::{AgentType, SshDescriptorConfig};
+
+    /// Only an agent with the same role and the same algorithm pins can be reused.
+    #[test]
+    fn an_agent_is_reusable_with_the_same_algorithms_only() {
+        let config = SshDescriptorConfig::default();
+        assert!(config.is_reusable_with(&SshDescriptorConfig {
+            try_reuse: true,
+            ..config.clone()
+        }));
+        let pin = || Some("x".to_string());
+        for other in [
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                ..config.clone()
+            },
+            SshDescriptorConfig {
+                kex: pin(),
+                ..config.clone()
+            },
+            SshDescriptorConfig {
+                ciphers: pin(),
+                ..config.clone()
+            },
+            SshDescriptorConfig {
+                macs: pin(),
+                ..config.clone()
+            },
+            SshDescriptorConfig {
+                hostkey_algos: pin(),
+                ..config.clone()
+            },
+            SshDescriptorConfig {
+                server_sig_algs: pin(),
+                ..config.clone()
+            },
+        ] {
+            assert!(!config.is_reusable_with(&other), "{other:?}");
+        }
     }
 }
 
