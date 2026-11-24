@@ -23,6 +23,12 @@ pub struct Signature<PT: ProtocolTypes> {
     pub functions_by_name: HashMap<&'static str, FunctionDefinition<PT>>,
     pub functions_by_typ: HashMap<TypeShape<PT>, Vec<FunctionDefinition<PT>>>,
     pub functions: Vec<FunctionDefinition<PT>>,
+    /// The subset of `functions` the fuzzer may introduce into a trace: every symbol except the
+    /// `no_mutate` ones. Root generation ([`crate::fuzzer::term_zoo`]) and `ReplaceMatchMutator`
+    /// draw from here, and `functions_by_typ_by_depth` (sub-term generation) is built from it, so
+    /// a `no_mutate` symbol is in no generation pool — yet stays in `functions_by_name` for
+    /// (de)serialization and execution of hand-authored seeds.
+    generatable_functions: Vec<FunctionDefinition<PT>>,
     pub types_by_name: HashMap<&'static str, TypeShape<PT>>,
     pub attrs_by_name: HashMap<&'static str, FunctionAttributes>,
     /// Minimal generation depth and size per function symbol, see [`Self::min_gen_depth`] and
@@ -105,6 +111,16 @@ impl<PT: ProtocolTypes> Signature<PT> {
             .map(|(fd, _attrs)| fd)
             .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type.clone());
 
+        // The subset the fuzzer may introduce: every symbol except the `no_mutate` ones. Root
+        // generation and `ReplaceMatchMutator` draw from this; `functions_by_typ_by_depth` below
+        // filters `no_mutate` out too. `no_mutate` symbols still live in `functions_by_name`.
+        let generatable_functions: Vec<FunctionDefinition<PT>> = definitions
+            .clone()
+            .into_iter()
+            .filter(|(_fd, attrs)| !attrs.no_mutate)
+            .map(|(fd, _attrs)| fd)
+            .collect();
+
         let types_by_name: HashMap<&'static str, TypeShape<PT>> = definitions
             .clone()
             .into_iter()
@@ -132,6 +148,13 @@ impl<PT: ProtocolTypes> Signature<PT> {
                 let mut ordered: Vec<(Cost, FunctionDefinition<PT>)> = functions
                     .iter()
                     .filter_map(|function| {
+                        // `no_mutate` symbols are never a generated sub-term either.
+                        if attrs_by_name
+                            .get(function.0.name)
+                            .is_some_and(|a| a.no_mutate)
+                        {
+                            return None;
+                        }
                         min_cost_by_name
                             .get(function.0.name)
                             .map(|cost| (*cost, function.clone()))
@@ -147,12 +170,21 @@ impl<PT: ProtocolTypes> Signature<PT> {
             functions_by_name,
             functions_by_typ,
             functions: definitions.into_iter().map(|(fd, _attrs)| fd).collect(),
+            generatable_functions,
             types_by_name,
             attrs_by_name,
             min_cost_by_name,
             min_cost_by_typ,
             functions_by_typ_by_depth,
         }
+    }
+
+    /// The subset of symbols the fuzzer may introduce into a trace: every symbol except the
+    /// `no_mutate` ones. Root generation ([`crate::fuzzer::term_zoo`]) and `ReplaceMatchMutator`
+    /// draw from here; sub-term generation (`functions_by_typ_by_depth`) excludes the same set.
+    #[must_use]
+    pub fn generatable(&self) -> &Vec<FunctionDefinition<PT>> {
+        &self.generatable_functions
     }
 
     /// Least fixed point of
@@ -200,7 +232,16 @@ impl<PT: ProtocolTypes> Signature<PT> {
         loop {
             let mut changed = false;
 
-            for ((shape, _dynamic_fn), _attrs) in definitions {
+            for ((shape, _dynamic_fn), attrs) in definitions {
+                // A `no_mutate` symbol is never generated (root, sub-term, or `ReplaceMatch`), so
+                // it must not make its return type look buildable here either. Including it would
+                // contradict `functions_by_typ_by_depth` (which filters `no_mutate` out) and let
+                // `generate_term` pick an argument type only a `no_mutate` symbol can close,
+                // burning the whole `ZOO_MAX_TRIES` budget on a sub-term that can
+                // never be built.
+                if attrs.no_mutate {
+                    continue;
+                }
                 let mut cost = Cost { depth: 1, size: 1 };
                 let mut buildable = true;
                 for argument in &shape.argument_types {
@@ -237,8 +278,9 @@ impl<PT: ProtocolTypes> Signature<PT> {
     /// [`crate::fuzzer::term_zoo`], so a generation attempt for `name` with a budget below this can
     /// only fail.
     ///
-    /// `None` when no closed term is rooted at `name` at any depth (some argument type has no
-    /// closed term), which also means `name` is unknown to this signature.
+    /// `None` when the term zoo can build no closed term rooted at `name` at any depth: `name` is
+    /// `[no_mutate]` (never generated), or some argument type has no closed term the zoo can
+    /// build (e.g. only `[no_mutate]` symbols return it), or `name` is unknown to this signature.
     #[must_use]
     pub fn min_gen_depth(&self, name: &str) -> Option<u16> {
         self.min_cost_by_name.get(name).map(|cost| cost.depth)
@@ -318,6 +360,28 @@ impl<PT: ProtocolTypes> Signature<PT> {
             source,
             matcher,
             counter,
+            concatenate_all: false,
+        };
+        Variable::new(type_shape, query)
+    }
+
+    /// Like [`Self::new_var`] but the variable resolves to the CONCATENATION of
+    /// all matching knowledges (see [`Query::concatenate_all`]). Used by the
+    /// `term!((agent, *) / Type)` query syntax.
+    #[must_use]
+    pub fn new_var_all<M: Matcher>(
+        type_shape: TypeShape<PT>,
+        source: Option<Source>,
+        matcher: Option<M>,
+    ) -> Variable<PT>
+    where
+        PT: ProtocolTypes<Matcher = M>,
+    {
+        let query = Query {
+            source,
+            matcher,
+            counter: 0,
+            concatenate_all: true,
         };
         Variable::new(type_shape, query)
     }
@@ -359,6 +423,7 @@ macro_rules! define_signature {
                                     "no_gen" => attrs.no_gen = true,
                                     "no_bit" => attrs.no_bit = true,
                                     "no_det" => attrs.no_det = true,
+                                    "no_mutate" => attrs.no_mutate = true,
                                     _ => {},
                                 }
                             )*

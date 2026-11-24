@@ -67,7 +67,7 @@ where
                     Command::new("signature")
                         .about("Show all function symbols with their type signatures (parameter types and output type)"),
                     Command::new("buildable")
-                        .about("Show, per function symbol, the cost of the cheapest closed term rooted at it, and whether one exists at all"),
+                        .about("Show, per function symbol, the cost of the cheapest closed term the term zoo can build rooted at it. None exists for `[no_mutate]` symbols and symbols with an unbuildable argument type"),
                 ]),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
@@ -93,6 +93,7 @@ where
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing"))
+                .arg(arg!(-u --uniformise "Apply the differential PUT-config uniformisation to each trace first, as differential-execute does (use when batch-triaging differential objectives on one PUT)"))
                 .arg(arg!(--outcome <file> "Write the outcome of each execution (JSON: objective kind, signal, ASan report, claim violation) to <file>"))
                 .arg(arg!(--timeout <seconds> "With --outcome: the time an execution may take before it is a timeout (default 30, 0: none)").value_parser(value_parser!(u64))),
             Command::new("witness")
@@ -113,13 +114,14 @@ where
                 .about("Executes a trace stored in a file and display information")
                 .arg(arg!(<input> "The file which stores a trace"))
                 .arg(arg!(-s --max_step <n> "The step at which to stop").value_parser(value_parser!(usize)))
-                .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
+                .arg(arg!(-t --show_terms "Show the term of each input step, as the trace stores it (before the protocol's preprocessing)").value_parser(value_parser!(bool)))
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
-                .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
+                .arg(arg!(-r --show_raw "Show the bytes each input step sent to the PUT, after the protocol's preprocessing, as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms used in differential fuzzing").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool)))
-                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool))),
+                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool)))
+                .arg(arg!(-u --uniformise "Apply the differential PUT-config uniformisation first, as differential-execute does (use when re-executing a differential objective on one PUT)").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -434,13 +436,24 @@ where
         }
         let outcome_file: Option<&String> = matches.get_one("outcome");
         let timeout = timeout_of(matches);
+        // A differential objective was produced under the uniformised config (pinned
+        // algorithms etc.), so re-executing it on one PUT without that pinning can take a
+        // different path; batch triage of differential objectives should pass --uniformise,
+        // exactly as display-execute's -u / differential-execute do.
+        let uniformise = matches.get_flag("uniformise");
         let mut outcomes = vec![];
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
             if outcome_file.is_some() {
-                outcomes.push(execute_outcome(&runner, path, config_trace, timeout));
+                outcomes.push(execute_outcome(
+                    &runner,
+                    path,
+                    config_trace,
+                    timeout,
+                    uniformise,
+                ));
             } else {
-                execute(&runner, path, config_trace);
+                execute(&runner, path, config_trace, uniformise);
             }
         }
         if let Some(file) = outcome_file {
@@ -494,6 +507,7 @@ where
             matches.get_one("differential_post_computations").unwrap();
         let show_raw: &bool = matches.get_one("show_raw").unwrap();
         let disable_security_oracle: &bool = matches.get_one("disable_security_oracle").unwrap();
+        let uniformise: &bool = matches.get_one("uniformise").unwrap();
 
         let config_trace = ConfigTrace {
             with_bit_level,
@@ -509,6 +523,16 @@ where
             log::error!("Invalid trace file {}", input);
 
             return ExitCode::FAILURE;
+        };
+
+        // A differential objective was produced under the uniformised config (pinned
+        // algorithms etc.); re-executing it on one PUT without the same step can take
+        // a different path (e.g. a different negotiated suite), so offline triage of
+        // differential objectives should pass --uniformise.
+        let trace = if *uniformise {
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+        } else {
+            trace
         };
 
         log::info!("Agents: {:?}", &trace.descriptors);
@@ -923,12 +947,18 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     runner: &Runner<PB>,
     input: P,
     config_trace: ConfigTrace,
+    uniformise: bool,
 ) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
         log::error!("Invalid trace file {}", input.as_ref().display());
         return;
+    };
+    let trace = if uniformise {
+        <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+    } else {
+        trace
     };
 
     log::debug!("Agents: {:?}", &trace.descriptors);
@@ -965,6 +995,7 @@ fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     config_trace: ConfigTrace,
     timeout: Option<std::time::Duration>,
+    uniformise: bool,
 ) -> TraceOutcome {
     use crate::outcome::Outcome;
 
@@ -975,6 +1006,11 @@ fn execute_outcome<PB: ProtocolBehavior, P: AsRef<Path>>(
             trace: trace_name,
             outcome: Outcome::setup_error("invalid trace file"),
         };
+    };
+    let trace = if uniformise {
+        <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace)
+    } else {
+        trace
     };
 
     let outcome = match runner.execute_outcome(trace, config_trace, timeout) {
@@ -1300,9 +1336,10 @@ fn mapper_cmd<PT: ProtocolTypes>(sub_matches: &clap::ArgMatches) -> ExitCode {
             );
         }
     } else if sub_matches.subcommand_matches("buildable").is_some() {
-        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols no closed term is
-        // rooted at, at any budget (see [`crate::algebra::signature::Signature::min_gen_depth`]):
-        // some argument type has no closed term either. The term zoo never generates for those.
+        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols the term zoo can
+        // build no closed term for, at any budget (see
+        // [`crate::algebra::signature::Signature::min_gen_depth`]): `[no_mutate]` symbols, and
+        // symbols with an argument type the zoo cannot build. The zoo never generates them.
         let rows: Vec<_> = functions
             .iter()
             .map(|(shape, _)| {

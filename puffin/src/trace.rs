@@ -51,15 +51,31 @@ pub struct Query<M> {
     pub source: Option<Source>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
+    /// When set, the query resolves to the CONCATENATION of *all* matching
+    /// knowledges (by source/type/matcher, in insertion order) rather than the
+    /// single `counter`-th one. The concatenation is generic: each match is
+    /// encoded and the bytes are re-read into the queried type via
+    /// `ProtocolBehavior::try_read_bytes`. This lets a protocol whose agent emits
+    /// its output across several per-step drains recover the whole stream as one
+    /// value (e.g. SSH's full server transcript), independent of how many drains
+    /// there happen to be. `#[serde(default)]` keeps pre-existing traces (without
+    /// the field) loadable — they deserialize to `false`.
+    #[serde(default)]
+    pub concatenate_all: bool,
 }
 
 impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "({:?}, {})[{:?}]",
-            self.source, self.counter, self.matcher
-        )
+        if self.concatenate_all {
+            // all the matches, like the `(agent, *)` of the `term!` macro
+            write!(f, "({:?}, *)[{:?}]", self.source, self.matcher)
+        } else {
+            write!(
+                f,
+                "({:?}, {})[{:?}]",
+                self.source, self.counter, self.matcher
+            )
+        }
     }
 }
 
@@ -160,6 +176,27 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         Self {
             raw_knowledge: vec![],
         }
+    }
+
+    /// Whether both stores hold the same knowledge in the same order: same source, step,
+    /// matcher, data (compared by its `Debug` form) and associated term. Terms are compared
+    /// with `Term`'s `PartialEq`, which ignores the `unique_id` of variables and of function
+    /// symbols: cloning a term draws new ones, so the recipe stored with a precomputation's
+    /// result differs in them on every execution, while it is the same term.
+    #[must_use]
+    pub fn same_knowledge(&self, other: &Self) -> bool {
+        self.raw_knowledge.len() == other.raw_knowledge.len()
+            && self
+                .raw_knowledge
+                .iter()
+                .zip(&other.raw_knowledge)
+                .all(|(a, b)| {
+                    a.source == b.source
+                        && a.step == b.step
+                        && a.matcher == b.matcher
+                        && a.associated_term == b.associated_term
+                        && format!("{:?}", a.data) == format!("{:?}", b.data)
+                })
     }
 
     pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
@@ -357,6 +394,12 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
         }
     }
 
+    /// Reseeds the RNG of every PUT, as a [`Runner`](crate::execution::Runner) does before each
+    /// execution.
+    pub fn determinism_reseed(&self) {
+        self.registry.determinism_reseed_all_factories();
+    }
+
     #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
@@ -446,6 +489,13 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     pub executed_until: usize,
 }
 
+impl<PB: ProtocolBehavior> TraceContext<PB> {
+    /// Reseeds the RNG of every PUT, see [`Spawner::determinism_reseed`].
+    pub fn determinism_reseed(&self) {
+        self.spawner.determinism_reseed();
+    }
+}
+
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -464,8 +514,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
             && self.spawner == other.spawner
-            && format!("{:?}", self.knowledge_store.raw_knowledge)
-                == format!("{:?}", other.knowledge_store.raw_knowledge)
+            && self.knowledge_store.same_knowledge(&other.knowledge_store)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
             && self.config_trace == other.config_trace
     }
@@ -552,6 +601,39 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             query
         );
         self.knowledge_store.find_variable(query_type_shape, query)
+    }
+
+    /// Resolve a `concatenate_all` query: gather every knowledge matching the
+    /// query's source / type / matcher (in insertion order), encode each, and
+    /// re-read the concatenated bytes into the queried type. Generic — no protocol
+    /// knowledge here: the merge is byte-level `encode` + `try_read_bytes`, so it
+    /// works for any type whose codec round-trips concatenation (e.g. an SSH
+    /// `RawSshMessageFlight`, whose deframer re-frames the joined drains back into
+    /// the same message list). Returns an OWNED value (the concatenation does not
+    /// exist as a stored knowledge to borrow).
+    pub fn find_variable_concat(
+        &self,
+        query_type_shape: TypeShape<PB::ProtocolTypes>,
+        query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
+    ) -> Option<Box<dyn EvaluatedTerm<PB::ProtocolTypes>>> {
+        let type_id: TypeId = query_type_shape.into();
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut found = false;
+        for knowledge in self
+            .knowledge_store
+            .knowledges()
+            .iter()
+            .filter(|raw| query.source.is_none() || query.source.as_ref().unwrap() == &raw.source)
+            .flatten()
+            .filter(|k| type_id == k.data.type_id() && k.matcher.matches(&query.matcher))
+        {
+            bytes.extend_from_slice(&PB::any_get_encoding(knowledge.data));
+            found = true;
+        }
+        if !found {
+            return None;
+        }
+        PB::try_read_bytes(&bytes, type_id).ok()
     }
 
     pub fn spawn(
@@ -774,6 +856,10 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
         let trace_number = Self::count_prior_traces(trace) - 1;
 
+        // What the PUTs received: the execution runs the preprocessed trace.
+        let preprocessed = PT::preprocess_trace(trace);
+        let executed = preprocessed.as_ref().unwrap_or(trace);
+
         for (idx, step) in trace.steps.iter().enumerate() {
             let knowledges = if export_knowledges {
                 let mut step_knowledges = Vec::new();
@@ -817,7 +903,13 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
             steps.push(StepExecution {
                 step_number: idx,
-                action: ActionType::from(step.action.clone(), export_terms, export_raw, ctx),
+                action: ActionType::from(
+                    step.action.clone(),
+                    executed.steps.get(idx).map(|s| &s.action),
+                    export_terms,
+                    export_raw,
+                    ctx,
+                ),
                 agent: step.agent,
                 knowledges,
                 claims,
@@ -923,40 +1015,52 @@ enum ActionType {
 }
 
 impl ActionType {
+    /// `value` is the action as the trace stores it, whose recipe `export_terms` shows.
+    /// `executed` is the same action after `ProtocolTypes::preprocess_trace`, whose bytes
+    /// `export_raw` shows: they are what the PUT received.
     fn from<PB: ProtocolBehavior>(
         value: Action<PB::ProtocolTypes>,
+        executed: Option<&Action<PB::ProtocolTypes>>,
         export_terms: bool,
         export_raw: bool,
         ctx: &TraceContext<PB>,
     ) -> Self {
         match value {
-            Input(input_action) => ActionType::Input {
-                recipe: match export_terms {
-                    true => Some(input_action.recipe.to_string()),
-                    false => None,
-                },
-                raw: match export_raw {
-                    true => match input_action.recipe.evaluate(ctx) {
-                        Ok(v) => Some(
-                            v.iter()
-                                .map(|b| format!("{:02x}", b).to_string())
-                                .collect::<String>(),
-                        ),
-                        Err(_) => None,
+            Input(input_action) => {
+                let sent = match executed {
+                    Some(Input(executed)) => &executed.recipe,
+                    _ => &input_action.recipe,
+                };
+                ActionType::Input {
+                    recipe: match export_terms {
+                        true => Some(input_action.recipe.to_string()),
+                        false => None,
                     },
-                    false => None,
-                },
-                precomputations: match export_terms {
-                    true => Some(
-                        input_action
-                            .precomputations
-                            .iter()
-                            .map(|p| (p.label.clone().unwrap_or("".into()), p.recipe.to_string()))
-                            .collect(),
-                    ),
-                    false => None,
-                },
-            },
+                    raw: match export_raw {
+                        true => match sent.evaluate(ctx) {
+                            Ok(v) => Some(
+                                v.iter()
+                                    .map(|b| format!("{:02x}", b).to_string())
+                                    .collect::<String>(),
+                            ),
+                            Err(_) => None,
+                        },
+                        false => None,
+                    },
+                    precomputations: match export_terms {
+                        true => Some(
+                            input_action
+                                .precomputations
+                                .iter()
+                                .map(|p| {
+                                    (p.label.clone().unwrap_or("".into()), p.recipe.to_string())
+                                })
+                                .collect(),
+                        ),
+                        false => None,
+                    },
+                }
+            }
             Action::Output(_) => ActionType::Output,
         }
     }
@@ -1058,7 +1162,38 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
+    /// Whole-trace preprocessing funnel (see [`ProtocolTypes::preprocess_trace`]). EVERY
+    /// execution passes through here — the fuzz loop and its introspection stage
+    /// (`crate::fuzzer::libafl_setup`), prior-trace sub-executions (the loop in the inner body
+    /// re-enters this method per prior trace), and every CLI / unit-test replay — so a trace
+    /// reproduces the SAME way however it is reached.
+    ///
+    /// Default is a no-op for every protocol (returns `None` => `effective` borrows `self`, no
+    /// clone), keeping the hot path allocation-free. A protocol returning `Some(rewritten)` runs
+    /// that throwaway copy for this call while the stored testcase stays pristine. The rewrite
+    /// preserves the step count, so `stop_at_step` (an index into the same step list) stays valid,
+    /// and it is idempotent (a second pass finds nothing to rewrite and returns `None`).
     pub fn execute_until_step_wrap<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        stop_at_step: usize,
+        trace_number: &mut usize,
+        check_security_violation: bool,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        let preprocessed = PT::preprocess_trace(self);
+        let effective = preprocessed.as_ref().unwrap_or(self);
+        effective.execute_until_step_wrap_inner(
+            ctx,
+            stop_at_step,
+            trace_number,
+            check_security_violation,
+        )
+    }
+
+    fn execute_until_step_wrap_inner<PB>(
         &self,
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
@@ -1113,6 +1248,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_EXEC.increment();
+
+        // `execute_until_step_wrap` applies the whole-trace preprocessing hook
+        // (`ProtocolTypes::preprocess_trace`) itself, so prior-trace sub-executions and the
+        // fuzzer's introspection stage get the SAME rewrite as this top-level call (previously
+        // they bypassed it). This method keeps only the ALL_EXEC accounting around that call.
         let res =
             self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
 
@@ -1443,7 +1583,11 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         }
     }
 
-    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    /// Evaluates the precomputations in order and stores each result as `Source::Label` knowledge
+    /// before evaluating the next, so later precomputations and the recipe can read the earlier
+    /// ones by label. Code that evaluates a term of this step's recipe outside `Self::execute`
+    /// (`MakeMessage`, `ReadMessage`) must run them first.
+    pub fn execute_precomputations<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -1456,6 +1600,14 @@ impl<PT: ProtocolTypes> InputAction<PT> {
                 Some(precomputation.recipe.clone()),
             );
         }
+        Ok(())
+    }
+
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.execute_precomputations(ctx)?;
 
         let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
@@ -1672,5 +1824,95 @@ mod tests {
         assert_eq!(action5.precomputations[5].label, None);
         assert_eq!(action5.precomputations[6].label, Some("d".into()));
         assert_eq!(action5.precomputations[7].label, Some("e".into()));
+    }
+
+    /// A query over all the matches prints `*` where another prints its counter.
+    #[test]
+    fn query_display_shows_a_concatenation() {
+        use crate::agent::AgentName;
+        use crate::algebra::AnyMatcher;
+        use crate::trace::{Query, Source};
+
+        let query = |concatenate_all| Query::<AnyMatcher> {
+            source: Some(Source::Agent(AgentName::first())),
+            matcher: None,
+            counter: 3,
+            concatenate_all,
+        };
+        assert!(query(false).to_string().contains(", 3)"));
+        let all = query(true).to_string();
+        assert!(all.contains(", *)"), "{all}");
+        assert!(!all.contains('3'), "{all}");
+    }
+
+    /// Each execution stores a precomputation's result together with a fresh clone of its
+    /// recipe, and every clone draws new `unique_id`s for its variables and function symbols.
+    /// Two runs of the same trace must still compare equal (the SSH determinism test compares
+    /// whole contexts), while knowledge that differs in anything else must not.
+    #[test]
+    fn same_knowledge_ignores_the_ids_of_stored_recipes() {
+        use crate::algebra::test_signature::{
+            fn_client_extensions_new, Random, SessionID, TestProtocolTypes,
+        };
+        use crate::algebra::{AnyMatcher, DYTerm, Term};
+        use crate::trace::{KnowledgeStore, RawKnowledge, Source, StepNumber};
+
+        let recipe: Term<TestProtocolTypes> = term! { (!"a", 0)/Random };
+        let function: Term<TestProtocolTypes> = term! { fn_client_extensions_new };
+        let store = |label: &str| {
+            let mut store = KnowledgeStore::<TestProtocolTypes>::new();
+            store.add_raw_knowledge(
+                Random,
+                None,
+                Source::Label(Some(label.into())),
+                Some(recipe.clone()),
+            );
+            store
+        };
+
+        let (first, second) = (store("a"), store("a"));
+        assert_ne!(
+            format!("{first:?}"),
+            format!("{second:?}"),
+            "the two clones of the recipe have different variable ids"
+        );
+        assert!(first.same_knowledge(&second));
+        assert_ne!(
+            format!("{function:?}"),
+            format!("{:?}", function.clone()),
+            "the two clones of a function symbol have different ids"
+        );
+        let mut with_function = store("a");
+        with_function.raw_knowledge[0].associated_term = Some(function.clone());
+        let mut with_function_clone = store("a");
+        with_function_clone.raw_knowledge[0].associated_term = Some(function.clone());
+        assert!(with_function.same_knowledge(&with_function_clone));
+
+        assert!(!first.same_knowledge(&store("b")), "a different source");
+        assert!(
+            !first.same_knowledge(&KnowledgeStore::new()),
+            "a different length"
+        );
+        let with = |change: fn(&mut RawKnowledge<TestProtocolTypes>)| {
+            let mut changed = store("a");
+            change(&mut changed.raw_knowledge[0]);
+            changed
+        };
+        assert!(
+            !first.same_knowledge(&with(|k| k.step = Some(StepNumber { trace: 0, step: 1 }))),
+            "a different step"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.matcher = Some(AnyMatcher))),
+            "a different matcher"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.associated_term = None)),
+            "a different recipe"
+        );
+        assert!(
+            !first.same_knowledge(&with(|k| k.data = Box::new(SessionID))),
+            "different data"
+        );
     }
 }

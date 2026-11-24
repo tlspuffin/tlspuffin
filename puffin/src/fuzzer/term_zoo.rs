@@ -57,7 +57,11 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
     ) -> Self {
         let max_depth = max_depth.unwrap_or(PB::ZOO_MAX_DEPTH);
         let skip = |def: &FunctionDefinition<PB::ProtocolTypes>| {
-            let skip = filter_no_gen && signature.attrs_by_name.get(def.0.name).unwrap().no_gen;
+            let attrs = signature.attrs_by_name.get(def.0.name).unwrap();
+            // `no_mutate`: the fuzzer never introduces this symbol ANYWHERE, so it is skipped even
+            // when a single symbol is requested via `filter` (the `Some` branch below). `no_gen`
+            // (only when `filter_no_gen`): skipped at root generation, still usable as a sub-term.
+            let skip = attrs.no_mutate || (filter_no_gen && attrs.no_gen);
             if skip {
                 log::debug!("Skipping generation for [{:?}]", def.0.name);
             }
@@ -81,7 +85,7 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
                 );
             }
         } else {
-            for def in &signature.functions {
+            for def in signature.generatable() {
                 if skip(def) {
                     continue; // Skip this function symbol
                 }

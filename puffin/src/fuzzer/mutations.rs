@@ -5,8 +5,9 @@ use libafl_bolts::prelude::*;
 
 use super::utils::{
     choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_path_filtered,
-    find_all_sub_term_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
-    Choosable, TermConstraints, TracePath,
+    find_all_precomputation_term_filtered, find_all_sub_term_filtered, find_all_term_filtered,
+    find_precomputation_term_mut, find_term, find_term_mut, reservoir_sample, Choosable,
+    PrecomputationPath, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -39,7 +40,7 @@ impl Default for MutationConfig {
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,
-            max_result_trace_length: 20,
+            max_result_trace_length: 25,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
             with_bit_level: false,
@@ -100,7 +101,8 @@ impl ScopeWeights {
 /// Scope over which a chosen replacement is applied, see [`apply_scoped_mutation`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MutationScope {
-    /// Replace *every* occurrence structurally equal to the chosen term, in the whole trace.
+    /// Replace *every* occurrence structurally equal to the chosen term, in the whole trace,
+    /// including the recipes of the precomputations.
     Global,
     /// Replace every such occurrence, but only within the step of the chosen term.
     Step,
@@ -263,19 +265,56 @@ fn payloads_within_caps<PT: ProtocolTypes>(
     true
 }
 
+/// Returns `true` iff replacing a term of size `representative_size` by one of size `new_size` at
+/// every path in `targets` keeps each affected precomputation recipe within
+/// `constraints.max_result_term_size`. Same precondition and fast path as
+/// [`replacement_within_caps`]: a precomputation recipe is bounded like a step recipe.
+fn precomputations_within_caps<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    targets: &[PrecomputationPath],
+    representative_size: usize,
+    new_size: usize,
+    constraints: &TermConstraints,
+) -> bool {
+    if new_size <= representative_size {
+        return true; // shrink or size-neutral: cannot exceed any cap
+    }
+    let delta = new_size - representative_size;
+
+    let mut per_recipe: std::collections::HashMap<(usize, usize), usize> =
+        std::collections::HashMap::new();
+    for (step_index, precomputation_index, _) in targets {
+        *per_recipe
+            .entry((*step_index, *precomputation_index))
+            .or_insert(0) += 1;
+    }
+    per_recipe.iter().all(|(&(step_index, index), count)| {
+        let cur = match trace.steps.get(step_index).map(|s| &s.action) {
+            Some(Action::Input(input)) => input
+                .precomputations
+                .get(index)
+                .map_or(0, |precomputation| precomputation.recipe.size()),
+            _ => 0,
+        };
+        cur + count * delta <= constraints.max_result_term_size
+    })
+}
+
 /// Replace the term at each of `targets` (each currently structurally equal to `representative`) by
 /// `new_term`, enforcing the result-size caps (`constraints.max_result_{term,trace}_size`) and,
 /// when `with_bit` is set, the per-term payload budget
 /// (`constraints.threshold_max_payloads_per_term`). If applying to all targets would exceed a cap,
 /// the mutation is rejected wholesale (returns [`MutationResult::Skipped`]) so the "replace all
-/// equal occurrences" atomicity is preserved. See `replacement_within_caps` and
-/// `payloads_within_caps`.
+/// equal occurrences" atomicity is preserved. See `replacement_within_caps`,
+/// `precomputations_within_caps` and `payloads_within_caps`.
+///
+/// A precomputation is evaluated without payloads, so its occurrences get `new_term` without any.
 ///
 /// `with_bit` mirrors whether bit-level mutations are enabled: when they are not, no term carries a
 /// payload, so the whole payload accounting is skipped without even walking `new_term`.
 pub fn apply_to_targets<PT: ProtocolTypes>(
     trace: &mut Trace<PT>,
-    targets: &[TracePath],
+    targets: &ScopedTargets,
     new_term: &Term<PT>,
     representative: &Term<PT>,
     with_bit: bool,
@@ -283,13 +322,30 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
 ) -> MutationResult {
     if !replacement_within_caps(
         trace,
-        targets,
+        &targets.recipes,
         representative.size(),
         new_term.size(),
         constraints,
     ) {
         log::debug!("[Mutation] rejected: would exceed result-size caps");
         return MutationResult::Skipped;
+    }
+    let symbolic_term = (!targets.precomputations.is_empty()).then(|| {
+        let mut symbolic = new_term.clone();
+        symbolic.make_symbolic();
+        symbolic
+    });
+    if let Some(symbolic) = &symbolic_term {
+        if !precomputations_within_caps(
+            trace,
+            &targets.precomputations,
+            representative.size(),
+            symbolic.size(),
+            constraints,
+        ) {
+            log::debug!("[Mutation] rejected: a precomputation would exceed the result-size cap");
+            return MutationResult::Skipped;
+        }
     }
     // Payloads only exist under bit-level mutations; when those are off, skip the accounting
     // entirely (no `new_term` walk). Even under bit-level, only a replacement that *adds* payloads
@@ -300,7 +356,7 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
         if new_payloads > 0
             && !payloads_within_caps(
                 trace,
-                targets,
+                &targets.recipes,
                 representative.count_payloads(),
                 new_payloads,
                 constraints,
@@ -312,10 +368,18 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
     }
 
     let mut mutated = false;
-    for target in targets {
+    for target in &targets.recipes {
         if let Some(term_mut) = find_term_mut(trace, target) {
             term_mut.mutate(new_term.clone());
             mutated = true;
+        }
+    }
+    if let Some(symbolic) = &symbolic_term {
+        for target in &targets.precomputations {
+            if let Some(term_mut) = find_precomputation_term_mut(trace, target) {
+                term_mut.mutate(symbolic.clone());
+                mutated = true;
+            }
         }
     }
 
@@ -324,6 +388,18 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
     } else {
         MutationResult::Skipped
     }
+}
+
+/// The occurrences a replacement mutation rewrites, see [`scoped_targets`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ScopedTargets {
+    /// Occurrences in the step recipes, the chosen one included.
+    pub recipes: Vec<TracePath>,
+    /// Occurrences in the recipes of the precomputations. Only [`MutationScope::Global`] has any:
+    /// a precomputation is never chosen as a mutation anchor, but a value it derives from a term
+    /// of the trace must follow when that term is replaced everywhere (e.g. a key exchange hash
+    /// computed over a message that a step sends).
+    pub precomputations: Vec<PrecomputationPath>,
 }
 
 /// Draw a [`MutationScope`] and return *all* the occurrences to replace, see
@@ -340,7 +416,7 @@ pub fn scoped_targets<PT: ProtocolTypes, R: Rand>(
     representative: &Term<PT>,
     config: &MutationConfig,
     rand: &mut R,
-) -> Vec<TracePath> {
+) -> ScopedTargets {
     let scope = MutationScope::choose(config.scope_weights, rand);
     let (chosen_step, _) = to_mutate_path;
 
@@ -371,11 +447,20 @@ pub fn scoped_targets<PT: ProtocolTypes, R: Rand>(
     targets.retain(|path| path != to_mutate_path);
     targets.push(to_mutate_path.clone());
 
+    let precomputations = match scope {
+        MutationScope::Global => find_all_precomputation_term_filtered(trace, filter, &constraints),
+        MutationScope::Step | MutationScope::Individual => vec![],
+    };
+
     log::debug!(
-        "[Mutation] scope {scope:?} selected {} occurrence(s)",
-        targets.len()
+        "[Mutation] scope {scope:?} selected {} occurrence(s) in recipes, {} in precomputations",
+        targets.len(),
+        precomputations.len()
     );
-    targets
+    ScopedTargets {
+        recipes: targets,
+        precomputations,
+    }
 }
 
 impl MutationConfig {
@@ -705,7 +790,7 @@ where
         // Build the fully-formed replacement, of the same type as the chosen term.
         let new_term = match &to_mutate.term {
             DYTerm::Variable(variable) => {
-                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                let Some((shape, dynamic_fn)) = self.signature.generatable().choose_filtered(
                     |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
                     rand,
                 ) else {
@@ -718,7 +803,7 @@ where
                 ))
             }
             DYTerm::Application(func, _) => {
-                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                let Some((shape, dynamic_fn)) = self.signature.generatable().choose_filtered(
                     |(shape, _)| {
                         func.shape() != shape
                             && func.shape().return_type == shape.return_type
@@ -1120,7 +1205,7 @@ mod tests {
     use crate::algebra::DYTerm;
     use crate::fuzzer::utils::{choose_term_path, TracePath};
     use crate::term;
-    use crate::trace::{Action, InputAction, Step};
+    use crate::trace::{Action, InputAction, Precomputation, Step};
 
     fn create_state(
     ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -1266,6 +1351,220 @@ mod tests {
                 expected,
                 "{label}: unexpected extent of the replacement (per-step occurrences left)"
             );
+        }
+    }
+
+    /// Two steps whose precomputations hold the term `shared` twice each, next to a recipe that
+    /// holds it once (step 0) or not at all (step 1).
+    fn trace_with_shared_term_in_precomputations() -> TestTrace {
+        let precomputation = || Precomputation {
+            label: Some("extensions".into()),
+            recipe: term! {
+                fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        fn_client_extensions_new,
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_signature_algorithm_extension
+                )
+            },
+        };
+        let step = |recipe: TestTerm| Step {
+            agent: AgentName::first(),
+            action: Action::Input(InputAction {
+                precomputations: vec![precomputation()],
+                recipe,
+            }),
+        };
+        Trace {
+            prior_traces: vec![],
+            descriptors: vec![],
+            steps: vec![
+                step(term! {
+                    fn_client_extensions_append(
+                        fn_client_extensions_new,
+                        fn_signature_algorithm_extension
+                    )
+                }),
+                step(term! { fn_client_key_exchange }),
+            ],
+            ..Default::default()
+        }
+    }
+
+    /// How many times `symbol` occurs in the precomputations of each step.
+    fn occurrences_in_precomputations(trace: &TestTrace, symbol: &'static str) -> Vec<usize> {
+        trace
+            .steps
+            .iter()
+            .map(|step| match &step.action {
+                Action::Input(input) => input
+                    .precomputations
+                    .iter()
+                    .map(|p| p.recipe.count_functions_by_name(symbol))
+                    .sum(),
+                Action::Output(_) => 0,
+            })
+            .collect()
+    }
+
+    /// Only a `Global` replacement rewrites the occurrences inside precomputations: a value a
+    /// step derives from a term of the trace has to follow when that term changes everywhere,
+    /// while `Step` and `Individual` stay surgical.
+    #[test_log::test]
+    fn test_only_global_scope_reaches_precomputations() {
+        let mut rand = StdRand::with_seed(7);
+        let shared: TestTerm = term! { fn_signature_algorithm_extension };
+        let replacement: TestTerm = term! { fn_ec_point_formats_extension };
+        let symbol = fn_signature_algorithm_extension.name();
+
+        for (weights, expected, label) in [
+            (ScopeWeights::new(0, 0, 1), vec![2, 2], "individual"),
+            (ScopeWeights::new(0, 1, 0), vec![2, 2], "step"),
+            (ScopeWeights::new(1, 0, 0), vec![0, 0], "global"),
+        ] {
+            let mut trace = trace_with_shared_term_in_precomputations();
+            let targets = scoped_targets(
+                &trace,
+                &(0, vec![1]),
+                &shared,
+                &MutationConfig {
+                    scope_weights: weights,
+                    ..MutationConfig::default()
+                },
+                &mut rand,
+            );
+            assert_eq!(
+                apply_to_targets(
+                    &mut trace,
+                    &targets,
+                    &replacement,
+                    &shared,
+                    false,
+                    &TermConstraints::no_constraint(),
+                ),
+                MutationResult::Mutated,
+                "{label}"
+            );
+            assert_eq!(
+                find_term(&trace, &(0, vec![1])),
+                Some(&replacement),
+                "{label}: the chosen occurrence is replaced"
+            );
+            assert_eq!(
+                occurrences_in_precomputations(&trace, symbol),
+                expected,
+                "{label}: occurrences left in the precomputations"
+            );
+        }
+    }
+
+    /// A replacement whose only occurrences are in precomputations did change the trace.
+    #[test_log::test]
+    fn test_replacing_only_in_precomputations_is_a_mutation() {
+        let shared: TestTerm = term! { fn_signature_algorithm_extension };
+        let replacement: TestTerm = term! { fn_ec_point_formats_extension };
+        let mut trace = trace_with_shared_term_in_precomputations();
+        let targets = ScopedTargets {
+            recipes: vec![],
+            precomputations: vec![(0, 0, vec![1])],
+        };
+        assert_eq!(
+            apply_to_targets(
+                &mut trace,
+                &targets,
+                &replacement,
+                &shared,
+                false,
+                &TermConstraints::no_constraint(),
+            ),
+            MutationResult::Mutated
+        );
+        assert_eq!(
+            occurrences_in_precomputations(&trace, fn_signature_algorithm_extension.name()),
+            vec![1, 2]
+        );
+    }
+
+    /// A `Global` replacement that fits every step recipe but pushes a precomputation over
+    /// `max_result_term_size` is rejected as a whole, leaving the trace untouched.
+    #[test_log::test]
+    fn test_global_scope_rejected_when_a_precomputation_exceeds_the_cap() {
+        let mut rand = StdRand::with_seed(7);
+        let shared: TestTerm = term! { fn_signature_algorithm_extension };
+        // +1 node per occurrence: the recipe of step 0 goes 3 -> 4, each precomputation 5 -> 7
+        let replacement: TestTerm = term! { fn_support_group_extension(fn_named_group_secp384r1) };
+        let mut trace = trace_with_shared_term_in_precomputations();
+        let targets = scoped_targets(
+            &trace,
+            &(0, vec![1]),
+            &shared,
+            &MutationConfig {
+                scope_weights: ScopeWeights::new(1, 0, 0),
+                ..MutationConfig::default()
+            },
+            &mut rand,
+        );
+        let result = apply_to_targets(
+            &mut trace,
+            &targets,
+            &replacement,
+            &shared,
+            false,
+            &TermConstraints {
+                max_result_term_size: 6,
+                ..TermConstraints::no_constraint()
+            },
+        );
+        assert_eq!(result, MutationResult::Skipped);
+        assert_eq!(find_term(&trace, &(0, vec![1])), Some(&shared));
+        assert_eq!(
+            occurrences_in_precomputations(&trace, fn_signature_algorithm_extension.name()),
+            vec![2, 2]
+        );
+    }
+
+    /// A precomputation is evaluated without payloads, so a replacement carrying a payload keeps
+    /// it in the recipe and reaches the precomputations as its symbolic term.
+    #[test_log::test]
+    fn test_global_scope_puts_no_payload_in_precomputations() {
+        let mut rand = StdRand::with_seed(7);
+        let shared: TestTerm = term! { fn_signature_algorithm_extension };
+        let mut replacement: TestTerm = term! { fn_ec_point_formats_extension };
+        replacement.add_payload(vec![1, 2, 3]);
+        let mut trace = trace_with_shared_term_in_precomputations();
+        let targets = scoped_targets(
+            &trace,
+            &(0, vec![1]),
+            &shared,
+            &MutationConfig {
+                scope_weights: ScopeWeights::new(1, 0, 0),
+                ..MutationConfig::default()
+            },
+            &mut rand,
+        );
+        let result = apply_to_targets(
+            &mut trace,
+            &targets,
+            &replacement,
+            &shared,
+            true,
+            &TermConstraints::no_constraint(),
+        );
+        assert_eq!(result, MutationResult::Mutated);
+        assert_eq!(find_term(&trace, &(0, vec![1])), Some(&replacement));
+        assert_eq!(
+            occurrences_in_precomputations(&trace, fn_ec_point_formats_extension.name()),
+            vec![2, 2]
+        );
+        for step in &trace.steps {
+            let Action::Input(input) = &step.action else {
+                unreachable!()
+            };
+            assert!(input
+                .precomputations
+                .iter()
+                .all(|p| p.recipe.all_payloads().is_empty()));
         }
     }
 

@@ -321,6 +321,10 @@ where
                             ..Default::default()
                         },
                     );
+                    // The same PUT state as the fuzzing executions this stage measures.
+                    if ctx.config_trace.with_reseed {
+                        ctx.determinism_reseed();
+                    }
                     let error_ok;
                     match current_input.execute_until_step_wrap(
                         &mut ctx,

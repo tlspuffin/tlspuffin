@@ -24,6 +24,7 @@ fn test_group_selection_secp384r1(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -59,6 +60,7 @@ fn test_group_selection_secp256r1(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -94,6 +96,7 @@ fn server_group_tls12(put: &str, groups: &str) -> u16 {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -152,6 +155,7 @@ fn test_cipher_selection_tls13_aes_256_gcm_sha384(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -182,6 +186,7 @@ fn test_cipher_selection_tls13_chacha20_poly1305_sha256(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -215,6 +220,7 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_128_gcm_sha256(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 
@@ -248,6 +254,7 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_256_gcm_sha384(put: &str) {
             source: None,
             matcher: None,
             counter: 0,
+            concatenate_all: false,
         },
     );
 

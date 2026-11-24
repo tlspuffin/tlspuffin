@@ -88,6 +88,12 @@ pub struct FunctionAttributes {
     pub no_bit: bool,
     /// Symbols for which computations are not deterministic
     pub no_det: bool,
+    /// Probe/sentinel-only symbols the fuzzer must never introduce into a trace: excluded from
+    /// EVERY generation pool (root generation, sub-term generation, and `ReplaceMatchMutator`),
+    /// yet kept in the signature's name registry (`functions_by_name`) so that hand-authored
+    /// seeds using them still (de)serialize and execute. Distinct from `no_gen`, which only skips
+    /// *root* generation while still allowing the symbol as a sub-term or ReplaceMatch target.
+    pub no_mutate: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
 
@@ -286,6 +292,8 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 => R);
 
 pub fn make_dynamic<F: 'static + DescribableFunction<PT, Types>, PT: ProtocolTypes, Types>(
     f: &'static F,
