@@ -173,6 +173,12 @@ impl Put {
                 println!("cargo:rustc-link-lib=dylib=clang_rt.asan_osx_dynamic");
             } else {
                 println!("cargo:rustc-link-arg=-shared-libasan");
+
+                // NOTE export puffin's `__asan_default_options` (puffin::fuzzer::sanitizer::asan)
+                // so that the shared ASAN runtime calls it at startup: it binds the hook to the
+                // binary's definition only if the binary exports it, and finds its own, empty,
+                // otherwise (an ASan report would then end a fuzzing client with exit()).
+                println!("cargo:rustc-link-arg=-Wl,--export-dynamic-symbol=__asan_default_options");
             }
         }
 

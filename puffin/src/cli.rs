@@ -16,7 +16,7 @@ use crate::algebra::TermType;
 use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::config::{FuzzerConfig, FuzzingTarget};
-use crate::fuzzer::sanitizer::asan::{asan_abort_on_error_problem, asan_info, setup_asan_env};
+use crate::fuzzer::sanitizer::asan::{asan_abort_on_error_problem, asan_info};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
@@ -209,7 +209,6 @@ where
     }
 
     asan_info();
-    setup_asan_env();
 
     // Set up config
     let mut config = FuzzerConfig {

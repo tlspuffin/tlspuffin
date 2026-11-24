@@ -37,7 +37,8 @@ puffin-build = { path = "../puffin-build" }
 
 # LibAFL
 libafl = { version = "0.15.4", features = ["introspection", "prelude", "tui_monitor"] }
-libafl_targets = "0.15.4"
+# Without `sanitizers_flags` (on by default): it defines an `__asan_default_options`, puffin its own.
+libafl_targets = { version = "0.15.4", default-features = false, features = ["std", "windows_asan", "forkserver", "cmplog", "coverage", "common"] }
 libafl_bolts = { version = "0.15.4", features = ["prelude"] }
 
 # LibAFL/Fuzzer
