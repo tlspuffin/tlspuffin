@@ -62,3 +62,16 @@ jobs:
         run: just check-workspace
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.setup.minrust_toolchain }}
+
+  evaluation-ddyf:
+    name: evaluation-ddyf scripts
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # the SSH triage scripts against sshpuffin's sources: they compile, name only symbols of its
+      # signature, use its constants, and key objectives as ssh_rootcause.py documents
+      - name: test the SSH triage scripts
+        run: python3 -B -m unittest discover -s evaluation-ddyf/ssh -p 'test_*.py' -v
