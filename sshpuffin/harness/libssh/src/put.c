@@ -64,6 +64,11 @@ extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **
     __attribute__((weak));
 /* Server-side safety accessor of the entity-auth invariant S1 (same instrument). */
 extern int puffin_ssh_server_authenticated(ssh_session session) __attribute__((weak));
+/* Client-side safety accessors of the invariants C1 and C2 (same instrument), and C1's host-key
+ * record (instrument_hostkey.cmake; not defined on libssh 0.8.x). */
+extern int puffin_ssh_client_keyed(ssh_session session) __attribute__((weak));
+extern int puffin_ssh_client_authed_unkeyed(ssh_session session) __attribute__((weak));
+extern int puffin_ssh_client_hostkey_verified(ssh_session session) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
@@ -172,6 +177,8 @@ struct AGENT_TYPE
     ssh_channel server_channels[LIBSSH_MAX_SERVER_CHANNELS];
     bool authenticated;                /* set by the auth callback */
     bool user_auth_unapproved_emitted; /* guard so the entity-auth S1 safety claim fires once */
+    bool auth_while_keying_emitted;    /* guard so the C2 safety claim fires once */
+    bool host_auth_skipped_emitted;    /* guard so the C1 safety claim fires once */
     bool session_requested; /* SERVER role: a shell/exec/subsystem request or channel data
                                arrived, when wolfSSH_accept() completes */
     bool service_refused;   /* a SERVICE_REQUEST other than ssh-userauth arrived */
@@ -953,6 +960,22 @@ static void emit_phase_claim(AGENT agent)
     agent->last_emitted_phase = phase;
 }
 
+/* Send a safety claim (one of the oracle's flags set), with the session id when there is one. */
+static void notify_safety_claim(AGENT agent, Claim *claim)
+{
+    const unsigned char *sid = NULL;
+    size_t sid_len = 0;
+    if (puffin_ssh_get_session_id != NULL &&
+        puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim->session_id))
+            sid_len = sizeof(claim->session_id);
+        memcpy(claim->session_id, sid, sid_len);
+        claim->session_id_len = (uint8_t)sid_len;
+    }
+    agent->claimer->notify(agent->claimer->context, claim);
+}
+
 /*
  * Server-side safety claim of the entity-authentication oracle (invariant S1): libssh considers the
  * client authenticated (puffin_ssh_server_authenticated) although this harness's auth callbacks
@@ -969,18 +992,40 @@ static void check_server_safety(AGENT agent)
     Claim claim;
     memset(&claim, 0, sizeof(claim));
     claim.user_auth_unapproved = 1;
-    const unsigned char *sid = NULL;
-    size_t sid_len = 0;
-    if (puffin_ssh_get_session_id != NULL &&
-        puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
-    {
-        if (sid_len > sizeof(claim.session_id))
-            sid_len = sizeof(claim.session_id);
-        memcpy(claim.session_id, sid, sid_len);
-        claim.session_id_len = (uint8_t)sid_len;
-    }
     agent->user_auth_unapproved_emitted = true;
-    agent->claimer->notify(agent->claimer->context, &claim);
+    notify_safety_claim(agent, &claim);
+}
+
+/*
+ * Client-side safety claims of the entity-authentication oracle, as in the wolfSSH harness:
+ * C2, the client accepted user-authentication success before finishing any key exchange
+ * (puffin_ssh_client_authed_unkeyed); C1, the client is keyed although the server's host-key
+ * signature never verified (puffin_ssh_client_keyed and the record of instrument_hostkey.cmake).
+ * C1 is checked only where both are instrumented (not on libssh 0.8.x). Neither happens on an
+ * honest run. Checked after every progress tick; each fires once.
+ */
+static void check_client_safety(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->descriptor.role == SSH_SERVER || agent->session == NULL)
+        return;
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    if (!agent->auth_while_keying_emitted && puffin_ssh_client_authed_unkeyed != NULL &&
+        puffin_ssh_client_authed_unkeyed(agent->session))
+    {
+        claim.auth_while_keying = 1;
+        agent->auth_while_keying_emitted = true;
+    }
+    if (!agent->host_auth_skipped_emitted && puffin_ssh_client_keyed != NULL &&
+        puffin_ssh_client_hostkey_verified != NULL && puffin_ssh_client_keyed(agent->session) &&
+        !puffin_ssh_client_hostkey_verified(agent->session))
+    {
+        claim.host_auth_skipped = 1;
+        agent->host_auth_skipped_emitted = true;
+    }
+    if (!claim.auth_while_keying && !claim.host_auth_skipped)
+        return;
+    notify_safety_claim(agent, &claim);
 }
 #else  /* !HAS_CLAIMS */
 /* No claim instrumentation in this libssh build: claim emission compiles out to
@@ -996,6 +1041,10 @@ static void emit_phase_claim(AGENT agent)
     (void)agent;
 }
 static void check_server_safety(AGENT agent)
+{
+    (void)agent;
+}
+static void check_client_safety(AGENT agent)
 {
     (void)agent;
 }
@@ -1084,7 +1133,8 @@ static RESULT libssh_progress(AGENT agent)
     emit_phase_claim(agent);
     RESULT result = libssh_step(agent);
     emit_phase_claim(agent);
-    check_server_safety(agent); /* entity-auth S1, whatever path the step took */
+    check_client_safety(agent); /* entity-auth C1 and C2, whatever path the step took */
+    check_server_safety(agent); /* entity-auth S1 */
     return result;
 }
 

@@ -6,6 +6,10 @@ use_languages(C)
 # observation; no behaviour change. instrument_claims.cmake handles the session-id
 # field of every version in presets.toml.
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
+# The host-key record of the entity-authentication invariant C1: wraps the client's one host-key
+# signature verification (packet_cb.c) to record that it succeeded. Pure observation; not applied
+# where packet_cb.c has no single such call (libssh 0.8.x), see instrument_hostkey.cmake.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet_cb.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_hostkey.cmake")
 
 cmake_builder(
   TARGETS

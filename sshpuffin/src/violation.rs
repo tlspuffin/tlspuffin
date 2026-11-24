@@ -26,12 +26,14 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
         for claim in claims {
             let c = claim.inner_ref();
             // C2: the client accepted user-authentication success during its initial key exchange
-            // (`puffin_wolfssh_authed_while_keying`) — CVE-2025-14942.
+            // (wolfSSH `puffin_wolfssh_authed_while_keying`, libssh `puffin_ssh_client_authed_unkeyed`)
+            // — CVE-2025-14942.
             if c.auth_while_keying {
                 return Some("Authentication bypass");
             }
-            // C1: the client finished its key exchange without checking the server's host key
-            // (`puffin_wolfssh_client_keyed` and the harness's host-key-check record) — CVE-2025-11625.
+            // C1: the client finished its key exchange without checking the server's host key (wolfSSH
+            // `puffin_wolfssh_client_keyed` and the host-key-check callback; libssh `puffin_ssh_client_keyed`
+            // and `puffin_ssh_client_hostkey_verified`) — CVE-2025-11625.
             if c.host_auth_skipped {
                 return Some("Host authentication bypass");
             }
