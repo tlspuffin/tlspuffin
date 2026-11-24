@@ -46,6 +46,8 @@ extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out
 extern int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh) __attribute__((weak));
 /* ... and of the CVE-2025-11625 one. */
 extern int puffin_wolfssh_client_keyed(WOLFSSH *ssh) __attribute__((weak));
+/* Server-side safety accessor of the entity-auth invariant S1. */
+extern int puffin_wolfssh_server_user_authed(WOLFSSH *ssh) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -77,6 +79,8 @@ struct AGENT_TYPE
     bool auth_while_keying_emitted; /* guard so the CVE-2025-14942 safety claim fires once */
     bool host_key_checked;          /* the client's host-key-check callback ran (CVE-2025-11625) */
     bool host_auth_skipped_emitted; /* guard so the CVE-2025-11625 safety claim fires once */
+    bool auth_approved; /* SERVER: this harness approved a credential (entity-auth S1) */
+    bool user_auth_unapproved_emitted; /* guard so the S1 safety claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -218,6 +222,7 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
         snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
         snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user);
         agent->auth_key_fp_len = 0;
+        agent->auth_approved = true; /* entity-auth S1: the only approval of a password */
         /* Emit the completion claim HERE, at auth success — not at
            wolfSSH_accept()==WS_SUCCESS, which for a server only fires after a
            channel is opened. The differential corpus is auth-complete (no channel
@@ -244,6 +249,8 @@ static int auth_result_callback(uint8_t result, WS_UserAuthData *authData, void 
         memcpy(agent->auth_user, agent->pending_user, sizeof(agent->auth_user));
         memcpy(agent->auth_key_fp, agent->pending_key_fp, sizeof(agent->auth_key_fp));
         agent->auth_key_fp_len = sizeof(agent->auth_key_fp);
+        agent->auth_approved =
+            true; /* entity-auth S1: wolfSSH verified the signature, we approve */
         emit_handshake_claim(agent); /* see the password branch: emit at auth success */
     }
     return WS_SUCCESS;
@@ -610,6 +617,24 @@ static void emit_kex_claim(AGENT agent)
 
 static RESULT wolfssh_step(AGENT agent);
 
+#ifdef HAS_CLAIMS
+/* Send a safety claim (one of the oracle's flags set), with the session id when there is one. */
+static void notify_safety_claim(AGENT agent, Claim *claim)
+{
+    const unsigned char *sid = NULL;
+    unsigned int sid_len = 0;
+    if (puffin_wolfssh_get_session_id != NULL &&
+        puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim->session_id))
+            sid_len = sizeof(claim->session_id);
+        memcpy(claim->session_id, sid, sid_len);
+        claim->session_id_len = (uint8_t)sid_len;
+    }
+    agent->claimer->notify(agent->claimer->context, claim);
+}
+#endif /* HAS_CLAIMS */
+
 /*
  * Client-side safety claims of the catalogue's claim oracles (SshSecurityViolationPolicy): a
  * one-shot claim raising a flag when the client's own state contradicts the protocol, which never
@@ -640,17 +665,30 @@ static void check_client_safety(AGENT agent)
     }
     if (!claim.auth_while_keying && !claim.host_auth_skipped)
         return;
-    const unsigned char *sid = NULL;
-    unsigned int sid_len = 0;
-    if (puffin_wolfssh_get_session_id != NULL &&
-        puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
-    {
-        if (sid_len > sizeof(claim.session_id))
-            sid_len = sizeof(claim.session_id);
-        memcpy(claim.session_id, sid, sid_len);
-        claim.session_id_len = (uint8_t)sid_len;
-    }
-    agent->claimer->notify(agent->claimer->context, &claim);
+    notify_safety_claim(agent, &claim);
+#endif /* HAS_CLAIMS */
+}
+
+/*
+ * Server-side safety claim of the entity-authentication oracle (invariant S1): the server's library
+ * considers the client authenticated although this harness never approved a credential. The harness
+ * approves in exactly two places, after its allow-list: the password branch of auth_callback, and
+ * auth_result_callback once wolfSSH verified a publickey signature. Checked around every progress
+ * tick, like the client-side flags.
+ */
+static void check_server_safety(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->descriptor.role != SSH_SERVER)
+        return;
+#ifdef HAS_CLAIMS
+    if (agent->user_auth_unapproved_emitted || agent->auth_approved ||
+        puffin_wolfssh_server_user_authed == NULL || !puffin_wolfssh_server_user_authed(agent->ssh))
+        return;
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim.user_auth_unapproved = 1;
+    agent->user_auth_unapproved_emitted = true;
+    notify_safety_claim(agent, &claim);
 #endif /* HAS_CLAIMS */
 }
 
@@ -675,6 +713,7 @@ static RESULT wolfssh_progress(AGENT agent)
     RESULT result = wolfssh_step(agent);
     emit_kex_claim(agent);
     check_client_safety(agent);
+    check_server_safety(agent);
     return result;
 }
 

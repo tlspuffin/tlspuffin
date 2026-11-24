@@ -53,6 +53,11 @@ pub struct SshClaimInner {
     /// finished its key exchange without checking the server's host key.
     #[comparable_ignore]
     pub host_auth_skipped: bool,
+    /// Server-side safety flag (the C `Claim.user_auth_unapproved`, entity-auth invariant S1): the
+    /// server's library considers the client authenticated although the harness never approved a
+    /// credential.
+    #[comparable_ignore]
+    pub user_auth_unapproved: bool,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 

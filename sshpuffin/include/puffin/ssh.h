@@ -43,8 +43,8 @@ extern "C"
          * Authentication belief (server side): the method that succeeded
          * ("password" / "publickey" / ""), the user name, and — for publickey —
          * the SHA-256 fingerprint of the verified+authorized public key. Compared
-         * between the two PUTs of a differential. SSH has no single-PUT security
-         * oracle yet: `SshSecurityViolationPolicy` is a stub.
+         * between the two PUTs of a differential. The single-PUT security oracle
+         * (`SshSecurityViolationPolicy`) reads the safety flags below instead.
          */
         char auth_method[SSH_CLAIM_STR_LEN];
         char auth_user[SSH_CLAIM_STR_LEN];
@@ -78,6 +78,12 @@ extern "C"
          * exchange without ever checking the server's host key. Never set on an honest run.
          */
         uint8_t host_auth_skipped;
+        /*
+         * Server-side safety flag of the entity-authentication oracle (invariant S1): the server's
+         * library considers the client authenticated although the harness's authentication decision
+         * never approved a credential. Never set on an honest run.
+         */
+        uint8_t user_auth_unapproved;
     };
 
     typedef struct

@@ -1,7 +1,7 @@
 # PUFFIN fuzzing instrumentation for wolfSSH (applied to src/ssh.c).
 #
 # Exposes puffin_wolfssh_get_session_id() -- the SSH session identifier --
-# and the client-side safety accessors of the catalogue's claim oracles (below).
+# and the safety accessors of the entity-authentication oracle (below).
 # puffin_wolfssh_get_session_id(): the SSH session identifier
 # (exchange hash H of the first KEX, RFC 4253 §7.2), read from the internal
 # WOLFSSH struct (ssh->sessionId / sessionIdSz). wolfSSH has no public getter and
@@ -72,6 +72,20 @@ int puffin_wolfssh_client_keyed(WOLFSSH *ssh)
         return 0;
     }
     return (ssh->connectState >= CONNECT_KEYED) ? 1 : 0;
+}
+
+/* Entity-auth invariant S1 (server side): 1 iff the server considers the client authenticated
+ * (clientState >= CLIENT_USERAUTH_DONE, wolfSSH's record of its peer's progress, which it sets only
+ * once a user authentication succeeded). The harness combines it with its own record of having
+ * approved a credential: authenticated without that approval is a bypass, impossible honestly.
+ * Pure observation. */
+__attribute__((visibility(\"default\")))
+int puffin_wolfssh_server_user_authed(WOLFSSH *ssh)
+{
+    if (ssh == NULL) {
+        return 0;
+    }
+    return (ssh->clientState >= CLIENT_USERAUTH_DONE) ? 1 : 0;
 }
 ")
 
