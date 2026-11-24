@@ -6,3 +6,50 @@
 //! (linkme), so there is no per-CVE test to write. The catalogue test
 //! (`sshpuffin/tests/catalogue.rs`) runs every witness on every PUT of the binary and checks the
 //! outcome against the PUT's catalogue state.
+
+use puffin::agent::{AgentDescriptor, AgentName};
+use puffin::term;
+use puffin::trace::{InputAction, OutputAction, Trace};
+
+use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolTypes};
+use crate::ssh::fn_impl::*;
+
+/// CVE-2025-14942 — the wolfSSH client's key-exchange state machine accepts user-authentication
+/// messages out of order, during key exchange (CWE-287; wolfSSH <= 1.4.21, fixed in 1.4.22 by
+/// wolfSSL/wolfssh#855). The vulnerable `IsMessageAllowedClient` defaults to allow, so a
+/// USERAUTH_SUCCESS received while the client is still keying is accepted; the fixed client rejects
+/// auth-range messages until key exchange has completed and a user-auth request has been sent.
+///
+/// The attacker plays the server against a real wolfSSH CLIENT PUT: banner and KEXINIT, so the
+/// client sends KEX_ECDH_INIT and starts keying, then one cleartext USERAUTH_SUCCESS before any
+/// KEXDH reply. The vulnerable client reaches SERVER_USERAUTH_ACCEPT_DONE while still keying: the
+/// harness raises `auth_while_keying` and the claim oracle reports "Authentication bypass". The
+/// fixed client rejects the message.
+#[puffin::witness("CVE-2025-14942")]
+pub fn witness_cve_2025_14942(client: AgentName) -> Trace<SshProtocolTypes> {
+    // The server KEXINIT of the AES-GCM seeds: algorithms the wolfSSH client accepts.
+    let server_kexinit = term! { fn_server_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client), // client banner
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // client KEXINIT
+            InputAction::new_step(client, term! { fn_packet((@server_kexinit)) }),
+            OutputAction::new_step(client), // client KEX_ECDH_INIT: now keying
+            // Out of order: a cleartext USERAUTH_SUCCESS during the key exchange.
+            InputAction::new_step(client, term! { fn_packet((fn_user_auth_success)) }),
+            OutputAction::new_step(client),
+        ],
+        ..Default::default()
+    }
+}

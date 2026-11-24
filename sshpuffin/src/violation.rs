@@ -2,21 +2,21 @@ use puffin::claims::SecurityViolationPolicy;
 
 use crate::claim::SshClaim;
 
-/// SSH has **no active security oracle yet**: `check_violation` always returns `None`.
-///
-/// This is an intentional, documented stub — not a populated policy like tlspuffin's. Single-PUT
-/// SSH fuzzing therefore surfaces only crashes, ASan reports and timeouts as objectives;
-/// cross-implementation logic/auth divergences are caught by the DIFFERENTIAL oracle (two PUTs
-/// compared), not here. A real claim-based oracle — e.g. flagging a success claim for the
-/// unauthorized identity, or a session-id / user / key-fingerprint mismatch between honest peers —
-/// is future work (see the CVE-catalogue effort). Until it exists, nothing in the tree should
-/// advertise an active SSH oracle.
+/// Single-PUT security oracle of the SSH catalogue: one-sided flags the harness raises when a PUT's
+/// own state contradicts the protocol, never on an honest run.
 pub struct SshSecurityViolationPolicy;
 
 impl SecurityViolationPolicy for SshSecurityViolationPolicy {
     type C = SshClaim;
 
-    fn check_violation(_claims: &[SshClaim]) -> Option<&'static str> {
-        None // no active oracle yet; see the type-level doc comment
+    fn check_violation(claims: &[SshClaim]) -> Option<&'static str> {
+        for claim in claims {
+            // CVE-2025-14942: the client accepted user-authentication success during its initial
+            // key exchange (`puffin_wolfssh_authed_while_keying`).
+            if claim.inner_ref().auth_while_keying {
+                return Some("Authentication bypass");
+            }
+        }
+        None
     }
 }

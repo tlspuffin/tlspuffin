@@ -44,6 +44,11 @@ pub struct SshClaimInner {
     /// material only — NOT compared (differs per-stack by construction).
     #[comparable_ignore]
     pub session_id: Vec<u8>,
+    /// Client-side safety flag (the C `Claim.auth_while_keying`, CVE-2025-14942): the client
+    /// accepted user-authentication success during its initial key exchange. Read by
+    /// `SshSecurityViolationPolicy`; never set honestly, so not compared between PUTs.
+    #[comparable_ignore]
+    pub auth_while_keying: bool,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
@@ -68,6 +73,11 @@ impl SshClaim {
             inner: Box::new(inner),
             step: None,
         }
+    }
+
+    /// The decoded claim fields, for the security oracle.
+    pub fn inner_ref(&self) -> &SshClaimInner {
+        &self.inner
     }
 }
 

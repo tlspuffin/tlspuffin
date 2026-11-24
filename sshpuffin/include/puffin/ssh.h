@@ -67,6 +67,12 @@ extern "C"
          * KEX has completed.
          */
         uint8_t phase;
+        /*
+         * Client-side safety flag of the CVE-2025-14942 oracle: the client accepted the server's
+         * user-authentication success while still in its initial key exchange. Never set on an
+         * honest run; not compared between PUTs.
+         */
+        uint8_t auth_while_keying;
     };
 
     typedef struct

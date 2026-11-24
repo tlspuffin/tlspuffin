@@ -1,6 +1,8 @@
 # PUFFIN fuzzing instrumentation for wolfSSH (applied to src/ssh.c).
 #
-# Exposes puffin_wolfssh_get_session_id() -- the SSH session identifier
+# Exposes puffin_wolfssh_get_session_id() -- the SSH session identifier --
+# and the client-side safety accessors of the catalogue's claim oracles (below).
+# puffin_wolfssh_get_session_id(): the SSH session identifier
 # (exchange hash H of the first KEX, RFC 4253 §7.2), read from the internal
 # WOLFSSH struct (ssh->sessionId / sessionIdSz). wolfSSH has no public getter and
 # does not install internal.h, so the decryption recipe has no other way to
@@ -40,6 +42,22 @@ int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsig
     *out = ssh->sessionId;
     *len = ssh->sessionIdSz;
     return 0;
+}
+
+/* CVE-2025-14942 oracle (client side): 1 iff the client believes the server accepted user
+ * authentication (serverState >= SERVER_USERAUTH_ACCEPT_DONE) while it is still in its initial
+ * key exchange (isKeying, connectState < CONNECT_KEYED). The vulnerable client accepts such an
+ * out-of-order message; the fixed one rejects it. It cannot happen honestly: serverState reaches
+ * ACCEPT_DONE only after the client sent its user-auth request, past CONNECT_KEYED -- which also
+ * excludes a legitimate post-auth rekey (connectState is then CONNECT_DONE). Pure observation. */
+__attribute__((visibility(\"default\")))
+int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh)
+{
+    if (ssh == NULL) {
+        return 0;
+    }
+    return (ssh->isKeying != 0 && ssh->serverState >= SERVER_USERAUTH_ACCEPT_DONE
+            && ssh->connectState < CONNECT_KEYED) ? 1 : 0;
 }
 ")
 

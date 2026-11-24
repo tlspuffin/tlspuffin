@@ -42,6 +42,8 @@
 #ifdef HAS_CLAIMS
 extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsigned int *len)
     __attribute__((weak));
+/* Client-side safety accessor of the CVE-2025-14942 claim oracle (same instrument). */
+extern int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -70,6 +72,7 @@ struct AGENT_TYPE
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the completion claim fires once */
     bool kex_claim_emitted;    /* guard so the post-KEX (session-id) claim fires once */
+    bool auth_while_keying_emitted; /* guard so the CVE-2025-14942 safety claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -599,6 +602,43 @@ static void emit_kex_claim(AGENT agent)
 
 static RESULT wolfssh_step(AGENT agent);
 
+/*
+ * Client-side safety claims of the catalogue's claim oracles (SshSecurityViolationPolicy): a
+ * one-shot claim raising a flag when the client's own state contradicts the protocol, which never
+ * happens on an honest run. Checked around every progress tick, like the post-KEX claim, so it
+ * also fires on the WOULD_BLOCK a vulnerable client returns while it keeps keying. Carries the
+ * session id when there is one.
+ */
+static void check_client_safety(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->descriptor.role == SSH_SERVER)
+        return;
+#ifdef HAS_CLAIMS
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    /* CVE-2025-14942: user-authentication success accepted during the initial key exchange. */
+    if (!agent->auth_while_keying_emitted && puffin_wolfssh_authed_while_keying != NULL &&
+        puffin_wolfssh_authed_while_keying(agent->ssh))
+    {
+        claim.auth_while_keying = 1;
+        agent->auth_while_keying_emitted = true;
+    }
+    if (!claim.auth_while_keying)
+        return;
+    const unsigned char *sid = NULL;
+    unsigned int sid_len = 0;
+    if (puffin_wolfssh_get_session_id != NULL &&
+        puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim.session_id))
+            sid_len = sizeof(claim.session_id);
+        memcpy(claim.session_id, sid, sid_len);
+        claim.session_id_len = (uint8_t)sid_len;
+    }
+    agent->claimer->notify(agent->claimer->context, &claim);
+#endif /* HAS_CLAIMS */
+}
+
 static RESULT wolfssh_progress(AGENT agent)
 {
     if (agent->state == PUT_STATE_ERROR)
@@ -619,6 +659,7 @@ static RESULT wolfssh_progress(AGENT agent)
     emit_kex_claim(agent);
     RESULT result = wolfssh_step(agent);
     emit_kex_claim(agent);
+    check_client_safety(agent);
     return result;
 }
 
