@@ -6,7 +6,7 @@
 # replies of the PUT. Pure observation -- it never alters protocol behaviour.
 #
 # It is appended to packet.c, whose includes give the session and crypto structs, so
-# it needs no anchor in the source. libssh 0.8.3 has no session_id_len (see below).
+# it needs no anchor in the source. libssh < 0.9.6 has no session_id_len (see below).
 #
 # Why this is a bespoke cmake-script patch and NOT the TLS claim mechanism:
 # tlspuffin instruments claims with static `.patch` diffs plus a shared
@@ -37,8 +37,11 @@ int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, si
         return -1;
     }
     *out = session->current_crypto->session_id;
-#if LIBSSH_VERSION_INT < SSH_VERSION_INT(0, 9, 0)
-    /* libssh 0.8.x has no session_id_len: the session id is digest_len bytes long */
+#if LIBSSH_VERSION_INT < SSH_VERSION_INT(0, 9, 6)
+    /* No session_id_len before 0.9.6 (0.8.x, 0.9.0-0.9.5): it came with the CVE-2021-3634
+       fix, and before it the session id is digest_len bytes long. A pre-0.9.6 build carrying
+       that fix (a -fix build of 0.9.5) takes this branch too: harmless, as the harness copies
+       the session id only at its first post-KEX claim, before a rekey can change digest_len. */
     *len = session->current_crypto->digest_len;
 #else
     *len = session->current_crypto->session_id_len;

@@ -13,7 +13,8 @@ summary = "libssh server NULL-pointer dereference during rekeying with key-excha
 category = "dos"
 cwe = "CWE-476"
 cvss = { version = "3.1", score = 6.5, vector = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H", source = "nvd" }
-# Fixed in both 0.9.7 and 0.10.5: two affected branches.
+# Fixed in both 0.9.7 and 0.10.5: two affected branches, both checked (the witness crashes
+# libssh095 and libssh0104 identically, in cmp_first_kex_algo < ssh_packet_kexinit).
 affected = ">= 0.9.1, < 0.9.7 || >= 0.10.0, < 0.10.5"
 oracle = { kind = "crash", asan = "SEGV" }
 top_frames = ["cmp_first_kex_algo", "ssh_packet_kexinit"]
