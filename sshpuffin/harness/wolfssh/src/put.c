@@ -44,6 +44,8 @@ extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out
     __attribute__((weak));
 /* Client-side safety accessor of the CVE-2025-14942 claim oracle (same instrument). */
 extern int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh) __attribute__((weak));
+/* ... and of the CVE-2025-11625 one. */
+extern int puffin_wolfssh_client_keyed(WOLFSSH *ssh) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -73,6 +75,8 @@ struct AGENT_TYPE
     bool claim_emitted;        /* guard so the completion claim fires once */
     bool kex_claim_emitted;    /* guard so the post-KEX (session-id) claim fires once */
     bool auth_while_keying_emitted; /* guard so the CVE-2025-14942 safety claim fires once */
+    bool host_key_checked;          /* the client's host-key-check callback ran (CVE-2025-11625) */
+    bool host_auth_skipped_emitted; /* guard so the CVE-2025-11625 safety claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -251,7 +255,10 @@ static int public_key_check_callback(const uint8_t *publicKey, uint32_t publicKe
 {
     (void)publicKey;
     (void)publicKeySz;
-    (void)ctx;
+    /* Only DoKexDhReply calls it, after checking the server's signature over H: record that the
+       host key was checked, for the CVE-2025-11625 oracle. ctx is the AGENT. */
+    if (ctx != NULL)
+        ((AGENT)ctx)->host_key_checked = true;
     return 0; /* 0 = accept */
 }
 
@@ -426,6 +433,7 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
      * authentication belief (method / user / verified-key fingerprint). */
     wolfSSH_SetUserAuthCtx(ssh, agent);
     wolfSSH_SetUserAuthResultCtx(ssh, agent);
+    wolfSSH_SetPublicKeyCheckCtx(ssh, agent);
     return agent;
 }
 
@@ -623,7 +631,14 @@ static void check_client_safety(AGENT agent)
         claim.auth_while_keying = 1;
         agent->auth_while_keying_emitted = true;
     }
-    if (!claim.auth_while_keying)
+    /* CVE-2025-11625: key exchange finished without the server's host key ever being checked. */
+    if (!agent->host_auth_skipped_emitted && !agent->host_key_checked &&
+        puffin_wolfssh_client_keyed != NULL && puffin_wolfssh_client_keyed(agent->ssh))
+    {
+        claim.host_auth_skipped = 1;
+        agent->host_auth_skipped_emitted = true;
+    }
+    if (!claim.auth_while_keying && !claim.host_auth_skipped)
         return;
     const unsigned char *sid = NULL;
     unsigned int sid_len = 0;

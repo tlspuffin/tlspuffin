@@ -59,6 +59,20 @@ int puffin_wolfssh_authed_while_keying(WOLFSSH *ssh)
     return (ssh->isKeying != 0 && ssh->serverState >= SERVER_USERAUTH_ACCEPT_DONE
             && ssh->connectState < CONNECT_KEYED) ? 1 : 0;
 }
+
+/* CVE-2025-11625 oracle (client side): 1 iff the client finished its initial key exchange
+ * (connectState >= CONNECT_KEYED). The harness combines it with its own record of whether its
+ * host-key-check callback ever ran -- only DoKexDhReply, which verifies the server's signature over
+ * H, calls it: KEYED without a checked host key is the bypass (a NEWKEYS accepted before any
+ * KEX_ECDH_REPLY), impossible honestly. Pure observation. */
+__attribute__((visibility(\"default\")))
+int puffin_wolfssh_client_keyed(WOLFSSH *ssh)
+{
+    if (ssh == NULL) {
+        return 0;
+    }
+    return (ssh->connectState >= CONNECT_KEYED) ? 1 : 0;
+}
 ")
 
 file(APPEND "${FILE}" "${accessor}")

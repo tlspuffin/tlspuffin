@@ -31,3 +31,26 @@ asan = false # a claim oracle: no memory error involved
 versions = ">= 1.4.21, < 1.4.22"
 files = ["patches/fix-CVE-2025-14942.patch"]
 upstream = "https://github.com/wolfSSL/wolfssh/pull/855"
+
+[CVE-2025-11625]
+alias = "HOSTAUTH"
+summary = "wolfSSH client host-authentication bypass: a malicious server can send NEWKEYS before any KEX_ECDH_REPLY, and the vulnerable client clears its keying state and proceeds past key exchange without ever verifying a server host-key signature, then sends its user-authentication credentials in the clear (it never ran SendNewKeys, so its own transport stays unencrypted)"
+category = "auth-bypass"
+cwe = "CWE-287"
+cvss = { version = "3.1", score = 9.8, vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", source = "nvd" }
+affected = "< 1.4.21"
+oracle = { kind = "claim", violation = "Host authentication bypass" }
+references = [
+    "https://nvd.nist.gov/vuln/detail/CVE-2025-11625",
+    "https://github.com/wolfSSL/wolfssh/pull/840",
+    "https://github.com/wolfSSL/wolfssh/releases/tag/v1.4.21-stable",
+]
+
+[CVE-2025-11625.find]
+by_puffin = false
+asan = false # a claim oracle: no memory error involved
+
+[[CVE-2025-11625.patches]]
+versions = ">= 1.4.20, < 1.4.21"
+files = ["patches/fix-CVE-2025-11625.patch"]
+upstream = "https://github.com/wolfSSL/wolfssh/pull/840"

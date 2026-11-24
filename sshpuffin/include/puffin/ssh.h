@@ -73,6 +73,11 @@ extern "C"
          * honest run; not compared between PUTs.
          */
         uint8_t auth_while_keying;
+        /*
+         * Client-side safety flag of the CVE-2025-11625 oracle: the client finished its key
+         * exchange without ever checking the server's host key. Never set on an honest run.
+         */
+        uint8_t host_auth_skipped;
     };
 
     typedef struct

@@ -49,6 +49,10 @@ pub struct SshClaimInner {
     /// `SshSecurityViolationPolicy`; never set honestly, so not compared between PUTs.
     #[comparable_ignore]
     pub auth_while_keying: bool,
+    /// Client-side safety flag (the C `Claim.host_auth_skipped`, CVE-2025-11625): the client
+    /// finished its key exchange without checking the server's host key.
+    #[comparable_ignore]
+    pub host_auth_skipped: bool,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 

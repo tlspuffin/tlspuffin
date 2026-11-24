@@ -70,7 +70,7 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     // session-id-bearing claim for the decryption recipe. session_id itself is
     // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
     // ...except a claim raising a client-side safety flag, which may come before any KEX completes.
-    if c.session_id_len == 0 && c.auth_while_keying == 0 {
+    if c.session_id_len == 0 && c.auth_while_keying == 0 && c.host_auth_skipped == 0 {
         return;
     }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
@@ -81,6 +81,7 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
         session_id: c.session_id[..sid_len].to_vec(),
         auth_while_keying: c.auth_while_keying != 0,
+        host_auth_skipped: c.host_auth_skipped != 0,
     };
     ctx.claims
         .deref_borrow_mut()

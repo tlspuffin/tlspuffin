@@ -16,6 +16,11 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
             if claim.inner_ref().auth_while_keying {
                 return Some("Authentication bypass");
             }
+            // CVE-2025-11625: the client finished its key exchange without checking the server's
+            // host key (`puffin_wolfssh_client_keyed` and the harness's host-key-check record).
+            if claim.inner_ref().host_auth_skipped {
+                return Some("Host authentication bypass");
+            }
         }
         None
     }
