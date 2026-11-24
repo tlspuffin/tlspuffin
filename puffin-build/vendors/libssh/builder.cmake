@@ -1,5 +1,12 @@
 use_languages(C)
 
+# Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) to the
+# claim layer so the decryption recipe can source H from the PUT instead of
+# reconstructing it from a (mutation-stale) hard-coded client KEXINIT. Pure
+# observation; no behaviour change. instrument_claims.cmake handles the session-id
+# field of every version in presets.toml.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
+
 cmake_builder(
   TARGETS
     install
@@ -10,6 +17,11 @@ cmake_builder(
     -DWITH_SFTP=OFF
     -DWITH_NACL=OFF
     -DBUILD_SHARED_LIBS=OFF
+    # libssh 0.8.x builds its main target shared unconditionally and only emits a
+    # static archive under these knobs; newer libssh (0.9+) ignores them and uses
+    # BUILD_SHARED_LIBS=OFF. Setting both keeps every version producing libssh.a.
+    -DBUILD_STATIC_LIB=ON
+    -DWITH_STATIC_LIB=ON
     -DCMAKE_POLICY_DEFAULT_CMP0148:STRING=OLD
 
   CFLAGS

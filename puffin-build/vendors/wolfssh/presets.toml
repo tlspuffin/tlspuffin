@@ -1,0 +1,28 @@
+# The builds of wolfSSH: one per version below. Any other build is named with modifiers
+# (wolfssh:1.5.0,asan, wolfssh150-asan: `mk_vendor modifiers wolfssh`, puffin-build/README.md).
+#
+# Versions are release tags, never `master`: master is a moving target (a rebuild once fetched a
+# newer master, 1.5.0-dev, that fails the handshake early with WS_BUFFER_E). The last known-good
+# build before the pin ran a master snapshot (version.h "1.4.20", between the v1.4.20-stable
+# release and the 1.5.0 bump) whose KEX host-key-algorithm handling was master-only: both
+# v1.4.20-stable and v1.4.22-stable reject our offer with WS_MATCH_KEY_ALGO_E, so that fix only
+# shipped in the 1.5.0 line. v1.5.0-stable carries it and predates the later WS_BUFFER_E regression.
+# The evaluation runs wolfssh150; 1.6.0 (2026-10-06) is the latest release, which sshpuffin puts
+# first among the wolfSSH PUTs when the vendor directory has it (sshpuffin/build.rs).
+format = 2
+
+[library]
+repo = "https://github.com/wolfSSL/wolfssh.git"
+builder = "wolfssh"
+ref = "v{version}-stable"
+latest = "1.6.0" # the newest release (a vendor's versions need not sort by their names)
+
+[versions]
+"1.5.0" = {}
+"1.6.0" = {}
+
+[modifiers]
+asan = { default = false, doc = "AddressSanitizer: memory errors abort with a report (about 2x slower)" }
+sancov = { default = true, doc = "SanitizerCoverage: the edge coverage the fuzzer's feedback reads" }
+gcov = { default = false, doc = "gcov counters, to measure coverage (a build that is not fuzzed: implies no-sancov)" }
+llvm_cov = { default = false, doc = "LLVM source-based coverage counters, to measure coverage" }
