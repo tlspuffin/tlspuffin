@@ -16,7 +16,7 @@ use crate::algebra::TermType;
 use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::config::{FuzzerConfig, FuzzingTarget};
-use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
+use crate::fuzzer::sanitizer::asan::{asan_abort_on_error_problem, asan_info};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
@@ -193,8 +193,22 @@ where
     }
     log::info!("Default PUT: {}", put_registry.default_put_name());
 
+    // A fuzzing client that an ASan report ends with exit() instead of abort() is neither recorded
+    // as a crash nor restarted: do not fuzz in that configuration.
+    let fuzzes = matches!(
+        matches.subcommand_name(),
+        None | Some("experiment" | "quick-experiment" | "differential" | "differential-experiment")
+    );
+    if fuzzes {
+        if let Some(problem) =
+            asan_abort_on_error_problem(&env::var("ASAN_OPTIONS").unwrap_or_default())
+        {
+            eprintln!("error: {problem}");
+            return ExitCode::FAILURE;
+        }
+    }
+
     asan_info();
-    setup_asan_env();
 
     // Set up config
     let mut config = FuzzerConfig {
