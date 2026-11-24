@@ -62,6 +62,8 @@
 #ifdef HAS_CLAIMS
 extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, size_t *len)
     __attribute__((weak));
+/* Server-side safety accessor of the entity-auth invariant S1 (same instrument). */
+extern int puffin_ssh_server_authenticated(ssh_session session) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
@@ -168,7 +170,8 @@ struct AGENT_TYPE
     /* SERVER role: every session channel the peer opened, in slot order (NULL =
      * free slot). Owned by the session; freed in libssh_destroy. */
     ssh_channel server_channels[LIBSSH_MAX_SERVER_CHANNELS];
-    bool authenticated;     /* set by the auth callback */
+    bool authenticated;                /* set by the auth callback */
+    bool user_auth_unapproved_emitted; /* guard so the entity-auth S1 safety claim fires once */
     bool session_requested; /* SERVER role: a shell/exec/subsystem request or channel data
                                arrived, when wolfSSH_accept() completes */
     bool service_refused;   /* a SERVICE_REQUEST other than ssh-userauth arrived */
@@ -949,6 +952,36 @@ static void emit_phase_claim(AGENT agent)
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->last_emitted_phase = phase;
 }
+
+/*
+ * Server-side safety claim of the entity-authentication oracle (invariant S1): libssh considers the
+ * client authenticated (puffin_ssh_server_authenticated) although this harness's auth callbacks
+ * never approved a credential. libssh authenticates a client only when one of its server callbacks
+ * returns success, and cb_auth_pubkey / cb_auth_password set <authenticated> before they do, so
+ * this never happens on an honest run. Checked after every progress tick; fires once.
+ */
+static void check_server_safety(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->descriptor.role != SSH_SERVER || agent->authenticated ||
+        agent->user_auth_unapproved_emitted || agent->session == NULL ||
+        puffin_ssh_server_authenticated == NULL || !puffin_ssh_server_authenticated(agent->session))
+        return;
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim.user_auth_unapproved = 1;
+    const unsigned char *sid = NULL;
+    size_t sid_len = 0;
+    if (puffin_ssh_get_session_id != NULL &&
+        puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim.session_id))
+            sid_len = sizeof(claim.session_id);
+        memcpy(claim.session_id, sid, sid_len);
+        claim.session_id_len = (uint8_t)sid_len;
+    }
+    agent->user_auth_unapproved_emitted = true;
+    agent->claimer->notify(agent->claimer->context, &claim);
+}
 #else  /* !HAS_CLAIMS */
 /* No claim instrumentation in this libssh build: claim emission compiles out to
  * no-ops so call sites need no guarding and the differential harness stays
@@ -959,6 +992,10 @@ static void emit_handshake_claim(AGENT agent)
     (void)agent;
 }
 static void emit_phase_claim(AGENT agent)
+{
+    (void)agent;
+}
+static void check_server_safety(AGENT agent)
 {
     (void)agent;
 }
@@ -1047,6 +1084,7 @@ static RESULT libssh_progress(AGENT agent)
     emit_phase_claim(agent);
     RESULT result = libssh_step(agent);
     emit_phase_claim(agent);
+    check_server_safety(agent); /* entity-auth S1, whatever path the step took */
     return result;
 }
 
