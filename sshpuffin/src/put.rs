@@ -146,6 +146,18 @@ impl Factory<SshProtocolBehavior> for CPut {
         self.capabilities.contains(capability)
     }
 
+    fn catalogue(&self) -> Option<puffin::catalogue::PutCatalogue> {
+        // Which catalogue entries are active / fixed / unaffected in THIS build: embedded by the
+        // harness bundle at build time and read by the catalogue test through this factory.
+        // Without it the factory's default `None` makes the catalogue test pass vacuously.
+        crate::put_registry::catalogue_states()
+            .into_iter()
+            .find(|(name, _, _)| *name == self.name)
+            .map(|(_, state, instrumentation)| {
+                puffin::catalogue::PutCatalogue::from_bundle(state, instrumentation)
+            })
+    }
+
     fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
         Box::new(self.clone())
     }
