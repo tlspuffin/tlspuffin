@@ -70,5 +70,34 @@ ASAN is a modifier of the name (e.g. `openssl:3.4.0,asan`, also written `openssl
 
 </Tabs>
 
+## SSH (*sshpuffin*)
+
+*sshpuffin* builds its PUTs the same way, from the `libssh` and `wolfssh` presets (e.g. `./tools/mk_vendor make libssh:0.12.2,asan`).
+Its single-PUT objective oracle is the entity-authentication oracle[^3]; a version marked otherwise does not get the full objective oracle.
+
+<Tabs>
+
+  <TabItem value="libssh" label="libssh" default>
+    | Version    | ASAN support[^1]  | security claims | entity-auth oracle: C1 · C2 · S1[^3] | mk_vendor preset[^2] |
+    | :--------: | :---------------: | :-------------: | :----------------------------------: | -------------------- |
+    | 0.12.2     | yes               | yes             | yes · yes · yes                      | `libssh:libssh0122`  |
+    | 0.11.4     | yes               | yes             | yes · yes · yes                      | `libssh:libssh0114`  |
+    | 0.10.4     | yes               | yes             | yes · yes · yes                      | `libssh:libssh0104`  |
+    | 0.8.3      | yes               | yes             | **no** · partial · partial[^4]       | `libssh:libssh083`   |
+  </TabItem>
+
+  <TabItem value="wolfssh" label="wolfSSH">
+    | Version    | ASAN support[^1]  | security claims | entity-auth oracle: C1 · C2 · S1[^3] | mk_vendor preset[^2] |
+    | :--------: | :---------------: | :-------------: | :----------------------------------: | -------------------- |
+    | 1.6.0      | yes               | yes             | yes · yes · yes                      | `wolfssh:wolfssh160`  |
+    | 1.5.0      | yes               | yes             | yes · yes · yes                      | `wolfssh:wolfssh150`  |
+    | 1.4.21     | yes               | yes             | yes · yes · yes                      | `wolfssh:wolfssh1421` |
+    | 1.4.20     | yes               | yes             | yes · yes · yes                      | `wolfssh:wolfssh1420` |
+  </TabItem>
+
+</Tabs>
+
 [^1]: ASAN is available on platforms where *Clang* has [support for ASAN](https://clang.llvm.org/docs/AddressSanitizer.html#supported-platforms)
 [^2]: [*mk_vendor*](./mk_vendor) let you build a preset library independently of *tlspuffin*'s cargo-based build system, by running `./tools/mk_vendor make <preset>`
+[^3]: The entity-authentication oracle (`SshSecurityViolationPolicy`, see `hunt/ENTITY-AUTH-ORACLE.md`) has three invariants, each checked by the harness: **C1**, a client is never keyed without the server's host-key signature having verified; **C2**, a client never accepts user-authentication success before it is keyed; **S1**, a server never authenticates a client its harness did not approve. *yes*: instrumented on that version (its accessors are compiled in), no false alarm on the honest seed corpus, and shown to fire. C1 and S1 were shown to fire on every version marked *yes*, by mutation tests that disable the harness's record. C1 also fires on the CVE-2025-11625 witness (wolfSSH 1.4.20). C2 fires on the CVE-2025-14942 witness (wolfSSH 1.4.20, 1.4.21); later wolfSSH versions use the same accessor, which only a new bug could make fire. On libssh, C2 was shown to fire by a mutation test of the client's authentication state.
+[^4]: **libssh 0.8.3 does not support the full objective oracle.** C1 is not instrumented: 0.8.x verifies the server's host key in another key-exchange code, which the host-key record does not cover. C2 and S1 are instrumented but stay inactive in campaigns with the standard seed corpora, which negotiate AES-GCM, a cipher 0.8.3 lacks: the key exchange fails before any authentication. S1 was shown to fire there only with the non-AEAD seed `seed_client_attacker_full_ctr`, which no corpus registers.
