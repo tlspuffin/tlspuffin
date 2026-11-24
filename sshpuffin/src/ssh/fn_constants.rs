@@ -272,6 +272,13 @@ pub fn fn_algo_none() -> Result<AlgoName, FnError> {
 pub fn fn_algo_dh_group14_sha256() -> Result<AlgoName, FnError> {
     Ok(AlgoName::new(b"diffie-hellman-group14-sha256".to_vec()))
 }
+/// `diffie-hellman-group16-sha512`: a KEX whose exchange hash is SHA-512 (64 bytes, against the
+/// 32 of curve25519-sha256 and group14-sha256), the only KEX name of the signature whose digest
+/// differs in size from the default one. Rekeying a curve25519 session to it reaches
+/// CVE-2021-3634 (libssh < 0.9.6 sizes the carried-over session id with the new digest length).
+pub fn fn_algo_dh_group16_sha512() -> Result<AlgoName, FnError> {
+    Ok(AlgoName::new(b"diffie-hellman-group16-sha512".to_vec()))
+}
 pub fn fn_algo_ssh_rsa() -> Result<AlgoName, FnError> {
     Ok(AlgoName::new(b"ssh-rsa".to_vec()))
 }

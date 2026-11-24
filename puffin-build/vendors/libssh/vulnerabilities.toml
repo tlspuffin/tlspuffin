@@ -34,3 +34,28 @@ asan = false # a NULL dereference: a real SIGSEGV, also without ASan
 versions = ">= 0.9.1, < 0.9.7 || >= 0.10.0, < 0.10.5"
 files = ["patches/fix-CVE-2023-1667.patch"]
 upstream = "https://gitlab.com/libssh/libssh-mirror/-/commit/fc1a8bb4555624f85ba1370721ad2086a4feff8c"
+
+[CVE-2021-3634]
+alias = "SIDLEN"
+summary = "libssh heap buffer over-read/over-write when a key re-exchange (rekey) negotiates a key-exchange method whose hash digest differs in size from the first exchange: session_id and the secret hash shared one length field (digest_len), so the carried-over session_id buffer (sized at the first KEX) is read/written with the new, larger digest length in ssh_packet_set_newkeys and crypto_free, crashing the peer (denial of service)"
+category = "dos"
+cwe = "CWE-787"
+cvss = { version = "3.1", score = 6.5, vector = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H", source = "nvd" }
+affected = ">= 0.9.1, < 0.9.6"
+oracle = { kind = "crash", asan = "heap-buffer-overflow" }
+top_frames = ["ssh_packet_set_newkeys"]
+reference = "0.9.5,asan"
+references = [
+    "https://nvd.nist.gov/vuln/detail/CVE-2021-3634",
+    "https://www.libssh.org/security/advisories/CVE-2021-3634.txt",
+    "https://gitlab.com/libssh/libssh-mirror/-/commit/d3060bc84ed4e160082e819b4d404f76df7c8063",
+]
+
+[CVE-2021-3634.find]
+by_puffin = false
+asan = true # a heap over-read: no signal without ASan, and with ASan only recorded under abort_on_error=1
+
+[[CVE-2021-3634.patches]]
+versions = ">= 0.9.1, < 0.9.6"
+files = ["patches/fix-CVE-2021-3634.patch"]
+upstream = "https://gitlab.com/libssh/libssh-mirror/-/commit/d3060bc84ed4e160082e819b4d404f76df7c8063"

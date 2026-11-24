@@ -11,7 +11,7 @@ use puffin::agent::AgentName;
 use puffin::trace::Trace;
 
 use crate::protocol::SshProtocolTypes;
-use crate::ssh::seeds::seed_client_attacker_rekey_guess;
+use crate::ssh::seeds::{seed_client_attacker_rekey_dh_group16, seed_client_attacker_rekey_guess};
 
 /// CVE-2023-1667 — libssh SERVER NULL-pointer dereference during rekeying with KEX "algorithm
 /// guessing" (CWE-476; libssh 0.9.1–0.9.6 and 0.10.0–0.10.4, fixed in 0.9.7 / 0.10.5). KEXINIT
@@ -26,4 +26,19 @@ use crate::ssh::seeds::seed_client_attacker_rekey_guess;
 #[puffin::witness("CVE-2023-1667")]
 pub fn witness_cve_2023_1667(server: AgentName) -> Trace<SshProtocolTypes> {
     seed_client_attacker_rekey_guess(server)
+}
+
+/// CVE-2021-3634 — libssh heap buffer over-read/over-write on a rekey that changes the KEX digest
+/// size (CWE-787; libssh 0.9.1–0.9.5, fixed in 0.9.6). `session_id` and the secret hash shared one
+/// length field, `digest_len`: a rekey to a KEX with a larger digest leaves the session id buffer
+/// sized for the first KEX while `digest_len` grows, and `ssh_packet_set_newkeys` copies the
+/// session id with the new length.
+///
+/// The attacker plays the client against a real libssh SERVER PUT: a curve25519-sha256 handshake
+/// (32-byte session id), publickey auth, then a rekey offering only group16-sha512 (64-byte
+/// digest). An affected server over-reads on the rekey NEWKEYS (ASan heap-buffer-overflow); a fixed
+/// one keeps the session id at its own length.
+#[puffin::witness("CVE-2021-3634")]
+pub fn witness_cve_2021_3634(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_dh_group16(server)
 }

