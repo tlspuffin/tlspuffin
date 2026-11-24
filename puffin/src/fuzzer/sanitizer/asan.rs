@@ -28,10 +28,11 @@ unsafe extern "C" fn iter_libs(
 pub const DEFAULT_OPTIONS: &CStr = c"abort_on_error=1:detect_leaks=0:malloc_context_size=0";
 
 /// ASan's hook for its default options, [`DEFAULT_OPTIONS`]. The shared ASan runtime calls the
-/// binary's only if the binary exports it, which puffin-build has the linker do when it links a
-/// PUT with ASan; otherwise it finds its own, empty, and the guard of the fuzzing commands asks for
-/// ASAN_OPTIONS. libafl_targets defines one too with its `sanitizers_flags` feature, which puffin
-/// leaves off: its `handle_segv=0` and `symbolize=0` would change ASan's reports.
+/// binary's only if the binary exports it, which puffin-build has the linker do in a release build
+/// of a PUT with ASan; otherwise (a debug build) it finds its own, empty, and the guard of the
+/// fuzzing commands asks for ASAN_OPTIONS. libafl_targets defines one too with its
+/// `sanitizers_flags` feature, which puffin leaves off: its `handle_segv=0` and `symbolize=0`
+/// would change ASan's reports.
 #[no_mangle]
 pub extern "C" fn __asan_default_options() -> *const libc::c_char {
     DEFAULT_OPTIONS.as_ptr()

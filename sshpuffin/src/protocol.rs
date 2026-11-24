@@ -240,4 +240,19 @@ impl ProtocolBehavior for SshProtocolBehavior {
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         todo!()
     }
+
+    /// An SSH message goes on the wire as the binary packet of its payload (`create_opaque`: its
+    /// length and padding), a flight of them as their packets: the codec of an [`SshMessage`]
+    /// is its payload only, from which `create_opaque` builds the packet. puffin encodes an
+    /// input by the codec of its value (`any_get_encoding`), so without this an SSH message was
+    /// sent without its packet.
+    fn any_get_encoding(message: &dyn EvaluatedTerm<Self::ProtocolTypes>) -> Vec<u8> {
+        if let Some(message) = message.as_any().downcast_ref::<SshMessage>() {
+            return codec::CodecP::get_encoding(&message.create_opaque());
+        }
+        if let Some(flight) = message.as_any().downcast_ref::<SshMessageFlight>() {
+            return codec::CodecP::get_encoding(&RawSshMessageFlight::from(flight.clone()));
+        }
+        codec::CodecP::get_encoding(message)
+    }
 }

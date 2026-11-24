@@ -10,6 +10,16 @@ if(NOT VENDOR_VERSION)
   message(FATAL_ERROR "Missing mandatory argument 'VENDOR_VERSION'")
 endif()
 
+# The version for CMake's version comparisons (VERSION_GREATER_EQUAL, $<VERSION_LESS:...>) in a builder: its numbers
+# only (1.1.1j, 1.1.1g+git.368d0d87d0bd: 1.1.1, as CMake reads them anyway, but nothing else reaches a generator
+# expression); a development head (master: not starting with a digit) is newer than every release, as puffin-build
+# orders versions (src/catalogue/version.rs); CMake would compare it as 0, the oldest.
+if(VENDOR_VERSION MATCHES "^([0-9]+(\\.[0-9]+)*)")
+  set(VENDOR_VERSION_ORDER "${CMAKE_MATCH_1}")
+else()
+  set(VENDOR_VERSION_ORDER "999999")
+endif()
+
 include(Builder)
 
 set(VENDOR_LIBNAME "${BUILDER}")
@@ -36,6 +46,26 @@ if(EXISTS "${BUILDER}" AND NOT IS_DIRECTORY "${BUILDER}")
   include("${BUILDER}")
 elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
   include("${CMAKE_CURRENT_LIST_DIR}/../../vendors/${BUILDER}/builder.cmake")
+
+  # The patches of the vendor's presets.toml for this version ([[patches]]: instrumentation for tlspuffin, build
+  # fixes), after the builder's own patches and before the catalogue's fixes.
+  string(REPLACE "," ";" LIBRARY_PATCHES "${LIBRARY_PATCHES}")
+  foreach(patch_file IN LISTS LIBRARY_PATCHES)
+    patch(FILE "${patch_file}")
+  endforeach()
+
+  # The vendor's vulnerability catalogue (vendors/<vendor>/vulnerabilities.toml) is the only source of its known
+  # vulnerabilities: puffin-build reads it and passes the known ones, the fixed ones and the patches fixing them.
+  # The patches apply after the builder's own patches.
+  if(CATALOGUE)
+    string(REPLACE "," ";" KNOWN_VULNERABILITIES "${CATALOGUE_KNOWN}")
+    string(REPLACE "," ";" FIXED_VULNERABILITIES "${CATALOGUE_FIXED}")
+    string(REPLACE "," ";" CATALOGUE_PATCHES "${CATALOGUE_PATCHES}")
+    foreach(patch_file IN LISTS CATALOGUE_PATCHES)
+      patch(FILE "${patch_file}")
+    endforeach()
+  endif()
+
   string(REPLACE ";" " " FIXED_VULNERABILITIES "${FIXED_VULNERABILITIES}")
   string(REPLACE ";" " " KNOWN_VULNERABILITIES "${KNOWN_VULNERABILITIES}")
   generate_vendorinfo_script(vendorinfo_script)

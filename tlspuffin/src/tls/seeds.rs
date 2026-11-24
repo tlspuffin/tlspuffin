@@ -2532,6 +2532,11 @@ pub fn _seed_client_attacker_full_precomputation(
 
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
+///
+/// Also the witness of CVE-2022-38152: with `use_clear` (the entry's PUT option), the second
+/// session reuses the first one's `WOLFSSL` through wolfSSL_clear and crashes on the resumption
+/// ClientHello.
+#[puffin::witness("CVE-2022-38152")]
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
@@ -2787,6 +2792,23 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+    )
+}
+
+/// The seeds of this file that the `default` corpus leaves out, apart so that the default corpus
+/// (the one benchmarks start from) stays as it is: `-c all` or `-c extra` brings them.
+pub fn create_extra_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        // A TLS 1.2 handshake whose agents' flights are forwarded as they are (tickets or not).
+        seed_successful12_forward: put.supports("tls12"),
+        seed_successful_client_auth: put.supports("tls13"),
+        // A MITM changing the cipher suite: the handshake fails.
+        seed_successful_mitm: put.supports("tls13"),
+        seed_client_attacker_full_precomputation: put.supports("tls13"),
+        // Two handshakes, the second resuming the first (witness of CVE-2022-38152); large.
+        seed_session_resumption_dhe_full: put.supports("tls13") && put.supports("tls13_session_resumption"),
     )
 }
 

@@ -99,7 +99,7 @@ The directory is wiped beforehand, so it contains exactly the requested seeds.
 
 | Option               | Description                                                                                                                                                         |
 |----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `-c, --corpus [c]`   | Corpora to generate the seeds from (comma separated names, or `all`; default: `default`). For `tlspuffin`: `default`, `differential_rfc` and `vulnerabilities`.     |
+| `-c, --corpus [c]`   | Corpora to generate the seeds from (comma separated names, or `all`; default: `default`). For `tlspuffin`: `default`, `extra`, `differential_rfc` and `vulnerabilities`. |
 | `--puts [p]`         | PUTs to generate the seeds for (comma separated names; default: the default PUT). Only the seeds supported by all the given PUTs are emitted.                       |
 | `-D, --differential` | Generate seeds with restricted PUT descriptor parameters (ciphers, signature algorithms, groups), so that they can be run on several PUTs for differential fuzzing. |
 
