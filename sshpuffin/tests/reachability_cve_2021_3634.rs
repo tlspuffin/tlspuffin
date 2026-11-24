@@ -1,24 +1,22 @@
-//! Tier-2 Q5 (CVE-2021-3634) — quantify how many DY mutations the fuzzer needs to turn the honest
-//! curve25519 rekey seed into the group16 rekey that triggers the heap overflow.
+//! Tier-2 Q4/Q5 (CVE-2021-3634) — how a single DY mutation turns the honest curve25519 rekey seed
+//! into the group16 rekey that triggers the heap overflow, measured at the term level and by
+//! execution.
 //!
-//! Mirrors the tlspuffin reachability harness
-//! (`tlspuffin/tests/vulnerabilities.rs::test_seed_only_mut_bitmut_cve_2022_38153`): a while/for
-//! loop that rebuilds a *fresh* mutant from the seed and applies mutations, counting applications
-//! until the wanted one lands. Here each mutant starts fresh from the on-path seed, so the
-//! measurement is free of the two confounds that defeated the Q2/Q5 campaigns (coverage-guided
-//! corpus self-dilution and the libafl LLMP early-exit).
+//! IMPORTANT (2026-11-24): run these with `ASAN_OPTIONS=abort_on_error=1:detect_leaks=0`. Without
+//! `abort_on_error`, an ASan error ends the forked child with `exit(1)` instead of `SIGABRT`, so
+//! `ForkedRunner` reports `ExecutionStatus::Failure(1)` rather than `Crashed` — exactly the bug that
+//! made the Q2/Q5 CAMPAIGNS look like "0 finds" while they were really dropping ~95 real crashes.
+//! `cargo test` gets the right options from `.cargo/config.toml` `[env]`; a directly-launched binary
+//! or a shell that pre-sets `ASAN_OPTIONS` does NOT (see `puffin::fuzzer::sanitizer::asan`). With the
+//! crash correctly recorded, the honest seed is found organically in ~53 s, and `ReplaceReuse` on the
+//! group16-fallback seed reaches it at E≈294.
 //!
-//! The crash-triggering mutation is a single STRUCTURAL symbol swap — `fn_algo_curve25519_sha256`
-//! -> `fn_algo_dh_group16_sha512` on the rekey-KEXINIT kex name-list leaf — so the only mutator
-//! that can produce it is `ReplaceMatchMutator` ("replace a function symbol with a type-compatible
-//! one"). We run ONLY that mutator and count. Detection is by symbol census: the pristine seed has
-//! exactly one `curve25519` (the rekey KEX slot) and zero `group16`, so after one ReplaceMatch,
-//! `curve25519 == 0 && group16 == 1` means the KEX leaf became group16 — the wanted,
-//! crash-triggering swap (its crash is proven separately by executing
-//! `seed_probe_rekey_g16_ecdhmsg`).
+//! The census tests below count how often one mutator produces the group16 kex swap; `quantify_*` and
+//! `diagnose_*` then EXECUTE the mutants. A symbol-count census is only a pre-filter — a count match
+//! is not a crash (it can be a reorder or a malformed splice); the executing tests are ground truth.
 //!
-//! Run: `cargo test -p sshpuffin --test reachability_cve_2021_3634 -- --ignored --nocapture`
-//! (needs a built libssh vendor; scope with VENDOR_DIR to libssh for a fast build).
+//! Run: `ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 cargo test -p sshpuffin \
+//!   --test reachability_cve_2021_3634 -- --ignored --nocapture` (needs a built libssh vendor).
 
 #![cfg(has_libssh)]
 
@@ -482,8 +480,9 @@ fn diagnose_g16_crash_paths() {
 /// a single mutation on the g16-fallback seed must reach. `CurveThenG16` is the honest fallback seed;
 /// `G16G16` is what `ReplaceReuse`/`ReplaceMatch` make when they overwrite the curve leaf with
 /// group16; `G16ThenCurve` is what `Swap` makes. If those crash, the 0-crash execution result is a
-/// mutation-probability problem; if they do NOT, the two-element list simply doesn't negotiate group16
-/// and the fallback shape is the wrong enrichment.
+/// mutation-probability problem; if they do NOT, look at ASAN_OPTIONS first.
+/// RESOLVED 2026-11-24: the mutants ARE byte-identical to the crashing reference (differ_from_reference
+/// = []); the `Failure(1)` was ASan's exit(1) without abort_on_error, not a malformed trace.
 #[test]
 #[ignore]
 fn diagnose_rekey_kex_shapes() {
@@ -563,9 +562,141 @@ fn diagnose_census_crashstate_execution() {
     println!(
         "DIAG3 verdict: {}",
         if crashed == 0 {
-            "census (c==0 && g>=2) does NOT imply a crash — count proxy is unfaithful; #2 yields no organic crash"
+            "0 crashes — if ASAN_OPTIONS lacks abort_on_error this is the exit(1)/Failure(1) artifact, \
+             NOT un-reachability; re-run with abort_on_error=1 (see module docs)"
         } else {
-            "at least one census-crash-state mutant really crashed — rate is just low"
+            "census-crash-state mutants really crash (expected with abort_on_error=1): #2 reaches the bug"
         }
     );
+}
+
+/// DIAGNOSTIC 4 (idea #4): WHY do the census crash-state `ReplaceReuse` mutants execute as `Failure`
+/// while the hand-built `[group16, group16]` rekey trace crashes? By arithmetic (P(group16 source) ×
+/// P(curve leaf target) ≈ 1/504 × 1/10 ≈ the measured E≈4.8k) they should BE that clean swap. This
+/// dumps K of them plus the hand-built reference into `Q5_DUMP_DIR`, as Display text (to diff) and as
+/// replayable `.trace` files (to get the exact rejection reason with `sshpuffin execute`), and reports
+/// which steps differ from the seed and from the reference.
+#[test]
+#[ignore]
+fn diagnose_malformed_splice() {
+    use puffin::libafl::inputs::Input;
+
+    let dir = std::env::var("Q5_DUMP_DIR").unwrap_or_else(|_| "/tmp/q5diag4".to_string());
+    std::fs::create_dir_all(&dir).unwrap();
+    let server = AgentName::first().next();
+    let seed = seed_client_attacker_rekey_g16_fallback(server);
+    let reference = seed_client_attacker_rekey_kex(server, RekeyKexOffer::G16G16);
+    std::fs::write(format!("{dir}/reference_g16g16.txt"), format!("{reference}")).unwrap();
+    reference.to_file(format!("{dir}/reference_g16g16.trace")).unwrap();
+    std::fs::write(format!("{dir}/seed_fallback.txt"), format!("{seed}")).unwrap();
+    seed.to_file(format!("{dir}/seed_fallback.trace")).unwrap();
+
+    let c25519 = fn_algo_curve25519_sha256.name();
+    let g16 = fn_algo_dh_group16_sha512.name();
+    let config = MutationConfig {
+        with_dy: true,
+        with_bit_level: false,
+        with_focus: false,
+        ..MutationConfig::default()
+    };
+    let mut mutator = ReplaceReuseMutator::<SshState>::new(config);
+    let mut state = create_state(0xC0FFEE);
+    let k: usize = std::env::var("Q5_SAMPLES").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
+
+    let show = |t: &Trace<SshProtocolTypes>, i: usize| format!("{}", t.steps[i].action);
+    let (mut found, mut tries) = (0usize, 0u64);
+    while found < k && tries < 5_000_000 {
+        tries += 1;
+        let mut m = seed.clone();
+        if !matches!(mutator.mutate(&mut state, &mut m), Ok(MutationResult::Mutated)) {
+            continue;
+        }
+        if m.count_functions_by_name(c25519) == 0 && m.count_functions_by_name(g16) >= 2 {
+            found += 1;
+            let n = m.steps.len();
+            let diff_seed: Vec<usize> = (0..n).filter(|&i| show(&m, i) != show(&seed, i)).collect();
+            let diff_ref: Vec<usize> = (0..n.min(reference.steps.len()))
+                .filter(|&i| show(&m, i) != show(&reference, i))
+                .collect();
+            println!(
+                "DIAG4 mutant#{found} (try {tries}): steps={n} (ref {}) differ_from_seed={diff_seed:?} \
+                 differ_from_reference={diff_ref:?}",
+                reference.steps.len()
+            );
+            std::fs::write(format!("{dir}/mutant_{found}.txt"), format!("{m}")).unwrap();
+            m.to_file(format!("{dir}/mutant_{found}.trace")).unwrap();
+        }
+    }
+    println!("DIAG4 dumped {found} mutants (in {tries} tries) + reference/seed into {dir}");
+}
+
+/// DIAGNOSTIC 5 (idea #4, decisive): same harness, same logical mutant, three provenances —
+/// in-memory (straight from the mutator), round-tripped (`deserialize(serialize(m))`) and loaded from
+/// the `.trace` dumped by DIAG4 (same RNG seed → same mutants in the same order). If ONLY the
+/// in-memory one fails, the mutator leaves state on the trace that serialization drops, i.e. the
+/// fuzzer would execute something different from what it saves. `Debug` dumps (which may show what
+/// `Display` hides) of mutant#1, its round-trip and the reference go to `Q5_DUMP_DIR`.
+#[test]
+#[ignore]
+fn diagnose_inmemory_vs_roundtrip() {
+    use puffin::libafl::inputs::Input;
+
+    let dir = std::env::var("Q5_DUMP_DIR").unwrap_or_else(|_| "/tmp/q5diag4".to_string());
+    let server = AgentName::first().next();
+    let seed = seed_client_attacker_rekey_g16_fallback(server);
+    let reference = seed_client_attacker_rekey_kex(server, RekeyKexOffer::G16G16);
+
+    let mut registry = ssh_registry();
+    registry.set_default_factory(PUT).unwrap();
+    let spawner = Spawner::new(registry.clone());
+    let runner = Runner::new(registry, spawner);
+    let timeout = std::time::Duration::from_secs(10);
+    let exec = |t: &Trace<SshProtocolTypes>| {
+        let fr = ForkedRunner::new(&runner).with_timeout(timeout);
+        fr.execute(t, &mut 0)
+    };
+    let rt = |t: &Trace<SshProtocolTypes>| {
+        Trace::<SshProtocolTypes>::deserialize_postcard(&t.serialize_postcard().unwrap()).unwrap()
+    };
+
+    println!("DIAG5 reference  in-memory={:?}  round-trip={:?}", exec(&reference), exec(&rt(&reference)));
+
+    let c25519 = fn_algo_curve25519_sha256.name();
+    let g16 = fn_algo_dh_group16_sha512.name();
+    let config = MutationConfig {
+        with_dy: true,
+        with_bit_level: false,
+        with_focus: false,
+        ..MutationConfig::default()
+    };
+    let mut mutator = ReplaceReuseMutator::<SshState>::new(config);
+    let mut state = create_state(0xC0FFEE);
+    let k: usize = std::env::var("Q5_SAMPLES").ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+    let (mut found, mut tries) = (0usize, 0u64);
+    while found < k && tries < 5_000_000 {
+        tries += 1;
+        let mut m = seed.clone();
+        if !matches!(mutator.mutate(&mut state, &mut m), Ok(MutationResult::Mutated)) {
+            continue;
+        }
+        if m.count_functions_by_name(c25519) == 0 && m.count_functions_by_name(g16) >= 2 {
+            found += 1;
+            let m_rt = rt(&m);
+            let from_file = Trace::<SshProtocolTypes>::from_file(format!("{dir}/mutant_{found}.trace"))
+                .map(|t| exec(&t));
+            println!(
+                "DIAG5 mutant#{found} (try {tries}): in-memory={:?}  round-trip={:?}  from-file={:?}  \
+                 debug(mem)==debug(round-trip): {}",
+                exec(&m),
+                exec(&m_rt),
+                from_file,
+                format!("{m:?}") == format!("{m_rt:?}")
+            );
+            if found == 1 {
+                std::fs::write(format!("{dir}/mutant_1.debug"), format!("{m:#?}")).unwrap();
+                std::fs::write(format!("{dir}/mutant_1_roundtrip.debug"), format!("{m_rt:#?}")).unwrap();
+                std::fs::write(format!("{dir}/reference.debug"), format!("{reference:#?}")).unwrap();
+            }
+        }
+    }
 }
