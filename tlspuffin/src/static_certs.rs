@@ -51,6 +51,20 @@ pub const EVE_CERT: PEMDER = (
     include_bytes!("../assets/eve.der"),
 );
 
+/// 1024-bit RSA private key, used as server key by agents configured with
+/// `TLSDescriptorConfig::server_rsa_1024` (CVE-2020-36177: wolfSSL's RSA-PSS/SHA-512 signing
+/// only overflows for this key size).
+pub const ALICE_1024_PRIVATE_KEY: PEMDER = (
+    include_str!("../assets/alice1024-key.pem"),
+    include_bytes!("../assets/alice1024-key.der"),
+);
+
+/// Certificate for [`ALICE_1024_PRIVATE_KEY`]
+pub const ALICE_1024_CERT: PEMDER = (
+    include_str!("../assets/alice1024.pem"),
+    include_bytes!("../assets/alice1024.der"),
+);
+
 /// Random EC (prime256v1) key with no specific use. Encoded using PKCS8.
 pub const RANDOM_EC_PRIVATE_KEY_PKCS8: PEMDER = (
     include_str!("../assets/random-ec-key.pem"),

@@ -346,6 +346,13 @@ pub struct TLSDescriptorConfig {
     /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
     /// If `None`, use the default PUT signature algorithms.
     pub sigalgs: Option<String>,
+    /// If agent is a server: use a 1024-bit RSA certificate/key instead of the default 2048-bit
+    /// one (needed e.g. by CVE-2020-36177, where RSA-PSS with SHA-512 only overflows for 1024-bit
+    /// keys). Ignored for clients.
+    ///
+    /// Default: false
+    #[serde(default)]
+    pub server_rsa_1024: bool,
 }
 
 impl TLSDescriptorConfig {
@@ -428,6 +435,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
             && self.sigalgs == other.sigalgs
+            && self.server_rsa_1024 == other.server_rsa_1024
     }
 }
 
@@ -632,6 +640,7 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
             sigalgs: None,
+            server_rsa_1024: false,
         }
     }
 }

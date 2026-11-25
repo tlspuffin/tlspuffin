@@ -165,6 +165,31 @@ fn test_seed_cve_2022_38153(put: &str) {
     );
 }
 
+// CVE-2020-36177: wolfSSL < 4.6.0 `RsaPad_PSS` overflows the signature buffer for a 1024-bit RSA
+// key with SHA-512. `seed_cve_2020_36177` makes a server with a 1024-bit key (`server_rsa_1024`)
+// sign its TLS 1.3 CertificateVerify with RSA-PSS/SHA-512 by listing `rsa_pss_rsae_sha512` first.
+// Ignored: the trace does reach the vulnerable `RsaPad_PSS` call (1024-bit key, SHA-512, default
+// salt, verified with gdb), but the 6-byte overflow presumably lands inside the connection's larger
+// output buffer (`ssl->buffers.outputBuffer`; not verified), so ASan does not see it and no crash
+// is raised. The bug is only observable on a buffer allocated at exactly the key size (see the
+// report for the standalone `wc_RsaPSS_Sign` reproduction).
+#[apply(test_puts,
+    attrs = [ignore], // No oracle can observe the in-allocation overflow
+    filter = all(
+        CVE_2020_36177,
+        tls13,
+        asan,
+    )
+)]
+fn test_seed_cve_2020_36177(put: &str) {
+    expect_trace_crash(
+        seed_cve_2020_36177.build_trace(),
+        default_runner_for(put),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
 // Test whether we can refind cve_2022_38153 through bit-level mutations by first:
 // 1. Mutating with MakeMessage the sub-term of interest
 // 2. Applying HAVOC mutations randomly

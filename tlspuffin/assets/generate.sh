@@ -24,3 +24,9 @@ openssl x509 -in alice.pem -out alice.der -outform DER
 openssl x509 -in random-ec.pem -out random-ec.der -outform DER
 
 openssl dgst -sha1 -sign eve-key.pem -out eve-signature
+
+# 1024-bit RSA server identity (CVE-2020-36177 PoC: RSA-PSS/SHA-512 only overflows for this key size)
+openssl req -newkey rsa:1024 -nodes -keyout alice1024-key.pem -x509 -days 100000 -out alice1024.pem "${params[@]}"
+openssl rsa -traditional -inform pem -in alice1024-key.pem -out alice1024-key.pem
+openssl rsa -inform pem -in alice1024-key.pem -outform der -out alice1024-key.der
+openssl x509 -in alice1024.pem -out alice1024.der -outform DER

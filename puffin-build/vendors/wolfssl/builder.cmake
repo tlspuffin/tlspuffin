@@ -2,6 +2,10 @@ use_languages(C)
 
 option(postauth "Build with post-auth" ON)
 
+if(VENDOR_VERSION VERSION_LESS "4.6.0")
+  declare_vulnerability("CVE-2020-36177" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2020-36177.patch)
+endif()
+
 if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
   declare_vulnerability("CVE-2022-25640" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25640.patch)

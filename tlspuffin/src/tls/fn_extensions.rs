@@ -289,6 +289,10 @@ pub fn fn_sig_scheme_rsa_pss_sha256() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::RSA_PSS_SHA256)
 }
 
+pub fn fn_sig_scheme_rsa_pss_sha512() -> Result<SignatureScheme, FnError> {
+    Ok(SignatureScheme::RSA_PSS_SHA512)
+}
+
 nyi_fn! {
     /// UseSRTP => 0x000e,
 }

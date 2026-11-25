@@ -23,7 +23,10 @@ use crate::protocol::{
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_1024_CERT, ALICE_1024_PRIVATE_KEY, ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT,
+    BOB_PRIVATE_KEY, EVE_CERT,
+};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 
 /// Static configuration for creating a new agent state for the PUT
@@ -176,8 +179,11 @@ macro_rules! r_ccall {
 
 impl CAgent {
     fn new(put: &CPut, config: TlsPutConfig) -> Result<Self, Error> {
-        let server_cert = pem!(ALICE_CERT);
-        let server_pkey = pem!(ALICE_PRIVATE_KEY);
+        let (server_cert, server_pkey) = if config.descriptor.protocol_config.server_rsa_1024 {
+            (pem!(ALICE_1024_CERT), pem!(ALICE_1024_PRIVATE_KEY))
+        } else {
+            (pem!(ALICE_CERT), pem!(ALICE_PRIVATE_KEY))
+        };
         let client_cert = pem!(BOB_CERT);
         let client_pkey = pem!(BOB_PRIVATE_KEY);
         let other_cert = pem!(EVE_CERT);
