@@ -19,6 +19,11 @@ SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert);
 SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey);
 SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store_length);
 
+// RFC 7250 raw public keys (RPK), OpenSSL >= 3.2. On older versions both are no-ops
+// returning false, since `rpk` capability is only declared from 3.2 onward.
+bool enable_rpk_support(SSL_CTX *ssl_ctx);
+bool add_expected_rpk(SSL *ssl, const PEM *spki_pem);
+
 X509_STORE *make_store(const PEM *const *pems, size_t store_length);
 X509 *load_inmem_cert(const PEM *pem);
 EVP_PKEY *load_inmem_pkey(const PEM *pem);

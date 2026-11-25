@@ -42,6 +42,10 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // RFC 7250 raw public keys (RPK): client fails to abort when the server's RPK
+        // doesn't match what was pinned via `SSL_add_expected_rpk`.
+        seed_cve_2024_12797: put.supports("tls13") && put.supports("rpk"),
     )
 }
 
@@ -1537,6 +1541,109 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                             ((client, 0)),
                             (@selected_cipher_suite)
                         )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+/// <https://www.cve.org/CVERecord?id=CVE-2024-12797>
+///
+/// Root cause (CWE-295, Improper Certificate Validation): `tls_post_process_server_rpk()`
+/// in `statem_clnt.c` only consults `ssl_verify_rpk()`'s return value for the
+/// `SSL_RETRY_VERIFY` retry case:
+/// ```c
+/// if (ssl_verify_rpk(sc, sc->session->peer_rpk) > 0
+///         && sc->rwstate == SSL_RETRY_VERIFY)
+///     return WORK_MORE_A;
+/// ```
+/// There is no `<= 0` branch calling `SSLfatal()` when `verify_mode != SSL_VERIFY_NONE`,
+/// unlike the X.509 chain path 150 lines below in the same file
+/// (`tls_process_server_certificate`), which does have that check. So under
+/// `SSL_VERIFY_PEER`, a client that pinned an expected server key via
+/// `SSL_add_expected_rpk()` (RPK has no CA chain, so this - or a custom verify callback -
+/// is the only way to authenticate a raw public key) completes the handshake even when the
+/// server's actual key doesn't match what was pinned. Introduced with RPK support in
+/// 3.2.0, fixed in 3.2.4/3.3.3/3.4.1 (fix adds exactly the missing branch).
+///
+/// Reachability: wire-reachable (triggered while processing the server's Certificate
+/// message), but only once both sides negotiate the `server_certificate_type`/
+/// `client_certificate_type` extensions (RFC 7250) to RPK - entirely through
+/// `TLSDescriptorConfig`/PUT-config APIs (`SSL_CTX_set1_server_cert_type` et al.), never
+/// through wire data. Puffin's mutators operate on the term/trace DAG only, never on
+/// `AgentDescriptor`/PUT config, so this is unreachable by fuzzing regardless of run time.
+///
+/// PoC shape: two real OpenSSL agents (no DY term crafting needed - the real TLS stacks on
+/// both sides negotiate the RPK extensions and perform the actual key exchange/signing).
+/// `server` presents Eve's keypair (`rpk_mismatched_identity`, a different real identity
+/// than the client's pin - RPK has no CA chain, so unlike the X.509 seeds there is no
+/// single fixed "good" identity to default to). `client` pins Alice's SubjectPublicKeyInfo
+/// (`expected_peer_rpk`, wired in `put.rs`) and requires `SSL_VERIFY_PEER`
+/// (`server_authentication: true`). Under a fixed OpenSSL this handshake must abort
+/// (`SSL_add_expected_rpk` pinned a key that never matches); on vulnerable 3.4.0 it
+/// completes.
+///
+/// Detection: logic/auth bypass, no memory-safety signal. One-sided branch of
+/// `tls::violation::check_violation` (`client.authenticate_peer && client.peer_certificate
+/// != ALICE_SPKI.1`), gated on `authenticate_peer` - which required fixing two pre-existing
+/// gaps in the OpenSSL harness: `claim.peer_authentication` was never set anywhere for
+/// OpenSSL (the check was dead code for every OpenSSL seed, RPK or not), and
+/// `claim.peer_cert.data`/`data_length` (unlike `.key_type`/`.key_length`) were never
+/// populated either. Both are now set in `_inner_claimer` (`put.c`), gated on `use_rpk`
+/// actually having been negotiated, so no existing non-RPK OpenSSL seed is affected.
+pub fn seed_cve_2024_12797(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Client,
+                    use_rpk: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Server,
+                    use_rpk: true,
+                    rpk_mismatched_identity: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 0)/MessageFlight
+                    }
+                }),
+            },
+            // ServerHello/EncryptedExtensions/Certificate(RPK)/CertificateVerify/Finished
+            // -> Client. The server's RPK (Eve's key) does not match what the client
+            // pinned (Alice's key) via `expected_peer_rpk`; under SSL_VERIFY_PEER this
+            // should abort the handshake.
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        (server, 0)/MessageFlight
+                    }
+                }),
+            },
+            // Client Finished -> Server. On a vulnerable OpenSSL, the client reaches here
+            // despite the key mismatch, completing the handshake.
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 1)/MessageFlight
                     }
                 }),
             },

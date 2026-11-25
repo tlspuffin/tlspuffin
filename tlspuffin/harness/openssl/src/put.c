@@ -279,6 +279,38 @@ void _inner_claimer(Claim claim, void *ctx)
 {
     AGENT agent = (AGENT)(ctx);
     claim.version.data = openssl_get_tls_version(agent->ssl);
+
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
+    // RPK sessions have no X.509 peer certificate, so `peer_cert`/`peer_authentication`
+    // (set from SSL_get_peer_certificate() upstream in puffin_claims.c) are always empty
+    // for them. Fill them in here instead, from the negotiated raw public key, gated on
+    // RPK actually having been negotiated so non-RPK traces keep their prior behaviour.
+    if (agent->descriptor.activate_rpk)
+    {
+        int negotiated = (agent->descriptor.role == CLIENT)
+                              ? SSL_get_negotiated_server_cert_type(agent->ssl)
+                              : SSL_get_negotiated_client_cert_type(agent->ssl);
+        claim.use_rpk = (negotiated == TLSEXT_cert_type_rpk);
+        if (claim.use_rpk)
+        {
+            claim.peer_authentication = (SSL_get_verify_mode(agent->ssl) & SSL_VERIFY_PEER) != 0;
+
+            EVP_PKEY *peer_rpk = SSL_get0_peer_rpk(agent->ssl);
+            if (peer_rpk != NULL)
+            {
+                unsigned char *der = NULL;
+                int len = i2d_PUBKEY(peer_rpk, &der);
+                if (len > 0 && (size_t)len <= CLAIM_MAX_CERTIFICATE_LENGTH)
+                {
+                    memcpy(claim.peer_cert.data, der, (size_t)len);
+                    claim.peer_cert.data_length = len;
+                }
+                OPENSSL_free(der);
+            }
+        }
+    }
+#endif
+
     agent->claimer->notify(agent->claimer->context, &claim);
 }
 #endif
@@ -424,9 +456,25 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
+    if (descriptor->activate_rpk)
+    {
+        if (!enable_rpk_support(ssl_ctx))
+        {
+            SSL_CTX_free(ssl_ctx);
+            return NULL;
+        }
+    }
+
     if (descriptor->client_authentication)
     {
-        ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
+        if (!descriptor->activate_rpk)
+        {
+            ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
+            if (ssl_ctx == NULL)
+            {
+                return NULL;
+            }
+        }
         ssl_ctx = set_pkey(ssl_ctx, descriptor->pkey);
         if (ssl_ctx == NULL)
         {
@@ -438,10 +486,13 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
-        if (ssl_ctx == NULL)
+        if (!descriptor->activate_rpk)
         {
-            return NULL;
+            ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
+            if (ssl_ctx == NULL)
+            {
+                return NULL;
+            }
         }
     }
 
@@ -449,6 +500,16 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     if (agent == NULL)
     {
         return NULL;
+    }
+
+    if (descriptor->server_authentication && descriptor->activate_rpk &&
+        descriptor->expected_peer_rpk != NULL)
+    {
+        if (!add_expected_rpk(agent->ssl, descriptor->expected_peer_rpk))
+        {
+            openssl_destroy(agent);
+            return NULL;
+        }
     }
 
     SSL_set_connect_state(agent->ssl);
@@ -506,21 +567,40 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-    ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
     ssl_ctx = set_pkey(ssl_ctx, descriptor->pkey);
     if (ssl_ctx == NULL)
     {
         return NULL;
     }
 
+    if (descriptor->activate_rpk)
+    {
+        if (!enable_rpk_support(ssl_ctx))
+        {
+            SSL_CTX_free(ssl_ctx);
+            return NULL;
+        }
+    }
+    else
+    {
+        ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
+        if (ssl_ctx == NULL)
+        {
+            return NULL;
+        }
+    }
+
     if (descriptor->client_authentication)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
-        if (ssl_ctx == NULL)
+        if (!descriptor->activate_rpk)
         {
-            return NULL;
+            ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
+            if (ssl_ctx == NULL)
+            {
+                return NULL;
+            }
         }
     }
 
@@ -528,6 +608,16 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     if (agent == NULL)
     {
         return NULL;
+    }
+
+    if (descriptor->client_authentication && descriptor->activate_rpk &&
+        descriptor->expected_peer_rpk != NULL)
+    {
+        if (!add_expected_rpk(agent->ssl, descriptor->expected_peer_rpk))
+        {
+            openssl_destroy(agent);
+            return NULL;
+        }
     }
 
     SSL_set_accept_state(agent->ssl);

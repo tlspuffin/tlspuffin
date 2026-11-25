@@ -23,7 +23,9 @@ use crate::protocol::{
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_SPKI, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, EVE_PRIVATE_KEY,
+};
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 
 /// Static configuration for creating a new agent state for the PUT
@@ -181,9 +183,28 @@ impl CAgent {
         let client_cert = pem!(BOB_CERT);
         let client_pkey = pem!(BOB_PRIVATE_KEY);
         let other_cert = pem!(EVE_CERT);
+        let alice_spki = pem!(ALICE_SPKI);
+        let eve_pkey = pem!(EVE_PRIVATE_KEY);
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
+
+        // RFC 7250 raw public keys: only the client side pins an expected peer key today
+        // (CVE-2024-12797 is specifically about the client failing to abort when the
+        // server's RPK doesn't match it). The server side never pins a client RPK.
+        let use_rpk = config.descriptor.protocol_config.use_rpk;
+        let expected_peer_rpk: *const PEM =
+            if use_rpk && config.descriptor.protocol_config.typ == AgentType::Client {
+                &alice_spki
+            } else {
+                std::ptr::null()
+            };
+        let server_pkey_ptr: *const PEM =
+            if use_rpk && config.descriptor.protocol_config.rpk_mismatched_identity {
+                &eve_pkey
+            } else {
+                &server_pkey
+            };
         let ciphers_tls13 =
             CString::new(config.descriptor.protocol_config.get_cipher_string_13()).unwrap();
         let ciphers_tls12 =
@@ -207,13 +228,15 @@ impl CAgent {
             AgentType::Server => make_descriptor(
                 &config,
                 &server_cert,
-                &server_pkey,
+                server_pkey_ptr,
                 &server_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
                 &ciphers_tlsboth,
                 &groups,
                 &sigalgs,
+                use_rpk,
+                expected_peer_rpk,
             ),
             AgentType::Client => make_descriptor(
                 &config,
@@ -225,6 +248,8 @@ impl CAgent {
                 &ciphers_tlsboth,
                 &groups,
                 &sigalgs,
+                use_rpk,
+                expected_peer_rpk,
             ),
         };
 
@@ -397,6 +422,8 @@ fn make_descriptor(
     ciphers_tlsboth: &CString,
     groups: &Option<CString>,
     sigalgs: &Option<CString>,
+    activate_rpk: bool,
+    expected_peer_rpk: *const PEM,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -436,6 +463,9 @@ fn make_descriptor(
 
         store: store.as_ptr(),
         store_length: store.len() as libc::size_t,
+
+        activate_rpk,
+        expected_peer_rpk,
     }
 }
 

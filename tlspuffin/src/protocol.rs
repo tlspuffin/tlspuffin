@@ -346,6 +346,20 @@ pub struct TLSDescriptorConfig {
     /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
     /// If `None`, use the default PUT signature algorithms.
     pub sigalgs: Option<String>,
+    /// Negotiate RFC 7250 raw public keys (RPK) instead of X.509 certificates.
+    /// Only supported by PUTs declaring the `rpk` capability.
+    ///
+    /// Default: false
+    pub use_rpk: bool,
+    /// Only meaningful together with `use_rpk` on a server: present Eve's keypair (a
+    /// different identity than this harness's normal per-role Alice/Bob keys) instead of
+    /// the default. RPK has no CA chain, so unlike X.509 there is no single fixed "good"
+    /// identity to compare against; this lets a seed construct a real agent whose RPK
+    /// genuinely differs from whatever the peer pinned via `expected_peer_rpk`
+    /// (e.g. to simulate a MITM/wrong-key scenario such as CVE-2024-12797).
+    ///
+    /// Default: false
+    pub rpk_mismatched_identity: bool,
 }
 
 impl TLSDescriptorConfig {
@@ -632,6 +646,8 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
             sigalgs: None,
+            use_rpk: false,
+            rpk_mismatched_identity: false,
         }
     }
 }

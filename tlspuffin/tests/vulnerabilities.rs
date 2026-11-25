@@ -678,3 +678,16 @@ fn test_seed_cve_2024_5814(put: &str) {
     let ctx = runner.execute(trace, &mut 0).unwrap();
     assert!(ctx.agents_successful());
 }
+
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Authentication bypass")],
+    filter = all(CVE_2024_12797, tls13, rpk)
+)]
+fn test_seed_cve_2024_12797(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2024_12797.build_trace();
+
+    let ctx = runner.execute(trace, &mut 0).unwrap();
+
+    assert!(ctx.agents_successful());
+}

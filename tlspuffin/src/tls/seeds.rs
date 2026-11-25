@@ -201,6 +201,69 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
     }
 }
 
+/// A plain RFC 7250 raw public key (RPK) handshake: both agents negotiate RPK instead of
+/// X.509 certificates, neither pins an expected peer key (`expected_peer_rpk` stays unset,
+/// matching real-world RPK use without DANE pinning), so verification trivially succeeds.
+/// Exists in the default corpus so that a fuzzing campaign at least covers the RPK code
+/// paths with wire-level mutations - `use_rpk`/PUT-config fields themselves are fixed at
+/// seed-authoring time and outside any mutator's reach (see `tls::vulnerabilities::
+/// seed_cve_2024_12797`, which needs the pinning+mismatch combination this seed doesn't
+/// have, and can only ever be reached by a hand-authored seed, never by mutating this one).
+pub fn seed_successful_rpk(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Client,
+                    use_rpk: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Server,
+                    use_rpk: true,
+                    ..TLSDescriptorConfig::default()
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 0)/MessageFlight
+                    }
+                }),
+            },
+            // ServerHello/EncryptedExtensions/Certificate(RPK)/CertificateVerify/Finished
+            // -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        (server, 0)/MessageFlight
+                    }
+                }),
+            },
+            // Client Finished -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 1)/MessageFlight
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
 pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
@@ -2770,6 +2833,7 @@ pub fn create_corpus(
     puffin::corpus!(
         // Full Handshakes
         seed_successful: put.supports("tls13"),
+        seed_successful_rpk: put.supports("tls13") && put.supports("rpk"),
         seed_successful_with_ccs: put.supports("tls13"),
         seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
@@ -2974,6 +3038,16 @@ pub mod tests {
     fn test_seed_successful(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, rpk))]
+    fn test_seed_successful_rpk(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_successful_rpk.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 

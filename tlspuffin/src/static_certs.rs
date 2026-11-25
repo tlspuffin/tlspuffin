@@ -26,6 +26,18 @@ pub const ALICE_CERT: PEMDER = (
     include_bytes!("../assets/alice.der"),
 );
 
+/// SubjectPublicKeyInfo matching [`ALICE_PRIVATE_KEY`], usually used to pin Alice's identity
+/// when authenticating a raw public key (RFC 7250) rather than an X.509 certificate.
+/// Generated with:
+/// ```bash
+/// openssl x509 -in alice.pem -pubkey -noout > alice-spki.pem
+/// openssl x509 -pubkey -noout -in alice.pem | openssl pkey -pubin -outform DER -out alice-spki.der
+/// ```
+pub const ALICE_SPKI: PEMDER = (
+    include_str!("../assets/alice-spki.pem"),
+    include_bytes!("../assets/alice-spki.der"),
+);
+
 /// Private key usually used for the client
 pub const BOB_PRIVATE_KEY: PEMDER = (
     include_str!("../assets/bob-key.pem"),

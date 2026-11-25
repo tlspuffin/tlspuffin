@@ -48,6 +48,12 @@ extern "C"
 
         const PEM *const *const store;
         const size_t store_length;
+
+        // RFC 7250 raw public keys (RPK): when true, negotiate RPK instead of X.509
+        // certificates for both directions. `expected_peer_rpk` (SubjectPublicKeyInfo),
+        // if non-NULL, is pinned as the only key this agent will accept from its peer.
+        bool activate_rpk;
+        const PEM *expected_peer_rpk;
     } TLS_AGENT_DESCRIPTOR;
 
     typedef struct TLS_PUT_INTERFACE

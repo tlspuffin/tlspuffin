@@ -109,6 +109,17 @@ if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1" AND VENDOR_VERSION VERSION_LESS 
   endif()
 endif()
 
+# check for CVE-2024-12797: client fails to abort a handshake when a server's RFC 7250
+# raw public key fails SSL_VERIFY_PEER verification (tls_post_process_server_rpk() in
+# statem_clnt.c never checks ssl_verify_rpk()'s failure case). Introduced with RPK
+# support in 3.2.0, fixed in 3.2.4/3.3.3/3.4.1.
+# see: https://openssl-library.org/news/secadv/20250211.txt
+if((VENDOR_VERSION VERSION_GREATER_EQUAL "3.2.0" AND VENDOR_VERSION VERSION_LESS "3.2.4")
+   OR (VENDOR_VERSION VERSION_GREATER_EQUAL "3.3.0" AND VENDOR_VERSION VERSION_LESS "3.3.3")
+   OR (VENDOR_VERSION VERSION_GREATER_EQUAL "3.4.0" AND VENDOR_VERSION VERSION_LESS "3.4.1"))
+  declare_vulnerability("CVE-2024-12797")
+endif()
+
 set(CFLAGS
   -g
   -fPIC
@@ -164,6 +175,9 @@ if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.4.0")
 endif()
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.0.0")
   set(allow_setting_tls13_ciphers yes)
+endif()
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.2.0")
+  set(rpk yes)
 endif()
 set(transcript_extraction yes)
 set(client_authentication_transcript_extraction yes)

@@ -226,3 +226,63 @@ SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store_length
 
     return ssl_ctx;
 }
+
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
+// Negotiate RFC 7250 raw public keys for both certificate directions (client and server).
+bool enable_rpk_support(SSL_CTX *ssl_ctx)
+{
+    static unsigned char types[] = {TLSEXT_cert_type_rpk};
+    if (SSL_CTX_set1_server_cert_type(ssl_ctx, types, sizeof(types)) != 1)
+    {
+        return false;
+    }
+    if (SSL_CTX_set1_client_cert_type(ssl_ctx, types, sizeof(types)) != 1)
+    {
+        return false;
+    }
+    // Required for add_expected_rpk()'s per-SSL SSL_dane_enable(): SSL_add_expected_rpk()
+    // pins keys through the DANE TLSA mechanism, which needs DANE enabled on the CTX
+    // first.
+    return SSL_CTX_dane_enable(ssl_ctx) > 0;
+}
+
+// Pin the only raw public key this SSL is willing to accept from its peer.
+// SSL_add_expected_rpk() requires a DANE context to exist on `ssl` (it fails with
+// dane->dctx == NULL otherwise), so DANE is enabled first; this is unrelated to actual
+// DNSSEC/DANE use, it is simply the SPKI-pinning mechanism OpenSSL's RPK API is built on.
+bool add_expected_rpk(SSL *ssl, const PEM *spki_pem)
+{
+    if (SSL_dane_enable(ssl, NULL) <= 0)
+    {
+        return false;
+    }
+
+    BIO *bio = BIO_new_mem_buf(spki_pem->bytes, (int)spki_pem->length);
+    if (bio == NULL)
+    {
+        return false;
+    }
+    EVP_PKEY *pub = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+    if (pub == NULL)
+    {
+        return false;
+    }
+    int ok = SSL_add_expected_rpk(ssl, pub);
+    EVP_PKEY_free(pub);
+    return ok == 1;
+}
+#else
+bool enable_rpk_support(SSL_CTX *ssl_ctx)
+{
+    (void)ssl_ctx;
+    return false;
+}
+
+bool add_expected_rpk(SSL *ssl, const PEM *spki_pem)
+{
+    (void)ssl;
+    (void)spki_pem;
+    return false;
+}
+#endif
