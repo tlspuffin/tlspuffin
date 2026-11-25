@@ -207,6 +207,15 @@ def layer(m):
     return "connection protocol"
 
 
+def after_rekey(epoch):
+    """', after its first rekey (key epoch 2)' for a message of key epoch `epoch` of a shape key (the digits
+    of its '@e<k>'); '' for None, a message before the PUT's first rekey."""
+    if not epoch:
+        return ""
+    rekeys = int(epoch) - 1
+    return f", after {'its first rekey' if rekeys == 1 else f'{rekeys} rekeys'} (key epoch {epoch})"
+
+
 def slug(text):
     return re.sub(r"_+", "_", re.sub(r"\W+", "_", text)).strip("_").lower()
 
@@ -363,22 +372,23 @@ class Generator:
             return (f"transcript_{role}_auth_retry_count", key, "BENIGN", prefix + (
                 "after USERAUTH_FAILURE one client makes one more USERAUTH_REQUEST attempt than the other: their "
                 "retry policies differ, which RFC 4252 leaves to the client."), n)
-        m = re.fullmatch(r"(reorder:)?L(?:(\d+)\.(\d+)|-)/W(?:(\d+)\.(\d+)|-)", shape)
+        m = re.fullmatch(r"(reorder:)?L(?:(\d+)\.(\d+)(?:@e(\d+))?|-)/W(?:(\d+)\.(\d+)(?:@e(\d+))?|-)", shape)
         if m:
-            reorder, lm, lo, wm, wo = m.groups()
+            reorder, lm, lo, le, wm, wo, we = m.groups()
 
-            def sent(msg, ordinal):
+            def sent(msg, ordinal, epoch):
                 if msg is None:
                     return "nothing more"
-                return f"its message {ordinal} of type {msg} ({MESSAGES.get(int(msg), 'unnamed')}, {layer(int(msg))})"
+                return (f"its message {ordinal} of type {msg} ({MESSAGES.get(int(msg), 'unnamed')}, {layer(int(msg))})"
+                        + after_rekey(epoch))
 
-            def part(msg, ordinal):
-                return "none" if msg is None else f"{msg}_{ordinal}"
+            def part(msg, ordinal, epoch):
+                return "none" if msg is None else f"{msg}_{ordinal}" + (f"_epoch{epoch}" if epoch else "")
 
-            name = (f"transcript_{role}_{'reorder_' if reorder else ''}first_libssh_{part(lm, lo)}"
-                    f"_wolfssh_{part(wm, wo)}")
+            name = (f"transcript_{role}_{'reorder_' if reorder else ''}first_libssh_{part(lm, lo, le)}"
+                    f"_wolfssh_{part(wm, wo, we)}")
             text = prefix + (f"at the first point where the two decrypted transcripts differ, libssh sent "
-                             f"{sent(lm, lo)} and wolfSSH {sent(wm, wo)}"
+                             f"{sent(lm, lo, le)} and wolfSSH {sent(wm, wo, we)}"
                              + (" (the same messages overall: an order difference)" if reorder else "") + ".")
             numbers = {int(x) for x in (lm, wm) if x is not None}
             if any(numbers == pair for pair in ACCEPT_REFUSE):
@@ -388,11 +398,13 @@ class Generator:
                 sensitive = " The first divergence is a key-exchange or authentication message."
                 return name, key, "AUDIT", text + sensitive, n
             return name, key, self.templated_tag, text, n
-        if shape.startswith("C"):
-            msg = int(shape[1:])
-            name = f"transcript_{role}_content_differs_{msg}"
+        m = re.fullmatch(r"C(\d+)(?:@e(\d+))?", shape)
+        if m:
+            msg, epoch = int(m.group(1)), m.group(2)
+            name = f"transcript_{role}_content_differs_{msg}" + (f"_epoch{epoch}" if epoch else "")
             text = prefix + (f"both transcripts carry the same messages in the same order; the first whose content "
-                             f"differs is of type {msg} ({MESSAGES.get(msg, 'unnamed')}, {layer(msg)}).")
+                             f"differs is of type {msg} ({MESSAGES.get(msg, 'unnamed')}, {layer(msg)})"
+                             + after_rekey(epoch) + ".")
             if 20 <= msg < 80:
                 return name, key, "AUDIT", text + " It is a key-exchange or authentication message.", n
             return name, key, self.templated_tag, text, n

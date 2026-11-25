@@ -31,8 +31,9 @@ Key families, in precedence order (first applicable wins; see root_cause_key()):
                            message number <m> (its <o>-th such message, from 0) where wolfSSH sent
                            its own, "-" for no further message, prefixed "reorder:" when both hold
                            the same messages overall; "C<m>" = same messages in the same order, the
-                           first whose content differs being <m>; "rekey_progress";
-                           "auth_retry_count"; "T:<type>/<type>"; "no_transcript";
+                           first whose content differs being <m>; a message after the PUT's first
+                           rekey ends in "@e<k>", its key epoch (2 after one rekey);
+                           "rekey_progress"; "auth_retry_count"; "T:<type>/<type>"; "no_transcript";
                            "same_order_other"
 
 Everything is computed from the objective's cached DIFFERENTIAL record (metadata_diff_*.json,
@@ -43,7 +44,7 @@ attacker's precomputations evaluated to).
 import re
 
 LIBSSH, WOLFSSH = 1, 2
-_OP = re.compile(r"(Added|Removed|Changed)\(AlignmentKey \{ channel: \d+, msg_number: (\d+)")
+_CHANGED = re.compile(r"Changed\(AlignmentKey \{ channel: \d+, msg_number: (\d+), ordinal: (\d+) \}")
 _KEY = re.compile(r"AlignmentKey \{ channel: \d+, msg_number: (\d+), ordinal: \d+ \}")
 
 
@@ -796,6 +797,23 @@ def put_session_id(status):
     return None
 
 
+_KEX_SECRET = re.compile(r"KexSecret\s*\{\s*exchange_hash:\s*\[([\d,\s]*)\],\s*shared_secret:\s*\[[\d,\s]*\],?\s*\}")
+
+
+def put_exchange_hashes(status):
+    """The exchange hash H of each key exchange the PUT took its outbound keys from, in order (the
+    first is the session id), from the key-exchange secrets of its last claim that carries them; []
+    when none does (a replay from before the claims carried them, or a vendor instrumented by an
+    older puffin-build)."""
+    hashes = []
+    for s in status["execution"]["steps"]:
+        for c in s.get("claims") or []:
+            found = _KEX_SECRET.findall(str(c))
+            if found:
+                hashes = [bytes(int(x) for x in h.split(",") if x.strip()) for h in found]
+    return hashes
+
+
 def _epochs(inp):
     """{step: the number of NEWKEYS the attacker sent before it}: the key epoch a packet is sealed in
     (1 for the first keys). A sealed NEWKEYS is the last packet of its epoch."""
@@ -809,14 +827,17 @@ def _epochs(inp):
 
 def wrong_exchange_hash(es, inp, fail_step_no):
     """True iff a value the rejected packet's keys are derived from is not the PUT's: the session
-    id handed to the derivation is not the one the PUT claimed, or, under the first keys, the
-    exchange hash is not (the first exchange hash IS the session id). The keys then cannot match the
-    PUT's, whatever else the term does.
+    id handed to the derivation is not the one the PUT claimed, or the exchange hash is not the one
+    of the packet's key epoch. That is the session id under the first keys (the first exchange
+    hash IS the session id), and after a rekey that key exchange's own H, from the key-exchange
+    secrets in the PUT's claims (put_exchange_hashes). The keys then cannot match the PUT's,
+    whatever else the term does.
 
     Decided on VALUES: those the attacker's precomputations evaluated to in wolfSSH's run, against
-    wolfSSH's own claim. So only for keys derived from labelled precomputations (a sealed step);
-    an inline schedule, or the exchange hash of a later key exchange, which no claim carries, is
-    left to the structural checks."""
+    wolfSSH's own claims. So only for keys derived from labelled precomputations (a sealed step);
+    an inline schedule, or the exchange hash of an epoch whose H no claim carries (claims without
+    key-exchange secrets, or a key exchange the PUT did not complete), is left to the structural
+    checks."""
     node = next((n for i, n, _ in inp if i == fail_step_no), None)
     enc = _outermost_enc(node) if node is not None else None
     if enc is None or len(enc.children) < 3:
@@ -825,18 +846,25 @@ def wrong_exchange_hash(es, inp, fail_step_no):
     if sid is None:
         return False
     values = label_values(es.put2())
-    first_keys = _epochs(inp).get(fail_step_no) == 1
+    epoch = _epochs(inp).get(fail_step_no)
+    hashes = put_exchange_hashes(es.put2())
+    if epoch is not None and 1 <= epoch <= len(hashes):
+        exchange_hash = hashes[epoch - 1]
+    else:
+        exchange_hash = sid if epoch == 1 else None
     for derivation in enc.children[1:3]:
         if derivation.name not in _DERIVE_KEY + _DERIVE_IV or len(derivation.children) < 3:
             continue
-        args = [derivation.children[2]] + ([derivation.children[1]] if first_keys else [])
-        for arg in args:
+        checks = [(derivation.children[2], sid)]
+        if exchange_hash is not None:
+            checks.append((derivation.children[1], exchange_hash))
+        for arg, expected in checks:
             if arg.label is None:
                 continue
             label, n = arg.label
             bound = values.get(label, [])
             value = bound[n] if n < len(bound) else None
-            if value is not None and value != sid:
+            if value is not None and value != expected:
                 return True
     return False
 
@@ -917,7 +945,8 @@ def invalid_for_libssh(es, inp, cause, step):
     verify under libssh's keys either. libssh must have keys: its claims carry a session id. Then:
 
       wrong_invocation_counter, broken_key_schedule_term  the cause is in the term, wrong in any run;
-      stale_pre_rekey_schedule  libssh too took its new keys into use: it sent its second NEWKEYS;
+      stale_pre_rekey_schedule  libssh too took the keys of the packet's epoch into use: it sent that
+                                key exchange's NEWKEYS (its k-th, of ordinal k - 1, for the k-th epoch);
       wrong_exchange_hash       the values the keys derive from are not those of libssh's run either.
 
     Any other cause is not shown invalid for libssh: a mutated key schedule may still derive libssh's key,
@@ -928,7 +957,8 @@ def invalid_for_libssh(es, inp, cause, step):
     if cause in ("wrong_invocation_counter", "broken_key_schedule_term"):
         return True
     if cause == "stale_pre_rekey_schedule":
-        return (21, 1) in (_order(es.put1()) or ())
+        epoch = _epochs(inp).get(step)
+        return epoch is not None and epoch >= 2 and (21, epoch - 1) in (_order(es.put1()) or ())
     if cause == "wrong_exchange_hash":
         return wrong_exchange_hash(_LibsshRun(es), inp, step)
     return False
@@ -962,12 +992,27 @@ def _order(status):
     return None
 
 
+def _epoch(order, i):
+    """The key epoch of the i-th message of a PUT's decrypted transcript: the number of NEWKEYS it sent
+    before it (0 in the clear, 1 under the first keys, 2 after its first rekey)."""
+    return sum(1 for m, _o in order[:i] if m == 21)
+
+
+def _in_epoch(order, i):
+    """'@e<k>' for the i-th message of `order` when it comes after the PUT's first rekey (key epoch k >= 2),
+    '' before. The ordinals of a message number count over the whole transcript, so without it the first
+    CHANNEL_OPEN_CONFIRMATION after a rekey (91.0) would read as one of a session without a rekey."""
+    k = _epoch(order, i)
+    return f"@e{k}" if k >= 2 else ""
+
+
 def _shape(es):
     """Transcript-only divergence keyed by its FIRST point in time: walk both PUTs' decrypted transcripts in
     order and report the first position where they differ -- 'L<n>.<i>/W<m>.<j>' (libssh sent its i-th
     message n where wolfSSH sent its j-th message m, counting from 0; '-' = nothing more), prefixed
     'reorder:' when both transcripts hold the same message multiset.
     If the orders are identical the divergence is a CONTENT change: 'C<n>' for the earliest changed message.
+    A message after the PUT's first rekey ends in its key epoch, '@e<k>' (_in_epoch).
     A missing transcript on one side is reported as its type difference ('T:...')."""
     for e in es.errors or []:
         k = e.get("Knowledges") or {}
@@ -988,14 +1033,21 @@ def _shape(es):
             if any(x is not None and x[0] == 50 and x[1] >= 1 for x in (a, b)):
                 return "auth_retry_count"
             pre = "reorder:" if sorted(lo) == sorted(wo) else ""
-            at = lambda x: f"{x[0]}.{x[1]}" if x else "-"
-            return f"{pre}L{at(a)}/W{at(b)}"
+
+            def at(order, x):
+                return f"{x[0]}.{x[1]}{_in_epoch(order, i)}" if x else "-"
+
+            return f"{pre}L{at(lo, a)}/W{at(wo, b)}"
     changed = set()
     for e in es.errors or []:
         d = ((e.get("Knowledges") or {}).get("InnerDifference") or {}).get("diff", "")
-        changed.update(int(m) for op, m in _OP.findall(d) if op == "Changed")
-    first = next((m for m, _o in lo if m in changed), None)
-    return f"C{first}" if first is not None else "same_order_other"
+        changed.update((int(m), int(o)) for m, o in _CHANGED.findall(d))
+    # the earliest changed message itself; failing that, the earliest of a changed message number
+    first = next((i for i, key in enumerate(lo) if key in changed), None)
+    if first is None:
+        numbers = {m for m, _o in changed}
+        first = next((i for i, (m, _o) in enumerate(lo) if m in numbers), None)
+    return f"C{lo[first][0]}{_in_epoch(lo, first)}" if first is not None else "same_order_other"
 
 
 def root_cause_key(es):
