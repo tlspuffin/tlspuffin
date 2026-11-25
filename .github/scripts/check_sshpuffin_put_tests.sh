@@ -22,7 +22,12 @@ for t in \
   a_disconnect_after_the_handshake_ends_the_session \
   the_session_id_claim_comes_at_the_peer_newkeys \
   a_differential_runs_both_executions_from_the_same_seed \
-  display_execute_shows_the_stored_recipe_and_the_sent_bytes; do
+  display_execute_shows_the_stored_recipe_and_the_sent_bytes \
+  the_differential_decrypts_the_server_after_its_rekey \
+  a_key_exchange_batched_with_the_authentication_gives_its_secrets_to_the_claims \
+  the_differential_decrypts_the_server_in_a_rekey_that_never_completes \
+  the_differential_decrypts_the_client_after_its_rekey \
+  a_hybrid_key_exchange_gives_no_secrets_to_the_claims; do
   grep -q "^test $t \.\.\. ok" "$log" || {
     echo "::error::sshpuffin test $t did not run (PUT not built?)"
     exit 1
