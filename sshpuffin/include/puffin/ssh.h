@@ -22,13 +22,30 @@ extern "C"
      * Completes the opaque <Claim> declared in <puffin/puffin.h>.
      *
      * An SSH claim captures the security-relevant transport state of an agent
-     * at a claim point (currently emitted once when the transport handshake
-     * completes). The negotiated-algorithm strings are fixed-size buffers so
+     * at a claim point: when the first key exchange completes, when the
+     * handshake completes, and when the agent switches to the keys of a rekey.
+     * The negotiated-algorithm strings are fixed-size buffers so
      * that the whole structure is plain-old-data and can be mirrored by a
      * `#[repr(C)]` Rust type without any heap ownership crossing the FFI
      * boundary.
      */
 #define SSH_CLAIM_STR_LEN 128
+#define SSH_CLAIM_MAX_KEX 8
+#define SSH_KEX_SECRET_MAX_K 1025
+
+    /*
+     * The secrets of one key exchange (RFC 4253 §7.2): its exchange hash H and its shared
+     * secret K as an unsigned big-endian number, with or without leading zeros. K is at most
+     * a DH group-18 secret (8192 bits) and a leading zero.
+     */
+    typedef struct
+    {
+        uint8_t h[64];
+        uint8_t h_len;
+        uint8_t k[SSH_KEX_SECRET_MAX_K];
+        uint16_t k_len;
+    } SSH_KEX_SECRET;
+
     struct Claim
     {
         /* Negotiated key-exchange algorithm. */
@@ -60,6 +77,15 @@ extern "C"
          */
         uint8_t session_id[64];
         uint8_t session_id_len;
+        /*
+         * The secrets of each key exchange of the agent so far, in order: the first one, then
+         * each rekey, recorded as soon as the agent's outbound keys switched to it (its own
+         * NEWKEYS sent). The differential derives from them the keys of every epoch of the
+         * agent's output, also after a rekey. <kex_count> == 0 means "not available" (no
+         * outbound keys yet, or PUT not instrumented).
+         */
+        SSH_KEX_SECRET kex_secrets[SSH_CLAIM_MAX_KEX];
+        uint8_t kex_count;
         /*
          * Coarse protocol phase reached when this claim was emitted (liveness
          * depth): 0=init, 1=kex, 2=auth, 3=done. Intermediate (<3) claims are

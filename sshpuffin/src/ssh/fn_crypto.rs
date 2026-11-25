@@ -11,15 +11,16 @@ use std::sync::OnceLock;
 
 use puffin::algebra::error::FnError;
 use puffin::codec::Codec;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha384, Sha512};
 use x25519_dalek::{PublicKey, StaticSecret};
 
-use crate::claim::SshClaimInner;
+use crate::claim::{KexSecret, SshClaimInner};
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
-    AlgoName, ChannelId, ExchangeHash, KexEcdhReplyMessage, OnWireData, RawMessage, RawSshMessage,
-    ServiceName, SessionId, SharedSecret, SshBytes, SshMessage, SshMsgNumber, SshMsgOrdinal,
-    SshPublicKey, SshPublicKeyBlob, SshSecretKey, SshSignature, Username, VersionString,
+    AlgoName, ChannelId, ExchangeHash, KexEcdhInitMessage, KexEcdhReplyMessage, OnWireData,
+    RawMessage, RawSshMessage, ServiceName, SessionId, SharedSecret, SshBytes, SshMessage,
+    SshMsgNumber, SshMsgOrdinal, SshPublicKey, SshPublicKeyBlob, SshSecretKey, SshSignature,
+    Username, VersionString,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -107,6 +108,19 @@ pub fn fn_server_ecdh_pubkey(msg: &SshMessage) -> Result<SshBytes, FnError> {
         }) => Ok(ephemeral_public_key.clone()),
         _ => Err(FnError::Malformed(
             "Expected SshMessage::KexEcdhReply".into(),
+        )),
+    }
+}
+
+/// Extract the client's ephemeral X25519 public key (Q_C) from a KexEcdhInit, e.g. a rekey's,
+/// decrypted from the client's stream (`fn_decrypted_message`).
+pub fn fn_kex_ecdh_init_pubkey(msg: &SshMessage) -> Result<SshBytes, FnError> {
+    match msg {
+        SshMessage::KexEcdhInit(KexEcdhInitMessage {
+            ephemeral_public_key,
+        }) => Ok(ephemeral_public_key.clone()),
+        _ => Err(FnError::Malformed(
+            "Expected SshMessage::KexEcdhInit".into(),
         )),
     }
 }
@@ -625,10 +639,12 @@ pub fn fn_decrypt_flight_aesgcm(
 /// recorded as an explicit `Raw(0)` marker rather than silently dropped, so the transcript reflects
 /// that a packet was present there (see [`malformed_packet_marker`]).
 ///
-/// LIMIT — epoch 0 only: `key`/`iv` are the FIRST-KEX keys and the GCM counter starts at 0, so
-/// packets sent after a rekey (epoch >= 1, under re-derived keys) do not decrypt here; the peel
-/// stops at the first such packet. Post-rekey transcript folding is unsupported; the negotiation /
-/// plaintext-prefix signal never depends on it.
+/// Epochs: with `key`/`iv` alone (the first key exchange's keys), packets sent after a rekey
+/// (epoch >= 1, under re-derived keys) do not decrypt, and the peel stops at the first such packet.
+/// `fn_fold_s2c_transcript_epochs` and `fn_fold_c2s_transcript_epochs` go on: after each NEWKEYS of
+/// the stream, with the next epoch's keys, derived from the key-exchange secrets of the PUT's
+/// claim. The differential uses them whenever the claim carries such secrets. The negotiation /
+/// plaintext-prefix signal never depends on decryption.
 // A 2-variant cipher built once per fold on a cold path; the ~256-byte size gap between the
 // AES-128 and AES-256 states does not warrant boxing here.
 #[allow(clippy::large_enum_variant)]
@@ -721,6 +737,143 @@ pub fn fn_fold_s2c_transcript(
     key: &SshBytes,
     iv: &SshBytes,
 ) -> Result<AlignedTranscript, FnError> {
+    fold_transcript_epochs(flight, &[(key.0.clone(), iv.0.clone())])
+}
+
+/// [`fn_fold_s2c_transcript`] over every epoch of a server PUT's output, with the keys of each
+/// epoch derived from the secrets of its key exchange that `claim` carries (the PUT's last claim,
+/// the one `find_claim` resolves to): the first epoch's, then, after each NEWKEYS the PUT sent, the
+/// next one's. Nothing comes from the wire, so it also decrypts after the attacker's ECDH key or
+/// the key-exchange algorithm was mutated. An error when the claim carries no such secrets (a
+/// vendor built with an older instrumentation): [`fn_fold_transcript_first_epoch`] folds the first
+/// epoch then. The c2s mirror is [`fn_fold_c2s_transcript_epochs`].
+#[allow(clippy::borrowed_box)] // the claim type, see `fn_claim_exchange_hash`
+pub fn fn_fold_s2c_transcript_epochs(
+    flight: &RawSshMessageFlight,
+    claim: &Box<SshClaimInner>,
+) -> Result<AlignedTranscript, FnError> {
+    let epochs = claim_epochs(claim, b'D', b'B').ok_or_else(no_kex_secrets)?;
+    fold_transcript_epochs(flight, &epochs)
+}
+
+/// [`fn_fold_s2c_transcript_epochs`] for a client PUT's output (c2s: key `'C'`, IV `'A'`).
+#[allow(clippy::borrowed_box)] // the claim type, see `fn_claim_exchange_hash`
+pub fn fn_fold_c2s_transcript_epochs(
+    flight: &RawSshMessageFlight,
+    claim: &Box<SshClaimInner>,
+) -> Result<AlignedTranscript, FnError> {
+    let epochs = claim_epochs(claim, b'C', b'A').ok_or_else(no_kex_secrets)?;
+    fold_transcript_epochs(flight, &epochs)
+}
+
+/// [`fn_fold_s2c_transcript`]: the first epoch, with the recipe's keys from the wire, for a PUT
+/// whose `claim` carries no key-exchange secrets, and an error otherwise. With the epochs folds,
+/// it gives each PUT exactly one transcript: the differential compares the PUTs' transcripts as
+/// they come, and two of one PUT would not pair with one of the other.
+#[allow(clippy::borrowed_box)] // the claim type, see `fn_claim_exchange_hash`
+pub fn fn_fold_transcript_first_epoch(
+    flight: &RawSshMessageFlight,
+    claim: &Box<SshClaimInner>,
+    key: &SshBytes,
+    iv: &SshBytes,
+) -> Result<AlignedTranscript, FnError> {
+    if claim_has_epochs(claim) {
+        return Err(FnError::Malformed(
+            "the claim carries key-exchange secrets: the epochs fold decrypts".into(),
+        ));
+    }
+    fold_transcript_epochs(flight, &[(key.0.clone(), iv.0.clone())])
+}
+
+/// Whether keys derive from `kex`: it has a shared secret, and an exchange hash as long as the
+/// output of a key exchange's hash (SHA-256, SHA-384, SHA-512).
+fn derivable(kex: &KexSecret) -> bool {
+    !kex.shared_secret.is_empty() && matches!(kex.exchange_hash.len(), 32 | 48 | 64)
+}
+
+/// Whether `claim` gives the keys of its first epoch at least: what decides between the epochs
+/// folds and the first-epoch fold, which therefore never both decrypt, nor both refuse, for a
+/// claim. It derives no key (the first-epoch fold runs on every execution).
+fn claim_has_epochs(claim: &SshClaimInner) -> bool {
+    !claim.session_id.is_empty() && claim.kex_secrets.first().is_some_and(derivable)
+}
+
+fn no_kex_secrets() -> FnError {
+    FnError::Malformed("claim carries no key-exchange secrets (older instrumentation?)".into())
+}
+
+/// RFC 4253 §7.2 key derivation with the hash `D` of the key exchange: `K1 = D(K || H || id ||
+/// session_id)`, extended with `Kn = D(K || H || K1 || ... || Kn-1)`, K encoded as an mpint.
+fn derive_key_with<D: Digest>(
+    shared: &[u8],
+    h: &[u8],
+    sid: &[u8],
+    id: u8,
+    needed: usize,
+) -> Vec<u8> {
+    let k_mpint = to_mpint(shared);
+    let mut out = D::new()
+        .chain_update(&k_mpint)
+        .chain_update(h)
+        .chain_update([id])
+        .chain_update(sid)
+        .finalize()
+        .to_vec();
+    while out.len() < needed {
+        let kn = D::new()
+            .chain_update(&k_mpint)
+            .chain_update(h)
+            .chain_update(&out)
+            .finalize()
+            .to_vec();
+        out.extend_from_slice(&kn);
+    }
+    out.truncate(needed);
+    out
+}
+
+/// The key (32 bytes: AES-256-GCM, or AES-128-GCM over its first 16, see
+/// `GcmStreamCipher::candidates`) and IV (12 bytes) of the epoch of `kex`, in the direction of the
+/// letters `key_id` and `iv_id`. The hash is the key exchange's, the one whose output is as long as
+/// H: SHA-256, SHA-384 or SHA-512. `None` when keys do not derive from `kex` ([`derivable`]).
+fn epoch_key_iv(kex: &KexSecret, sid: &[u8], key_id: u8, iv_id: u8) -> Option<(Vec<u8>, Vec<u8>)> {
+    if !derivable(kex) {
+        return None;
+    }
+    let (h, k) = (kex.exchange_hash.as_slice(), kex.shared_secret.as_slice());
+    let derive = |id: u8, needed: usize| match h.len() {
+        32 => Some(derive_key_with::<Sha256>(k, h, sid, id, needed)),
+        48 => Some(derive_key_with::<Sha384>(k, h, sid, id, needed)),
+        64 => Some(derive_key_with::<Sha512>(k, h, sid, id, needed)),
+        _ => None,
+    };
+    Some((derive(key_id, 32)?, derive(iv_id, 12)?))
+}
+
+/// The keys of the epochs whose key exchange `claim` carries the secrets of, in order, up to the
+/// first it cannot derive keys for; `None` when there is none ([`claim_has_epochs`]).
+fn claim_epochs(claim: &SshClaimInner, key_id: u8, iv_id: u8) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
+    if !claim_has_epochs(claim) {
+        return None;
+    }
+    let epochs: Vec<_> = claim
+        .kex_secrets
+        .iter()
+        .map_while(|kex| epoch_key_iv(kex, &claim.session_id, key_id, iv_id))
+        .collect();
+    (!epochs.is_empty()).then_some(epochs)
+}
+
+/// The transcript of a PUT's outbound stream: its plaintext packets, then its encrypted packets,
+/// peeled from the start of the stream, epoch by epoch. `epochs` holds the key and IV of each, in
+/// order. After a NEWKEYS of the stream (the PUT switched its keys), the next packet is decrypted
+/// with the next epoch's keys, from counter 0, and the cipher (AES-256-GCM or AES-128-GCM) is
+/// chosen anew, since a rekey may negotiate another one. Without a next epoch, the peel goes on
+/// with the same keys, which stop at the first packet they do not authenticate.
+fn fold_transcript_epochs(
+    flight: &RawSshMessageFlight,
+    epochs: &[(Vec<u8>, Vec<u8>)],
+) -> Result<AlignedTranscript, FnError> {
     let mut messages: Vec<SshMessage> = Vec::new();
     let mut wire: Vec<u8> = Vec::new();
     for m in &flight.messages {
@@ -741,52 +894,59 @@ pub fn fn_fold_s2c_transcript(
     // doc comment). A wrong key/IV or a truncated packet stops the peel; the plaintext prefix
     // already gathered above is kept, so the negotiation signal never depends on decryption. A
     // packet that decrypts but is malformed is recorded as a `Raw(0)` marker, not dropped.
-    if iv.0.len() == 12 && !wire.is_empty() {
-        let candidates = GcmStreamCipher::candidates(&key.0);
-        if !candidates.is_empty() {
-            // The negotiated cipher is unknown until the first packet authenticates; `selected`
-            // locks onto the candidate index that works and reuses it for the rest of the stream.
-            let mut selected: Option<usize> = None;
-            let mut off = 0usize;
-            let mut counter = 0u64;
-            while off + 4 + 16 <= wire.len() {
-                let len_be: [u8; 4] = wire[off..off + 4].try_into().unwrap();
-                let enc_len = u32::from_be_bytes(len_be) as usize;
-                if off + 4 + enc_len + 16 > wire.len() {
-                    break; // truncated / not a packet boundary
-                }
-                let ct_and_tag = &wire[off + 4..off + 4 + enc_len + 16];
-                let nonce = aesgcm_nonce(&iv.0, counter);
-                let decrypted = match selected {
-                    Some(i) => candidates[i].decrypt(&nonce, ct_and_tag, &len_be),
-                    None => {
-                        let mut found = None;
-                        for (i, cand) in candidates.iter().enumerate() {
-                            if let Some(pt) = cand.decrypt(&nonce, ct_and_tag, &len_be) {
-                                selected = Some(i);
-                                found = Some(pt);
-                                break;
-                            }
-                        }
-                        found
-                    }
-                };
-                match decrypted {
-                    // Authentication/tag failure (no candidate on the first packet, or the
-                    // locked-in cipher afterwards): the stream is desynced, stop peeling.
-                    None => break,
-                    Some(pt) => {
-                        let payload = gcm_packet_payload(&pt);
-                        messages.push(
-                            payload
-                                .and_then(parse_whole_payload)
-                                .unwrap_or_else(|| malformed_packet_marker(&pt, payload)),
-                        );
+    let mut epoch = 0usize;
+    let mut off = 0usize;
+    let mut counter = 0u64;
+    // The negotiated cipher is unknown until the first packet of an epoch authenticates;
+    // `selected` locks onto the candidate index that works and reuses it for the rest of the epoch.
+    let mut selected: Option<usize> = None;
+    let mut candidates = epochs
+        .first()
+        .map_or_else(Vec::new, |(key, _)| GcmStreamCipher::candidates(key));
+    while !wire.is_empty() && off + 4 + 16 <= wire.len() {
+        let Some((_, iv)) = epochs.get(epoch) else {
+            break;
+        };
+        if iv.len() != 12 || candidates.is_empty() {
+            break;
+        }
+        let len_be: [u8; 4] = wire[off..off + 4].try_into().unwrap();
+        let enc_len = u32::from_be_bytes(len_be) as usize;
+        if off + 4 + enc_len + 16 > wire.len() {
+            break; // truncated / not a packet boundary
+        }
+        let ct_and_tag = &wire[off + 4..off + 4 + enc_len + 16];
+        let nonce = aesgcm_nonce(iv, counter);
+        let decrypted = match selected {
+            Some(i) => candidates[i].decrypt(&nonce, ct_and_tag, &len_be),
+            None => {
+                let mut found = None;
+                for (i, cand) in candidates.iter().enumerate() {
+                    if let Some(pt) = cand.decrypt(&nonce, ct_and_tag, &len_be) {
+                        selected = Some(i);
+                        found = Some(pt);
+                        break;
                     }
                 }
-                off += 4 + enc_len + 16;
-                counter += 1;
+                found
             }
+        };
+        // Authentication/tag failure (no candidate on the first packet of the epoch, or the
+        // locked-in cipher afterwards): the stream is desynced, stop peeling.
+        let Some(pt) = decrypted else { break };
+        let payload = gcm_packet_payload(&pt);
+        let msg = payload
+            .and_then(parse_whole_payload)
+            .unwrap_or_else(|| malformed_packet_marker(&pt, payload));
+        let switches_keys = matches!(msg, SshMessage::NewKeys) && epoch + 1 < epochs.len();
+        messages.push(msg);
+        off += 4 + enc_len + 16;
+        counter += 1;
+        if switches_keys {
+            epoch += 1;
+            counter = 0;
+            selected = None;
+            candidates = GcmStreamCipher::candidates(&epochs[epoch].0);
         }
     }
 
@@ -1588,7 +1748,7 @@ pub fn fn_sign_userauth_c(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ssh::message::{ServiceRequestMessage, SshMessage};
+    use crate::ssh::message::{ServiceAcceptMessage, ServiceRequestMessage, SshMessage};
 
     #[test]
     fn client_identities_load_and_are_distinct() {
@@ -1937,5 +2097,145 @@ mod tests {
         // Fewer than the 4 padding bytes RFC 4253 §6 requires: invalid, even if it would parse.
         let short_padding = [&[3][..], &service, &[0x5a; 3]].concat();
         assert_eq!(fold(&short_padding), marker(0, &short_padding));
+    }
+
+    /// A claim carrying the secrets of `n` distinct key exchanges with `h_len`-byte exchange
+    /// hashes; its session id is the first one's H.
+    fn claim_with_kex_secrets(n: usize, h_len: usize) -> Box<SshClaimInner> {
+        let secrets: Vec<KexSecret> = (0..n)
+            .map(|i| KexSecret {
+                exchange_hash: (0..h_len)
+                    .map(|b| (b as u8).wrapping_mul(7).wrapping_add(31 * i as u8))
+                    .collect(),
+                shared_secret: (0..32)
+                    .map(|b| (b as u8).wrapping_add(0x40 + i as u8))
+                    .collect(),
+            })
+            .collect();
+        Box::new(SshClaimInner {
+            session_id: secrets[0].exchange_hash.clone(),
+            kex_secrets: secrets,
+            ..Default::default()
+        })
+    }
+
+    fn service_accept() -> SshMessage {
+        SshMessage::ServiceAccept(ServiceAcceptMessage {
+            service_name: SshBytes::new(b"ssh-userauth".to_vec()),
+        })
+    }
+
+    /// What a server PUT sends: the messages of `epochs[i]` encrypted with the s2c keys of the
+    /// claim's i-th key exchange, each epoch from counter 0.
+    fn s2c_flight(claim: &SshClaimInner, epochs: &[Vec<SshMessage>]) -> RawSshMessageFlight {
+        let mut messages = Vec::new();
+        for (i, msgs) in epochs.iter().enumerate() {
+            let (key, iv) =
+                epoch_key_iv(&claim.kex_secrets[i], &claim.session_id, b'D', b'B').unwrap();
+            let (key, iv) = (SshBytes::new(key), SshBytes::new(iv));
+            for (counter, msg) in msgs.iter().enumerate() {
+                messages.push(fn_encrypt_packet_aesgcm(msg, &key, &iv, &(counter as u32)).unwrap());
+            }
+        }
+        RawSshMessageFlight { messages }
+    }
+
+    #[test]
+    fn the_epochs_fold_switches_to_the_next_keys_after_each_newkeys() {
+        let claim = claim_with_kex_secrets(3, 32);
+        let epochs = vec![
+            vec![service_accept(), SshMessage::NewKeys],
+            vec![service_accept(), SshMessage::NewKeys],
+            vec![service_accept()],
+        ];
+        let flight = s2c_flight(&claim, &epochs);
+        assert_eq!(
+            fn_fold_s2c_transcript_epochs(&flight, &claim).unwrap(),
+            AlignedTranscript::from_messages(epochs.concat())
+        );
+
+        // The secrets of the first two key exchanges only: the peel stops at the third epoch.
+        let mut first_two = claim.clone();
+        first_two.kex_secrets.truncate(2);
+        assert_eq!(
+            fn_fold_s2c_transcript_epochs(&flight, &first_two).unwrap(),
+            AlignedTranscript::from_messages(epochs[..2].concat())
+        );
+
+        // The c2s fold derives other keys: it decrypts none of this s2c stream.
+        assert!(fn_fold_c2s_transcript_epochs(&flight, &claim).is_err());
+    }
+
+    #[test]
+    fn exactly_one_of_the_two_folds_decrypts_for_a_claim() {
+        let claim = claim_with_kex_secrets(1, 32);
+        let flight = s2c_flight(&claim, &[vec![service_accept(), SshMessage::NewKeys]]);
+        let (key, iv) = epoch_key_iv(&claim.kex_secrets[0], &claim.session_id, b'D', b'B').unwrap();
+        let (key, iv) = (SshBytes::new(key), SshBytes::new(iv));
+        let decrypted =
+            AlignedTranscript::from_messages(vec![service_accept(), SshMessage::NewKeys]);
+
+        // With key-exchange secrets: the epochs fold, not the first-epoch one.
+        assert_eq!(
+            fn_fold_s2c_transcript_epochs(&flight, &claim).unwrap(),
+            decrypted
+        );
+        assert!(fn_fold_transcript_first_epoch(&flight, &claim, &key, &iv).is_err());
+
+        // Without (a vendor with the older instrumentation): the first-epoch fold, with the
+        // recipe's keys.
+        let older = Box::new(SshClaimInner {
+            session_id: claim.session_id.clone(),
+            ..Default::default()
+        });
+        assert!(fn_fold_s2c_transcript_epochs(&flight, &older).is_err());
+        assert_eq!(
+            fn_fold_transcript_first_epoch(&flight, &older, &key, &iv).unwrap(),
+            decrypted
+        );
+    }
+
+    #[test]
+    fn the_epoch_keys_derive_with_the_hash_of_the_key_exchange() {
+        // SHA-256 (a 32-byte H): the derivation of the AES-GCM key and IV functions.
+        let claim = claim_with_kex_secrets(1, 32);
+        let secret = &claim.kex_secrets[0];
+        let (key, iv) = epoch_key_iv(secret, &claim.session_id, b'D', b'B').unwrap();
+        let shared = SharedSecret::new(secret.shared_secret.clone());
+        let h = ExchangeHash::new(secret.exchange_hash.clone());
+        let sid = SessionId::new(claim.session_id.clone());
+        assert_eq!(key, fn_derive_aes_key_s2c(&shared, &h, &sid).unwrap().0);
+        assert_eq!(iv, fn_derive_iv_s2c(&shared, &h, &sid).unwrap().0);
+
+        // SHA-512 (a 64-byte H): K1 = SHA-512(K || H || id || session_id), cut to length.
+        let claim = claim_with_kex_secrets(1, 64);
+        let secret = &claim.kex_secrets[0];
+        let (key, iv) = epoch_key_iv(secret, &claim.session_id, b'D', b'B').unwrap();
+        let k1 = |id: u8| {
+            Sha512::new()
+                .chain_update(to_mpint(&secret.shared_secret))
+                .chain_update(&secret.exchange_hash)
+                .chain_update([id])
+                .chain_update(&claim.session_id)
+                .finalize()
+                .to_vec()
+        };
+        assert_eq!(key, k1(b'D')[..32]);
+        assert_eq!(iv, k1(b'B')[..12]);
+
+        // K given with a leading zero (wolfSSH may keep one, BN_bn2bin never does): the same keys.
+        let mut padded = secret.clone();
+        padded.shared_secret.insert(0, 0);
+        assert_eq!(
+            epoch_key_iv(&padded, &claim.session_id, b'D', b'B'),
+            Some((key, iv))
+        );
+
+        // An exchange hash of no key-exchange hash's length: no keys.
+        let claim = claim_with_kex_secrets(1, 20);
+        assert_eq!(
+            epoch_key_iv(&claim.kex_secrets[0], &claim.session_id, b'D', b'B'),
+            None
+        );
     }
 }

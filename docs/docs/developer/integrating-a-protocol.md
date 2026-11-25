@@ -165,9 +165,10 @@ role, and:
 - **Claim** (`sshpuffin/src/claim.rs`) — the comparable Rust view of the C
   `struct Claim` (§7), holding the state the harness reports at a claim point. The
   harness can only report what the library exposes: sshpuffin patches each
-  vendor to export its session id (`puffin-build/vendors/<lib>/instrument_claims.cmake`),
-  and the vendor's `vendorinfo.sh` names that symbol so the build records the library
-  as claim-instrumented (§10).
+  vendor to export its session id and the secrets of each key exchange
+  (`puffin-build/vendors/<lib>/instrument_claims.cmake`), from which the differential
+  decrypts the PUT's output, also after a rekey. The vendor's `vendorinfo.sh` names the
+  session-id symbol so the build records the library as claim-instrumented (§10).
 - **`SecurityViolationPolicy`** (`sshpuffin/src/violation.rs`) — `check_violation`
   turns claims into objectives. It may start as a `None` stub and be filled in as you
   discover what a violation looks like for your protocol. sshpuffin's still is one: its

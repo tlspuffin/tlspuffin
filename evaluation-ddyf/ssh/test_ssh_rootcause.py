@@ -118,11 +118,34 @@ def received(n, claims=()):
     return {"step_number": n, "agent": 0, "action": "Output", "claims": list(claims), "knowledges": []}
 
 
-def claim(auth_method="", session_id=(1, 2, 3)):
+def claim(auth_method="", session_id=(1, 2, 3), kex=None):
+    """A claim as a replay prints it. `kex`: the exchange hashes of the key-exchange secrets it carries,
+    one per key exchange (None: a claim from before the claims carried them)."""
+    secrets = ""
+    if kex is not None:
+        entries = (f"KexSecret {{ exchange_hash: [{', '.join(map(str, h))}], shared_secret: [7, 7] }}" for h in kex)
+        secrets = f", kex_secrets: [{', '.join(entries)}]"
     return (
         f'SshClaimInner {{ auth_method: "{auth_method}", auth_user: "{"user" if auth_method else ""}", '
-        f"auth_key_fp: [], session_id: [{', '.join(map(str, session_id))}] }}"
+        f"auth_key_fp: [], session_id: [{', '.join(map(str, session_id))}]{secrets} }}"
     )
+
+
+# The precomputations of a sealed step of the keys of a rekey: those of the first keys, then the rekey's own
+# (SealKeys::rekey), whose exchange hash is a new one and whose session id stays the first.
+REKEY_EXCHANGE_HASH = t("fn_kex_exchange_hash", *[t(f"fn_input_{i}") for i in range(7)], var("shared_secret_1@0"))
+REKEY_DERIVATION_INPUTS = (var("shared_secret_1@0"), var("exchange_hash_1@0"), var("session_id@0"))
+REKEY_SCHEDULE = SCHEDULE + [
+    ("shared_secret_1@0", t("fn_ecdh_shared_secret", t("fn_client_ecdh_privkey"), t("fn_rekey_public_key"))),
+    ("exchange_hash_1@0", REKEY_EXCHANGE_HASH),
+    ("c2s_key_1@0", t("fn_derive_aes_key_c2s", *REKEY_DERIVATION_INPUTS)),
+    ("c2s_iv_1@0", t("fn_derive_iv_c2s", *REKEY_DERIVATION_INPUTS)),
+]
+GLOBAL_REQUEST = t("fn_global_request", t("fn_request_unknown"), t("fn_true"), t("fn_empty_bytes_vec"))
+
+
+def sealed_after_rekey(message):
+    return sealed(message, key=var("c2s_key_1@0"), iv=var("c2s_iv_1@0"))
 
 
 def aligned(*keys):
@@ -333,6 +356,16 @@ class Generation(unittest.TestCase):
         self.assertIn("SERVICE_ACCEPT", self.rows("shape:server:L6.0/W-")["shape:server:L6.0/W-"][3])
         self.assertIn("transport generic", self.rows("shape:server:L6.0/W-")["shape:server:L6.0/W-"][3])
 
+    def test_a_shape_after_a_rekey_names_its_key_epoch(self):
+        rows = self.rows("shape:server:L-/W7.0@e2", "shape:client:L91.0@e3/W92.0@e3", "shape:server:C91@e2")
+        self.assertEqual(rows["shape:server:L-/W7.0@e2"][0], "transcript_server_first_libssh_none_wolfssh_7_0_epoch2")
+        self.assertIn("after its first rekey (key epoch 2)", rows["shape:server:L-/W7.0@e2"][3])
+        self.assertEqual(rows["shape:client:L91.0@e3/W92.0@e3"][0],
+                         "transcript_client_first_libssh_91_0_epoch3_wolfssh_92_0_epoch3")
+        self.assertIn("after 2 rekeys (key epoch 3)", rows["shape:client:L91.0@e3/W92.0@e3"][3])
+        self.assertEqual(rows["shape:server:C91@e2"][0], "transcript_server_content_differs_91_epoch2")
+        self.assertIn("after its first rekey (key epoch 2)", rows["shape:server:C91@e2"][3])
+
     def test_a_key_without_an_explanation_stops_the_generation(self):
         with self.assertRaises(KeyError):
             self.rows("named:known_something_new")
@@ -466,6 +499,32 @@ class Shapes(unittest.TestCase):
         changed = {"Knowledges": {"InnerDifference": {"diff": diff}}}
         self.assertEqual(self.shape(aligned((20, 0), (92, 0)), aligned((20, 0), (92, 0)), [changed]), "C92")
         self.assertEqual(rc._shape(Objective(replay([]), replay([]))), "no_transcript")
+
+    def test_a_message_after_a_rekey_carries_its_key_epoch(self):
+        """The first EXT_INFO of a PUT that sends it only after a rekey is 7.0, as the EXT_INFO of the first
+        keys would be: its key epoch tells them apart."""
+        kex, rekey = [(20, 0), (31, 0), (21, 0)], [(20, 1), (31, 1), (21, 1)]
+        libssh, wolfssh = aligned(*kex, (6, 0), *rekey), aligned(*kex, (6, 0), *rekey, (7, 0))
+        self.assertEqual(self.shape(libssh, wolfssh), "L-/W7.0@e2")
+        # the same message under the first keys keeps its key
+        self.assertEqual(self.shape(aligned(*kex, (6, 0)), aligned(*kex, (6, 0), (7, 0))), "L-/W7.0")
+        # two rekeys
+        rekey2 = [(20, 2), (31, 2), (21, 2)]
+        self.assertEqual(self.shape(aligned(*kex, *rekey, *rekey2), aligned(*kex, *rekey, *rekey2, (91, 0))),
+                         "L-/W91.0@e3")
+
+    def test_a_content_change_is_keyed_by_the_earliest_changed_message_and_its_epoch(self):
+        def changed(*keys):
+            key = "AlignmentKey {{ channel: 0, msg_number: {}, ordinal: {} }}"
+            ops = ", ".join(f"Changed({key.format(m, o)}, X)" for m, o in keys)
+            return {"Knowledges": {"InnerDifference": {"diff": f"[ByKey([{ops}])]"}}}
+
+        kex, rekey = [(20, 0), (31, 0), (21, 0)], [(20, 1), (31, 1), (21, 1)]
+        after = aligned(*kex, (6, 0), *rekey, (91, 0))
+        self.assertEqual(self.shape(after, after, [changed((91, 0))]), "C91@e2")
+        # the earliest changed message itself, not the earliest message of a changed number: 91.0 is not changed
+        both = aligned(*kex, (91, 0), (92, 0), (91, 1))
+        self.assertEqual(self.shape(both, both, [changed((91, 1), (92, 0))]), "C92")
 
 
 class Named(unittest.TestCase):
@@ -676,6 +735,76 @@ class Keys(unittest.TestCase):
             replay(steps, knowledges=[aligned((6, 0), (91, 0), (92, 0))]),
         )
         self.assertEqual(rc.root_cause_key(objective), "shape:server:L91.1/W92.0")
+
+
+class Rekeys(unittest.TestCase):
+    """A server under attack, rekeyed: NEWKEYS at step 1, a packet of the first keys at step 2, the rekey's
+    NEWKEYS (sealed under the first keys) at step 3, then a packet of the rekey's keys at step 4, whose
+    AES-GCM tag wolfSSH rejects. Both PUTs claim the exchange hashes [1, 2, 3] (the session id) and
+    [4, 5, 6] (the rekey's)."""
+
+    HASHES = ((1, 2, 3), (4, 5, 6))
+
+    def objective(self, wolfssh_rekey_hash, libssh_rekey_hash=(4, 5, 6), kex=HASHES):
+        steps = [
+            received(0),
+            sent(1, NEWKEYS, claims=[claim(kex=kex[:1] if kex is not None else None)]),
+            sent(2, sealed(SERVICE_REQUEST), precomputations=SCHEDULE),
+            sent(3, sealed(t("fn_new_keys")), precomputations=SCHEDULE, claims=[claim(kex=kex)]),
+            sent(4, sealed_after_rekey(GLOBAL_REQUEST), precomputations=REKEY_SCHEDULE),
+            received(5),
+        ]
+
+        def values(rekey_hash):
+            return [
+                value("session_id@0", [1, 2, 3]),
+                value("exchange_hash_0@0", [1, 2, 3], "ExchangeHash"),
+                value("exchange_hash_1@0", list(rekey_hash), "ExchangeHash"),
+            ]
+
+        return Objective(
+            replay(steps, knowledges=[aligned((6, 0), (21, 1)), *values(libssh_rekey_hash)]),
+            replay(steps[:5], knowledges=[aligned((6, 0), (21, 1)), *values(wolfssh_rekey_hash)]),
+            [status_difference("Success", 5, AEAD_TAG, 4)],
+        )
+
+    def cause(self, objective):
+        return rc.aead_cause(objective, rc.inputs(objective.put1()))
+
+    def test_the_claims_give_the_exchange_hash_of_each_key_exchange(self):
+        status = replay([sent(1, NEWKEYS, claims=[claim(kex=[(1, 2, 3)])]),
+                         received(2, claims=[claim(kex=self.HASHES)])])
+        self.assertEqual(rc.put_exchange_hashes(status), [bytes([1, 2, 3]), bytes([4, 5, 6])])
+        # a claim from before the claims carried key-exchange secrets, and one with none
+        self.assertEqual(rc.put_exchange_hashes(replay([sent(1, NEWKEYS, claims=[claim()])])), [])
+        self.assertEqual(rc.put_exchange_hashes(replay([sent(1, NEWKEYS, claims=[claim(kex=())])])), [])
+
+    def test_the_exchange_hash_of_a_rekey_is_checked_against_the_one_the_put_claims(self):
+        self.assertEqual(self.cause(self.objective((9, 9, 9))), "wrong_exchange_hash")
+        self.assertEqual(self.cause(self.objective((4, 5, 6))), "unexplained")
+        # claims without key-exchange secrets give no exchange hash for the rekey's keys: not decided
+        self.assertEqual(self.cause(self.objective((9, 9, 9), kex=None)), "unexplained")
+
+    def test_libssh_getting_past_a_packet_whose_rekey_hash_is_wrong_for_it_too_confirms_it(self):
+        self.assertEqual(rc.root_cause_key(self.objective((9, 9, 9), (8, 8, 8))), "aead:server:wrong_exchange_hash")
+        # the right exchange hash in libssh's run: the packet may verify there
+        self.assertEqual(rc.root_cause_key(self.objective((9, 9, 9))), "aead:server:wrong_exchange_hash:unconfirmed")
+
+    def test_a_stale_schedule_needs_libssh_in_the_key_epoch_of_the_packet(self):
+        """Two rekeys: the packet of step 6 is in the third key epoch, so libssh must have sent the NEWKEYS of
+        the second rekey (21.2); that of the first (21.1) is not enough."""
+        rekey_newkeys = sealed(t("fn_new_keys"))
+        steps = [received(0), sent(1, NEWKEYS, claims=[claim()]),
+                 sent(2, sealed(SERVICE_REQUEST), precomputations=SCHEDULE), sent(3, rekey_newkeys),
+                 sent(4, sealed(SERVICE_REQUEST)), sent(5, rekey_newkeys), sent(6, sealed(SERVICE_REQUEST))]
+
+        def invalid(*libssh_sent):
+            objective = Objective(replay(steps, knowledges=[aligned(*libssh_sent)]), replay(steps))
+            inp = rc.inputs(objective.put1())
+            return rc.invalid_for_libssh(objective, inp, "stale_pre_rekey_schedule", 6)
+
+        self.assertFalse(invalid((21, 0), (21, 1)))
+        self.assertTrue(invalid((21, 0), (21, 1), (21, 2)))
 
 
 if __name__ == "__main__":

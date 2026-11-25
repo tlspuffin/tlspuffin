@@ -56,12 +56,20 @@
  * affects the protocol path (state transitions live outside these functions), only whether a claim
  * is emitted.
  *
- * The hook below exposes the session id (exchange hash H); it is not in any public
- * libssh header.
+ * The hooks below expose the session id (exchange hash H) and the secrets of the key exchange
+ * behind the outbound keys; they are not in any public libssh header. Both are weak: a vendor
+ * patched by an older instrumentation has the first only, and the claims then carry no
+ * key-exchange secrets (the differential decrypts the first epoch only).
  */
 #ifdef HAS_CLAIMS
 extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, size_t *len)
     __attribute__((weak));
+extern int puffin_ssh_get_kex_secret(ssh_session session,
+                                     const unsigned char **h,
+                                     size_t *h_len,
+                                     unsigned char *k,
+                                     size_t k_cap,
+                                     size_t *k_len) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
@@ -144,6 +152,10 @@ struct AGENT_TYPE
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
     int last_emitted_phase;    /* highest intermediate phase claim emitted (-1=none) */
+    /* The secrets of each key exchange so far, recorded once the outbound keys switched to it
+       (track_kex_secrets); every claim carries them. */
+    SSH_KEX_SECRET kex_secrets[SSH_CLAIM_MAX_KEX];
+    uint8_t kex_count;
 
     /* Authentication belief recorded by the server auth handler. */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -512,6 +524,40 @@ static void claim_set(char *dst, const char *src)
         src = "";
     snprintf(dst, SSH_CLAIM_STR_LEN, "%s", src);
 }
+
+/* Record the secrets of the key exchange behind the outbound keys if they are new: the first key
+ * exchange's, or a rekey's once this agent has sent its NEWKEYS. True when it recorded one. */
+static bool record_kex_secret(AGENT agent)
+{
+    if (puffin_ssh_get_kex_secret == NULL || agent->kex_count >= SSH_CLAIM_MAX_KEX)
+        return false;
+    const unsigned char *h = NULL;
+    size_t h_len = 0;
+    size_t k_len = 0;
+    unsigned char k[SSH_KEX_SECRET_MAX_K];
+    if (puffin_ssh_get_kex_secret(agent->session, &h, &h_len, k, sizeof(k), &k_len) != 0 ||
+        h == NULL || h_len == 0 || h_len > sizeof(agent->kex_secrets[0].h) || k_len == 0)
+        return false;
+    if (agent->kex_count > 0)
+    {
+        const SSH_KEX_SECRET *last = &agent->kex_secrets[agent->kex_count - 1];
+        if (last->h_len == h_len && memcmp(last->h, h, h_len) == 0)
+            return false; /* the key exchange already recorded */
+    }
+    SSH_KEX_SECRET *secret = &agent->kex_secrets[agent->kex_count++];
+    memcpy(secret->h, h, h_len);
+    secret->h_len = (uint8_t)h_len;
+    memcpy(secret->k, k, k_len);
+    secret->k_len = (uint16_t)k_len;
+    return true;
+}
+
+/* Every claim carries the secrets of the key exchanges recorded so far. */
+static void claim_set_kex_secrets(AGENT agent, Claim *claim)
+{
+    memcpy(claim->kex_secrets, agent->kex_secrets, sizeof(SSH_KEX_SECRET) * agent->kex_count);
+    claim->kex_count = agent->kex_count;
+}
 #endif /* HAS_CLAIMS */
 
 /* ── High-level server callbacks ─────────────────────────────────────────────
@@ -875,10 +921,75 @@ static void emit_handshake_claim(AGENT agent)
         memcpy(claim.session_id, sid, sid_len);
         claim.session_id_len = (uint8_t)sid_len;
     }
+    /* This claim may come inside the step that switched the outbound keys (a client that sends
+       the end of its key exchange and its authentication in one write): record their secrets
+       first, track_kex_secrets has not run yet. */
+    record_kex_secret(agent);
+    claim_set_kex_secrets(agent, &claim);
     claim.phase = 3; /* PHASE_DONE: completed handshake */
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
+}
+
+/*
+ * The claim announcing a rekey, once this agent's outbound keys switched to it (its NEWKEYS sent):
+ * the state of the last claim (the auth belief once authenticated) and the secrets of every key
+ * exchange so far, so that the differential decrypts the agent's output after the rekey too.
+ */
+static void emit_rekey_claim(AGENT agent)
+{
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_set(claim.kex, ssh_get_kex_algo(agent->session));
+    claim_set(claim.cipher_in, ssh_get_cipher_in(agent->session));
+    claim_set(claim.cipher_out, ssh_get_cipher_out(agent->session));
+    claim_set(claim.hmac_in, ssh_get_hmac_in(agent->session));
+    claim_set(claim.hmac_out, ssh_get_hmac_out(agent->session));
+    if (agent->claim_emitted)
+    {
+        claim_set(claim.auth_method, agent->auth_method);
+        claim_set(claim.auth_user, agent->auth_user);
+        if (agent->auth_key_fp_len > 0)
+        {
+            memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
+            claim.auth_key_fp_len = agent->auth_key_fp_len;
+        }
+    }
+    const unsigned char *sid = NULL;
+    size_t sid_len = 0;
+    if (puffin_ssh_get_session_id != NULL &&
+        puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim.session_id))
+            sid_len = sizeof(claim.session_id);
+        memcpy(claim.session_id, sid, sid_len);
+        claim.session_id_len = (uint8_t)sid_len;
+    }
+    claim_set_kex_secrets(agent, &claim);
+    claim.phase = agent->claim_emitted ? 3 : 2;
+
+    agent->claimer->notify(agent->claimer->context, &claim);
+}
+
+/*
+ * Around each step, before its phase claims, and after each poll of the event loop: record the
+ * secrets of the key exchange behind the outbound keys when they are new, so that every claim
+ * carries those recorded so far (the claims also record them themselves). After each poll, so
+ * that a step whose two rekeys come in different polls keeps the secrets of both. A poll handles
+ * every complete packet of one read (up to 4 KiB): of two rekeys in one read, only the second's
+ * are recorded. The first key exchange's travel in the post-KEX claim; a rekey's are announced by
+ * a claim of their own, once the post-KEX claim exists, so that the decryption recipe, which reads
+ * the agent's last claim, has them as soon as the outbound keys switch, also in a rekey that never
+ * completes. That claim repeats the auth belief of the last one: the claim comparison, which
+ * merges adjacent equal claims, does not see it.
+ */
+static void track_kex_secrets(AGENT agent)
+{
+    if (agent->claimer == NULL || !record_kex_secret(agent))
+        return;
+    if (agent->kex_count > 1 && agent->last_emitted_phase >= 2)
+        emit_rekey_claim(agent);
 }
 
 /*
@@ -944,6 +1055,9 @@ static void emit_phase_claim(AGENT agent)
         memcpy(claim.session_id, sid, sid_len);
         claim.session_id_len = (uint8_t)sid_len;
     }
+    /* Inside a step too (from emit_handshake_claim): record the secrets first. */
+    record_kex_secret(agent);
+    claim_set_kex_secrets(agent, &claim);
     claim.phase = (uint8_t)phase;
 
     agent->claimer->notify(agent->claimer->context, &claim);
@@ -962,6 +1076,10 @@ static void emit_phase_claim(AGENT agent)
 {
     (void)agent;
 }
+static void track_kex_secrets(AGENT agent)
+{
+    (void)agent;
+}
 #endif /* HAS_CLAIMS */
 
 /* Dispatch what the fuzzer delivered, non-blocking (timeout 0): each dopoll processes the
@@ -972,6 +1090,7 @@ static bool dispatch_server_events(AGENT agent)
     for (int i = 0; i < 16 && !agent->service_refused; ++i)
     {
         int rc = ssh_event_dopoll(agent->event, 0);
+        track_kex_secrets(agent);
         /* Checked whatever dopoll returned: it reports success for a poll whose packet put the
          * session in its error state (e.g. a packet length over the limit). */
         if (ssh_get_status(agent->session) & (SSH_CLOSED | SSH_CLOSED_ERROR))
@@ -1016,6 +1135,7 @@ static bool dispatch_client_events(AGENT agent)
     for (int i = 0; i < 16; ++i)
     {
         int rc = ssh_event_dopoll(agent->event, 0);
+        track_kex_secrets(agent);
         for (int is_stderr = 0; is_stderr < 2; ++is_stderr)
         {
             while (agent->channel != NULL && ssh_channel_is_open(agent->channel) &&
@@ -1043,9 +1163,12 @@ static RESULT libssh_step(AGENT agent);
 static RESULT libssh_progress(AGENT agent)
 {
     /* Record liveness depth for claim-coverage (incl. runs that later abort), after the step
-     * too: KEX may complete on the last progress of a trace. */
+     * too: KEX may complete on the last progress of a trace. The key-exchange secrets first, so
+     * that the phase claims carry them. */
+    track_kex_secrets(agent);
     emit_phase_claim(agent);
     RESULT result = libssh_step(agent);
+    track_kex_secrets(agent);
     emit_phase_claim(agent);
     return result;
 }

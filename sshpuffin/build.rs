@@ -194,6 +194,9 @@ fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> 
 
     let existing: Vec<library::Library> =
         vendor.all().into_iter().filter(|l| is_wolfssh(l)).collect();
+    for lib in &existing {
+        warn_without_kex_secrets(lib, "puffin_wolfssh_get_kex_secret");
+    }
     if !existing.is_empty() {
         return existing;
     }
@@ -221,6 +224,43 @@ fn ensure_wolfssh_vendors(libssh: &[library::Library]) -> Vec<library::Library> 
     }
 
     vendor.all().into_iter().filter(|l| is_wolfssh(l)).collect()
+}
+
+/// Warns about a claim-instrumented vendor whose instrumentation predates its key-exchange-secret
+/// accessor (`vendors/<lib>/instrument_claims.cmake`): it is kept, but its claims carry no
+/// key-exchange secrets, so the differential decrypts its output up to its first rekey only. The
+/// `claimer` marker cannot tell (any claim accessor sets it), so its archives are searched for the
+/// accessor's name: an archive's symbol table names what it defines.
+fn warn_without_kex_secrets(lib: &library::Library, accessor: &str) {
+    if !lib
+        .metadata()
+        .instrumentation
+        .contains(&String::from("claimer"))
+    {
+        return;
+    }
+    let names_accessor = std::fs::read_dir(lib.path().join("lib"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "a"))
+        .any(|path| {
+            std::fs::read(&path).is_ok_and(|bytes| {
+                bytes
+                    .windows(accessor.len())
+                    .any(|w| w == accessor.as_bytes())
+            })
+        });
+    if !names_accessor {
+        println!(
+            "cargo:warning={} vendor '{}' was instrumented by an older puffin-build: its claims \
+             carry no key-exchange secrets, so the differential decrypts its output up to its \
+             first rekey only. Rebuild it with `just mk_vendor`",
+            lib.metadata().vendor,
+            lib.name()
+        );
+    }
 }
 
 /// Sorts the builds of `vendor` by preference, the first one being the default PUT when it is
@@ -282,6 +322,7 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
                 lib.name()
             );
         }
+        warn_without_kex_secrets(lib, "puffin_ssh_get_kex_secret");
     }
 
     if !existing.is_empty() {

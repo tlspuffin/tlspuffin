@@ -112,6 +112,9 @@ pub fn fn_u32_0x10000() -> Result<u32, FnError> {
 pub fn fn_msg_kexinit() -> Result<SshMsgNumber, FnError> {
     Ok(SshMsgNumber::new(20))
 }
+pub fn fn_msg_kex_ecdh_init() -> Result<SshMsgNumber, FnError> {
+    Ok(SshMsgNumber::new(30))
+}
 pub fn fn_msg_kex_ecdh_reply() -> Result<SshMsgNumber, FnError> {
     Ok(SshMsgNumber::new(31))
 }

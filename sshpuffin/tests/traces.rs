@@ -19,8 +19,9 @@ use sshpuffin::claim::SshClaimInner;
 use sshpuffin::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
 use sshpuffin::put_registry::{put_names, ssh_registry};
 use sshpuffin::ssh::fn_impl::*;
-use sshpuffin::ssh::message::{OnWireData, RawSshMessage, SshBytes, Username};
+use sshpuffin::ssh::message::{OnWireData, RawSshMessage, SshBytes, SshMessage, Username};
 use sshpuffin::ssh::seeds::*;
+use sshpuffin::ssh::transcript::AlignedTranscript;
 
 /// Serialises the tests that EXECUTE PUTs, which `cargo test` runs on parallel threads. The
 /// harnesses keep their RNG state per thread, but the libraries share process-wide state
@@ -309,10 +310,10 @@ fn post_rekey_inputs(trace: &Trace<SshProtocolTypes>) -> Vec<usize> {
 }
 
 /// `seed_client_attacker_rekey_complete` sends its last two packets under the keys of its rekey.
-/// Neither the differential nor `corpus_seeds_run_on_every_put` sees whether those keys are right:
-/// the decrypted transcript stops at the rekey's NEWKEYS, and the libssh harness drops a packet
-/// whose GCM tag fails without reporting an error, so the trace still ends `Ok`. Each PUT must
-/// answer both packets.
+/// `corpus_seeds_run_on_every_put` does not see whether those keys are right: the libssh harness
+/// drops a packet whose GCM tag fails without reporting an error, so the trace still ends `Ok`.
+/// Each PUT must answer both packets (and the differential decrypts the answers:
+/// `the_differential_decrypts_the_server_after_its_rekey`).
 #[test]
 fn rekey_complete_is_answered_after_the_rekey() {
     let server = AgentName::first();
@@ -326,6 +327,366 @@ fn rekey_complete_is_answered_after_the_rekey() {
             assert!(
                 answered(&ctx, server, step),
                 "rekey_complete on {put}: no reply to the post-rekey step {step}"
+            );
+        }
+    }
+}
+
+/// The messages of the transcript the differential decrypts from the server's output: the one
+/// transcript its decryption recipes yield (with a vendor's current instrumentation, the epochs
+/// fold; with an older one, the first-epoch fold).
+fn decrypted_transcript(
+    ctx: &TraceContext<SshProtocolBehavior>,
+    server: AgentName,
+    put: &str,
+) -> Vec<SshMessage> {
+    transcript_of(&server_decryption_recipes_aesgcm(server), ctx, put)
+}
+
+/// The messages of the transcript `recipes` give in `ctx`, the recipes of one agent's output in
+/// the differential: exactly one of them gives it.
+fn transcript_of(
+    recipes: &[SshTerm],
+    ctx: &TraceContext<SshProtocolBehavior>,
+    put: &str,
+) -> Vec<SshMessage> {
+    let transcripts: Vec<AlignedTranscript> = recipes
+        .iter()
+        .filter_map(|recipe| recipe.evaluate_dy(ctx).ok())
+        .filter_map(|t| t.as_any().downcast_ref::<AlignedTranscript>().cloned())
+        .collect();
+    assert_eq!(
+        transcripts.len(),
+        1,
+        "{put}: one decryption recipe yields the transcript"
+    );
+    let t = &transcripts[0];
+    t.order.iter().map(|key| t.by_key[key].clone()).collect()
+}
+
+/// The last claim of `agent`: the one the decryption recipes read (`((agent, 0))` resolves to it).
+fn last_claim(
+    ctx: &TraceContext<SshProtocolBehavior>,
+    agent: AgentName,
+    put: &str,
+) -> SshClaimInner {
+    ctx.find_claim(agent, TypeShape::of::<Box<SshClaimInner>>())
+        .and_then(|claim| {
+            claim
+                .as_any()
+                .downcast_ref::<Box<SshClaimInner>>()
+                .map(|inner| (**inner).clone())
+        })
+        .unwrap_or_else(|| panic!("{put}: no claim of {agent}"))
+}
+
+/// `claim` carries the secrets of `count` key exchanges, all curve25519-sha256 in the seeds: a
+/// 32-byte exchange hash and a shared secret each. Only the first one's exchange hash is the
+/// session id: a rekey's is its own (RFC 4253 §7.2).
+fn assert_kex_secrets(claim: &SshClaimInner, count: usize, put: &str) {
+    let secrets = &claim.kex_secrets;
+    assert_eq!(
+        secrets.len(),
+        count,
+        "{put}: the last claim carries the secrets of {} key exchanges",
+        secrets.len()
+    );
+    for (i, kex) in secrets.iter().enumerate() {
+        assert_eq!(kex.exchange_hash.len(), 32, "{put}: H of key exchange {i}");
+        assert!(
+            !kex.shared_secret.is_empty(),
+            "{put}: K of key exchange {i}"
+        );
+        assert_eq!(
+            kex.exchange_hash == claim.session_id,
+            i == 0,
+            "{put}: H of key exchange {i}, against the session id"
+        );
+    }
+}
+
+/// The messages after the second NEWKEYS of `messages`: those sealed under the keys of the rekey.
+fn after_rekey_newkeys<'a>(messages: &'a [SshMessage], put: &str) -> &'a [SshMessage] {
+    let rekey_newkeys = messages
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| matches!(m, SshMessage::NewKeys))
+        .nth(1)
+        .map(|(i, _)| i)
+        .unwrap_or_else(|| panic!("{put}: the rekey's NEWKEYS is not decrypted: {messages:?}"));
+    &messages[rekey_newkeys + 1..]
+}
+
+/// The differential decrypts the server's output after its rekey too, from the secrets of both key
+/// exchanges its last claim carries: on every PUT, `rekey_complete`'s transcript goes on past the
+/// rekey's NEWKEYS (the second in the server's output) to the replies to the two packets sealed
+/// under the rekey's keys, CHANNEL_OPEN_CONFIRMATION and REQUEST_FAILURE. The differential of
+/// every libssh and wolfSSH pair finds no difference. (The claim of the rekey repeats the auth
+/// belief of the claim before it: the claim comparison, which merges adjacent equal claims, does
+/// not see it.)
+#[test]
+fn the_differential_decrypts_the_server_after_its_rekey() {
+    let server = AgentName::first();
+    let trace = seed_client_attacker_rekey_complete(server);
+    let _exec = put_exec_lock();
+    for put in all_puts() {
+        let (res, ctx) = execute_on(&put, &[server], &trace);
+        assert!(res.is_ok(), "rekey_complete on {put}: {res:?}");
+        assert_kex_secrets(&last_claim(&ctx, server, &put), 2, &put);
+        let messages = decrypted_transcript(&ctx, server, &put);
+        let after_rekey = after_rekey_newkeys(&messages, &put);
+        assert!(
+            after_rekey
+                .iter()
+                .any(|m| matches!(m, SshMessage::ChannelOpenConfirmation(_))),
+            "{put}: no CHANNEL_OPEN_CONFIRMATION decrypted after the rekey: {messages:?}"
+        );
+        assert!(
+            after_rekey
+                .iter()
+                .any(|m| matches!(m, SshMessage::RequestFailure)),
+            "{put}: no REQUEST_FAILURE decrypted after the rekey: {messages:?}"
+        );
+    }
+    let (libssh, wolfssh) = libssh_and_wolfssh_puts();
+    for first in &libssh {
+        for second in &wolfssh {
+            differential(first, second, server, &trace)
+                .unwrap_or_else(|d| panic!("rekey_complete on {first} x {second}: {d}"));
+        }
+    }
+}
+
+thread_local! {
+    /// What `fn_batched_packets` sends: set before the trace that sends it executes.
+    static BATCHED_PACKETS: std::cell::RefCell<Vec<u8>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The packets of several steps, in one write: `BATCHED_PACKETS`.
+fn fn_batched_packets() -> Result<RawSshMessage, FnError> {
+    Ok(RawSshMessage::OnWire(OnWireData(
+        BATCHED_PACKETS.with(|packets| packets.borrow().clone()),
+    )))
+}
+
+/// The bytes the input step `step` of `trace` sends to `agent` on `put`, in an execution after a
+/// reseed, as `MakeMessage` computes them (`make_message_term`): an execution after another reseed
+/// derives the same session keys, so a packet sealed under them stays valid there.
+fn sent_bytes(trace: &SshTrace, step: usize, agent: AgentName, put: &str) -> Vec<u8> {
+    let trace = SshProtocolTypes::preprocess_trace(trace).unwrap_or_else(|| trace.clone());
+    let desc = PutDescriptor::new(put, PutOptions::default());
+    let mut ctx: TraceContext<SshProtocolBehavior> =
+        TraceContext::new(Spawner::new(ssh_registry()).with_mapping(&[(agent, desc)]));
+    ctx.determinism_reseed();
+    trace
+        .execute_until_step(&mut ctx, step, &mut 0, true)
+        .unwrap_or_else(|e| panic!("{put}: the steps before {step}: {e}"));
+    let Action::Input(input) = &trace.steps[step].action else {
+        panic!("step {step} is not an input");
+    };
+    input
+        .execute_precomputations(&mut ctx)
+        .unwrap_or_else(|e| panic!("{put}: the precomputations of step {step}: {e}"));
+    input
+        .recipe
+        .evaluate_symbolic(&ctx)
+        .unwrap_or_else(|e| panic!("{put}: the recipe of step {step}: {e}"))
+}
+
+/// A client may send the end of its key exchange and its authentication in one write: here
+/// KEX_ECDH_INIT, NEWKEYS, SERVICE_REQUEST and USERAUTH_REQUEST, in one step. The server's claims
+/// then both come from inside that step, from its authentication. They carry the secrets of the
+/// key exchange all the same, and the differential decrypts the server's answers from them. (The
+/// harnesses used to record the secrets around a step only: these claims had none, and the
+/// differential fell back to the keys from the wire.)
+///
+/// Except on libssh before 0.11, whose `ssh_handle_key_exchange` does not end once the client has
+/// authenticated in the key exchange's write: its `ssh_server_kex_termination` misses
+/// `SSH_SESSION_STATE_AUTHENTICATED` (0.11 added it). The harness then stays in its key exchange
+/// and emits no completion claim; its last claim is the post-KEX claim of the end of the step.
+#[test]
+fn a_key_exchange_batched_with_the_authentication_gives_its_secrets_to_the_claims() {
+    let server = AgentName::first();
+    let seed = seed_client_attacker_full_aesgcm(server);
+    let batched = [
+        input_with_symbol(&seed, "fn_kex_ecdh_init"),
+        input_with_symbol(&seed, "fn_new_keys"),
+        input_with_symbol(&seed, "fn_service_request"),
+        input_with_symbol(&seed, "fn_user_auth_request"),
+    ];
+    let mut trace = seed.clone();
+    trace.steps.truncate(batched[0]);
+    trace
+        .steps
+        .push(InputAction::new_step(server, term! { fn_batched_packets }));
+    trace.steps.push(OutputAction::new_step(server));
+
+    let libssh = put_names("libssh");
+    let _exec = put_exec_lock();
+    for put in all_puts() {
+        let packets: Vec<u8> = batched
+            .iter()
+            .flat_map(|&step| sent_bytes(&seed, step, server, &put))
+            .collect();
+        BATCHED_PACKETS.with(|batch| *batch.borrow_mut() = packets);
+        ssh_registry().determinism_reseed_all_factories();
+        let (res, ctx) = execute_on(&put, &[server], &trace);
+        assert!(res.is_ok(), "{put}: {res:?}");
+        let claim = last_claim(&ctx, server, &put);
+        let kex_ends = !libssh.contains(&put) || library_version(&put) >= vec![0, 11];
+        assert_eq!(
+            claim.auth_method,
+            if kex_ends { "password" } else { "" },
+            "{put}: the auth belief of the last claim"
+        );
+        assert_kex_secrets(&claim, 1, &put);
+        let messages = decrypted_transcript(&ctx, server, &put);
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, SshMessage::ServiceAccept(_))),
+            "{put}: no SERVICE_ACCEPT decrypted: {messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, SshMessage::UserAuthSuccess)),
+            "{put}: no USERAUTH_SUCCESS decrypted: {messages:?}"
+        );
+    }
+}
+
+/// A rekey that never completes: the attacker sends the KEXINIT and KEX_ECDH_INIT of its rekey,
+/// not its NEWKEYS, then opens a channel under the first keys. The server's outbound keys switch
+/// at its own NEWKEYS all the same, and its last claim carries the secrets of both key exchanges
+/// from then on. wolfSSH answers the channel open in that window (the RFC 4253 §7.1 divergence of
+/// `seed_client_attacker_rekey_channel_auto`): the differential decrypts its
+/// CHANNEL_OPEN_CONFIRMATION, after the server's second NEWKEYS, with the keys of the rekey.
+/// libssh refuses it, and ends the session there ("Packet filter: rejected packet").
+#[test]
+fn the_differential_decrypts_the_server_in_a_rekey_that_never_completes() {
+    let server = AgentName::first();
+    let seed = seed_client_attacker_rekey_channel_auto(server);
+    let open = input_with_symbol(&seed, "fn_channel_open");
+    let mut trace = seed.clone();
+    let newkeys = trace.steps.pop().expect("the seed has steps");
+    assert!(
+        matches!(&newkeys.action, Action::Input(input) if has_symbol(&input.recipe, "fn_new_keys")),
+        "the seed ends with the NEWKEYS of its rekey"
+    );
+    // The channel open and the output after it, moved past the server's NEWKEYS.
+    let channel_open: Vec<_> = trace.steps.drain(open..open + 2).collect();
+    trace.steps.extend(channel_open);
+    let moved_open = trace.steps.len() - 2;
+
+    let wolfssh = put_names("wolfssh");
+    let _exec = put_exec_lock();
+    for put in all_puts() {
+        let (res, ctx) = execute_on(&put, &[server], &trace);
+        if wolfssh.contains(&put) {
+            assert!(res.is_ok(), "{put}: {res:?}");
+        } else {
+            assert!(
+                matches!(&res, Err(puffin::error::Error::Put(e)) if e.contains("Packet filter")),
+                "{put}: {res:?}"
+            );
+            assert_eq!(ctx.executed_until, moved_open, "{put}");
+        }
+        assert_kex_secrets(&last_claim(&ctx, server, &put), 2, &put);
+        let messages = decrypted_transcript(&ctx, server, &put);
+        let after_rekey = after_rekey_newkeys(&messages, &put);
+        if wolfssh.contains(&put) {
+            assert!(
+                after_rekey
+                    .iter()
+                    .any(|m| matches!(m, SshMessage::ChannelOpenConfirmation(_))),
+                "{put}: no CHANNEL_OPEN_CONFIRMATION decrypted after the rekey: {messages:?}"
+            );
+        }
+    }
+}
+
+/// The differential decrypts a client PUT's output after its rekey too, with the c2s epochs fold,
+/// from the secrets of both key exchanges in the client's last claim: in
+/// `seed_server_attacker_rekey_complete`, the attacker sends a global request under the keys of a
+/// rekey it started, and the client's REQUEST_FAILURE comes after its second NEWKEYS.
+#[test]
+fn the_differential_decrypts_the_client_after_its_rekey() {
+    let client = AgentName::first();
+    let trace = seed_server_attacker_rekey_complete(client);
+    let _exec = put_exec_lock();
+    for put in all_puts() {
+        let (res, ctx) = execute_on(&put, &[client], &trace);
+        assert!(res.is_ok(), "{put}: {res:?}");
+        assert_kex_secrets(&last_claim(&ctx, client, &put), 2, &put);
+        let messages = transcript_of(&client_decryption_recipes_aesgcm(client), &ctx, &put);
+        let after_rekey = after_rekey_newkeys(&messages, &put);
+        assert!(
+            after_rekey
+                .iter()
+                .any(|m| matches!(m, SshMessage::RequestFailure)),
+            "{put}: no REQUEST_FAILURE decrypted after the rekey: {messages:?}"
+        );
+    }
+}
+
+/// The claims carry no secrets of a key exchange whose K the key derivation does not take as an
+/// mpint: the hybrids of libssh 0.12, sntrup761x25519 (K a 64-byte string in `shared_secret`) and
+/// ML-KEM (K in `hybrid_shared_secret`). As an mpint, a K starting with 0 or 0x80 and more would
+/// derive wrong keys; without secrets, the differential decrypts the first epoch from the wire. In
+/// the same trace, curve25519-sha256 gives its secrets to both claims, and the differential
+/// decrypts what each peer sends from them.
+#[test]
+fn a_hybrid_key_exchange_gives_no_secrets_to_the_claims() {
+    let client = AgentName::first();
+    let server = client.next();
+    let libssh_hybrid: Vec<String> = put_names("libssh")
+        .into_iter()
+        .filter(|put| library_version(put) >= vec![0, 12])
+        .collect();
+    if libssh_hybrid.is_empty() {
+        eprintln!("skipped: no libssh PUT from 0.12 on");
+        return;
+    }
+    let _exec = put_exec_lock();
+    for put in &libssh_hybrid {
+        for (kex, secrets) in [
+            ("sntrup761x25519-sha512", 0),
+            ("sntrup761x25519-sha512@openssh.com", 0),
+            ("mlkem768x25519-sha256", 0),
+            ("curve25519-sha256", 1),
+        ] {
+            let mut trace = seed_handshake_two_party_packet_complete(client, server);
+            for agent in &mut trace.descriptors {
+                agent.protocol_config.kex = Some(kex.into());
+                agent.protocol_config.ciphers = Some("aes256-gcm@openssh.com".into());
+            }
+            let (res, ctx) = execute_on(put, &[client, server], &trace);
+            assert!(res.is_ok(), "{put}, {kex}: {res:?}");
+            for agent in [client, server] {
+                assert_eq!(
+                    last_claim(&ctx, agent, put).kex_secrets.len(),
+                    secrets,
+                    "{put}, {kex}: the secrets in the last claim of {agent}"
+                );
+            }
+            if secrets == 0 {
+                continue;
+            }
+            let server_messages = decrypted_transcript(&ctx, server, put);
+            assert!(
+                server_messages
+                    .iter()
+                    .any(|m| matches!(m, SshMessage::UserAuthSuccess)),
+                "{put}, {kex}: no USERAUTH_SUCCESS decrypted: {server_messages:?}"
+            );
+            let client_messages =
+                transcript_of(&client_decryption_recipes_aesgcm(client), &ctx, put);
+            assert!(
+                client_messages
+                    .iter()
+                    .any(|m| matches!(m, SshMessage::UserAuthRequest(_))),
+                "{put}, {kex}: no USERAUTH_REQUEST decrypted: {client_messages:?}"
             );
         }
     }

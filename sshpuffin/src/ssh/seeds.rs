@@ -303,12 +303,13 @@ fn divergent_seeds() -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
         ),
         // Honest two-party relay (a real client PUT against a real server PUT,
         // packet-granular): both peers complete on libssh and wolfSSH, and it
-        // is even 0-diff cross-vendor, but only its cleartext prefix + claims
-        // can be compared (the relaying attacker cannot decrypt), and a
-        // divergence would mix client- and server-side behaviour of four
-        // implementations. So single-PUT: it lets the mutator corrupt / drop /
-        // reorder messages BETWEEN two real stacks (the Terrapin neighbourhood
-        // is two mutations away; see the seed docstring).
+        // is even 0-diff cross-vendor. The relaying attacker cannot decrypt, but
+        // the differential decrypts each peer's output from the key-exchange
+        // secrets of the peer's own claims; still, a divergence would mix client-
+        // and server-side behaviour of four implementations. So single-PUT: it
+        // lets the mutator corrupt / drop / reorder messages BETWEEN two real
+        // stacks (the Terrapin neighbourhood is two mutations away; see the seed
+        // docstring).
         (
             seed_handshake_two_party_packet_complete(client, server),
             "seed_handshake_two_party_packet_complete",
@@ -792,6 +793,22 @@ fn sealed_step(keys: &SealKeys, msg: &Term<SshProtocolTypes>) -> Step<SshProtoco
             recipe: term! { fn_encrypt_packet_aesgcm((@msg), (@key), (@iv), (fn_u32_auto)) },
         }),
     }
+}
+
+/// [`sealed_step`] for a message of a rekey that reads the rekey's own key material: sealed under
+/// `keys`, the epoch it goes out in, with the precomputations of `next`, the rekey's epoch, which
+/// hold those of `keys` too. E.g. a server's KEX_ECDH_REPLY of a rekey, sent under the first keys,
+/// signs the rekey's exchange hash.
+fn sealed_step_reading(
+    keys: &SealKeys,
+    next: &SealKeys,
+    msg: &Term<SshProtocolTypes>,
+) -> Step<SshProtocolTypes> {
+    let mut step = sealed_step(keys, msg);
+    if let Action::Input(input) = &mut step.action {
+        input.precomputations = next.precomputations.clone();
+    }
+    step
 }
 
 // ── KEXINIT terms of the AES-GCM seeds (F-41) ─────────────────────────────────
@@ -3260,6 +3277,139 @@ pub fn seed_server_attacker_session_aesgcm(client: AgentName) -> Trace<SshProtoc
     }
 }
 
+/// SERVER-attacker COMPLETED rekey (RFC 4253 §9), the counterpart of
+/// `seed_client_attacker_rekey_complete` against a client PUT: the session of
+/// `seed_server_attacker_session_aesgcm`, then a re-exchange the attacker starts,
+/// then a want_reply global request under the NEW keys.
+///
+/// The client's rekey KEXINIT and KEX_ECDH_INIT arrive encrypted under the FIRST
+/// keys; `fn_decrypted_message` recovers them from the c2s stream (their second
+/// occurrence: the transcript also holds the cleartext first exchange). From them:
+/// K2 = ECDH(our ephemeral, Q_C2) and H2 = hash(V_C, V_S, I_C2, I_S2, K_S, Q_C2,
+/// Q_S, K2), which our second KEX_ECDH_REPLY signs. The client answers the global
+/// request, sealed under the new keys, with REQUEST_FAILURE under ITS new keys.
+/// The rekey comes once the shell request is answered: the wolfSSH client sends
+/// the KEX_ECDH_INIT of a rekey only once its `wolfSSH_connect()` is done (its
+/// `connectState` is `CONNECT_SERVER_CHANNEL_REQUEST_DONE`), and a rekey started
+/// before that stalls after its KEXINIT. Not in a corpus: the test of the
+/// differential's decryption of a client PUT after a rekey (`tests/traces.rs`).
+pub fn seed_server_attacker_rekey_complete(client: AgentName) -> Trace<SshProtocolTypes> {
+    let client_banner_id = term! { fn_banner_id(((client, 0)[None]/RawSshMessage)) };
+    let client_kexinit = term! { (client, 0)[None]/SshMessage };
+    let q_c = term! { (client, 0)[None]/SshBytes };
+
+    let our_kexinit = server_kexinit_aesgcm(&term! { fn_placeholder_16bytes });
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let i_c = term! { fn_kexinit_payload((@client_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@our_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@client_banner_id), (fn_puffin_id), (@i_c), (@i_s),
+            (fn_server_rsa_pubkey_bytes), (@q_c), (fn_client_ecdh_pubkey), (@shared)
+        )
+    };
+    let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
+    let keys = SealKeys::server(client, &shared, &exch_hash);
+    let key_c2s = keys.open_key();
+    let iv_c2s = keys.open_iv();
+
+    let svc_accept = term! { fn_service_accept((fn_ssh_userauth)) };
+    let auth_success = term! { fn_user_auth_success };
+
+    // What the client sent under the first keys: its CHANNEL_OPEN, then (after its
+    // shell request) the KEXINIT and KEX_ECDH_INIT of the rekey.
+    let c2s = term! { (client, *)/RawSshMessageFlight };
+    let client_open = term! {
+        fn_decrypted_message((@c2s), (@key_c2s), (@iv_c2s), (fn_msg_channel_open), (fn_ordinal_first))
+    };
+    let client_chan = term! { fn_sender_channel((@client_open)) };
+    let client_kexinit2 = term! {
+        fn_decrypted_message((@c2s), (@key_c2s), (@iv_c2s), (fn_msg_kexinit), (fn_ordinal_second))
+    };
+    let client_ecdh_init2 = term! {
+        fn_decrypted_message((@c2s), (@key_c2s), (@iv_c2s), (fn_msg_kex_ecdh_init), (fn_ordinal_second))
+    };
+
+    // The re-exchange, under the first keys: our KEXINIT, then our KEX_ECDH_REPLY
+    // (the same host key and ephemeral as the first) and NEWKEYS.
+    let rekey_kexinit = server_kexinit_aesgcm(&term! { fn_cookie_zeros });
+    let q_c2 = term! { fn_kex_ecdh_init_pubkey((@client_ecdh_init2)) };
+    let shared2 = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c2)) };
+    let exch_hash2 = term! {
+        fn_kex_exchange_hash(
+            (@client_banner_id), (fn_puffin_id),
+            (fn_kexinit_payload((@client_kexinit2))), (fn_kexinit_payload((@rekey_kexinit))),
+            (fn_server_rsa_pubkey_bytes), (@q_c2), (fn_client_ecdh_pubkey), (@shared2)
+        )
+    };
+    let keys2 = keys.rekey(&shared2, &exch_hash2);
+    let h2 = keys2.var::<ExchangeHash>("exchange_hash");
+    let rekey_reply = term! {
+        fn_kex_ecdh_reply(
+            (fn_server_rsa_pubkey),
+            (fn_client_ecdh_pubkey),
+            (fn_ssh_signature((fn_algo_rsa_sha2_256), (fn_sign_exchange_hash((@h2)))))
+        )
+    };
+    let rekey_newkeys = term! { fn_new_keys };
+
+    let chan_confirm = term! {
+        fn_channel_open_confirmation((@client_chan), (fn_channel_id_0), (fn_window_size_default),
+                                     (fn_max_packet_size_default), (fn_empty_bytes_vec))
+    };
+    let chan_success = term! { fn_channel_success((@client_chan)) };
+    let global_req2 = term! {
+        fn_global_request((fn_request_unknown), (fn_true), (fn_empty_bytes_vec))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            OutputAction::new_step(client), // KEXINIT
+            InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            OutputAction::new_step(client), // KEX_ECDH_INIT
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_packet((fn_kex_ecdh_reply(
+                        (fn_server_rsa_pubkey),
+                        (fn_client_ecdh_pubkey),
+                        (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
+                    )))
+                },
+            ),
+            OutputAction::new_step(client), // NEWKEYS
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            OutputAction::new_step(client), // SERVICE_REQUEST
+            sealed_step(&keys, &svc_accept),
+            OutputAction::new_step(client), // USERAUTH_REQUEST
+            sealed_step(&keys, &auth_success),
+            OutputAction::new_step(client), // CHANNEL_OPEN
+            sealed_step(&keys, &chan_confirm),
+            OutputAction::new_step(client), // CHANNEL_REQUEST
+            sealed_step(&keys, &chan_success),
+            sealed_step(&keys, &rekey_kexinit),
+            OutputAction::new_step(client), // KEXINIT, KEX_ECDH_INIT
+            sealed_step_reading(&keys, &keys2, &rekey_reply),
+            sealed_step(&keys, &rekey_newkeys),
+            OutputAction::new_step(client), // NEWKEYS
+            sealed_step(&keys2, &global_req2),
+            OutputAction::new_step(client), // REQUEST_FAILURE
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Legacy ChaCha20 s2c decryption recipe — COMMENTED OUT (kept for reference) ──
 //
 // `server_decryption_recipes` decrypted a server's first three encrypted outputs
@@ -3622,10 +3772,12 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
 /// when encrypted chunks became `RawSshMessage` knowledge, so the seed silently
 /// failed at its first encrypted forward on both stacks.)
 ///
-/// Not in the differential corpus: the attacker only relays and knows neither
-/// peer's ECDH secret, so the encrypted layer cannot be decrypted and compared —
-/// only the cleartext prefix and claims would be. Its value is as a single-PUT
-/// substrate, and for a security oracle if SSH gets one.
+/// Not in the differential corpus: a divergence would mix client- and server-side
+/// behaviour of four implementations. The attacker only relays and knows neither
+/// peer's ECDH secret; the differential decrypts each peer's output all the same,
+/// from the key-exchange secrets of the peer's own claims (with vendors built by an
+/// older puffin-build, only the cleartext prefix and the claims are compared). Its
+/// value is as a single-PUT substrate, and for a security oracle if SSH gets one.
 pub fn seed_handshake_two_party_packet_complete(
     client: AgentName,
     server: AgentName,
@@ -3646,9 +3798,18 @@ pub fn seed_handshake_two_party_packet_complete(
 /// AES-256-GCM counterpart of the (commented-out, legacy ChaCha20)
 /// `server_decryption_recipes`, for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
-/// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
-/// 0 at NewKeys, so it matches the per-direction packet index directly (no
+/// whole s2c stream, epoch by epoch: the GCM invocation counter restarts at 0 at
+/// each NewKeys, so it matches the per-epoch packet index directly (no
 /// strict/non-strict ambiguity as in the ChaCha20 case).
+///
+/// Two recipes, of which exactly one yields the server's transcript:
+///   * `fn_fold_s2c_transcript_epochs`, when the server's last claim carries the secrets (K, H) of
+///     each key exchange (the current instrumentation): every epoch's keys derive from them, so the
+///     server's output is compared after a rekey too, and also when the attacker's ECDH key or the
+///     key-exchange algorithm was mutated (nothing comes from the wire);
+///   * `fn_fold_transcript_first_epoch` otherwise (a vendor built with the older instrumentation,
+///     which exposes the session id only): the first epoch, with K from the wire and H from the
+///     claim, as below.
 ///
 /// REQUIRES A CLAIMER-INSTRUMENTED SERVER PUT. The exchange hash H is read from
 /// the server's completion claim (`fn_claim_exchange_hash`), so a PUT built
@@ -3674,9 +3835,10 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     // plain AES-GCM offer the old reconstruction hard-coded — and it stays correct
     // under negotiation/downgrade mutation, where a hard-coded reconstructed I_C
     // would desync from the mutated KEXINIT and silently break s2c decryption
-    // (the whole encrypted layer would go uncompared). The shared secret K is
-    // still reconstructed from the wire (attacker's ephemeral priv + server Q_S);
-    // only H moves to the claim. See `fn_claim_exchange_hash`.
+    // (the whole encrypted layer would go uncompared). For this first-epoch
+    // fallback, the shared secret K is still reconstructed from the wire
+    // (attacker's ephemeral priv + server Q_S); only H comes from the claim. See
+    // `fn_claim_exchange_hash`. The epochs fold takes both from the claim.
     let exch_hash = term! { fn_claim_exchange_hash(((server, 0))) };
     let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
     let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
@@ -3692,7 +3854,10 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     // many drains there are or how each stack batched them. Exactly one
     // `AlignedTranscript` is emitted per PUT and the two are compared 1:1 (no
     // per-drain prefixes, hence no batching-induced false positives).
-    vec![term! { fn_fold_s2c_transcript(((server, *)/RawSshMessageFlight), (@key), (@iv)) }]
+    vec![
+        term! { fn_fold_s2c_transcript_epochs(((server, *)/RawSshMessageFlight), ((server, 0))) },
+        term! { fn_fold_transcript_first_epoch(((server, *)/RawSshMessageFlight), ((server, 0)), (@key), (@iv)) },
+    ]
 }
 
 /// Differential-fuzzing decryption recipe for a **client** PUT agent (c2s) — the
@@ -3712,20 +3877,24 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
 ///   * H is sourced from the CLIENT's own completion claim (session id) — both harnesses emit the
 ///     handshake claim for the client role too — for the same mutation-robustness reason as the s2c
 ///     recipe.
-///   * The c2s key/IV (RFC 4253 §7.2 letters 'C'/'A'), and the direction-agnostic
-///     `fn_fold_s2c_transcript` (a plain GCM peel from counter 0 over the concatenated flight;
-///     despite its name it does not assume a direction).
+///   * The c2s key/IV (RFC 4253 §7.2 letters 'C'/'A'), and the direction-agnostic first-epoch fold
+///     (a plain GCM peel from counter 0 over the concatenated flight).
 ///
-/// If the attacker's ephemeral key was mutated away from `fn_client_ecdh_privkey`,
-/// K is wrong, the fold decrypts nothing, and the comparison degrades to the
-/// plaintext prefix — the same best-effort behaviour as the s2c recipe.
+/// As for the s2c recipe, `fn_fold_c2s_transcript_epochs` decrypts every epoch instead when the
+/// client's last claim carries the secrets of its key exchanges; exactly one of the two recipes
+/// yields the client's transcript. Without those secrets, if the attacker's ephemeral key was
+/// mutated away from `fn_client_ecdh_privkey`, K is wrong, the fold decrypts nothing, and the
+/// comparison degrades to the plaintext prefix — the same best-effort behaviour as the s2c recipe.
 pub fn client_decryption_recipes_aesgcm(client: AgentName) -> Vec<Term<SshProtocolTypes>> {
     let q_c = term! { (client, 0)[None]/SshBytes };
     let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
     let exch_hash = term! { fn_claim_exchange_hash(((client, 0))) };
     let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
     let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
-    vec![term! { fn_fold_s2c_transcript(((client, *)/RawSshMessageFlight), (@key), (@iv)) }]
+    vec![
+        term! { fn_fold_c2s_transcript_epochs(((client, *)/RawSshMessageFlight), ((client, 0))) },
+        term! { fn_fold_transcript_first_epoch(((client, *)/RawSshMessageFlight), ((client, 0)), (@key), (@iv)) },
+    ]
 }
 
 #[cfg(test)]
