@@ -34,8 +34,8 @@
 #endif
 #include <libressl_internal/ssl_local.h>
 
-// The handshake state moved from s3->internal->hs (3.x) to s3->hs (4.x).
-#if LIBRESSL_VERSION_NUMBER < 0x40000000L
+// The handshake state moved from s3->internal->hs (<= 3.4) to s3->hs (>= 3.5).
+#if LIBRESSL_VERSION_NUMBER < 0x30500000L
 #define PUT_SSL_HS(ssl) ((ssl)->s3->internal->hs)
 #else
 #define PUT_SSL_HS(ssl) ((ssl)->s3->hs)
@@ -1252,6 +1252,18 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
         memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
         int ret = SSL_clear(agent->ssl);
         setup_msg_callback(agent);
+        // LibreSSL's SSL_clear() does not reset `handshake_func` (left as ssl3_connect/ssl3_accept
+        // after a TLS 1.2 handshake while the method is restored to the version-flexible one), so
+        // the next SSL_do_handshake() would skip the version-flexible entry point and fail with
+        // "internal error". Re-select the role, as recreate_ssl_from_agent_ctx() does.
+        if (agent->descriptor.role == CLIENT)
+        {
+            SSL_set_connect_state(agent->ssl);
+        }
+        else
+        {
+            SSL_set_accept_state(agent->ssl);
+        }
         if (ret == 0)
         {
             return get_result(agent, SSL_ERROR_SSL, false);

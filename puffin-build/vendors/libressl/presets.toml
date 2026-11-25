@@ -19,3 +19,14 @@ sancov = true
 sources = { url = "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.2.1.tar.gz", hash = "sha256:6d5c2f58583588ea791f4c8645004071d00dfa554a5bf788a006ca1eb5abd70b", version = "4.2.1" }
 builder = { type = "builtin", name = "libressl" }
 sancov = true
+
+[libressl362-asan]
+sources = { url = "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.6.2.tar.gz", hash = "sha256:4be80fff073746cf50b4a8e5babe2795acae98c6b132a9e02519b445dfbfd033", version = "3.6.2" }
+builder = { type = "builtin", name = "libressl" }
+asan = true
+sancov = true
+
+[libressl362]
+sources = { url = "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.6.2.tar.gz", hash = "sha256:4be80fff073746cf50b4a8e5babe2795acae98c6b132a9e02519b445dfbfd033", version = "3.6.2" }
+builder = { type = "builtin", name = "libressl" }
+sancov = true

@@ -1,5 +1,12 @@
 use_languages(C)
 
+# CVE-2023-35784: ssl3_free() does not NULL verified_chain (field introduced in 3.5.0,
+# fixed in 3.6.3 / 3.7.3). SSL_clear() on a connection whose method was changed during
+# version negotiation runs ssl_free+ssl_new, leaving a dangling verified_chain.
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.5.0" AND VENDOR_VERSION VERSION_LESS "3.6.3")
+  declare_vulnerability("CVE-2023-35784" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2023-35784.patch)
+endif()
+
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/common/arc4random_prng.c" "<SOURCE_DIR>/crypto/compat/arc4random.c")
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/common/arc4random_prng.h" "<SOURCE_DIR>/crypto/compat/arc4random.h")
 
@@ -12,6 +19,19 @@ list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/tls1
 # Reorder default signature algorithm preference to put SHA256 first (matching
 # OpenSSL), since LibreSSL does not expose an API to configure sigalgs at runtime.
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/ssl_sigalgs.c -P "${CMAKE_CURRENT_LIST_DIR}/common/patch_sigalgs.cmake")
+
+foreach(CVE IN LISTS fix)
+  if(NOT HAS_${CVE})
+    message(FATAL_ERROR "Requested fix for unknown CVE '${CVE}'")
+  endif()
+
+  if(NOT PATCH_${CVE})
+    message(FATAL_ERROR "Requested fix for CVE '${CVE}' but no patch is known")
+  endif()
+
+  patch(FILE ${PATCH_${CVE}})
+  list(APPEND FIXED_VULNERABILITIES ${CVE})
+endforeach()
 
 cmake_builder(
   CMAKE_FLAGS
@@ -75,6 +95,19 @@ else()
     "<SOURCE_DIR>/ssl/bytestring.h"
     "${INTERNAL_DIR}/"
   )
+  # tls_internal.h / tls_content.h appeared after 3.3.x and are included by tls13_internal.h
+  if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.5.0")
+    list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
+      "<SOURCE_DIR>/ssl/tls_internal.h"
+      "<SOURCE_DIR>/ssl/tls_content.h"
+      "${INTERNAL_DIR}/"
+    )
+  endif()
+  # In 3.5.x - 3.x, libtls.a bundles its own copies of libssl/libcrypto objects, which clash at
+  # link time (the harness links every lib/*.a and does not use the tls_* API).
+  if(VENDOR_VERSION VERSION_GREATER_EQUAL "3.5.0")
+    list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E remove -f "${CMAKE_INSTALL_PREFIX}/lib/libtls.a")
+  endif()
 endif()
 
 set(tls12 yes)

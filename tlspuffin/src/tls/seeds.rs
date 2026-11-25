@@ -1628,14 +1628,41 @@ pub fn _seed_client_attacker12(
 pub fn seed_server_attacker12(client: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_server_attacker12(client).0
 }
+
 pub fn _seed_server_attacker12(
     client: AgentName,
+) -> (Trace<TLSProtocolTypes>, Term<TLSProtocolTypes>) {
+    _seed_server_attacker12_conn(client, 0)
+}
+
+/// Two consecutive standard TLS 1.2 handshakes (ECDHE, full handshake, no resumption) between the
+/// same PUT client and a DY attacker playing the server. The first handshake is a prior trace; the
+/// second one reuses the same client agent. Depending on the PUT option `use_clear`, the agent is
+/// either recreated or reset with `SSL_clear()`-like functionality in between.
+///
+/// This is the generic base seed to exercise agent reuse / reset on a client that has verified a
+/// server certificate and negotiated TLS 1.2 (see `seed_cve_2023_35784`).
+pub fn seed_server_attacker12_then_12(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let first_handshake = _seed_server_attacker12_conn(client, 0).0;
+    let (second_handshake, _) = _seed_server_attacker12_conn(client, 1);
+
+    Trace {
+        prior_traces: vec![first_handshake],
+        ..second_handshake
+    }
+}
+/// Same as [`_seed_server_attacker12`], but for the `conn`-th connection of `client` (0-based):
+/// `conn` is the occurrence index used to query the client messages (ClientHello, ...), which
+/// grows when the same agent is reused across several traces.
+pub fn _seed_server_attacker12_conn(
+    client: AgentName,
+    conn: u16,
 ) -> (Trace<TLSProtocolTypes>, Term<TLSProtocolTypes>) {
     let server_hello = term! {
           fn_server_hello(
             fn_protocol_version12,
             fn_new_random,
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            ((client, conn)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_cipher_suite12,
             fn_compression,
             (fn_server_extensions_make(
@@ -1650,7 +1677,7 @@ pub fn _seed_server_attacker12(
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript12,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                ((client, conn)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -1676,7 +1703,7 @@ pub fn _seed_server_attacker12(
         fn_server_key_exchange(
             (fn_sign_rsa_ecdhe_server_key_exchange12(
                 fn_named_group_secp384r1,
-                ((client, 0)),
+                ((client, conn)),
                 fn_new_random,
                 fn_alice_key
             ))
@@ -1700,13 +1727,13 @@ pub fn _seed_server_attacker12(
     let client_key_exchange_transcript = term! {
         fn_append_transcript(
             (@server_hello_done_transcript),
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+            ((client, conn)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
         )
     };
 
     let client_ecdh_pubkey = term! {
         fn_decode_client_ecdh_pubkey(
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+            ((client, conn)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
         )
     };
 
@@ -1714,13 +1741,13 @@ pub fn _seed_server_attacker12(
         fn_append_transcript(
             (@client_key_exchange_transcript),
             (fn_decrypt12( // Decrypt client finished
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
+                ((client, conn)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
                 fn_new_random,
                 (@client_ecdh_pubkey),
                 fn_named_group_secp384r1,
                 fn_false,
                 fn_seq_0,
-                ((client, 0)),
+                ((client, conn)),
                 fn_cipher_suite12
             ))
         )
@@ -1732,7 +1759,7 @@ pub fn _seed_server_attacker12(
             (@client_ecdh_pubkey),
             (@client_finished_transcript),
             fn_named_group_secp384r1,
-            ((client, 0)),
+            ((client, conn)),
             fn_cipher_suite12
         )
     };
@@ -1789,7 +1816,7 @@ pub fn _seed_server_attacker12(
                             fn_named_group_secp384r1,
                             fn_false,
                             fn_seq_0,
-                            ((client, 0)),
+                            ((client, conn)),
                             fn_cipher_suite12
                         )
                     }
@@ -2787,6 +2814,7 @@ pub fn create_corpus(
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
         seed_server_attacker12: put.supports("tls12"),
+        seed_server_attacker12_then_12: put.supports("tls12"),
     )
 }
 
@@ -2867,6 +2895,16 @@ pub mod tests {
     fn test_seed_server_attacker12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker12.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls12))]
+    fn test_seed_server_attacker12_then_12(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker12_then_12.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 

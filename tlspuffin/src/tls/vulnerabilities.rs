@@ -42,6 +42,9 @@ pub fn create_corpus(
 
         // Downgrade attack: the client offers both TLS 1.2 and TLS 1.3 (`TLSVersion::Both`).
         seed_cve_2024_5814: put.supports("tls12") && put.supports("tls13"),
+
+        // Needs a PUT built with CVE-2023-35784 and run with `use_clear=true` (SSL_clear on agent reuse).
+        seed_cve_2023_35784: put.supports("tls12"),
     )
 }
 
@@ -1371,6 +1374,25 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
         ],
         ..Default::default()
     }
+}
+
+/// <https://nvd.nist.gov/vuln/detail/CVE-2023-35784>
+///
+/// Root cause (CWE-415 / CWE-416): LibreSSL 3.5.0 - 3.6.2 (3.7.x < 3.7.3) `ssl3_free()` frees
+/// `verified_chain` without resetting the pointer. `SSL_clear()` on a connection whose method was
+/// switched during version negotiation (and with no session left) takes the
+/// `ssl_free()` + `ssl_new()` branch; the fresh `ssl3_new()` -> `ssl3_clear()` then frees the
+/// dangling `verified_chain` a second time.
+///
+/// Reachability: not wire-triggered by itself. A first handshake makes the LibreSSL client verify
+/// the attacker's certificate over TLS 1.2 (sets `verified_chain`; the ServerHello also switches
+/// `s->method` from the flexible method to the TLS 1.2 one, which a TLS 1.3 handshake does not),
+/// then the agent is reused by a second trace, which makes puffin reset it via `SSL_clear()` (PUT
+/// option `use_clear=true`). The double free happens at that reset, before the second handshake
+/// (a standard TLS 1.2 one, see `seed_server_attacker12_then_12`) starts. `use_clear` is PUT
+/// config, not part of the trace, so it must be passed with `--put-use-clear`.
+pub fn seed_cve_2023_35784(client: AgentName) -> Trace<TLSProtocolTypes> {
+    seed_server_attacker12_then_12(client)
 }
 
 /// <https://nvd.nist.gov/vuln/detail/CVE-2024-5814>

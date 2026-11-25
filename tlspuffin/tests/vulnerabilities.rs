@@ -104,6 +104,24 @@ fn test_seed_cve_2022_25638(put: &str) {
 
 #[apply(test_puts,
     filter = all(
+        CVE_2023_35784,
+        tls12,
+    )
+)]
+fn test_seed_cve_2023_35784(put: &str) {
+    expect_trace_crash(
+        seed_cve_2023_35784.build_trace(),
+        default_runner_for_desc(puffin::put::PutDescriptor::new(
+            put,
+            vec![("use_clear", "true")],
+        )),
+        std::time::Duration::from_secs(20),
+        Some(20),
+    );
+}
+
+#[apply(test_puts,
+    filter = all(
         CVE_2022_38152,
         tls12,
     )
