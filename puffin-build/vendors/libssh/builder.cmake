@@ -1,10 +1,11 @@
 use_languages(C)
 
-# Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) to the
-# claim layer so the decryption recipe can source H from the PUT instead of
-# reconstructing it from a (mutation-stale) hard-coded client KEXINIT. Pure
-# observation; no behaviour change. instrument_claims.cmake handles the session-id
-# field of every version in presets.toml.
+# Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) and the
+# secrets (H, K) of each key exchange to the claim layer, so that the decryption
+# recipe derives the keys of every epoch of the PUT's output from the PUT itself
+# instead of reconstructing them from the wire and a (mutation-stale) hard-coded
+# client KEXINIT. Pure observation; no behaviour change. instrument_claims.cmake
+# handles the fields of every version in presets.toml.
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
 
 cmake_builder(
