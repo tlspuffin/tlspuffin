@@ -140,7 +140,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             // Option 2 (impersonating eve, you have to send eve cert):
             (fn_payload_u16(fn_eve_pkcs1_signature))
             // Option 3 (for testing):
-            /* (fn_rsa_sign_client(
+            /* (fn_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
                 fn_eve_private_key, // some random private key
                 fn_rsa_pkcs1_signature_algorithm
@@ -1661,9 +1661,10 @@ pub fn seed_cve_2025_11934(client: AgentName) -> Trace<TLSProtocolTypes> {
         fn_certificate_verify(
             fn_ecdsa_signature_algorithm,
             (fn_payload_u16(
-                (fn_ecdsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
-                    fn_random_ec_key
+                    fn_random_ec_key,
+                    fn_ecdsa_signature_algorithm
                 ))
             ))
         )

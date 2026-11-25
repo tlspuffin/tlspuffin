@@ -669,7 +669,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
                     fn_alice_key,
                     fn_rsa_pss_signature_algorithm
@@ -713,7 +713,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                 // permissive default, which otherwise always includes every algorithm the Mapper
                 // can produce (see InitSuitesHashSigAlgo) - making a CVE-2025-11934-style
                 // downgrade structurally undetectable. With this restriction in place, a mutation
-                // campaign that swaps `fn_rsa_pss_signature_algorithm`/`fn_rsa_sign_server` below
+                // campaign that swaps `fn_rsa_pss_signature_algorithm`/`fn_sign_server` below
                 // for a different algorithm/signing function pair has a chance to land outside
                 // this list and get caught by the `available_signature_algorithms` oracle in
                 // `tls/violation.rs`, instead of the restriction being structurally unreachable by
@@ -879,7 +879,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
                     fn_alice_key,
                     fn_rsa_pss_signature_algorithm
@@ -1070,7 +1070,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
                     fn_alice_key,
                     fn_rsa_pss_signature_algorithm
@@ -1281,7 +1281,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_client(
+                (fn_sign_client(
                     (fn_certificate_transcript(((server, 0)))),
                     fn_bob_key,
                     fn_rsa_pss_signature_algorithm

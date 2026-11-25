@@ -116,7 +116,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
                     fn_alice_key,
                     fn_rsa_pss_signature_algorithm
@@ -493,7 +493,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
             (fn_payload_u16(
-                (fn_rsa_sign_server(
+                (fn_sign_server(
                     (@certificate_transcript),
                     fn_alice_key,
                     fn_rsa_pss_signature_algorithm

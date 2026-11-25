@@ -118,44 +118,35 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
 pub fn fn_eve_pkcs1_signature() -> Result<Vec<u8>, FnError> {
     Ok(include_bytes!("../../assets/eve-signature").to_vec())
 }
-pub fn fn_rsa_sign_client(
+/// Signs a TLS 1.3 client `CertificateVerify` with whatever algorithm `scheme` selects (RSA
+/// PKCS1/PSS or ECDSA-P256 - see [`sign::sign`]). Replaces the former `fn_rsa_sign_client`/
+/// `fn_ecdsa_sign_client` pair: those had different arities (ECDSA had no `scheme` argument,
+/// since the only backend available at the time was hardcoded to one algorithm), so a mutator
+/// could never move between them without also reshaping the call itself. This one function
+/// covers both: changing `scheme` is enough.
+pub fn fn_sign_client(
     transcript: &HandshakeHash,
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    sign::rsa_sign(
+    sign::sign(
         &construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw()),
         private_key,
         scheme,
     )
 }
 
-pub fn fn_rsa_sign_server(
+/// Server-side counterpart of [`fn_sign_client`].
+pub fn fn_sign_server(
     transcript: &HandshakeHash,
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    sign::rsa_sign(
+    sign::sign(
         &construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw()),
         private_key,
         scheme,
     )
-}
-
-pub fn fn_ecdsa_sign_client(
-    transcript: &HandshakeHash,
-    private_key: &Vec<u8>,
-) -> Result<Vec<u8>, FnError> {
-    let message = construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw());
-    sign::ecdsa_sign(&message, private_key)
-}
-
-pub fn fn_ecdsa_sign_server(
-    transcript: &HandshakeHash,
-    private_key: &Vec<u8>,
-) -> Result<Vec<u8>, FnError> {
-    let message = construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw());
-    sign::ecdsa_sign(&message, private_key)
 }
 
 pub fn fn_rsa_pss_signature_algorithm() -> Result<SignatureScheme, FnError> {

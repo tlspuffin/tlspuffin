@@ -728,33 +728,38 @@ where
     }
 }
 
-/// Does NOT fuzz anything: it forces, one at a time, the exact four mutations identified by the
-/// statistical analysis as the only way to reach CVE-2025-11934 from a *default*-corpus seed
+/// Does NOT fuzz anything: it forces, one at a time, the mutations identified by the statistical
+/// analysis as the only way to reach CVE-2025-11934 from a *default*-corpus seed
 /// (`seed_server_attacker_full`, whose `sigalgs` is restricted to `"RSA-PSS+SHA256"`), then checks
-/// that the resulting trace is a genuine, detected attack - not just that the four mutations
+/// that the resulting trace is a genuine, detected attack - not just that the mutations
 /// individually type-check.
 ///
 /// Each step is driven to completion by `force_mutation_until` rather than left to chance: blindly
-/// hoping all four land together in one real campaign has been estimated at roughly 1e-17 (the
-/// corpus-selection dilution alone, ignored here since we start directly from the right seed, was
-/// already ~1/1000; each mutation step on its own is comparatively reachable - which is why
-/// forcing them one at a time, rather than all at once, is computationally trivial). This test
-/// exists to confirm two things the written analysis could not, on its own, be fully sure of: that
-/// `ReplaceFunctionReshapeMutator` produces a correct result on this real, deep TLS construction
-/// (not just the synthetic test in `puffin::fuzzer::mutations::tests`), and that no fifth
+/// hoping all of them land together in one real campaign was originally estimated at roughly
+/// 1e-17 (the corpus-selection dilution alone, ignored here since we start directly from the right
+/// seed, was already ~1/1000; each mutation step on its own is comparatively reachable - which is
+/// why forcing them one at a time, rather than all at once, is computationally trivial). This test
+/// exists to confirm what the written analysis could not, on its own, be fully sure of: that no
 /// requirement was missed - if the oracle does not fire at the end, the reachability analysis
 /// itself is wrong.
 ///
-/// Steps 1-3 require *every* occurrence of the old function to flip, not just one: each of
+/// Only 3 steps now, not 4: `fn_sign_server` (see `tlspuffin::tls::fn_cert::fn_sign_server`)
+/// dispatches on its `scheme` argument to either RSA or ECDSA signing internally, so flipping the
+/// scheme (step 3) is enough on its own - there is no longer a separate "signing call shape"
+/// mutation needed to move from RSA to ECDSA (that used to require `ReplaceFunctionReshapeMutator`,
+/// since the old `fn_rsa_sign_server`/`fn_ecdsa_sign_server` had different arities).
+///
+/// Each step requires *every* occurrence of the old function to flip, not just one: each of
 /// `fn_alice_cert`/`fn_alice_key`/`fn_rsa_pss_signature_algorithm` is duplicated across the trace
 /// (the `CertificateVerify` term is embedded both in the message actually sent and in the
 /// dependency chain used to compute `server_finished`). `ReplaceMatchMutator`'s scope mechanism
 /// (Global/Step) only replicates a replacement to occurrences that are still structurally *equal*
 /// to the one chosen as representative - so accepting a partial flip (satisfied by the more likely
-/// Individual scope) leaves the two copies of the signing call looking different from each other,
-/// which silently makes step 4's required Global-scope flip impossible to ever satisfy afterwards
-/// (confirmed empirically while writing this test: 0 full flips in 300,000 tries once the earlier
-/// steps were left partial, versus a steady, non-zero rate once they require a full flip too).
+/// Individual scope) would leave the two copies of the signing call looking different from each
+/// other, silently blocking any later step that needs a full flip across both copies (confirmed
+/// empirically while first writing this test, before `fn_sign_server` existed: 0 full flips in
+/// 300,000 tries once an earlier step was left partial, versus a steady, non-zero rate once every
+/// step required a full flip).
 ///
 /// 1. Certificate: `fn_alice_cert` -> `fn_alice_ec_cert` (`ReplaceMatchMutator`). Alice's EC
 ///    certificate, not the untrusted `fn_random_ec_cert`: the client's trust store only accepts
@@ -767,19 +772,14 @@ where
 ///    matching the certificate from step 1.
 /// 3. Declared *and* signed-with scheme: `fn_rsa_pss_signature_algorithm` ->
 ///    `fn_ecdsa_signature_algorithm`, both occurrences at once via the Global/Step scope
-///    mechanism (`ReplaceMatchMutator`).
-/// 4. Signing call shape: `fn_rsa_sign_server(transcript, key, scheme)` ->
-///    `fn_ecdsa_sign_server(transcript, key)`, dropping `scheme` and keeping `transcript`/`key` by
-///    positional type match (`ReplaceFunctionReshapeMutator`).
+///    mechanism (`ReplaceMatchMutator`) - `fn_sign_server`'s own shape never changes.
 #[apply(test_puts,
     attrs = [should_panic(expected = "Negotiated signature algorithm is not in agent's configured signature algorithms list")],
     filter = all(CVE_2025_11934, tls13)
 )]
 fn test_mutators_can_reach_cve_2025_11934(put: &str) {
     use puffin::algebra::dynamic_function::DescribableFunction;
-    use puffin::fuzzer::mutations::{
-        MutationConfig, ReplaceFunctionReshapeMutator, ReplaceMatchMutator,
-    };
+    use puffin::fuzzer::mutations::{MutationConfig, ReplaceMatchMutator};
     use puffin::protocol::ProtocolTypes;
     use tlspuffin::test_utils::create_state;
     use tlspuffin::tls::fn_impl::*;
@@ -789,14 +789,13 @@ fn test_mutators_can_reach_cve_2025_11934(put: &str) {
     let config = MutationConfig::default_with_bit();
 
     let mut replace_match = ReplaceMatchMutator::new(config, signature);
-    let mut reshape = ReplaceFunctionReshapeMutator::new(config, signature);
 
     let mut trace = seed_server_attacker_full.build_trace();
 
     // 1. Certificate (every occurrence - the term is duplicated across the trace, e.g. once for
     //    the direct wire send and once more inside the dependency chain used to compute
     //    `server_finished`; a partial flip would leave the two copies structurally different from
-    //    each other, which would silently block step 4's Global-scope replication later, since it
+    //    each other, which would silently block step 3's Global-scope replication later, since it
     //    relies on both copies of the signing call still being equal to one another).
     trace = force_mutation_until(&trace, &mut replace_match, &mut state, |t| {
         t.count_functions_by_name(fn_alice_cert.name()) == 0
@@ -809,16 +808,11 @@ fn test_mutators_can_reach_cve_2025_11934(put: &str) {
             && t.count_functions_by_name(fn_alice_ec_key.name()) > 0
     });
 
-    // 3. Declared + signed scheme (both occurrences, via Global scope).
+    // 3. Declared + signed scheme (both occurrences, via Global scope) - fn_sign_server's own
+    //    shape never changes, it dispatches on this argument internally.
     trace = force_mutation_until(&trace, &mut replace_match, &mut state, |t| {
         t.count_functions_by_name(fn_rsa_pss_signature_algorithm.name()) == 0
             && t.count_functions_by_name(fn_ecdsa_signature_algorithm.name()) > 0
-    });
-
-    // 4. Signing call shape.
-    trace = force_mutation_until(&trace, &mut reshape, &mut state, |t| {
-        t.count_functions_by_name(fn_rsa_sign_server.name()) == 0
-            && t.count_functions_by_name(fn_ecdsa_sign_server.name()) > 0
     });
 
     let runner = default_runner_for(put);

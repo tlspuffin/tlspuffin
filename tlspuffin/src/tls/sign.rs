@@ -67,3 +67,27 @@ pub fn ecdsa_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, FnError
     let signature: p256::ecdsa::Signature = key.sign(message);
     Ok(signature.to_der().as_bytes().to_vec())
 }
+
+/// Signs with whatever backend `scheme` calls for, dispatching on its value instead of requiring
+/// a differently-shaped Mapper function per algorithm family (see [`crate::tls::fn_cert::fn_sign_server`]/
+/// [`crate::tls::fn_cert::fn_sign_client`]: same arity whether `scheme` picks RSA or ECDSA, so a
+/// mutator only has to change that one leaf, not the shape of the call around it).
+///
+/// Supports exactly what [`rsa_sign`]/[`ecdsa_sign`] support: RSA PKCS1/PSS x SHA256/384/512, and
+/// ECDSA P-256/SHA-256. Anything else registered in the wire `SignatureScheme` enum (P-384/P-521,
+/// Ed25519/Ed448) would need a new crypto backend (e.g. the `p384` or `ed25519-dalek` crates), not
+/// just a new match arm.
+pub fn sign(message: &[u8], private_key: &[u8], scheme: &SignatureScheme) -> Result<Vec<u8>, FnError> {
+    match scheme {
+        SignatureScheme::RSA_PKCS1_SHA256
+        | SignatureScheme::RSA_PKCS1_SHA384
+        | SignatureScheme::RSA_PKCS1_SHA512
+        | SignatureScheme::RSA_PSS_SHA256
+        | SignatureScheme::RSA_PSS_SHA384
+        | SignatureScheme::RSA_PSS_SHA512 => rsa_sign(message, private_key, scheme),
+        SignatureScheme::ECDSA_NISTP256_SHA256 => ecdsa_sign(message, private_key),
+        _ => Err(FnError::Crypto(format!(
+            "Unsupported signature scheme: {scheme:?}"
+        ))),
+    }
+}
