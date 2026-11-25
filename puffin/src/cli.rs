@@ -753,6 +753,11 @@ where
         config.target = target;
         config.initial_corpus = requested_corpora;
 
+        if let Err(err) = put_registry.prepare() {
+            log::error!("Failed to prepare PUT services: {err}");
+            return ExitCode::FAILURE;
+        }
+
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {

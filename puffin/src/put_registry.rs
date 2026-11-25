@@ -129,6 +129,13 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             factory.rng_reseed();
         }
     }
+
+    pub fn prepare(&self) -> Result<(), Error> {
+        for factory in self.factories.values() {
+            factory.prepare()?;
+        }
+        Ok(())
+    }
 }
 
 impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
@@ -144,6 +151,10 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
 
 /// Factory for instantiating programs-under-test.
 pub trait Factory<PB: ProtocolBehavior> {
+    fn prepare(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
     fn create(
         &self,
         agent_descriptor: &AgentDescriptor<

@@ -34,8 +34,9 @@ impl JmsConfig {
                 .unwrap_or_else(|_| "control-components::control-component-1".to_string()),
             username: env::var("SPP_JMS_USERNAME").unwrap_or_else(|_| "artemis".to_string()),
             password: env::var("SPP_JMS_PASSWORD").unwrap_or_else(|_| "artemis".to_string()),
-            message_type: env::var("SPP_JMS_MESSAGE_TYPE")
-                .unwrap_or_else(|_| "ch.post.it.evoting.sppuffin.FuzzedPayload".to_string()),
+            message_type: env::var("SPP_JMS_MESSAGE_TYPE").unwrap_or_else(|_| {
+                "ch.post.it.evoting.domain.tally.MixDecryptOnlineRequestPayload".to_string()
+            }),
             tenant_id: env::var("SPP_JMS_TENANT_ID").unwrap_or_else(|_| "test".to_string()),
             correlation_id: env::var("SPP_JMS_CORRELATION_ID")
                 .unwrap_or_else(|_| "sppuffin".to_string()),

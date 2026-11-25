@@ -43,6 +43,7 @@ define_signature!(
     fn_seq_14
     fn_seq_15
     fn_seq_16
+    fn_mix_decrypt_online_request
 );
 
 #[derive(Clone, Debug)]
