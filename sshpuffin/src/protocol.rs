@@ -257,11 +257,14 @@ impl ProtocolTypes for SshProtocolTypes {
                 // AES-GCM is the ONLY cipher negotiated in the differential:
                 // `differential_fuzzing_uniformise_put_config` pins both PUTs to
                 // `aes256-gcm,aes128-gcm`, and chacha20-poly1305 is not even
-                // offered. The AES-GCM recipe is framing-INDEPENDENT — it folds
-                // the whole s2c stream via `((server, *)/RawSshMessageFlight)` +
-                // `fn_fold_s2c_transcript`, which re-accumulates the wire bytes and
-                // re-deframes, so libssh's and wolfSSH's different packetisation
-                // (1 vs 2 on-wire chunks) yields the SAME transcript.
+                // offered. The AES-GCM recipes are framing-INDEPENDENT — they fold
+                // the whole s2c stream via `((server, *)/RawSshMessageFlight)`, with
+                // `fn_fold_s2c_transcript_epochs` (every epoch, keys from the
+                // key-exchange secrets of the server's claim) or, for a vendor built
+                // by an older puffin-build, `fn_fold_transcript_first_epoch`: both
+                // re-accumulate the wire bytes and re-deframe, so libssh's and
+                // wolfSSH's different packetisation (1 vs 2 on-wire chunks) yields
+                // the SAME transcript.
                 //
                 // The legacy ChaCha20 recipe (`server_decryption_recipes`, now
                 // commented out in seeds.rs) is

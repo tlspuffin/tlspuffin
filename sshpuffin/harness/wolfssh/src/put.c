@@ -35,13 +35,20 @@
  * PUFFIN session-id patch (puffin-build/vendors/wolfssh/instrument_claims.cmake).
  * The accessor exposes the SSH session id (exchange hash H) from the internal
  * WOLFSSH struct — not in any public wolfSSH header — so the decryption recipe
- * can derive the server-to-client keys. Declared weak so a plain (non-patched)
- * wolfSSH still links; then the call resolves to NULL and session_id stays
- * empty. Pure observation; never affects the protocol path.
+ * can derive the server-to-client keys; a second one the secrets of the key exchange behind the
+ * outbound keys, from which the differential derives the keys of every epoch, also after a rekey.
+ * Declared weak so a plain (non-patched) wolfSSH still links; then the call resolves to NULL and
+ * session_id stays empty (or, with an older patch, the claims carry no key-exchange secrets).
+ * Pure observation; never affects the protocol path.
  */
 #ifdef HAS_CLAIMS
 extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out, unsigned int *len)
     __attribute__((weak));
+extern int puffin_wolfssh_get_kex_secret(WOLFSSH *ssh,
+                                         const unsigned char **h,
+                                         unsigned int *h_len,
+                                         const unsigned char **k,
+                                         unsigned int *k_len) __attribute__((weak));
 #endif /* HAS_CLAIMS */
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
@@ -70,6 +77,10 @@ struct AGENT_TYPE
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the completion claim fires once */
     bool kex_claim_emitted;    /* guard so the post-KEX (session-id) claim fires once */
+    /* The secrets of each key exchange so far, recorded once the outbound keys switched to it
+       (track_kex_secrets); every claim carries them. */
+    SSH_KEX_SECRET kex_secrets[SSH_CLAIM_MAX_KEX];
+    uint8_t kex_count;
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -507,6 +518,43 @@ static void claim_get_text(AGENT agent, WS_Text id, char *dst)
     (void)wolfSSH_GetText(agent->ssh, id, dst, SSH_CLAIM_STR_LEN);
 }
 
+#ifdef HAS_CLAIMS
+/* Record the secrets of the key exchange behind the outbound keys if they are new: the first key
+ * exchange's, or a rekey's once this agent has sent its NEWKEYS. True when it recorded one. */
+static bool record_kex_secret(AGENT agent)
+{
+    if (puffin_wolfssh_get_kex_secret == NULL || agent->kex_count >= SSH_CLAIM_MAX_KEX)
+        return false;
+    const unsigned char *h = NULL;
+    const unsigned char *k = NULL;
+    unsigned int h_len = 0;
+    unsigned int k_len = 0;
+    if (puffin_wolfssh_get_kex_secret(agent->ssh, &h, &h_len, &k, &k_len) != 0 || h == NULL ||
+        k == NULL || h_len == 0 || h_len > sizeof(agent->kex_secrets[0].h) || k_len == 0 ||
+        k_len > sizeof(agent->kex_secrets[0].k))
+        return false;
+    if (agent->kex_count > 0)
+    {
+        const SSH_KEX_SECRET *last = &agent->kex_secrets[agent->kex_count - 1];
+        if (last->h_len == h_len && memcmp(last->h, h, h_len) == 0)
+            return false; /* the key exchange already recorded */
+    }
+    SSH_KEX_SECRET *secret = &agent->kex_secrets[agent->kex_count++];
+    memcpy(secret->h, h, h_len);
+    secret->h_len = (uint8_t)h_len;
+    memcpy(secret->k, k, k_len);
+    secret->k_len = (uint16_t)k_len;
+    return true;
+}
+#endif /* HAS_CLAIMS */
+
+/* Every claim carries the secrets of the key exchanges recorded so far. */
+static void claim_set_kex_secrets(AGENT agent, Claim *claim)
+{
+    memcpy(claim->kex_secrets, agent->kex_secrets, sizeof(SSH_KEX_SECRET) * agent->kex_count);
+    claim->kex_count = agent->kex_count;
+}
+
 /*
  * Build a HandshakeComplete claim from the session's negotiated parameters and
  * hand it to the registered callback. Fires at most once per agent.
@@ -545,11 +593,84 @@ static void emit_handshake_claim(AGENT agent)
             claim.session_id_len = (uint8_t)sid_len;
         }
     }
-#endif               /* HAS_CLAIMS */
+    /* This claim comes from the userauth callback, inside a step, which may be the one that
+       switched the outbound keys (a client that sends the end of its key exchange and its
+       authentication in one write): record their secrets first, track_kex_secrets has not run. */
+    record_kex_secret(agent);
+#endif /* HAS_CLAIMS */
+    claim_set_kex_secrets(agent, &claim);
     claim.phase = 3; /* PHASE_DONE: this is the completed-handshake claim */
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
+}
+
+#ifdef HAS_CLAIMS
+/*
+ * The claim announcing a rekey, once this agent's outbound keys switched to it (its NEWKEYS sent),
+ * as in the libssh harness: the auth belief once authenticated, the session id, and the secrets of
+ * every key exchange so far, so that the differential decrypts the agent's output after the rekey.
+ */
+static void emit_rekey_claim(AGENT agent)
+{
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_get_text(agent, WOLFSSH_TEXT_KEX_ALGO, claim.kex);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_CIPHER, claim.cipher_in);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_CIPHER, claim.cipher_out);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_MAC, claim.hmac_in);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_MAC, claim.hmac_out);
+    if (agent->claim_emitted)
+    {
+        snprintf(claim.auth_method, SSH_CLAIM_STR_LEN, "%s", agent->auth_method);
+        snprintf(claim.auth_user, SSH_CLAIM_STR_LEN, "%s", agent->auth_user);
+        if (agent->auth_key_fp_len > 0)
+        {
+            memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
+            claim.auth_key_fp_len = agent->auth_key_fp_len;
+        }
+    }
+    if (puffin_wolfssh_get_session_id != NULL)
+    {
+        const unsigned char *sid = NULL;
+        unsigned int sid_len = 0;
+        if (puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+        {
+            if (sid_len > sizeof(claim.session_id))
+                sid_len = sizeof(claim.session_id);
+            memcpy(claim.session_id, sid, sid_len);
+            claim.session_id_len = (uint8_t)sid_len;
+        }
+    }
+    claim_set_kex_secrets(agent, &claim);
+    claim.phase = agent->claim_emitted ? 3 : 2;
+
+    agent->claimer->notify(agent->claimer->context, &claim);
+}
+#endif /* HAS_CLAIMS */
+
+/*
+ * Around each step, before its post-KEX claim, and after each call into wolfSSH (accept/connect,
+ * worker): record the secrets of the key exchange behind the outbound keys when they are new, so
+ * that every claim carries those recorded so far (the claims also record them themselves). After
+ * each call, so that a step with two rekeys keeps the secrets of both: in the session,
+ * wolfSSH_worker handles one packet per call. The first key exchange's travel in the post-KEX
+ * claim; a rekey's are announced by a claim of their own, once the post-KEX claim exists, so that
+ * the decryption recipe, which reads the agent's last claim, has them as soon as the outbound keys
+ * switch, also in a rekey that never completes. That claim repeats the auth belief of the last
+ * one: the claim comparison, which merges adjacent equal claims, does not see it. As in the libssh
+ * harness, where a poll may handle two rekeys.
+ */
+static void track_kex_secrets(AGENT agent)
+{
+#ifdef HAS_CLAIMS
+    if (agent->claimer == NULL || !record_kex_secret(agent))
+        return;
+    if (agent->kex_count > 1 && agent->kex_claim_emitted)
+        emit_rekey_claim(agent);
+#else
+    (void)agent;
+#endif /* HAS_CLAIMS */
 }
 
 /*
@@ -587,6 +708,9 @@ static void emit_kex_claim(AGENT agent)
                 sid_len = sizeof(claim.session_id);
             memcpy(claim.session_id, sid, sid_len);
             claim.session_id_len = (uint8_t)sid_len;
+            /* Inside a step too (from emit_handshake_claim): record the secrets first. */
+            record_kex_secret(agent);
+            claim_set_kex_secrets(agent, &claim);
             claim.phase = 2; /* PHASE_AUTH: KEX done, auth outcome not yet known */
             agent->claimer->notify(agent->claimer->context, &claim);
             agent->kex_claim_emitted = true;
@@ -615,9 +739,11 @@ static RESULT wolfssh_progress(AGENT agent)
        progress of a trace. This is what makes the two harnesses emit the H-carrying
        phase-2 claim at the SAME handshake point, so a mid-handshake abort no
        longer yields a spurious "one PUT has a transcript, the other has none"
-       differential. */
+       differential. The key-exchange secrets first, so that the claims carry them. */
+    track_kex_secrets(agent);
     emit_kex_claim(agent);
     RESULT result = wolfssh_step(agent);
+    track_kex_secrets(agent);
     emit_kex_claim(agent);
     return result;
 }
@@ -628,6 +754,7 @@ static RESULT wolfssh_step(AGENT agent)
     {
         int rc = (agent->descriptor.role == SSH_SERVER) ? wolfSSH_accept(agent->ssh)
                                                         : wolfSSH_connect(agent->ssh);
+        track_kex_secrets(agent);
         int cause = failure_cause(agent, rc);
         if (rc == WS_SUCCESS)
         {
@@ -720,6 +847,7 @@ static RESULT wolfssh_step(AGENT agent)
         {
             word32 channelId = 0;
             int rc = wolfSSH_worker(agent->ssh, &channelId);
+            track_kex_secrets(agent);
             /* Mirror the wolfSSH echoserver's post-handshake loop exactly (see
              * examples/echoserver.c): during a rekey, KEEP TURNING THE CRANK —
              * wolfSSH_worker returns WS_REKEYING while it drives the re-exchange

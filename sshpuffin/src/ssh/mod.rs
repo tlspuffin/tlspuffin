@@ -177,6 +177,7 @@ define_signature!(
     fn_request_unknown
     // SSH message numbers selecting a message out of a decrypted flight.
     fn_msg_kexinit
+    fn_msg_kex_ecdh_init
     fn_msg_kex_ecdh_reply
     fn_msg_userauth_pk_ok
     fn_msg_channel_open
@@ -281,6 +282,7 @@ define_signature!(
     fn_banner_id [get] // the banner line without its CR-LF
     fn_kexinit_payload
     fn_server_ecdh_pubkey [get] // Q_S field of a KEX_ECDH_REPLY
+    fn_kex_ecdh_init_pubkey [get] // Q_C field of a KEX_ECDH_INIT
     fn_server_hostkey [get] // K_S field of a KEX_ECDH_REPLY
     fn_server_hostkey_raw [get] // K_S field, from the raw packet
     fn_kex_exchange_hash [opaque] // SHA-256
@@ -317,6 +319,12 @@ define_signature!(
     // server flight into one key-aligned `AlignedTranscript` (see
     // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
     fn_fold_s2c_transcript [opaque] [no_gen] // decryption
+    // The same over every epoch of a PUT's output, with the keys of each key exchange of its
+    // last claim (also after a rekey), and the first epoch with keys from the wire for a PUT
+    // whose claims carry no such secrets. `no_gen`: comparison recipes.
+    fn_fold_s2c_transcript_epochs [opaque] [no_gen] // decryption
+    fn_fold_c2s_transcript_epochs [opaque] [no_gen] // decryption
+    fn_fold_transcript_first_epoch [opaque] [no_gen] // decryption
     // Joins two flights (not a list and one element, so not `[list]`).
     fn_concat_raw_flights
     fn_derive_ctr_key_c2s [opaque] [no_gen] // KDF

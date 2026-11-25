@@ -14,7 +14,7 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use crate::claim::{SshClaim, SshClaimInner};
+use crate::claim::{KexSecret, SshClaim, SshClaimInner};
 use crate::protocol::{AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior};
 use crate::put_registry::bindings::{
     Claim, AGENT, CLAIMER_CB, SSH_AGENT_DESCRIPTOR, SSH_AGENT_ROLE, SSH_PUT_INTERFACE,
@@ -57,28 +57,40 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     }
     let ctx = unsafe { &*(context as *const ClaimerContext) };
     let c = unsafe { &*claim };
-    // Keep only claims that CARRY A SESSION ID (H). Both harnesses emit two such
-    // claims symmetrically: a post-KEX claim (phase 2, session id set, empty auth
-    // belief — fires as soon as KEX completes, so H is available even for traces
-    // whose auth is later rejected/aborted) and, on auth success, the completion
-    // claim (phase 3, session id + auth belief). Claims WITHOUT a session id are
-    // dropped: libssh's phase-1/KEX coverage claim (emitted before KEX finishes,
-    // so its session id is empty) — which wolfSSH does not emit — would otherwise
-    // desync the two PUTs' claim sequences. The result is a symmetric sequence
-    // ([post-KEX] on failure, [post-KEX, completion] on success) that the
-    // differential compares position-wise, and `find_claim` always resolves to a
-    // session-id-bearing claim for the decryption recipe. session_id itself is
-    // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
+    // Keep only claims that CARRY A SESSION ID (H). Both harnesses emit such claims
+    // symmetrically: a post-KEX claim (phase 2, session id set, empty auth belief —
+    // fires as soon as KEX completes, so H is available even for traces whose auth
+    // is later rejected/aborted), on auth success the completion claim (phase 3,
+    // session id + auth belief), and one per rekey, as soon as the agent's outbound
+    // keys switch to it, which repeats the auth belief of the claim before it. Claims
+    // WITHOUT a session id are dropped: libssh's phase-1/KEX coverage claim (emitted
+    // before KEX finishes, so its session id is empty) — which wolfSSH does not emit
+    // — would otherwise desync the two PUTs' claim sequences. The result is a
+    // symmetric sequence ([post-KEX] on failure, [post-KEX, completion] on success)
+    // that the differential compares position-wise; it first merges adjacent equal
+    // claims, so a rekey claim never shows in the comparison. `find_claim` always
+    // resolves to a session-id-bearing claim for the decryption recipe: the last one,
+    // which carries the key-exchange secrets of every epoch. session_id and
+    // kex_secrets are #[comparable_ignore] (they differ per stack), so only the auth
+    // belief is compared.
     if c.session_id_len == 0 {
         return;
     }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
     let sid_len = (c.session_id_len as usize).min(c.session_id.len());
+    let kex_count = (c.kex_count as usize).min(c.kex_secrets.len());
     let inner = SshClaimInner {
         auth_method: c_str_field_to_string(&c.auth_method),
         auth_user: c_str_field_to_string(&c.auth_user),
         auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
         session_id: c.session_id[..sid_len].to_vec(),
+        kex_secrets: c.kex_secrets[..kex_count]
+            .iter()
+            .map(|s| KexSecret {
+                exchange_hash: s.h[..(s.h_len as usize).min(s.h.len())].to_vec(),
+                shared_secret: s.k[..(s.k_len as usize).min(s.k.len())].to_vec(),
+            })
+            .collect(),
     };
     ctx.claims
         .deref_borrow_mut()

@@ -16,7 +16,9 @@ use puffin::test_utils::{
 use sshpuffin::protocol::SshProtocolBehavior;
 use sshpuffin::put_registry::ssh_registry;
 use sshpuffin::ssh::fn_impl::{
-    fn_claim_exchange_hash, fn_concat_raw_flights, fn_encrypt_packet_aesgcm, fn_onwire_message,
+    fn_claim_exchange_hash, fn_concat_raw_flights, fn_encrypt_packet_aesgcm,
+    fn_fold_c2s_transcript_epochs, fn_fold_s2c_transcript_epochs, fn_fold_transcript_first_epoch,
+    fn_onwire_message,
 };
 use sshpuffin::ssh::SSH_SIGNATURE;
 
@@ -43,8 +45,14 @@ fn test_term_generation() {
         stop_on_error: true,
         filter_executable: false,
         filter_no_gen: false,
-        // Its argument is a claim, which only a PUT emits: no term builds one.
-        ignored_functions: [fn_claim_exchange_hash.name().to_string()].into(),
+        // Their argument is a claim, which only a PUT emits: no term builds one.
+        ignored_functions: [
+            fn_claim_exchange_hash.name().to_string(),
+            fn_fold_s2c_transcript_epochs.name().to_string(),
+            fn_fold_c2s_transcript_epochs.name().to_string(),
+            fn_fold_transcript_first_epoch.name().to_string(),
+        ]
+        .into(),
         ..ssh_zoo()
     };
     assert!(zoo.run(StdRand::with_seed(102), |_, _, _| Ok(())));
